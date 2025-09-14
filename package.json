@@ -1,0 +1,15 @@
+{
+  "name": "nanumpay",
+  "private": true,
+  "version": "0.0.1",
+  "scripts": {
+    "dev:web": "pnpm --filter nanumpay-web dev",
+    "build:web": "pnpm --filter nanumpay-web build",
+    "start:web": "pnpm --filter nanumpay-web start",
+    "dev:app": "pnpm --filter nanumpay-app dev",
+    "build:app": "pnpm --filter nanumpay-app build",
+    "cap:sync": "pnpm --filter nanumpay-app cap:sync",
+    "cap:android": "pnpm --filter nanumpay-app cap:android",
+    "cap:ios": "pnpm --filter nanumpay-app cap:ios"
+  }
+}
