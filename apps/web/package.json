@@ -9,7 +9,13 @@
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
 		"format": "prettier --write .",
-		"lint": "prettier --check . && eslint ."
+		"lint": "prettier --check . && eslint .",
+    "exe:linux": "yarn build",
+		"exe:win": "yarn run build",
+		"release:linux": "yarn exe:linux && node scripts/release-linux.cjs",
+		"release:win": "yarn exe:win && node scripts/release-win.cjs",
+		"dev:seed-users": "node scripts/seed-users.js",
+		"seed:allowances": "node scripts/seed-allowances.js"
 	},
 	"devDependencies": {
 		"@capacitor/cli": "^7.4.3",

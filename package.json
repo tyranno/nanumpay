@@ -11,5 +11,10 @@
     "cap:sync": "pnpm --filter nanumpay-app cap:sync",
     "cap:android": "pnpm --filter nanumpay-app cap:android",
     "cap:ios": "pnpm --filter nanumpay-app cap:ios"
+  },
+  "devDependencies": {
+    "prettier": "^3.6.2",
+    "prettier-plugin-svelte": "^3.4.0",
+    "prettier-plugin-tailwindcss": "^0.6.14"
   }
 }
