@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -e
+
+APP=agent-tree
+
+if [ "$1" = "remove" ] || [ "$1" = "upgrade" ]; then
+  systemctl stop ${APP}.service || true
+  systemctl disable ${APP}.service || true
+  systemctl daemon-reload || true
+fi

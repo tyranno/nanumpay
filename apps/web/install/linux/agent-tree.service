@@ -1,0 +1,19 @@
+[Unit]
+Description=AgentTree SEA service
+After=network-online.target mongod.service mongodb.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=agent-tree
+Group=agent-tree
+WorkingDirectory=/opt/agent-tree
+EnvironmentFile=-/etc/default/agent-tree
+ExecStart=/opt/agent-tree/dist/agent-tree
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -e
+
+APP=agent-tree
+APPDIR=/opt/$APP
+USER=$APP
+
+# 런 유저
+if ! id -u "$USER" >/dev/null 2>&1; then
+  adduser --system --group --home /home/$USER --shell /bin/bash $USER
+fi
+chown -R $USER:$USER "$APPDIR"
+
+# systemd 유닛 설치/리로드/활성화/시작
+systemctl daemon-reload
+systemctl enable ${APP}.service
+systemctl restart ${APP}.service || systemctl start ${APP}.service
+
+echo "Installed. Check logs: journalctl -u ${APP} -f"
