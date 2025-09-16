@@ -11,7 +11,7 @@ async function main() {
 	const passwordHash = await bcrypt.hash('pass1234', 10);
 	const root = await User.create({
 		name: '홍길동1',
-		loginId: 'root1',
+		loginId: 'user1',
 		passwordHash,
 		role: 'admin',
 		parentId: null,

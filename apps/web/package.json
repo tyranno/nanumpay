@@ -14,6 +14,7 @@
 		"exe:win": "yarn run build",
 		"release:linux": "yarn exe:linux && node scripts/release-linux.cjs",
 		"release:win": "yarn exe:win && node scripts/release-win.cjs",
+		"seed:admin": "node scripts/seed-admin.js",
 		"seed:users": "node scripts/seed-users.js",
 		"seed:allowances": "node scripts/seed-allowances.js"
 	},
@@ -43,6 +44,10 @@
 	"dependencies": {
 		"@capacitor/android": "^7.4.3",
 		"@capacitor/core": "^7.4.3",
-		"@capacitor/ios": "^7.4.3"
+		"@capacitor/ios": "^7.4.3",
+		"bcryptjs": "^2.4.3",
+		"dotenv": "^16.3.1",
+		"jsonwebtoken": "^9.0.2",
+		"mongoose": "^8.0.0"
 	}
 }

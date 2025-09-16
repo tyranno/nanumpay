@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Bash(test:*)",
+      "Bash(pnpm install:*)",
+      "Bash(node:*)",
+      "Bash(pnpm run dev:*)"
     ],
     "deny": [],
     "ask": []
