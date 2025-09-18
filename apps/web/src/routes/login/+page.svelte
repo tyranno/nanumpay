@@ -26,9 +26,9 @@
 			if (response.ok) {
 				// 서버에서 반환한 userType에 따라 리다이렉션
 				if (data.userType === 'admin') {
-					goto('/admin');
+					goto('/admin', { replaceState: true });
 				} else {
-					goto('/dashboard');
+					goto('/dashboard', { replaceState: true });
 				}
 			} else {
 				errorMessage = data.message || '로그인에 실패했습니다.';
