@@ -8,7 +8,10 @@
       "Bash(pnpm run dev:*)",
       "Bash(ls:*)",
       "Bash(npm install:*)",
-      "Bash(pnpm add:*)"
+      "Bash(pnpm add:*)",
+      "Bash(npm run test:*)",
+      "Bash(pnpm dev:*)",
+      "Bash(python3:*)"
     ],
     "deny": [],
     "ask": []

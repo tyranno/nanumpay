@@ -23,6 +23,7 @@ const userSchema = new mongoose.Schema({
 		type: String,
 		sparse: true
 	},
+	// 계층 구조 필드
 	parentId: {
 		type: mongoose.Schema.Types.ObjectId,
 		ref: 'User',
@@ -33,10 +34,28 @@ const userSchema = new mongoose.Schema({
 		enum: ['L', 'R'],
 		default: null
 	},
-	level: {
-		type: Number,
-		default: 1
+	leftChildId: {
+		type: mongoose.Schema.Types.ObjectId,
+		ref: 'User',
+		default: null
 	},
+	rightChildId: {
+		type: mongoose.Schema.Types.ObjectId,
+		ref: 'User',
+		default: null
+	},
+	// 개인정보 (엑셀 구조에 맞춤)
+	idNumber: String, // 주민번호
+	bank: String, // 은행
+	accountNumber: String, // 계좌번호
+	salesperson: String, // 판매인
+	salespersonPhone: String, // 판매인 연락처
+	planner: String, // 설계사
+	plannerPhone: String, // 설계사 연락처
+	insuranceProduct: String, // 보험상품명
+	insuranceCompany: String, // 보험회사
+	branch: String, // 소속/지사
+	// 재무 정보
 	balance: {
 		type: Number,
 		default: 0
@@ -45,13 +64,30 @@ const userSchema = new mongoose.Schema({
 		type: Number,
 		default: 0
 	},
-	leftCount: {
+	monthlyPayment: {
 		type: Number,
 		default: 0
 	},
-	rightCount: {
+	paymentSchedule: [{
+		amount: Number,
+		date: Date,
+		installment: Number, // 회차 (1-10)
+		status: {
+			type: String,
+			enum: ['pending', 'paid', 'cancelled'],
+			default: 'pending'
+		}
+	}],
+	// 관리자 참조 (최상위 노드만)
+	rootAdminId: {
+		type: mongoose.Schema.Types.ObjectId,
+		ref: 'Admin',
+		default: null
+	},
+	// 상태 관리
+	level: {
 		type: Number,
-		default: 0
+		default: 1
 	},
 	status: {
 		type: String,
@@ -76,31 +112,61 @@ userSchema.index({ parentId: 1, position: 1 });
 userSchema.index({ status: 1, createdAt: -1 });
 userSchema.index({ createdAt: -1 });
 
-// 가상 필드 - 자식 노드 수를 미리 계산
-userSchema.virtual('childrenCount').get(function() {
-	return this.leftCount + this.rightCount;
+// 가상 필드 - 자식 존재 여부
+userSchema.virtual('hasLeftChild').get(function() {
+	return !!this.leftChildId;
 });
 
-// 트리 구조 업데이트 메서드
-userSchema.methods.updateTreeCounts = async function() {
-	const leftChild = await this.constructor.findOne({ parentId: this._id, position: 'L' });
-	const rightChild = await this.constructor.findOne({ parentId: this._id, position: 'R' });
+userSchema.virtual('hasRightChild').get(function() {
+	return !!this.rightChildId;
+});
 
-	this.leftCount = leftChild ? await countDescendants(leftChild._id) : 0;
-	this.rightCount = rightChild ? await countDescendants(rightChild._id) : 0;
-
-	await this.save();
+// 트리 구조 헬퍼 메서드
+userSchema.methods.getChildren = async function() {
+	const User = mongoose.model('User');
+	const children = await User.find({ parentId: this._id });
+	return {
+		left: children.find(c => c.position === 'L'),
+		right: children.find(c => c.position === 'R')
+	};
 };
 
-async function countDescendants(userId) {
+userSchema.methods.getParent = async function() {
+	if (!this.parentId) return null;
 	const User = mongoose.model('User');
-	const descendants = await User.countDocuments({
-		$or: [
-			{ parentId: userId },
-			// 재귀적 카운트는 별도 처리 필요
-		]
-	});
-	return descendants;
-}
+	return await User.findById(this.parentId);
+};
+
+// 빈 자리 찾기 (BFS)
+userSchema.methods.findEmptyPosition = async function() {
+	const User = mongoose.model('User');
+	const queue = [this._id];
+	const visited = new Set();
+
+	while (queue.length > 0) {
+		const userId = queue.shift();
+		if (visited.has(userId.toString())) continue;
+		visited.add(userId.toString());
+
+		const user = await User.findById(userId);
+		if (!user) continue;
+
+		// 왼쪽 자리 확인
+		const leftChild = await User.findOne({ parentId: userId, position: 'L' });
+		if (!leftChild) {
+			return { parentId: userId, position: 'L' };
+		}
+		queue.push(leftChild._id);
+
+		// 오른쪽 자리 확인
+		const rightChild = await User.findOne({ parentId: userId, position: 'R' });
+		if (!rightChild) {
+			return { parentId: userId, position: 'R' };
+		}
+		queue.push(rightChild._id);
+	}
+
+	return null;
+};
 
 export const User = mongoose.models.User || mongoose.model('User', userSchema);

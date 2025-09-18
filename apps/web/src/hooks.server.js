@@ -9,7 +9,11 @@ export async function handle({ event, resolve }) {
 	if (token) {
 		try {
 			const user = jwt.verify(token, JWT_SECRET);
-			event.locals.user = user;
+			// Admin 여부를 명확히 표시
+			event.locals.user = {
+				...user,
+				isAdmin: user.type === 'admin'
+			};
 		} catch (err) {
 			// 토큰이 만료된 경우
 			if (err.name === 'TokenExpiredError' && refreshToken) {
@@ -38,7 +42,11 @@ export async function handle({ event, resolve }) {
 						path: '/'
 					});
 
-					event.locals.user = jwt.verify(newToken, JWT_SECRET);
+					const verifiedUser = jwt.verify(newToken, JWT_SECRET);
+					event.locals.user = {
+						...verifiedUser,
+						isAdmin: verifiedUser.type === 'admin'
+					};
 				} catch (refreshErr) {
 					// 리프레시 토큰도 유효하지 않은 경우
 					event.cookies.delete('token', { path: '/' });

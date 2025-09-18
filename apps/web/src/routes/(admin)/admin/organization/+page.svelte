@@ -72,7 +72,7 @@
 					<label class="text-sm font-medium text-gray-700">사용자 선택:</label>
 					<select
 						bind:value={selectedUser}
-						on:change={handleUserChange}
+						onchange={handleUserChange}
 						class="block w-48 border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm"
 					>
 						<option value="홍길동23">홍길동23</option>

@@ -1,5 +1,7 @@
 <script>
 	import { onMount } from 'svelte';
+	import GradeBadge from '$lib/components/GradeBadge.svelte';
+	import { getGradeInfo } from '$lib/utils/gradeColors.js';
 
 	let totalRevenue = 0;
 	let currentMonth = '';
@@ -87,7 +89,9 @@
 						<tbody>
 							{#each Object.entries(gradeRatios) as [grade, data]}
 								<tr class="border-b border-gray-100">
-									<td class="px-3 py-2 text-sm text-gray-900">{grade}</td>
+									<td class="px-3 py-2">
+										<GradeBadge {grade} size="sm" />
+									</td>
 									<td class="px-3 py-2 text-sm text-center text-gray-900">{data.count}</td>
 									<td class="px-3 py-2 text-sm text-right text-gray-900">
 										{data.amount.toLocaleString()}
