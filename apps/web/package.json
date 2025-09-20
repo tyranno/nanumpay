@@ -20,7 +20,10 @@
 		"generate:september": "node scripts/generate-september-data.js",
 		"generate:mock": "node scripts/generate-mock-data.js",
 		"generate:mock:clean": "node scripts/generate-mock-data.js --clean",
-		"generate:installment": "node scripts/generate-installment-data.js"
+		"generate:installment": "node scripts/generate-installment-data.js",
+		"create:admin": "node scripts/create-admin.js",
+		"reset:db": "node scripts/reset-db.js",
+		"reset:all": "node scripts/reset-all-data.js"
 	},
 	"devDependencies": {
 		"@capacitor/cli": "^7.4.3",
@@ -58,6 +61,8 @@
 		"jsonwebtoken": "^9.0.2",
 		"mongoose": "^8.0.0",
 		"multer": "^2.0.2",
+		"winston": "^3.17.0",
+		"winston-daily-rotate-file": "^5.0.0",
 		"xlsx": "^0.18.5"
 	}
 }

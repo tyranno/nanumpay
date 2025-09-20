@@ -44,7 +44,4 @@ const adminSchema = new mongoose.Schema({
 	updatedAt: Date
 });
 
-adminSchema.index({ loginId: 1 });
-adminSchema.index({ email: 1 }, { sparse: true });
-
 export const Admin = mongoose.models.Admin || mongoose.model('Admin', adminSchema);

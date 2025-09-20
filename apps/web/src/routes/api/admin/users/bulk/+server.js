@@ -2,6 +2,8 @@ import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db.js';
 import User from '$lib/server/models/User.js';
 import bcrypt from 'bcryptjs';
+import { recalculateAllGrades, updateParentGrade } from '$lib/server/services/gradeCalculation.js';
+import { excelLogger } from '$lib/server/logger.js';
 
 export async function POST({ request, locals }) {
 	// 관리자 권한 확인
@@ -14,35 +16,95 @@ export async function POST({ request, locals }) {
 	try {
 		const { users } = await request.json();
 
+		// 로그 기록 시작
+		excelLogger.info('=== 엑셀 업로드 시작 ===', {
+			admin: locals.user.name || locals.user.id,
+			timestamp: new Date().toISOString(),
+			dataCount: users ? users.length : 0,
+			sampleData: users ? users.slice(0, 2) : null
+		});
+
+		console.log('=== 엑셀 업로드 시작 ===');
+		console.log('받은 데이터:', JSON.stringify(users ? users.slice(0, 2) : null, null, 2));
+		console.log('데이터 개수:', users ? users.length : 0);
+
 		if (!users || !Array.isArray(users)) {
+			const error = '데이터 형식 오류';
+			excelLogger.error(error, { users, type: typeof users });
+			console.error('데이터 형식 오류:', { users, type: typeof users });
 			return json({ error: '올바른 데이터 형식이 아닙니다.' }, { status: 400 });
 		}
 
 		const results = {
 			created: 0,
 			failed: 0,
-			errors: []
+			errors: [],
+			alerts: []  // 알림 추가
 		};
 
-		for (const userData of users) {
+		// 1단계: 모든 사용자를 먼저 등록 (부모 관계 설정 없이)
+		const registeredUsers = new Map(); // loginId -> user 매핑
+		const usersByOrder = []; // 엑셀 순서대로 저장
+
+		// 현재 최대 시퀀스 번호 가져오기
+		const lastUser = await User.findOne().sort({ sequence: -1 }).select('sequence');
+		let currentSequence = lastUser ? lastUser.sequence : 0;
+
+		for (let i = 0; i < users.length; i++) {
+			const userData = users[i];
+			console.log(`\n처리 중 [행 ${i + 1}]:`, userData);
+
+			// 행별 처리 로그
+			excelLogger.debug(`처리 중 [행 ${i + 1}]`, { row: i + 1, data: userData });
+
+			// name 변수를 try 블록 밖에서 선언
+			let name = '';
+
 			try {
-				// 엑셀 헤더 매핑
-				const name = userData['성명'] || userData.name;
-				const phone = userData['연락처'] || userData.phone || '';
-				const idNumber = userData['주민번호'] || userData.idNumber || '';
-				const branch = userData['소속/지사'] || userData['지사'] || userData.branch || '';
-				const bank = userData['은행'] || userData.bank || '';
-				const accountNumber = userData['계좌번호'] || userData.accountNumber || '';
-				const salesperson = userData['판매인'] || userData.salesperson || '';
-				const salespersonPhone = userData['연락처.1'] || userData.salespersonPhone || '';
-				const planner = userData['설계사'] || userData.planner || '';
-				const plannerPhone = userData['연락처.2'] || userData.plannerPhone || '';
-				const insuranceProduct = userData['보험상품명'] || userData.insuranceProduct || '';
-				const insuranceCompany = userData['보험회사'] || userData.insuranceCompany || '';
+				// 엑셀 헤더 매핑 - 가능한 모든 헤더 형식 확인
+				// 값이 undefined, null, 빈 문자열인 경우 모두 처리
+				// __EMPTY 형식의 키도 처리
+				const getValue = (obj, keys) => {
+					for (const key of keys) {
+						const value = obj[key];
+						if (value !== undefined && value !== null && value !== '') {
+							return String(value).trim();
+						}
+					}
+					return '';
+				};
+
+				// __EMPTY 형식으로 파싱된 경우 처리
+				// 첫 번째 행이 헤더인 경우 건너뛰기
+				if (userData['용 역 자 관 리 명 부'] === '순번' || userData['__EMPTY_1'] === '성명') {
+					console.log(`행 ${i + 1}: 헤더 행 건너뛰기`);
+					continue;
+				}
+
+				// __EMPTY 형식의 필드 매핑
+				// __EMPTY_1: 성명, __EMPTY_2: 연락처, __EMPTY_3: 주민번호
+				// __EMPTY_4: 은행, __EMPTY_5: 계좌번호, __EMPTY_6: 판매인
+				// __EMPTY_7: 판매인연락처, __EMPTY_8: 설계사, __EMPTY_9: 설계사연락처
+				// __EMPTY_10: 보험상품명, __EMPTY_11: 보험회사
+				name = getValue(userData, ['성명', '이름', 'name', '__EMPTY_1']);
+				const phone = getValue(userData, ['연락처', '전화번호', 'phone', '__EMPTY_2']);
+				const idNumber = getValue(userData, ['주민번호', '__EMPTY_3']);
+				const bank = getValue(userData, ['은행', 'bank', '__EMPTY_4']);
+				const accountNumber = getValue(userData, ['계좌번호', '계좌', 'accountNumber', '__EMPTY_5']);
+				const salesperson = getValue(userData, ['판매인', '추천인', 'salesperson', '__EMPTY_6']);
+				const salespersonPhone = getValue(userData, ['판매인 연락처', '연락처.1', 'salespersonPhone', '__EMPTY_7']);
+				const planner = getValue(userData, ['설계사', 'planner', '__EMPTY_8']);
+				const plannerPhone = getValue(userData, ['설계사 연락처', '연락처.2', 'plannerPhone', '__EMPTY_9']);
+				const insuranceProduct = getValue(userData, ['보험상품명', '보험상품', 'insuranceProduct', '__EMPTY_10']);
+				const insuranceCompany = getValue(userData, ['보험회사', 'insuranceCompany', '__EMPTY_11']);
+				const branch = getValue(userData, ['지사', '소속/지사', 'branch', '__EMPTY_12']);
+
+				console.log('추출된 데이터:', { name, phone, branch, salesperson });
 
 				if (!name) {
 					results.failed++;
-					results.errors.push(`행 ${results.created + results.failed}: 이름이 없습니다.`);
+					results.errors.push(`행 ${i + 1}: 이름이 없습니다.`);
+					console.log(`행 ${i + 1} 실패: 이름 없음`);
 					continue;
 				}
 
@@ -63,73 +125,222 @@ export async function POST({ request, locals }) {
 					loginId = baseLoginId + suffix;
 				}
 
-				// 판매인으로 부모 찾기
-				let parentId = null;
-				let position = null;
-
-				if (salesperson) {
-					const parentUser = await User.findOne({ name: salesperson });
-					if (parentUser) {
-						const leftChild = await User.findOne({
-							parentId: parentUser._id,
-							position: 'L'
-						});
-						const rightChild = await User.findOne({
-							parentId: parentUser._id,
-							position: 'R'
-						});
-
-						if (!leftChild) {
-							parentId = parentUser._id;
-							position = 'L';
-						} else if (!rightChild) {
-							parentId = parentUser._id;
-							position = 'R';
-						}
-						// 둘 다 있으면 부모 설정하지 않음 (수동 배치 필요)
-					}
-				}
+				// 1단계에서는 부모 관계 설정하지 않음 (나중에 2단계에서 처리)
 
 				// 비밀번호 해싱
 				const passwordHash = await bcrypt.hash(password, 10);
 
-				// 사용자 생성
+				// 초기 등급 설정 (기본 F1, 부모가 있고 좌우가 채워지면 F2로 업그레이드)
+				const grade = 'F1';
+
+				// 시퀀스 번호 할당 (순서대로 증가)
+				currentSequence++;
+
+				// 사용자 생성 (부모 관계 없이)
 				const newUser = new User({
 					name,
 					loginId,
 					passwordHash,
 					phone,
-					idNumber,
+					idNumber,  // 주민번호 추가
 					branch,
 					bank,
 					accountNumber,
-					salesperson,
-					salespersonPhone,
-					planner,
-					plannerPhone,
-					insuranceProduct,
+					grade,
+					salesperson,  // 판매인 정보만 저장 (관계는 나중에)
+					salespersonPhone,  // 판매인 연락처 추가
+					planner,  // planner 필드명 사용
+					plannerPhone,  // plannerPhone 필드명 사용
+					insuranceProduct,  // insuranceProduct 필드명 사용
 					insuranceCompany,
-					parentId,
-					position,
-					rootAdminId: locals.user.id
+					status: 'active',
+					type: 'user',
+					sequence: currentSequence  // 시퀀스 번호 저장
 				});
 
 				const savedUser = await newUser.save();
-
-				// 부모 노드 업데이트
-				if (parentId) {
-					const updateField = position === 'L' ? 'leftChildId' : 'rightChildId';
-					await User.findByIdAndUpdate(parentId, {
-						[updateField]: savedUser._id
-					});
-				}
+				registeredUsers.set(loginId, { user: savedUser, salesperson, name, row: i + 1 });
+				usersByOrder.push({ loginId, salesperson, name, row: i + 1 }); // 순서대로 저장
 
 				results.created++;
-				console.log(`사용자 등록: ${name} (ID: ${loginId}, 암호: ${password})`);
+				const successMsg = `✅ 사용자 등록 성공: ${name} (ID: ${loginId}, 암호: ${password})`;
+				console.log(successMsg);
+					excelLogger.info('사용자 등록 성공', {
+					row: i + 1,
+					name,
+					loginId,
+					grade
+				});
 
 			} catch (error) {
 				results.failed++;
-				results.errors.push(`행 ${results.created + results.failed}: ${error.message}`);
+
+				// 사용자 친화적인 오류 메시지
+				let userFriendlyMsg = `행 ${i + 1}: `;
+
+				// Cast to ObjectId 오류 처리
+				if (error.message.includes('Cast to ObjectId')) {
+					userFriendlyMsg += `데이터 형식 오류 (${name || '이름 없음'})`;
+				}
+				// 중복 키 오류
+				else if (error.code === 11000 || error.message.includes('duplicate')) {
+					userFriendlyMsg += `이미 등록된 사용자 (${name || '이름 없음'})`;
+				}
+				// Validation 오류
+				else if (error.name === 'ValidationError') {
+					userFriendlyMsg += `필수 항목 누락 (${name || '이름 없음'})`;
+				}
+				// 기타 오류
+				else {
+					userFriendlyMsg += `등록 실패 (${name || '이름 없음'})`;
+				}
+
+				results.errors.push(userFriendlyMsg);
+
+				// 개발자용 상세 로그는 서버 로그에만 기록
+				console.error(`❌ 행 ${i + 1} 실패:`, error.message);
+				excelLogger.error('사용자 등록 실패', {
+					row: i + 1,
+					name: name || 'unknown',
+					error: error.message,
+					stack: error.stack
+				});
+			}
+		}
+
+		// 2단계: 부모-자식 관계 설정 (엑셀 순서대로)
+		console.log('\n=== 부모-자식 관계 설정 시작 (엑셀 순서대로) ===');
+		for (const orderInfo of usersByOrder) {
+			const loginId = orderInfo.loginId;
+			const info = registeredUsers.get(loginId);
+			if (info.salesperson) {
+				try {
+					// 판매인 찾기 (DB 또는 방금 등록한 사용자 중에서)
+					let parentUser = null;
+
+					// "관리자"인 경우 특별 처리
+					if (info.salesperson === '관리자') {
+						// 관리자는 Admin 컬렉션에 있으므로 User로 찾을 수 없음
+						// 관리자 직속은 부모 없이 최상위 노드로 처리
+						console.log(`${info.name}: 관리자 직속 배치 (최상위 노드)`);
+						continue; // 부모 관계 설정하지 않고 넘어감
+					}
+
+					parentUser = await User.findOne({
+						$or: [
+							{ name: info.salesperson },
+							{ loginId: info.salesperson.toLowerCase() }
+						]
+					});
+
+					if (!parentUser) {
+						// 방금 등록한 사용자들 중에서 찾기
+						for (const [regLoginId, regInfo] of registeredUsers) {
+							if (regInfo.name === info.salesperson) {
+								parentUser = regInfo.user;
+								break;
+							}
+						}
+					}
+
+					if (parentUser) {
+						const parentLoginId = parentUser.loginId;
+
+						// 자식 노드 확인
+						const leftChild = await User.findOne({
+							parentId: parentLoginId,
+							position: 'L'
+						});
+						const rightChild = await User.findOne({
+							parentId: parentLoginId,
+							position: 'R'
+						});
+
+						let position = null;
+						if (!leftChild) {
+							position = 'L';
+						} else if (!rightChild) {
+							position = 'R';
+						}
+
+						if (position) {
+							// 사용자 업데이트: 부모 및 위치 설정
+							await User.findOneAndUpdate(
+								{ loginId },
+								{ parentId: parentLoginId, position }
+							);
+
+							// 부모 업데이트: 자식 참조 설정
+							const updateField = position === 'L' ? 'leftChildId' : 'rightChildId';
+							await User.findOneAndUpdate(
+								{ loginId: parentLoginId },
+								{ [updateField]: loginId }
+							);
+
+							console.log(`✅ ${info.name}: ${info.salesperson}의 ${position === 'L' ? '좌측' : '우측'}에 배치`);
+
+							// 부모의 등급 업데이트
+							await updateParentGrade(parentLoginId);
+						} else {
+							// 좌우 자리가 모두 찬 경우
+							const alertMsg = `${info.salesperson}님의 좌우 자리가 모두 찼습니다. ${info.name}님은 수동으로 배치해 주세요.`;
+							if (!results.alerts) results.alerts = [];
+							results.alerts.push({
+								type: 'warning',
+								message: alertMsg,
+								parent: info.salesperson,
+								user: info.name
+							});
+							console.log(`⚠️ ${info.name}: ${info.salesperson}의 자리가 모두 참`);
+						}
+					} else {
+						console.log(`❌ ${info.name}: 판매인 ${info.salesperson}을(를) 찾을 수 없음`);
+					}
+				} catch (err) {
+					console.error(`관계 설정 오류 (${info.name}):`, err.message);
+				}
+			}
+		}
+
+		console.log('\n=== 엑셀 업로드 결과 ===')
+		console.log(`성공: ${results.created}명`);
+		console.log(`실패: ${results.failed}명`);
+		if (results.errors.length > 0) {
+			console.log('오류 목록:', results.errors);
+		}
+
+		// 결과 로그 기록
+		excelLogger.info('=== 엑셀 업로드 완료 ===', {
+			admin: locals.user.name || locals.user.id,
+			timestamp: new Date().toISOString(),
+			success: results.created,
+			failed: results.failed,
+			errors: results.errors
+		});
+
+		// 배치 처리: 등급, 매출, 지급 스케줄 모두 자동 처리
+		if (results.created > 0) {
+			console.log('\n=== 배치 처리 시작 ===');
+			try {
+				// 등록된 사용자 ID 수집
+				const userIds = Array.from(registeredUsers.values()).map(info => info.user._id);
+
+				// BatchProcessor로 모든 자동 처리 실행
+				const { batchProcessor } = await import('$lib/server/services/batchProcessor.js');
+				const batchResult = await batchProcessor.processNewUsers(userIds);
+
+				console.log('✅ 배치 처리 완료:', {
+					processingTime: `${batchResult.processingTime}ms`,
+					revenue: batchResult.results.revenue?.totalRevenue?.toLocaleString() + '원',
+					schedules: batchResult.results.schedules?.length + '개',
+					plans: batchResult.results.plans?.length + '명'
+				});
+
+				// 결과에 배치 처리 정보 추가
+				results.batchProcessing = batchResult.results;
+			} catch (err) {
+				console.error('배치 처리 실패:', err);
+				results.batchError = err.message;
 			}
 		}
 
@@ -138,6 +349,7 @@ export async function POST({ request, locals }) {
 			created: results.created,
 			failed: results.failed,
 			errors: results.errors,
+			alerts: results.alerts,  // 알림 추가
 			message: `${results.created}명 등록 완료, ${results.failed}명 실패`
 		});
 
@@ -145,4 +357,55 @@ export async function POST({ request, locals }) {
 		console.error('Bulk user registration error:', error);
 		return json({ error: '일괄 등록 중 오류가 발생했습니다.' }, { status: 500 });
 	}
+}
+
+/**
+ * GET: 엑셀 템플릿 다운로드
+ */
+export async function GET({ locals }) {
+	// 관리자 권한 확인
+	if (!locals.user || !locals.user.isAdmin) {
+		return json({ error: 'Unauthorized' }, { status: 401 });
+	}
+
+	// xlsx 라이브러리 import
+	const XLSX = await import('xlsx');
+
+	// 샘플 데이터
+	const sampleData = [
+		['성명', '연락처', '지사', '은행', '계좌번호', '판매인', '설계사', '설계사 연락처', '보험상품명', '보험회사'],
+		['홍길동', '010-1234-5678', '서울지사', '국민은행', '123-456-789', '', '', '', '', ''],
+		['김철수', '010-2345-6789', '경기지사', '신한은행', '987-654-321', '홍길동', '이영희', '010-1111-2222', '종신보험', 'A생명'],
+		['이영희', '010-3456-7890', '인천지사', '우리은행', '456-789-123', '홍길동', '박민수', '010-3333-4444', '연금보험', 'B생명'],
+	];
+
+	// 워크북 생성
+	const workbook = XLSX.utils.book_new();
+	const worksheet = XLSX.utils.aoa_to_sheet(sampleData);
+
+	// 컬럼 너비 설정
+	worksheet['!cols'] = [
+		{ wch: 10 }, // 성명
+		{ wch: 15 }, // 연락처
+		{ wch: 12 }, // 지사
+		{ wch: 12 }, // 은행
+		{ wch: 20 }, // 계좌번호
+		{ wch: 10 }, // 판매인
+		{ wch: 10 }, // 설계사
+		{ wch: 15 }, // 설계사 연락처
+		{ wch: 15 }, // 보험상품명
+		{ wch: 12 }, // 보험회사
+	];
+
+	XLSX.utils.book_append_sheet(workbook, worksheet, '사용자등록');
+
+	// 바이너리로 변환
+	const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+	return new Response(buffer, {
+		headers: {
+			'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+			'Content-Disposition': 'attachment; filename="user_registration_template.xlsx"'
+		}
+	});
 }

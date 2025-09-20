@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import * as XLSX from 'xlsx';
 	import GradeBadge from '$lib/components/GradeBadge.svelte';
+	import NotificationModal from '$lib/components/NotificationModal.svelte';
 
 	let members = [];
 	let isLoading = true;
@@ -10,8 +11,8 @@
 	let totalPages = 1;
 	let totalMembers = 0;
 	let itemsPerPage = 20;
-	let sortBy = 'createdAt';
-	let sortOrder = 'desc';
+	let sortBy = 'sequence';
+	let sortOrder = 'asc';
 
 	// 콜럼 표시/숨김 설정
 	let visibleColumns = {
@@ -35,22 +36,33 @@
 	let uploadFile = null;
 	let editingMember = null;
 
+	// 알림 상태
+	let notificationOpen = false;
+	let notificationConfig = {
+		type: 'info',
+		title: '알림',
+		message: '',
+		results: null,
+		details: []
+	};
+
 	// 새 회원 폼
 	let newMember = {
 		name: '',
 		loginId: '',
 		phone: '',
+		idNumber: '',
 		bank: '',
 		accountNumber: '',
 		branch: '',
 		parentId: '',
 		position: 'L',
-		insurance: '',
-		insuranceCompany: '',
-		designer: '',
-		designerPhone: '',
-		seller: '',
-		sellerPhone: ''
+		salesperson: '',
+		salespersonPhone: '',
+		planner: '',
+		plannerPhone: '',
+		insuranceProduct: '',
+		insuranceCompany: ''
 	};
 
 	onMount(async () => {
@@ -126,14 +138,28 @@
 	// 새 회원 추가
 	async function handleAddMember() {
 		if (!newMember.name || !newMember.phone) {
-			alert('이름과 연락처는 필수입니다.');
+			notificationConfig = {
+				type: 'warning',
+				title: '입력 오류',
+				message: '이름과 연락처는 필수입니다.',
+				results: null,
+				details: []
+			};
+			notificationOpen = true;
 			return;
 		}
 
 		// 전화번호 뒤 4자리를 암호로 사용
 		const phoneDigits = newMember.phone.replace(/[^0-9]/g, '');
 		if (phoneDigits.length < 4) {
-			alert('올바른 전화번호를 입력해주세요.');
+			notificationConfig = {
+				type: 'warning',
+				title: '입력 오류',
+				message: '올바른 전화번호를 입력해주세요.',
+				results: null,
+				details: []
+			};
+			notificationOpen = true;
 			return;
 		}
 		const autoPassword = phoneDigits.slice(-4);
@@ -165,16 +191,37 @@
 
 			const result = await response.json();
 			if (response.ok) {
-				alert(`사용자가 등록되었습니다.\n\nID: ${result.user.loginId}\n초기 비밀번호: ${autoPassword}`);
+				notificationConfig = {
+					type: 'success',
+					title: '사용자 등록 완료',
+					message: `ID: ${result.user.loginId}\n초기 비밀번호: ${autoPassword}`,
+					results: null,
+					details: []
+				};
+				notificationOpen = true;
 				showAddModal = false;
 				resetNewMember();
 				await loadMembers();
 			} else {
-				alert(`등록 실패: ${result.error || '알 수 없는 오류'}`);
+				notificationConfig = {
+					type: 'error',
+					title: '등록 실패',
+					message: result.error || '알 수 없는 오류',
+					results: null,
+					details: []
+				};
+				notificationOpen = true;
 			}
 		} catch (error) {
 			console.error('Add member error:', error);
-			alert('사용자 등록 중 오류가 발생했습니다.');
+			notificationConfig = {
+				type: 'error',
+				title: '오류',
+				message: '사용자 등록 중 오류가 발생했습니다.',
+				results: null,
+				details: []
+			};
+			notificationOpen = true;
 		}
 	}
 
@@ -193,16 +240,37 @@
 			});
 
 			if (response.ok) {
-				alert('수정되었습니다.');
+				notificationConfig = {
+					type: 'success',
+					title: '수정 완료',
+					message: '회원 정보가 수정되었습니다.',
+					results: null,
+					details: []
+				};
+				notificationOpen = true;
 				showEditModal = false;
 				await loadMembers();
 			} else {
 				const result = await response.json();
-				alert(`수정 실패: ${result.error || '알 수 없는 오류'}`);
+				notificationConfig = {
+					type: 'error',
+					title: '수정 실패',
+					message: result.error || '알 수 없는 오류',
+					results: null,
+					details: []
+				};
+				notificationOpen = true;
 			}
 		} catch (error) {
 			console.error('Edit member error:', error);
-			alert('수정 중 오류가 발생했습니다.');
+			notificationConfig = {
+				type: 'error',
+				title: '오류',
+				message: '수정 중 오류가 발생했습니다.',
+				results: null,
+				details: []
+			};
+			notificationOpen = true;
 		}
 	}
 
@@ -222,15 +290,36 @@
 			});
 
 			if (response.ok) {
-				alert('삭제되었습니다.');
+				notificationConfig = {
+					type: 'success',
+					title: '삭제 완료',
+					message: '회원이 삭제되었습니다.',
+					results: null,
+					details: []
+				};
+				notificationOpen = true;
 				await loadMembers();
 			} else {
 				const result = await response.json();
-				alert(`삭제 실패: ${result.error || '알 수 없는 오류'}`);
+				notificationConfig = {
+					type: 'error',
+					title: '삭제 실패',
+					message: result.error || '알 수 없는 오류',
+					results: null,
+					details: []
+				};
+				notificationOpen = true;
 			}
 		} catch (error) {
 			console.error('Delete member error:', error);
-			alert('삭제 중 오류가 발생했습니다.');
+			notificationConfig = {
+				type: 'error',
+				title: '오류',
+				message: '삭제 중 오류가 발생했습니다.',
+				results: null,
+				details: []
+			};
+			notificationOpen = true;
 		}
 	}
 
@@ -244,7 +333,14 @@
 
 	async function handleExcelUpload() {
 		if (!uploadFile) {
-			alert('파일을 선택해주세요.');
+			notificationConfig = {
+				type: 'warning',
+				title: '파일 선택',
+				message: '파일을 선택해주세요.',
+				results: null,
+				details: []
+			};
+			notificationOpen = true;
 			return;
 		}
 
@@ -266,16 +362,48 @@
 
 				const result = await response.json();
 				if (response.ok) {
-					alert(`${result.created}명이 등록되었습니다.`);
+					// 성공 알림 표시
+					notificationConfig = {
+						type: result.failed > 0 ? 'warning' : 'success',
+						title: '엑셀 업로드 완료',
+						message: `총 ${result.created + result.failed}개 항목 중 ${result.created}명이 성공적으로 등록되었습니다.`,
+						results: {
+							created: result.created,
+							failed: result.failed,
+							alerts: result.alerts,
+							errors: result.errors
+						},
+						details: []
+					};
+					notificationOpen = true;
 					showUploadModal = false;
 					uploadFile = null;
 					await loadMembers();
 				} else {
-					alert(`업로드 실패: ${result.error}`);
+					// 오류 알림 표시
+					notificationConfig = {
+						type: 'error',
+						title: '업로드 실패',
+						message: result.error || '엑셀 파일 업로드 중 오류가 발생했습니다.',
+						results: null,
+						details: []
+					};
+					notificationOpen = true;
 				}
 			} catch (error) {
 				console.error('Excel upload error:', error);
-				alert('엑셀 파일 처리 중 오류가 발생했습니다.');
+				notificationConfig = {
+					type: 'error',
+					title: '처리 오류',
+					message: '엑셀 파일 처리 중 오류가 발생했습니다.',
+					results: null,
+					details: [{
+						type: 'error',
+						title: '오류 내용',
+						content: error.message
+					}]
+				};
+				notificationOpen = true;
 			}
 		};
 		reader.readAsArrayBuffer(uploadFile);
@@ -289,21 +417,15 @@
 			idNumber: '',
 			bank: '',
 			accountNumber: '',
+			branch: '',
+			parentId: '',
+			position: 'L',
 			salesperson: '',
 			salespersonPhone: '',
 			planner: '',
 			plannerPhone: '',
 			insuranceProduct: '',
-			insuranceCompany: '',
-			branch: '',
-			parentId: '',
-			position: 'L',
-			insurance: '',
-			insuranceCompany: '',
-			designer: '',
-			designerPhone: '',
-			seller: '',
-			sellerPhone: ''
+			insuranceCompany: ''
 		};
 	}
 
@@ -769,43 +891,109 @@
 
 	<!-- 엑셀 업로드 모달 -->
 	{#if showUploadModal}
-		<div class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-			<div class="bg-white rounded-lg p-6 w-full max-w-md">
-				<h3 class="text-lg font-medium text-gray-900 mb-4">엑셀 파일 업로드</h3>
+		<div class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50">
+			<div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-lg transform transition-all">
+				<div class="flex items-center gap-3 mb-6">
+					<div class="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center shadow-lg">
+						<img src="/icons/excel.svg" alt="Excel" class="w-6 h-6 filter brightness-0 invert" />
+					</div>
+					<div>
+						<h3 class="text-xl font-bold text-gray-900">엑셀 파일 업로드</h3>
+						<p class="text-sm text-gray-500">대량 사용자 등록</p>
+					</div>
+				</div>
 
-				<div class="mb-4">
-					<p class="text-sm text-gray-600 mb-2">
-						엑셀 파일 형식: 이름, 전화번호, 은행, 계좌번호, 판매인 등의 컬럼이 포함된 .xlsx 파일
-					</p>
-					<input
-						type="file"
-						accept=".xlsx"
-						onchange={handleFileSelect}
-						class="w-full px-3 py-2 border border-gray-300 rounded-md"
-					/>
+				<div class="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-4 mb-6">
+					<div class="flex items-start gap-3 mb-3">
+						<div class="w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+							<span class="text-blue-600 text-xs font-bold">i</span>
+						</div>
+						<div class="flex-1">
+							<p class="text-sm font-semibold text-gray-700 mb-1">파일 형식 안내</p>
+							<p class="text-xs text-gray-600 leading-relaxed">
+								엑셀 파일에는 다음 컬럼이 포함되어야 합니다:
+								성명, 연락처, 지사, 은행, 계좌번호, 판매인, 설계사, 보험상품 등
+							</p>
+						</div>
+					</div>
+
+					<div class="relative">
+						<input
+							type="file"
+							accept=".xlsx"
+							onchange={handleFileSelect}
+							id="excel-upload"
+							class="hidden"
+						/>
+						<label
+							for="excel-upload"
+							class="block w-full px-4 py-3 bg-white border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all duration-200"
+						>
+							<div class="flex items-center justify-center gap-2">
+								<svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+								</svg>
+								<span class="text-sm font-medium text-gray-600">
+									{uploadFile ? '다른 파일 선택' : '파일 선택하기'}
+								</span>
+							</div>
+						</label>
+					</div>
 				</div>
 
 				{#if uploadFile}
-					<div class="mb-4 p-3 bg-blue-50 rounded-md">
-						<p class="text-sm text-blue-800">
-							선택된 파일: {uploadFile.name}
-						</p>
+					<div class="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+						<div class="flex items-center gap-3">
+							<div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+								<svg class="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+									<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+								</svg>
+							</div>
+							<div class="flex-1">
+								<p class="text-sm font-semibold text-blue-900">선택된 파일</p>
+								<p class="text-xs text-blue-700">{uploadFile.name}</p>
+							</div>
+							<button
+								onclick={() => uploadFile = null}
+								class="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center hover:bg-blue-200 transition-colors"
+							>
+								<svg class="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+								</svg>
+							</button>
+						</div>
 					</div>
 				{/if}
+
+				<div class="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-6">
+					<div class="flex items-start gap-2">
+						<svg class="w-4 h-4 text-amber-600 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+							<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+						</svg>
+						<p class="text-xs text-amber-800">
+							<span class="font-semibold">주의:</span> ID는 이름으로 자동 생성되며, 비밀번호는 전화번호 뒤 4자리로 설정됩니다.
+						</p>
+					</div>
+				</div>
 
 				<div class="flex justify-end gap-3">
 					<button
 						onclick={() => { showUploadModal = false; uploadFile = null; }}
-						class="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50"
+						class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors duration-200 shadow-sm"
 					>
 						취소
 					</button>
 					<button
 						onclick={handleExcelUpload}
 						disabled={!uploadFile}
-						class="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400"
+						class="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg hover:from-blue-700 hover:to-blue-800 disabled:from-gray-400 disabled:to-gray-400 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
 					>
-						업로드
+						<span class="flex items-center gap-2">
+							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+							</svg>
+							업로드
+						</span>
 					</button>
 				</div>
 			</div>
@@ -1099,4 +1287,15 @@
 			</div>
 		</div>
 	{/if}
+
+	<!-- 알림 모달 -->
+	<NotificationModal
+		bind:isOpen={notificationOpen}
+		type={notificationConfig.type}
+		title={notificationConfig.title}
+		message={notificationConfig.message}
+		results={notificationConfig.results}
+		details={notificationConfig.details}
+		onClose={() => { notificationOpen = false; }}
+	/>
 </div>

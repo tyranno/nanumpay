@@ -23,9 +23,9 @@ const userSchema = new mongoose.Schema({
 		type: String,
 		sparse: true
 	},
-	// 계층 구조 필드
+	// 계층 구조 필드 - loginId를 사용하여 참조
 	parentId: {
-		type: mongoose.Schema.Types.ObjectId,
+		type: String,  // loginId로 참조
 		ref: 'User',
 		default: null
 	},
@@ -35,12 +35,12 @@ const userSchema = new mongoose.Schema({
 		default: null
 	},
 	leftChildId: {
-		type: mongoose.Schema.Types.ObjectId,
+		type: String,  // loginId로 참조
 		ref: 'User',
 		default: null
 	},
 	rightChildId: {
-		type: mongoose.Schema.Types.ObjectId,
+		type: String,  // loginId로 참조
 		ref: 'User',
 		default: null
 	},
@@ -100,6 +100,11 @@ const userSchema = new mongoose.Schema({
 		enum: ['active', 'inactive', 'suspended'],
 		default: 'active'
 	},
+	// 등록 순서 (엑셀 일괄 등록 시 순서 보장)
+	sequence: {
+		type: Number,
+		default: 0
+	},
 	joinedAt: {
 		type: Date,
 		default: Date.now
@@ -113,10 +118,9 @@ const userSchema = new mongoose.Schema({
 });
 
 // 복합 인덱스 최적화
-userSchema.index({ loginId: 1 });
 userSchema.index({ parentId: 1, position: 1 });
 userSchema.index({ status: 1, createdAt: -1 });
-userSchema.index({ createdAt: -1 });
+userSchema.index({ createdAt: 1 });
 
 // 가상 필드 - 자식 존재 여부
 userSchema.virtual('hasLeftChild').get(function() {
@@ -175,5 +179,10 @@ userSchema.methods.findEmptyPosition = async function() {
 	return null;
 };
 
-const User = mongoose.models.User || mongoose.model('User', userSchema);
+// 모델 캐시 강제 삭제 (스키마 변경 시)
+if (mongoose.models.User) {
+	delete mongoose.models.User;
+}
+
+const User = mongoose.model('User', userSchema);
 export default User;

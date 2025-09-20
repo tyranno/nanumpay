@@ -16,8 +16,8 @@ export async function GET({ url, locals }) {
 		const page = parseInt(url.searchParams.get('page') || '1');
 		const limit = parseInt(url.searchParams.get('limit') || '20');
 		const search = url.searchParams.get('search') || '';
-		const sortBy = url.searchParams.get('sortBy') || 'createdAt';
-		const sortOrder = url.searchParams.get('sortOrder') || 'desc';
+		const sortBy = url.searchParams.get('sortBy') || 'sequence';
+		const sortOrder = url.searchParams.get('sortOrder') || 'asc';
 
 		// 검색 조건 구성
 		let query = {};
@@ -47,7 +47,6 @@ export async function GET({ url, locals }) {
 		// 사용자 목록 조회
 		const users = await User.find(query)
 			.select('-passwordHash')
-			.populate('parentId', 'name loginId')
 			.sort(sortOptions)
 			.skip(skip)
 			.limit(limit)
