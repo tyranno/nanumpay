@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db.js';
-import { User } from '$lib/server/models/User.js';
+import User from '$lib/server/models/User.js';
 import SimpleCache from '$lib/server/cache.js';
 
 // 캐시 설정 (TTL: 60초)

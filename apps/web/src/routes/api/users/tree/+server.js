@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db.js';
-import { User } from '$lib/server/models/User.js';
+import User from '$lib/server/models/User.js';
 
 // GET: 사용자 트리 구조 조회
 export async function GET({ url, locals }) {

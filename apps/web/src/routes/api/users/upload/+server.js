@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db.js';
-import { User } from '$lib/server/models/User.js';
+import User from '$lib/server/models/User.js';
 import { treeService } from '$lib/server/services/treeService.js';
 import bcrypt from 'bcryptjs';
 import * as XLSX from 'xlsx';

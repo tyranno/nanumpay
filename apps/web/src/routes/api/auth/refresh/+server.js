@@ -2,7 +2,7 @@ import { json } from '@sveltejs/kit';
 import jwt from 'jsonwebtoken';
 import { db } from '$lib/server/db.js';
 import { Admin } from '$lib/server/models/Admin.js';
-import { User } from '$lib/server/models/User.js';
+import User from '$lib/server/models/User.js';
 import { JWT_SECRET, JWT_EXPIRES } from '$env/static/private';
 
 export async function POST({ cookies }) {

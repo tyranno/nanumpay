@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { db } from '$lib/server/db.js';
 import { Admin } from '$lib/server/models/Admin.js';
-import { User } from '$lib/server/models/User.js';
+import User from '$lib/server/models/User.js';
 import { JWT_SECRET, JWT_EXPIRES, JWT_REFRESH_EXPIRES } from '$env/static/private';
 
 export async function POST({ request, cookies }) {

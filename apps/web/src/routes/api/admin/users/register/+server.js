@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db.js';
-import { User } from '$lib/server/models/User.js';
+import User from '$lib/server/models/User.js';
 import bcrypt from 'bcryptjs';
 
 export async function POST({ request, locals }) {
@@ -19,9 +19,9 @@ export async function POST({ request, locals }) {
 			autoPassword,
 			salesperson,
 			parentId,
-			position = 'L',
 			...otherFields
 		} = data;
+		let position = data.position || 'L';
 
 		// 필수 필드 확인
 		if (!name || !phone) {

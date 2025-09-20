@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db.js';
-import { User } from '$lib/server/models/User.js';
+import User from '$lib/server/models/User.js';
 import { TreeStats } from '$lib/server/models/TreeStats.js';
 
 export async function GET({ url, locals }) {
