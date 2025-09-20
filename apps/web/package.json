@@ -16,7 +16,11 @@
 		"release:win": "yarn exe:win && node scripts/release-win.cjs",
 		"seed:admin": "node scripts/seed-admin.js",
 		"seed:users": "node scripts/seed-users.js",
-		"seed:allowances": "node scripts/seed-allowances.js"
+		"seed:allowances": "node scripts/seed-allowances.js",
+		"generate:september": "node scripts/generate-september-data.js",
+		"generate:mock": "node scripts/generate-mock-data.js",
+		"generate:mock:clean": "node scripts/generate-mock-data.js --clean",
+		"generate:installment": "node scripts/generate-installment-data.js"
 	},
 	"devDependencies": {
 		"@capacitor/cli": "^7.4.3",
@@ -50,6 +54,7 @@
 		"bcryptjs": "^2.4.3",
 		"d3": "^7.9.0",
 		"dotenv": "^16.3.1",
+		"file-saver": "^2.0.5",
 		"jsonwebtoken": "^9.0.2",
 		"mongoose": "^8.0.0",
 		"multer": "^2.0.2",
