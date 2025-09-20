@@ -84,6 +84,12 @@ const userSchema = new mongoose.Schema({
 		ref: 'Admin',
 		default: null
 	},
+	// 등급 정보
+	grade: {
+		type: String,
+		enum: ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'],
+		default: 'F1'
+	},
 	// 상태 관리
 	level: {
 		type: Number,
@@ -169,4 +175,5 @@ userSchema.methods.findEmptyPosition = async function() {
 	return null;
 };
 
-export const User = mongoose.models.User || mongoose.model('User', userSchema);
+const User = mongoose.models.User || mongoose.model('User', userSchema);
+export default User;
