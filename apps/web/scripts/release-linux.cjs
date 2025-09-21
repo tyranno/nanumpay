@@ -58,16 +58,13 @@ JWT_EXPIRES=7d
 `
 );
 
-// 3) ★ DB 리소스: 기존 파일 그대로 포함
-const srcDbDir = path.join(ROOT, 'install', 'db');
-['init.mongo.js', 'indexes.users.json', 'schema.users.json'].forEach((f) => {
-	const src = path.join(srcDbDir, f);
-	if (!fs.existsSync(src)) {
-		console.error(`[release:linux] 누락: ${src}`);
-		process.exit(1);
-	}
-	fs.copyFileSync(src, path.join(dbDir, f));
-});
+// 3) DB 초기화 스크립트
+const dbInitScript = path.join(ROOT, 'install', 'db', 'init.mongo.js');
+if (!fs.existsSync(dbInitScript)) {
+	console.error(`[release:linux] 누락: ${dbInitScript}`);
+	process.exit(1);
+}
+fs.copyFileSync(dbInitScript, path.join(dbDir, 'init.mongo.js'));
 
 // 4) ★ 리눅스 초기화 스크립트: 기존 경로 유지(리포지토리), 설치 위치는 /opt/nanumpay/tools/db_init.sh
 const linuxInitShSrc = path.join(ROOT, 'install', 'linux', 'db_init.sh');

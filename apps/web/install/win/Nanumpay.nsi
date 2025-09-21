@@ -1,6 +1,6 @@
 !include "MUI2.nsh"
 
-!define APPNAME "AgentTree"
+!define APPNAME "Nanumpay"
 !define COMPANY "Nanum Asset"
 !define VERSION "${VERSION}"
 !define INPUT_DIR "${INPUT_DIR}"
@@ -45,9 +45,9 @@ Section "Install"
   SetOutPath "$INSTDIR"
 
   ; ProgramData 환경파일(없으면 신규 생성)
-  CreateDirectory "$COMMONAPPDATA\AgentTree"
-  IfFileExists "$COMMONAPPDATA\AgentTree\agent-tree.env" +3 0
-    File "/oname=$COMMONAPPDATA\AgentTree\agent-tree.env" "${INPUT_DIR}\install\win\agent-tree.env"
+  CreateDirectory "$COMMONAPPDATA\Nanumpay"
+  IfFileExists "$COMMONAPPDATA\Nanumpay\agent-tree.env" +3 0
+    File "/oname=$COMMONAPPDATA\Nanumpay\agent-tree.env" "${INPUT_DIR}\install\win\agent-tree.env"
 
   ; 설치 스크립트 호출 (서비스 등록 + DB 초기화)
   nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\install.ps1" -InstallDir "$INSTDIR"'

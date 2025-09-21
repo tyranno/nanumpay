@@ -5,11 +5,11 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=agent-tree
-Group=agent-tree
-WorkingDirectory=/opt/agent-tree
-EnvironmentFile=-/etc/default/agent-tree
-ExecStart=/opt/agent-tree/dist/agent-tree
+User=nanumpay
+Group=nanumpay
+WorkingDirectory=/opt/nanumpay
+EnvironmentFile=-/etc/default/nanumpay
+ExecStart=/opt/nanumpay/dist/nanumpay
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal

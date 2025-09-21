@@ -86,15 +86,13 @@ copyFile(EXE, path.join(stageDist, 'nanumpay.exe'));
 	copyFile(src, path.join(stageWin, f));
 });
 
-// DB 리소스(기존 그대로)
-['init.mongo.js', 'indexes.users.json', 'schema.users.json'].forEach((f) => {
-	const src = path.join(ROOT, 'install', 'db', f);
-	if (!exists(src)) {
-		console.error(`[release:win] 누락: ${src}`);
-		process.exit(1);
-	}
-	copyFile(src, path.join(stageDb, f));
-});
+// DB 초기화 스크립트
+const dbInitScript = path.join(ROOT, 'install', 'db', 'init.mongo.js');
+if (!exists(dbInitScript)) {
+	console.error(`[release:win] 누락: ${dbInitScript}`);
+	process.exit(1);
+}
+copyFile(dbInitScript, path.join(stageDb, 'init.mongo.js'));
 
 // ProgramData 기본 env 템플릿
 const envTemplate = `PORT=3000
@@ -107,7 +105,7 @@ fs.writeFileSync(path.join(stageWin, 'nanumpay.env'), envTemplate, 'utf8');
 
 // NSIS 실행
 ensureDir(releaseDir);
-const outExe = path.join(releaseDir, `setup-NanumpayTree-${version}-${stamp}.exe`);
+const outExe = path.join(releaseDir, `setup-Nanumpay-${version}-${stamp}.exe`);
 const makensis = findMakensis();
 const args = [
 	`/DVERSION=${version}`,
