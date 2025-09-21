@@ -254,15 +254,22 @@
 							<div class="max-h-48 overflow-y-auto space-y-1">
 								{#each Array(3) as _, idx}
 									{@const currentDate = new Date()}
-									{@const currentWeekNumber = Math.ceil(currentDate.getDate() / 7)}
-									{@const weeksAgo = idx * 4 + currentWeekNumber - 1}
-									{@const monthsAgo = Math.floor(weeksAgo / 4)}
-									{@const paymentRound = weeksAgo + 1}
-									{@const sourceDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - monthsAgo - 1, 1)}
+									{@const currentMonth = currentDate.getMonth() + 1}
+									{@const currentYear = currentDate.getFullYear()}
+
+									<!-- 이번달 매출은 다음달부터 지급이므로 이전 달들 매출만 표시 -->
+									{@const monthsBack = idx + 1}
+									{@const sourceDate = new Date(currentYear, currentDate.getMonth() - monthsBack, 1)}
 									{@const sourceMonth = sourceDate.getMonth() + 1}
 									{@const sourceYear = sourceDate.getFullYear()}
 
-									{#if paymentRound <= 10}
+									<!-- 현재 주차 계산 -->
+									{@const currentWeek = Math.ceil(currentDate.getDate() / 7)}
+
+									<!-- 해당 매출의 지급 회차 계산 -->
+									{@const paymentRound = monthsBack <= 2 ? (monthsBack - 1) * 4 + currentWeek : 999}
+
+									{#if paymentRound >= 1 && paymentRound <= 10}
 										<div class="bg-gray-50 hover:bg-gray-100 rounded p-2 text-xs">
 											<div class="flex justify-between items-center">
 												<div class="flex items-center space-x-2">
@@ -271,7 +278,7 @@
 												</div>
 												<div class="text-right">
 													<span class="font-semibold text-gray-900">
-														{Math.round(totalRevenue / 10 / 10000).toLocaleString()}만
+														0만
 													</span>
 													<span class="text-gray-500 ml-1">(회당)</span>
 												</div>
@@ -279,16 +286,7 @@
 										</div>
 									{/if}
 								{/each}
-							</div>
 
-							<!-- 지급 계산 설명 -->
-							<div class="bg-yellow-50 rounded p-2 text-xs">
-								<div class="flex items-start space-x-1">
-									<svg class="w-3 h-3 text-yellow-600 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-										<path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
-									</svg>
-									<p class="text-gray-600">매출 발생 다음달부터 10주간 분할 지급</p>
-								</div>
 							</div>
 						</div>
 
