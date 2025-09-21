@@ -137,17 +137,14 @@
 					lastLoadedEndMonth = endMonth;
 
 					// 전체 기간 데이터를 한 번에 로드
-					// 시작 연도와 월을 고려한 주차 계산
-					// 연도가 다를 수 있으므로 절대 주차로 계산
-					const baseYear = 2025; // 기준 연도
-					const yearDiff = startYear - baseYear;
-					const absoluteStartWeek = yearDiff * 12 * 4 + (startMonth - 1) * 4 + 1;
+					// 각 월별로 4주씩 할당
 					const totalWeeks = monthDiff * 4;
 
 					const params = new URLSearchParams({
-						year: baseYear, // 기준 연도 사용
-						startWeek: absoluteStartWeek, // 절대 주차 위치
-						count: totalWeeks, // 전체 주차 로드
+						startYear: startYear,
+						startMonth: startMonth,
+						endYear: endYear,
+						endMonth: endMonth,
 						page: 1,
 						limit: itemsPerPage,
 						search: searchQuery

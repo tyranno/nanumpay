@@ -27,8 +27,8 @@ export async function calculateMonthlyRevenue(year, month, skipExistingCheck = f
     createdAt: { $gte: startDate, $lte: endDate }
   });
   
-  // 2. 총매출 계산 (신규 가입자 x 1천만원)
-  const totalRevenue = newUsersCount * 10000000;
+  // 2. 총매출 계산 (신규 가입자 x 100만원)
+  const totalRevenue = newUsersCount * 1000000;
   const revenuePerInstallment = totalRevenue / 10;
   
   // 3. 현재 활성 사용자의 등급별 분포

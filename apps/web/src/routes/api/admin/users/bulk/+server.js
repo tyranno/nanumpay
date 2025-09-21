@@ -24,14 +24,12 @@ export async function POST({ request, locals }) {
 			sampleData: users ? users.slice(0, 2) : null
 		});
 
-		console.log('=== 엑셀 업로드 시작 ===');
-		console.log('받은 데이터:', JSON.stringify(users ? users.slice(0, 2) : null, null, 2));
-		console.log('데이터 개수:', users ? users.length : 0);
+		// 엑셀 업로드 시작
 
 		if (!users || !Array.isArray(users)) {
 			const error = '데이터 형식 오류';
 			excelLogger.error(error, { users, type: typeof users });
-			console.error('데이터 형식 오류:', { users, type: typeof users });
+			excelLogger.error('데이터 형식 오류', { users, type: typeof users });
 			return json({ error: '올바른 데이터 형식이 아닙니다.' }, { status: 400 });
 		}
 
@@ -52,7 +50,7 @@ export async function POST({ request, locals }) {
 
 		for (let i = 0; i < users.length; i++) {
 			const userData = users[i];
-			console.log(`\n처리 중 [행 ${i + 1}]:`, userData);
+			// 행 처리 시작
 
 			// 행별 처리 로그
 			excelLogger.debug(`처리 중 [행 ${i + 1}]`, { row: i + 1, data: userData });
@@ -77,15 +75,40 @@ export async function POST({ request, locals }) {
 				// __EMPTY 형식으로 파싱된 경우 처리
 				// 첫 번째 행이 헤더인 경우 건너뛰기
 				if (userData['용 역 자 관 리 명 부'] === '순번' || userData['__EMPTY_1'] === '성명') {
-					console.log(`행 ${i + 1}: 헤더 행 건너뛰기`);
+					// 헤더 행 건너뛰기
 					continue;
 				}
 
 				// __EMPTY 형식의 필드 매핑
-				// __EMPTY_1: 성명, __EMPTY_2: 연락처, __EMPTY_3: 주민번호
+				// __EMPTY: 날짜, __EMPTY_1: 성명, __EMPTY_2: 연락처, __EMPTY_3: 주민번호
 				// __EMPTY_4: 은행, __EMPTY_5: 계좌번호, __EMPTY_6: 판매인
 				// __EMPTY_7: 판매인연락처, __EMPTY_8: 설계사, __EMPTY_9: 설계사연락처
 				// __EMPTY_10: 보험상품명, __EMPTY_11: 보험회사
+
+				// 날짜 필드 읽기 및 처리
+				const dateValue = getValue(userData, ['날짜', 'date', '__EMPTY']);
+				let createdAt;
+				if (dateValue) {
+					// Excel 날짜 처리 (숫자 또는 문자열)
+					if (!isNaN(dateValue)) {
+						// Excel 날짜 숫자 형식인 경우
+						const excelDate = parseInt(dateValue);
+						createdAt = new Date((excelDate - 25569) * 86400 * 1000);
+					} else {
+						// 문자열 날짜인 경우 (예: '2025-07-01', '2025/07/01', '20250701')
+						createdAt = new Date(dateValue);
+					}
+
+					// 날짜가 유효하지 않으면 오늘 날짜 사용
+					if (isNaN(createdAt.getTime())) {
+						createdAt = new Date();
+						excelLogger.debug(`행 ${i + 1}: 날짜 형식 오류, 오늘 날짜로 설정`);
+					}
+				} else {
+					// 날짜 필드가 없으면 오늘 날짜 사용
+					createdAt = new Date();
+				}
+
 				name = getValue(userData, ['성명', '이름', 'name', '__EMPTY_1']);
 				const phone = getValue(userData, ['연락처', '전화번호', 'phone', '__EMPTY_2']);
 				const idNumber = getValue(userData, ['주민번호', '__EMPTY_3']);
@@ -99,12 +122,12 @@ export async function POST({ request, locals }) {
 				const insuranceCompany = getValue(userData, ['보험회사', 'insuranceCompany', '__EMPTY_11']);
 				const branch = getValue(userData, ['지사', '소속/지사', 'branch', '__EMPTY_12']);
 
-				console.log('추출된 데이터:', { name, phone, branch, salesperson });
+				// 데이터 추출 완료
 
 				if (!name) {
 					results.failed++;
 					results.errors.push(`행 ${i + 1}: 이름이 없습니다.`);
-					console.log(`행 ${i + 1} 실패: 이름 없음`);
+					excelLogger.warn(`행 ${i + 1} 실패: 이름 없음`);
 					continue;
 				}
 
@@ -155,7 +178,8 @@ export async function POST({ request, locals }) {
 					insuranceCompany,
 					status: 'active',
 					type: 'user',
-					sequence: currentSequence  // 시퀀스 번호 저장
+					sequence: currentSequence,  // 시퀀스 번호 저장
+					createdAt: createdAt  // 엑셀에서 읽은 날짜 또는 오늘 날짜
 				});
 
 				const savedUser = await newUser.save();
@@ -163,8 +187,7 @@ export async function POST({ request, locals }) {
 				usersByOrder.push({ loginId, salesperson, name, row: i + 1 }); // 순서대로 저장
 
 				results.created++;
-				const successMsg = `✅ 사용자 등록 성공: ${name} (ID: ${loginId}, 암호: ${password})`;
-				console.log(successMsg);
+				// 사용자 등록 성공
 					excelLogger.info('사용자 등록 성공', {
 					row: i + 1,
 					name,
@@ -198,7 +221,6 @@ export async function POST({ request, locals }) {
 				results.errors.push(userFriendlyMsg);
 
 				// 개발자용 상세 로그는 서버 로그에만 기록
-				console.error(`❌ 행 ${i + 1} 실패:`, error.message);
 				excelLogger.error('사용자 등록 실패', {
 					row: i + 1,
 					name: name || 'unknown',
@@ -209,11 +231,20 @@ export async function POST({ request, locals }) {
 		}
 
 		// 2단계: 부모-자식 관계 설정 (엑셀 순서대로)
-		console.log('\n=== 부모-자식 관계 설정 시작 (엑셀 순서대로) ===');
+		// 부모-자식 관계 설정 시작
 		for (const orderInfo of usersByOrder) {
 			const loginId = orderInfo.loginId;
 			const info = registeredUsers.get(loginId);
 			if (info.salesperson) {
+				// 자기 자신을 판매인으로 등록하는 것 방지
+				if (info.salesperson === info.name) {
+					logger.warn(`⚠️ 자기 참조 방지: ${info.name}님이 자기 자신을 판매인으로 등록하려 함`);
+					notificationDetails.push({
+						type: 'warning',
+						message: `${info.name}님: 자기 자신을 판매인으로 등록할 수 없습니다.`
+					});
+					continue; // 이 사용자의 부모 관계는 설정하지 않고 건너뜀
+				}
 				try {
 					// 판매인 찾기 (DB 또는 방금 등록한 사용자 중에서)
 					let parentUser = null;
@@ -222,7 +253,7 @@ export async function POST({ request, locals }) {
 					if (info.salesperson === '관리자') {
 						// 관리자는 Admin 컬렉션에 있으므로 User로 찾을 수 없음
 						// 관리자 직속은 부모 없이 최상위 노드로 처리
-						console.log(`${info.name}: 관리자 직속 배치 (최상위 노드)`);
+						// 관리자 직속은 최상위 노드로 처리
 						continue; // 부모 관계 설정하지 않고 넘어감
 					}
 
@@ -277,8 +308,7 @@ export async function POST({ request, locals }) {
 								{ [updateField]: loginId }
 							);
 
-							console.log(`✅ ${info.name}: ${info.salesperson}의 ${position === 'L' ? '좌측' : '우측'}에 배치`);
-
+							// 배치 완료
 							// 부모의 등급 업데이트
 							await updateParentGrade(parentLoginId);
 						} else {
@@ -291,23 +321,18 @@ export async function POST({ request, locals }) {
 								parent: info.salesperson,
 								user: info.name
 							});
-							console.log(`⚠️ ${info.name}: ${info.salesperson}의 자리가 모두 참`);
+							excelLogger.warn(`${info.name}: ${info.salesperson}의 자리가 모두 참`);
 						}
 					} else {
-						console.log(`❌ ${info.name}: 판매인 ${info.salesperson}을(를) 찾을 수 없음`);
+						excelLogger.warn(`${info.name}: 판매인 ${info.salesperson}을(를) 찾을 수 없음`);
 					}
 				} catch (err) {
-					console.error(`관계 설정 오류 (${info.name}):`, err.message);
+					excelLogger.error(`관계 설정 오류 (${info.name}):`, err.message);
 				}
 			}
 		}
 
-		console.log('\n=== 엑셀 업로드 결과 ===')
-		console.log(`성공: ${results.created}명`);
-		console.log(`실패: ${results.failed}명`);
-		if (results.errors.length > 0) {
-			console.log('오류 목록:', results.errors);
-		}
+		// 엑셀 업로드 결과 로그
 
 		// 결과 로그 기록
 		excelLogger.info('=== 엑셀 업로드 완료 ===', {
@@ -320,16 +345,44 @@ export async function POST({ request, locals }) {
 
 		// 배치 처리: 등급, 매출, 지급 스케줄 모두 자동 처리
 		if (results.created > 0) {
-			console.log('\n=== 배치 처리 시작 ===');
+			excelLogger.info('배치 처리 시작');
 			try {
+				// 등록된 사용자들을 월별로 그룹화
+				const usersByMonth = new Map();
+
+				for (const info of registeredUsers.values()) {
+					const user = info.user;
+					const year = user.createdAt.getFullYear();
+					const month = user.createdAt.getMonth() + 1;
+					const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+
+					if (!usersByMonth.has(monthKey)) {
+						usersByMonth.set(monthKey, []);
+					}
+					usersByMonth.get(monthKey).push(user);
+				}
+
+				excelLogger.info('월별 사용자 분포:', Array.from(usersByMonth.keys()).map(m => `${m}: ${usersByMonth.get(m).length}명`).join(', '));
+
+				// 월별로 매출 계산 및 지급 계획 생성
+				const { calculateMonthlyRevenueForMonth } = await import('$lib/server/services/revenueService.js');
+
+				for (const [monthKey, users] of usersByMonth) {
+					const [year, month] = monthKey.split('-').map(Number);
+					excelLogger.info(`${monthKey} 매출 계산 중...`);
+
+					// 해당 월의 매출 계산
+					await calculateMonthlyRevenueForMonth(year, month);
+				}
+
 				// 등록된 사용자 ID 수집
 				const userIds = Array.from(registeredUsers.values()).map(info => info.user._id);
 
-				// BatchProcessor로 모든 자동 처리 실행
+				// BatchProcessor로 등급 재계산
 				const { batchProcessor } = await import('$lib/server/services/batchProcessor.js');
 				const batchResult = await batchProcessor.processNewUsers(userIds);
 
-				console.log('✅ 배치 처리 완료:', {
+				excelLogger.info('배치 처리 완료:', {
 					processingTime: `${batchResult.processingTime}ms`,
 					revenue: batchResult.results.revenue?.totalRevenue?.toLocaleString() + '원',
 					schedules: batchResult.results.schedules?.length + '개',
@@ -339,7 +392,7 @@ export async function POST({ request, locals }) {
 				// 결과에 배치 처리 정보 추가
 				results.batchProcessing = batchResult.results;
 			} catch (err) {
-				console.error('배치 처리 실패:', err);
+				excelLogger.error('배치 처리 실패:', err);
 				results.batchError = err.message;
 			}
 		}
@@ -354,7 +407,7 @@ export async function POST({ request, locals }) {
 		});
 
 	} catch (error) {
-		console.error('Bulk user registration error:', error);
+		excelLogger.error('Bulk user registration error:', error);
 		return json({ error: '일괄 등록 중 오류가 발생했습니다.' }, { status: 500 });
 	}
 }

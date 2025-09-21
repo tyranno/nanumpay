@@ -13,6 +13,12 @@ export async function GET({ url }) {
 		const startWeek = parseInt(url.searchParams.get('startWeek')) || 1;
 		const weekCount = parseInt(url.searchParams.get('count')) || 10;
 
+		// 날짜 범위 파라미터 추가
+		const startYear = parseInt(url.searchParams.get('startYear'));
+		const startMonth = parseInt(url.searchParams.get('startMonth'));
+		const endYear = parseInt(url.searchParams.get('endYear'));
+		const endMonth = parseInt(url.searchParams.get('endMonth'));
+
 		// 페이지네이션 파라미터
 		const page = parseInt(url.searchParams.get('page')) || 1;
 		const limit = parseInt(url.searchParams.get('limit')) || 20;
@@ -92,7 +98,98 @@ export async function GET({ url }) {
 			});
 		}
 
-		// 여러 주차 조회 (페이지네이션 적용)
+		// 날짜 범위 조회 (startYear/startMonth가 있는 경우)
+		if (startYear && startMonth && endYear && endMonth) {
+			const weeks = [];
+			// 먼저 모든 사용자를 페이지네이션으로 가져오기
+			const userQuery = search ? {
+				$or: [
+					{ name: { $regex: search, $options: 'i' } },
+					{ bank: { $regex: search, $options: 'i' } }
+				]
+			} : {};
+
+			const totalUsers = await User.countDocuments(userQuery);
+			const totalPages = Math.ceil(totalUsers / limit);
+			const skip = (page - 1) * limit;
+
+			// 페이지에 해당하는 사용자만 가져오기
+			const users = await User.find(userQuery)
+				.skip(skip)
+				.limit(limit)
+				.lean();
+
+			const userIds = users.map(u => u._id);
+			const userMap = new Map(users.map(u => [u._id.toString(), u]));
+
+			// 날짜 범위의 월별로 데이터 수집
+			let currentYear = startYear;
+			let currentMonth = startMonth;
+
+			while (currentYear < endYear || (currentYear === endYear && currentMonth <= endMonth)) {
+				// 각 월의 4주 데이터
+				for (let weekNum = 1; weekNum <= 4; weekNum++) {
+					const payments = await WeeklyPayment.find({
+						year: currentYear,
+						month: currentMonth,
+						week: weekNum,
+						userId: { $in: userIds }
+					});
+
+					const paymentMap = new Map(payments.map(p => [p.userId.toString(), p]));
+
+					// 사용자별로 데이터 정리
+					const userPayments = users.map(user => {
+						const payment = paymentMap.get(user._id.toString());
+						return {
+							userId: user._id,
+							userName: user.name || 'Unknown',
+							bank: user.bank || '',
+							accountNumber: user.accountNumber || '',
+							grade: user.grade || 'F1',
+							actualAmount: payment?.totalAmount || 0,
+							taxAmount: payment?.taxAmount || 0,
+							netAmount: payment?.netAmount || 0,
+							installments: payment?.installments || []
+						};
+					});
+
+					weeks.push({
+						week: `${currentYear}년 ${currentMonth}월 ${weekNum}주차`,
+						year: currentYear,
+						monthNumber: currentMonth,
+						weekNumber: weekNum,
+						payments: userPayments,
+						totalAmount: userPayments.reduce((sum, p) => sum + p.actualAmount, 0),
+						totalTax: userPayments.reduce((sum, p) => sum + p.taxAmount, 0),
+						totalNet: userPayments.reduce((sum, p) => sum + p.netAmount, 0)
+					});
+				}
+
+				// 다음 월로 이동
+				currentMonth++;
+				if (currentMonth > 12) {
+					currentMonth = 1;
+					currentYear++;
+				}
+			}
+
+			// 날짜 범위 조회 응답
+			return json({
+				success: true,
+				data: {
+					weeks,
+					pagination: {
+						currentPage: page,
+						totalPages,
+						totalItems: totalUsers,
+						itemsPerPage: limit
+					}
+				}
+			});
+		}
+
+		// 여러 주차 조회 (기존 로직 - startWeek 기반)
 		// 먼저 모든 사용자를 페이지네이션으로 가져오기
 		const userQuery = search ? {
 			$or: [

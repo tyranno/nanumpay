@@ -84,6 +84,12 @@ const userSchema = new mongoose.Schema({
 		ref: 'Admin',
 		default: null
 	},
+	// 사용자 타입
+	type: {
+		type: String,
+		enum: ['user', 'admin'],
+		default: 'user'
+	},
 	// 등급 정보
 	grade: {
 		type: String,

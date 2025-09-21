@@ -34,6 +34,11 @@ export async function GET({ locals, url }) {
 		const currentMonth = new Date();
 		const firstDayOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
 
+		// 가장 최근 매출이 있는 월을 찾기
+		const latestRevenue = await MonthlyRevenue.findOne({ totalRevenue: { $gt: 0 } })
+			.sort({ year: -1, month: -1 })
+			.limit(1);
+
 		// 이번 주 계산 (주의 시작을 월요일로)
 		const currentDate = new Date();
 		const dayOfWeek = currentDate.getDay();
@@ -60,8 +65,8 @@ export async function GET({ locals, url }) {
 			User.countDocuments({ createdAt: { $gte: today } }),
 			// 이번 달 신규 가입자 수 조회
 			User.countDocuments({ createdAt: { $gte: firstDayOfMonth } }),
-			// MonthlyRevenue에서 이번 달 매출 조회
-			MonthlyRevenue.findOne({
+			// 가장 최근 매출이 있는 월의 데이터 사용 (없으면 현재 월)
+			latestRevenue || MonthlyRevenue.findOne({
 				year: currentDate.getFullYear(),
 				month: currentDate.getMonth() + 1
 			}),
@@ -106,8 +111,8 @@ export async function GET({ locals, url }) {
 			}
 		});
 
-		// MonthlyRevenue에서 가져온 매출 또는 계산
-		const monthlyRevenue = totalRevenueResult?.totalRevenue || (monthlyNewUsers * 10000000);
+		// MonthlyRevenue에서 가져온 매출 또는 계산 (신규 가입자 × 100만원)
+		const monthlyRevenue = totalRevenueResult?.totalRevenue || (monthlyNewUsers * 1000000);
 		// 1회 분할 금액 (총매출을 10으로 나눔)
 		const revenuePerPayment = monthlyRevenue / 10;
 

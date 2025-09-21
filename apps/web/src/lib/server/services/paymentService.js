@@ -17,7 +17,7 @@ class PaymentService {
 
 	static TAX_RATE = 0.033;
 	static PAYMENT_INSTALLMENTS = 10;
-	static REVENUE_PER_MEMBER = 10000000; // 1인당 1000만원
+	static REVENUE_PER_MEMBER = 1000000; // 1인당 100만원
 
 	/**
 	 * 월별 매출 계산 및 저장

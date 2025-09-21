@@ -80,22 +80,25 @@ export class BatchProcessor {
 
   /**
    * 2단계: 매출 계산
+   * @param {Number} targetYear - 계산할 연도 (옵션)
+   * @param {Number} targetMonth - 계산할 월 (옵션)
    */
-  async calculateMonthlyRevenue() {
+  async calculateMonthlyRevenue(targetYear = null, targetMonth = null) {
     const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth() + 1;
+    const year = targetYear || now.getFullYear();
+    const month = targetMonth || (now.getMonth() + 1);
 
-    // 이번달 신규 가입자 수 조회
+    // 이번달 신규 가입자 수 조회 (관리자 제외)
     const firstDay = new Date(year, month - 1, 1);
     const lastDay = new Date(year, month, 0, 23, 59, 59);
 
     const newUsersCount = await User.countDocuments({
-      createdAt: { $gte: firstDay, $lte: lastDay }
+      createdAt: { $gte: firstDay, $lte: lastDay },
+      type: { $ne: 'admin' } // 관리자는 매출 계산에서 제외
     });
 
-    // 총매출 계산 (1인당 1천만원)
-    const totalRevenue = newUsersCount * 10000000;
+    // 총매출 계산 (1인당 100만원)
+    const totalRevenue = newUsersCount * 1000000;
     const revenuePerInstallment = totalRevenue / 10;
 
     // 등급별 인원 분포
@@ -156,8 +159,8 @@ export class BatchProcessor {
     // F1 계산
     if (gradeCount.F1 > 0 && gradeCount.F1 + gradeCount.F2 > 0) {
       const f1Base = (totalRevenue * gradeRatios.F1) / (gradeCount.F1 + gradeCount.F2);
-      payments.F1 = f1Base;
-      previousPayment = f1Base;
+      payments.F1 = Math.floor(f1Base / 100) * 100; // 100원 단위 절삭
+      previousPayment = payments.F1;
     } else {
       payments.F1 = 0;
     }
@@ -165,7 +168,8 @@ export class BatchProcessor {
     // F2 계산 (F1 금액 누적)
     if (gradeCount.F2 > 0 && gradeCount.F2 + gradeCount.F3 > 0) {
       const f2Base = (totalRevenue * gradeRatios.F2) / (gradeCount.F2 + gradeCount.F3);
-      payments.F2 = f2Base + previousPayment;
+      const f2Total = f2Base + previousPayment;
+      payments.F2 = Math.floor(f2Total / 100) * 100; // 100원 단위 절삭
       previousPayment = payments.F2;
     } else {
       payments.F2 = 0;
@@ -174,7 +178,8 @@ export class BatchProcessor {
     // F3 계산 (F2 금액 누적)
     if (gradeCount.F3 > 0 && gradeCount.F3 + gradeCount.F4 > 0) {
       const f3Base = (totalRevenue * gradeRatios.F3) / (gradeCount.F3 + gradeCount.F4);
-      payments.F3 = f3Base + previousPayment;
+      const f3Total = f3Base + previousPayment;
+      payments.F3 = Math.floor(f3Total / 100) * 100; // 100원 단위 절삭
       previousPayment = payments.F3;
     } else {
       payments.F3 = 0;
@@ -183,7 +188,8 @@ export class BatchProcessor {
     // F4 계산 (F3 금액 누적)
     if (gradeCount.F4 > 0 && gradeCount.F4 + gradeCount.F5 > 0) {
       const f4Base = (totalRevenue * gradeRatios.F4) / (gradeCount.F4 + gradeCount.F5);
-      payments.F4 = f4Base + previousPayment;
+      const f4Total = f4Base + previousPayment;
+      payments.F4 = Math.floor(f4Total / 100) * 100; // 100원 단위 절삭
       previousPayment = payments.F4;
     } else {
       payments.F4 = 0;
@@ -192,7 +198,8 @@ export class BatchProcessor {
     // F5 계산 (F4 금액 누적)
     if (gradeCount.F5 > 0 && gradeCount.F5 + gradeCount.F6 > 0) {
       const f5Base = (totalRevenue * gradeRatios.F5) / (gradeCount.F5 + gradeCount.F6);
-      payments.F5 = f5Base + previousPayment;
+      const f5Total = f5Base + previousPayment;
+      payments.F5 = Math.floor(f5Total / 100) * 100; // 100원 단위 절삭
       previousPayment = payments.F5;
     } else {
       payments.F5 = 0;
@@ -201,7 +208,8 @@ export class BatchProcessor {
     // F6 계산 (F5 금액 누적)
     if (gradeCount.F6 > 0 && gradeCount.F6 + gradeCount.F7 > 0) {
       const f6Base = (totalRevenue * gradeRatios.F6) / (gradeCount.F6 + gradeCount.F7);
-      payments.F6 = f6Base + previousPayment;
+      const f6Total = f6Base + previousPayment;
+      payments.F6 = Math.floor(f6Total / 100) * 100; // 100원 단위 절삭
       previousPayment = payments.F6;
     } else {
       payments.F6 = 0;
@@ -210,7 +218,8 @@ export class BatchProcessor {
     // F7 계산 (F6 금액 누적)
     if (gradeCount.F7 > 0 && gradeCount.F7 + gradeCount.F8 > 0) {
       const f7Base = (totalRevenue * gradeRatios.F7) / (gradeCount.F7 + gradeCount.F8);
-      payments.F7 = f7Base + previousPayment;
+      const f7Total = f7Base + previousPayment;
+      payments.F7 = Math.floor(f7Total / 100) * 100; // 100원 단위 절삭
       previousPayment = payments.F7;
     } else {
       payments.F7 = 0;
@@ -219,7 +228,8 @@ export class BatchProcessor {
     // F8 계산 (F7 금액 누적)
     if (gradeCount.F8 > 0) {
       const f8Base = (totalRevenue * gradeRatios.F8) / gradeCount.F8;
-      payments.F8 = f8Base + previousPayment;
+      const f8Total = f8Base + previousPayment;
+      payments.F8 = Math.floor(f8Total / 100) * 100; // 100원 단위 절삭
     } else {
       payments.F8 = 0;
     }
@@ -249,27 +259,36 @@ export class BatchProcessor {
     for (const user of users) {
       const grade = user.grade || 'F1';
       const totalPayment = gradePayments[grade] || 0;
-      const installmentAmount = totalPayment / 10;
+      const installmentAmount = Math.floor((totalPayment / 10) / 100) * 100; // 100원 단위 절삭
 
       // 기존 계획이 있는지 확인
       const existingPlan = await UserPaymentPlan.findOne({
         userId: user._id,
-        sourceYear: year,
-        sourceMonth: month
+        'revenueMonth.year': year,
+        'revenueMonth.month': month
       });
 
       if (!existingPlan && installmentAmount > 0) {
         const plan = new UserPaymentPlan({
+          // 매출 정보
+          revenueMonth: {
+            year,
+            month
+          },
+          totalRevenue: monthlyRevenue.totalRevenue,
+          revenuePerInstallment: monthlyRevenue.revenuePerInstallment,
+
+          // 사용자 정보
           userId: user._id,
-          userLoginId: user.loginId,
           userName: user.name,
-          sourceYear: year,
-          sourceMonth: month,
           grade,
+
+          // 지급 정보
+          amountPerInstallment: installmentAmount,
           totalAmount: totalPayment,
-          installmentAmount,
-          installments: this.generateInstallments(year, month, installmentAmount),
-          status: 'active'
+
+          // 지급 스케줄
+          installments: this.generateInstallments(year, month, installmentAmount)
         });
 
         await plan.save();
@@ -297,15 +316,15 @@ export class BatchProcessor {
 
     for (let i = 1; i <= 10; i++) {
       installments.push({
-        installment: i,
-        year: targetYear,
-        month: targetMonth,
-        week: targetWeek,
+        installmentNumber: i,
+        scheduledDate: {
+          year: targetYear,
+          month: targetMonth,
+          week: targetWeek
+        },
         amount,
-        tax: amount * 0.033,
-        netAmount: amount * 0.967,
         status: 'pending',
-        paymentDate: null
+        paidAt: null
       });
 
       targetWeek++;

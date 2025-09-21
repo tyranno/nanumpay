@@ -97,8 +97,8 @@ monthlyRevenueSchema.statics.calculateRevenue = async function(year, month) {
 		}
 	});
 
-	// 총 매출 계산 (1인당 10만원 * 100배 = 1000만원)
-	const totalRevenue = newMembers * 10000000;
+	// 총 매출 계산 (1인당 10만원 * 10배 = 100만원)
+	const totalRevenue = newMembers * 1000000;
 
 	// 등급별 인원 분포 계산
 	const grades = ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'];

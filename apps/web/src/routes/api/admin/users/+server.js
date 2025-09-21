@@ -129,16 +129,23 @@ export async function DELETE({ request, locals }) {
 	try {
 		const { userId } = await request.json();
 
-		// 하위 노드가 있는지 확인
+		// 삭제할 사용자 정보 먼저 조회
+		const userToDelete = await User.findById(userId);
+		if (!userToDelete) {
+			return json({ error: 'User not found' }, { status: 404 });
+		}
+
+		// 하위 노드가 있는지 확인 (loginId로 확인)
 		const hasChildren = await User.exists({
-			$or: [
-				{ parentId: userId },
-				{ leftChildId: userId },
-				{ rightChildId: userId }
-			]
+			parentId: userToDelete.loginId
 		});
 
-		if (hasChildren) {
+		// 실제로 자식이 있는지 확인
+		const hasLeftChild = userToDelete.leftChildId ? await User.exists({ loginId: userToDelete.leftChildId }) : false;
+		const hasRightChild = userToDelete.rightChildId ? await User.exists({ loginId: userToDelete.rightChildId }) : false;
+
+		if (hasChildren || hasLeftChild || hasRightChild) {
+			console.log(`삭제 불가 - ${userToDelete.name}(${userToDelete.loginId}): hasChildren=${hasChildren}, left=${hasLeftChild}, right=${hasRightChild}`);
 			return json({
 				error: '하위 조직이 있는 사용자는 삭제할 수 없습니다.'
 			}, { status: 400 });
@@ -157,7 +164,7 @@ export async function DELETE({ request, locals }) {
 		// 부모의 자식 참조 제거
 		if (user.parentId) {
 			await User.updateOne(
-				{ _id: user.parentId },
+				{ loginId: user.parentId },  // parentId는 loginId 문자열
 				{
 					$unset: user.position === 'L'
 						? { leftChildId: 1 }
