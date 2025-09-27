@@ -29,3 +29,6 @@ test-data
 apps/web/scripts/*.js
 !apps/web/scripts/release-*.cjs
 .claude
+
+# Work logs
+work_logs/

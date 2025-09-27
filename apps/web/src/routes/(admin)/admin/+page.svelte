@@ -8,14 +8,6 @@
 </svelte:head>
 
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
-	<!-- 모바일용 헤더 요약 정보 -->
-	<div class="mb-4 lg:hidden">
-		<div class="bg-blue-600 text-white rounded-lg p-4">
-			<h2 class="text-base font-semibold">관리자 대시보드</h2>
-			<p class="text-sm mt-1 opacity-90">용역자 관리 시스템</p>
-		</div>
-	</div>
-
 	<div class="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
 		<!-- 왼쪽 카드: 등급별 지급 정보 -->
 		<GradePaymentCard />

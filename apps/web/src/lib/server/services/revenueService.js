@@ -253,7 +253,7 @@ async function createWeeklyPaymentSchedules(year, month, monthlyRevenue) {
       const paymentAmount = monthlyRevenue.gradePayments[user.grade] || 0;
 
       if (paymentAmount > 0) {
-        const taxAmount = Math.round(paymentAmount * 0.033);
+        const taxAmount = Math.floor((paymentAmount * 0.033) / 100) * 100; // 100원 단위 절삭
         const netAmount = paymentAmount - taxAmount;
 
         await WeeklyPayment.findOneAndUpdate(

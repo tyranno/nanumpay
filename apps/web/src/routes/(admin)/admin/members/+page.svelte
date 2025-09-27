@@ -35,6 +35,7 @@
 	let showEditModal = false;
 	let uploadFile = null;
 	let editingMember = null;
+	let isUploading = false; // 업로드 진행 상태
 
 	// 알림 상태
 	let notificationOpen = false;
@@ -344,6 +345,8 @@
 			return;
 		}
 
+		isUploading = true; // 업로드 시작
+
 		const reader = new FileReader();
 		reader.onload = async (e) => {
 			try {
@@ -404,6 +407,8 @@
 					}]
 				};
 				notificationOpen = true;
+			} finally {
+				isUploading = false; // 업로드 종료
 			}
 		};
 		reader.readAsArrayBuffer(uploadFile);
@@ -442,20 +447,22 @@
 			<h2 class="text-2xl font-bold text-gray-800">용역자 관리명부</h2>
 			<p class="text-gray-600 mt-1">총 {totalMembers}명의 용역자가 등록되어 있습니다.</p>
 		</div>
-		<div class="flex gap-3">
+		<div class="flex gap-2">
 			<button
 				onclick={() => showUploadModal = true}
-				class="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-1.5"
+				class="px-2 sm:px-3 py-1.5 text-xs sm:text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-1"
+				title="엑셀 파일 업로드"
 			>
 				<img src="/icons/excel.svg" alt="Excel" class="w-4 h-4 filter brightness-0 invert" />
-				엑셀 업로드
+				<span class="hidden sm:inline">엑셀</span>
 			</button>
 			<button
 				onclick={() => showAddModal = true}
-				class="px-3 py-1.5 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-1.5"
+				class="px-2 sm:px-3 py-1.5 text-xs sm:text-sm bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-1"
+				title="새 회원 등록"
 			>
 				<img src="/icons/user-add.svg" alt="Add User" class="w-4 h-4 filter brightness-0 invert" />
-				새 회원 등록
+				<span class="hidden sm:inline">등록</span>
 			</button>
 		</div>
 	</div>
@@ -570,7 +577,7 @@
 						</tr>
 					{:else if members.length === 0}
 						<tr>
-							<td colspan="12" class="text-center py-8 text-gray-500">
+							<td colspan="12" class="text-left px-3 py-8 text-gray-500">
 								등록된 용역자가 없습니다.
 							</td>
 						</tr>
@@ -891,28 +898,27 @@
 
 	<!-- 엑셀 업로드 모달 -->
 	{#if showUploadModal}
-		<div class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50">
-			<div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-lg transform transition-all">
-				<div class="flex items-center gap-3 mb-6">
-					<div class="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center shadow-lg">
-						<img src="/icons/excel.svg" alt="Excel" class="w-6 h-6 filter brightness-0 invert" />
+		<div class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50 px-4">
+			<div class="bg-white rounded-xl shadow-2xl p-4 sm:p-6 w-full max-w-lg transform transition-all relative">
+				<div class="flex items-center gap-3 mb-4 sm:mb-6">
+					<div class="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center shadow-lg">
+						<img src="/icons/excel.svg" alt="Excel" class="w-5 h-5 sm:w-6 sm:h-6 filter brightness-0 invert" />
 					</div>
 					<div>
-						<h3 class="text-xl font-bold text-gray-900">엑셀 파일 업로드</h3>
-						<p class="text-sm text-gray-500">대량 사용자 등록</p>
+						<h3 class="text-lg sm:text-xl font-bold text-gray-900">엑셀 파일 업로드</h3>
+						<p class="text-xs sm:text-sm text-gray-500">대량 사용자 등록</p>
 					</div>
 				</div>
 
-				<div class="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-4 mb-6">
-					<div class="flex items-start gap-3 mb-3">
-						<div class="w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+				<div class="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6">
+					<div class="flex items-start gap-2 sm:gap-3 mb-2 sm:mb-3">
+						<div class="w-4 h-4 sm:w-5 sm:h-5 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
 							<span class="text-blue-600 text-xs font-bold">i</span>
 						</div>
 						<div class="flex-1">
-							<p class="text-sm font-semibold text-gray-700 mb-1">파일 형식 안내</p>
+							<p class="text-xs sm:text-sm font-semibold text-gray-700 mb-1">파일 형식 안내</p>
 							<p class="text-xs text-gray-600 leading-relaxed">
-								엑셀 파일에는 다음 컬럼이 포함되어야 합니다:
-								성명, 연락처, 지사, 은행, 계좌번호, 판매인, 설계사, 보험상품 등
+								필수: 성명, 연락처, 지사, 은행, 계좌번호
 							</p>
 						</div>
 					</div>
@@ -942,20 +948,20 @@
 				</div>
 
 				{#if uploadFile}
-					<div class="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
-						<div class="flex items-center gap-3">
-							<div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-								<svg class="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+					<div class="mb-4 sm:mb-6 p-3 sm:p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+						<div class="flex items-center gap-2 sm:gap-3">
+							<div class="w-6 h-6 sm:w-8 sm:h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+								<svg class="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
 									<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
 								</svg>
 							</div>
-							<div class="flex-1">
-								<p class="text-sm font-semibold text-blue-900">선택된 파일</p>
-								<p class="text-xs text-blue-700">{uploadFile.name}</p>
+							<div class="flex-1 min-w-0">
+								<p class="text-xs sm:text-sm font-semibold text-blue-900">선택된 파일</p>
+								<p class="text-xs text-blue-700 truncate">{uploadFile.name}</p>
 							</div>
 							<button
 								onclick={() => uploadFile = null}
-								class="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center hover:bg-blue-200 transition-colors"
+								class="w-5 h-5 sm:w-6 sm:h-6 bg-blue-100 rounded-full flex items-center justify-center hover:bg-blue-200 transition-colors flex-shrink-0"
 							>
 								<svg class="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -965,37 +971,63 @@
 					</div>
 				{/if}
 
-				<div class="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-6">
+				<div class="bg-amber-50 border border-amber-200 rounded-lg p-2 sm:p-3 mb-4 sm:mb-6">
 					<div class="flex items-start gap-2">
-						<svg class="w-4 h-4 text-amber-600 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+						<svg class="w-3 h-3 sm:w-4 sm:h-4 text-amber-600 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
 							<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
 						</svg>
-						<p class="text-xs text-amber-800">
-							<span class="font-semibold">주의:</span> ID는 이름으로 자동 생성되며, 비밀번호는 전화번호 뒤 4자리로 설정됩니다.
-						</p>
+						<div class="text-xs text-amber-700 leading-relaxed">
+							<p><span class="font-semibold">주의:</span> 날짜 컬럼이 매출 발생일로 기록됩니다.</p>
+							<p class="mt-1">ID: 이름 자동생성, PW: 전화번호 뒤 4자리</p>
+						</div>
 					</div>
 				</div>
 
-				<div class="flex justify-end gap-3">
+				<div class="flex justify-end gap-2 sm:gap-3">
 					<button
 						onclick={() => { showUploadModal = false; uploadFile = null; }}
-						class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors duration-200 shadow-sm"
+						disabled={isUploading}
+						class="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors duration-200 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
 					>
 						취소
 					</button>
 					<button
 						onclick={handleExcelUpload}
-						disabled={!uploadFile}
-						class="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg hover:from-blue-700 hover:to-blue-800 disabled:from-gray-400 disabled:to-gray-400 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
+						disabled={!uploadFile || isUploading}
+						class="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg hover:from-blue-700 hover:to-blue-800 disabled:from-gray-400 disabled:to-gray-400 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl sm:transform sm:hover:scale-105"
 					>
 						<span class="flex items-center gap-2">
-							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-							</svg>
-							업로드
+							{#if isUploading}
+								<svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+									<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+									<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+								</svg>
+								처리 중...
+							{:else}
+								<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+								</svg>
+								업로드
+							{/if}
 						</span>
 					</button>
 				</div>
+
+				{#if isUploading}
+					<!-- 전체 화면 오버레이 -->
+					<div class="absolute inset-0 bg-white bg-opacity-90 rounded-xl flex flex-col items-center justify-center z-10">
+						<div class="text-center">
+							<div class="inline-flex items-center justify-center w-16 h-16 mb-4">
+								<svg class="animate-spin h-16 w-16 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+									<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+									<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+								</svg>
+							</div>
+							<p class="text-lg font-semibold text-gray-700">업로드 처리 중...</p>
+							<p class="text-sm text-gray-500 mt-2">잠시만 기다려주세요.</p>
+						</div>
+					</div>
+				{/if}
 			</div>
 		</div>
 	{/if}

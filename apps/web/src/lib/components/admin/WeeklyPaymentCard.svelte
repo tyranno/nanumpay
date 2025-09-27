@@ -65,53 +65,53 @@
 				<div class="space-y-1">
 					<p class="text-xs sm:text-sm font-medium text-gray-700 mb-2">이번 주 지급 구성</p>
 
-					<div class="max-h-48 overflow-y-auto space-y-1">
-						{#if monthlyRevenues}
-							{@const currentDate = new Date()}
-							{@const currentWeekNumber = Math.ceil(currentDate.getDate() / 7)}
+					{#if true}
+						{@const currentDate = new Date()}
+						{@const currentWeekNumber = Math.ceil(currentDate.getDate() / 7)}
+						{@const hasAnyPaymentDue = [1, 2, 3].some(monthsBack => {
+							const weeksSince = monthsBack * 4 + currentWeekNumber - 4;
+							return weeksSince > 0 && weeksSince <= 10;
+						})}
 
+						<div class="max-h-48 overflow-y-auto space-y-1">
 							<!-- 최대 3개월 이전 매출까지 확인 (10주 = 약 2.5개월) -->
 							{#each [1, 2, 3] as monthsBack}
 								{@const sourceDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - monthsBack, 1)}
 								{@const sourceYear = sourceDate.getFullYear()}
 								{@const sourceMonth = sourceDate.getMonth() + 1}
-
-								<!-- 해당 매출이 지급되기 시작한 후 경과 주 수 계산 -->
 								{@const weeksSincePaymentStart = monthsBack * 4 + currentWeekNumber - 4}
 								{@const paymentRound = weeksSincePaymentStart > 0 && weeksSincePaymentStart <= 10 ? weeksSincePaymentStart : 0}
+								{@const monthRevenue = monthlyRevenues ? monthlyRevenues.find(r => r.year === sourceYear && r.month === sourceMonth) : null}
 
-								<!-- 해당 월의 매출 데이터 찾기 -->
-								{@const monthRevenue = monthlyRevenues.find(r => r.year === sourceYear && r.month === sourceMonth)}
-
-								{#if paymentRound > 0 && paymentRound <= 10 && monthRevenue && monthRevenue.totalRevenue > 0}
-									<div class="bg-gray-50 hover:bg-gray-100 rounded p-2 text-xs">
+								{#if paymentRound > 0 && paymentRound <= 10}
+									<div class="{monthRevenue && monthRevenue.totalRevenue > 0 ? 'bg-gray-50 hover:bg-gray-100' : 'bg-gray-100 opacity-60'} rounded p-2 text-xs">
 										<div class="flex justify-between items-center">
 											<div class="flex items-center space-x-2">
 												<span class="font-medium text-gray-700">{sourceYear}.{sourceMonth}월 매출</span>
 												<span class="text-gray-500">({paymentRound}/10회차)</span>
 											</div>
 											<div class="text-right">
-												<span class="font-semibold text-gray-900">
-													{Math.round((monthRevenue.revenuePerInstallment || 0)/10000).toLocaleString()}만
-												</span>
-												<span class="text-gray-500 ml-1">(회당)</span>
+												{#if monthRevenue && monthRevenue.totalRevenue > 0}
+													<span class="font-semibold text-gray-900">
+														{(monthRevenue.revenuePerInstallment || 0).toLocaleString()}
+													</span>
+													<span class="text-gray-500 ml-1">원</span>
+												{:else}
+													<span class="text-gray-400 text-xs">매출 없음</span>
+												{/if}
 											</div>
 										</div>
 									</div>
 								{/if}
 							{/each}
 
-							{#if !monthlyRevenues.some(r => r.totalRevenue > 0)}
+							{#if !hasAnyPaymentDue}
 								<div class="text-xs text-gray-500 text-center py-2">
-									아직 계산된 매출이 없습니다
+									이번 주 지급 예정 없음
 								</div>
 							{/if}
-						{:else}
-							<div class="text-xs text-gray-500 text-center py-2">
-								매출 데이터를 불러오는 중...
-							</div>
-						{/if}
-					</div>
+						</div>
+					{/if}
 				</div>
 
 				<!-- 총 지급액 요약 -->
@@ -120,13 +120,13 @@
 						<div>
 							<p class="text-xs text-gray-600">총 지급</p>
 							<p class="text-sm sm:text-base font-bold text-gray-900">
-								{weeklyPaymentInfo ? Math.round(weeklyPaymentInfo.totalAmount/10000).toLocaleString() : '-'}만원
+								{weeklyPaymentInfo ? weeklyPaymentInfo.totalAmount.toLocaleString() : '0'}원
 							</p>
 						</div>
 						<div>
 							<p class="text-xs text-gray-600">실지급(세후)</p>
 							<p class="text-sm sm:text-base font-bold text-green-900">
-								{weeklyPaymentInfo ? Math.round(weeklyPaymentInfo.totalNet/10000).toLocaleString() : '-'}만원
+								{weeklyPaymentInfo ? weeklyPaymentInfo.totalNet.toLocaleString() : '0'}원
 							</p>
 						</div>
 					</div>

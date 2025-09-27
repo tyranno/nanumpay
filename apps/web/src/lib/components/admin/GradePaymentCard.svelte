@@ -8,6 +8,7 @@
 	let isLoading = true;
 	let isCalculating = false;
 	let calculationMessage = '';
+	let activeTooltip = null;
 
 	let gradeRatios = {
 		F1: { ratio: 24, count: 0, amount: 0, formula: '' },
@@ -94,6 +95,18 @@
 			isCalculating = false;
 		}
 	}
+
+	function toggleTooltip(grade) {
+		if (activeTooltip === grade) {
+			activeTooltip = null;
+		} else {
+			activeTooltip = grade;
+		}
+	}
+
+	function closeTooltip() {
+		activeTooltip = null;
+	}
 </script>
 
 {#if isLoading}
@@ -113,7 +126,7 @@
 					</h3>
 					<p class="mt-1 text-xs sm:text-sm text-gray-500">
 						<span class="hidden lg:inline">{currentMonth}월 총매출: {totalRevenue.toLocaleString()}원 | 신규: {monthlyNewUsers}명</span>
-						<span class="lg:hidden">회당: {Math.round(totalRevenue / 10).toLocaleString()}원</span>
+						<span class="lg:hidden">회당: {(totalRevenue / 10).toLocaleString()}원</span>
 					</p>
 				</div>
 				<button
@@ -165,14 +178,29 @@
 								<GradeBadge {grade} size="sm" />
 							</td>
 							<td class="px-2 sm:px-3 py-2 text-xs sm:text-sm text-center text-gray-900">{data.count}명</td>
-							<td class="px-2 sm:px-3 py-2 text-xs sm:text-sm text-right text-gray-900 group">
+							<td class="px-2 sm:px-3 py-2 text-xs sm:text-sm text-right text-gray-900 group relative">
 								<div class="relative inline-block">
-									<span class="cursor-help border-b border-dotted border-gray-400">
-										<span class="hidden sm:inline">{data.amount.toLocaleString()}</span>
-										<span class="sm:hidden">{Math.round(data.amount/1000).toLocaleString()}천</span>
-									</span>
+									<button
+										type="button"
+										class="cursor-help border-b border-dotted border-gray-400 text-left"
+										title={data.formula}
+										onclick={() => toggleTooltip(grade)}
+										onblur={closeTooltip}
+									>
+										{data.amount.toLocaleString()}
+									</button>
 									{#if data.formula}
-										<div class="absolute top-full right-0 mt-1 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-10 hidden sm:block">
+										<!-- 모바일용 클릭 툴팁 -->
+										{#if activeTooltip === grade}
+											<div class="sm:hidden absolute bottom-full right-0 mb-1 px-2 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap z-20">
+												{data.formula}
+												<div class="absolute top-full right-4 -mt-1">
+													<div class="border-4 border-transparent border-t-gray-800"></div>
+												</div>
+											</div>
+										{/if}
+										<!-- 데스크탑용 호버 툴팁 -->
+										<div class="hidden sm:block absolute top-full right-0 mt-1 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-10">
 											{data.formula}
 											<div class="absolute bottom-full right-4 -mb-1">
 												<div class="border-4 border-transparent border-b-gray-800"></div>
@@ -182,8 +210,7 @@
 								</div>
 							</td>
 							<td class="px-2 sm:px-3 py-2 text-xs sm:text-sm text-right font-semibold text-blue-600">
-								<span class="hidden sm:inline">{data.count > 0 ? (data.amount * data.count).toLocaleString() : '0'}원</span>
-								<span class="sm:hidden">{data.count > 0 ? Math.round((data.amount * data.count)/10000).toLocaleString() : '0'}만</span>
+								{data.count > 0 ? (data.amount * data.count).toLocaleString() : '0'}원
 							</td>
 						</tr>
 					{/each}
@@ -194,8 +221,7 @@
 						</td>
 						<td class="px-2 sm:px-3 py-2"></td>
 						<td class="px-2 sm:px-3 py-2 text-xs sm:text-sm text-right font-bold text-blue-900">
-							<span class="hidden sm:inline">{Object.values(gradeRatios).reduce((sum, data) => sum + (data.count > 0 ? data.amount * data.count : 0), 0).toLocaleString()}원</span>
-							<span class="sm:hidden">{Math.round(Object.values(gradeRatios).reduce((sum, data) => sum + (data.count > 0 ? data.amount * data.count : 0), 0)/10000).toLocaleString()}만</span>
+							{Object.values(gradeRatios).reduce((sum, data) => sum + (data.count > 0 ? data.amount * data.count : 0), 0).toLocaleString()}원
 						</td>
 					</tr>
 				</tbody>

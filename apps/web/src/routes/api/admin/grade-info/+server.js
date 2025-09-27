@@ -68,42 +68,49 @@ export async function GET({ locals }) {
 		// F1 지급액 (회당)
 		const f1Total = revenuePerPayment * gradeRatios.F1;
 		const f1Divisor = gradeCount.F1 + gradeCount.F2;
-		gradePayments.F1 = f1Divisor > 0 ? f1Total / f1Divisor : 0;
+		gradePayments.F1 = f1Divisor > 0 ? Math.floor(f1Total / f1Divisor / 100) * 100 : 0;
 
 		// F2 지급액 (회당)
 		const f2Total = revenuePerPayment * gradeRatios.F2;
 		const f2Divisor = gradeCount.F2 + gradeCount.F3;
-		gradePayments.F2 = f2Divisor > 0 ? (f2Total / f2Divisor) + gradePayments.F1 : 0;
+		const f2Amount = f2Divisor > 0 ? (f2Total / f2Divisor) + gradePayments.F1 : 0;
+		gradePayments.F2 = Math.floor(f2Amount / 100) * 100;
 
 		// F3 지급액 (회당)
 		const f3Total = revenuePerPayment * gradeRatios.F3;
 		const f3Divisor = gradeCount.F3 + gradeCount.F4;
-		gradePayments.F3 = f3Divisor > 0 ? (f3Total / f3Divisor) + gradePayments.F2 : 0;
+		const f3Amount = f3Divisor > 0 ? (f3Total / f3Divisor) + gradePayments.F2 : 0;
+		gradePayments.F3 = Math.floor(f3Amount / 100) * 100;
 
 		// F4 지급액 (회당)
 		const f4Total = revenuePerPayment * gradeRatios.F4;
 		const f4Divisor = gradeCount.F4 + gradeCount.F5;
-		gradePayments.F4 = f4Divisor > 0 ? (f4Total / f4Divisor) + gradePayments.F3 : 0;
+		const f4Amount = f4Divisor > 0 ? (f4Total / f4Divisor) + gradePayments.F3 : 0;
+		gradePayments.F4 = Math.floor(f4Amount / 100) * 100;
 
 		// F5 지급액 (회당)
 		const f5Total = revenuePerPayment * gradeRatios.F5;
 		const f5Divisor = gradeCount.F5 + gradeCount.F6;
-		gradePayments.F5 = f5Divisor > 0 ? (f5Total / f5Divisor) + gradePayments.F4 : 0;
+		const f5Amount = f5Divisor > 0 ? (f5Total / f5Divisor) + gradePayments.F4 : 0;
+		gradePayments.F5 = Math.floor(f5Amount / 100) * 100;
 
 		// F6 지급액 (회당)
 		const f6Total = revenuePerPayment * gradeRatios.F6;
 		const f6Divisor = gradeCount.F6 + gradeCount.F7;
-		gradePayments.F6 = f6Divisor > 0 ? (f6Total / f6Divisor) + gradePayments.F5 : 0;
+		const f6Amount = f6Divisor > 0 ? (f6Total / f6Divisor) + gradePayments.F5 : 0;
+		gradePayments.F6 = Math.floor(f6Amount / 100) * 100;
 
 		// F7 지급액 (회당)
 		const f7Total = revenuePerPayment * gradeRatios.F7;
 		const f7Divisor = gradeCount.F7 + gradeCount.F8;
-		gradePayments.F7 = f7Divisor > 0 ? (f7Total / f7Divisor) + gradePayments.F6 : 0;
+		const f7Amount = f7Divisor > 0 ? (f7Total / f7Divisor) + gradePayments.F6 : 0;
+		gradePayments.F7 = Math.floor(f7Amount / 100) * 100;
 
 		// F8 지급액 (회당)
 		const f8Total = revenuePerPayment * gradeRatios.F8;
 		const f8Divisor = gradeCount.F8;
-		gradePayments.F8 = f8Divisor > 0 ? (f8Total / f8Divisor) + gradePayments.F7 : 0;
+		const f8Amount = f8Divisor > 0 ? (f8Total / f8Divisor) + gradePayments.F7 : 0;
+		gradePayments.F8 = Math.floor(f8Amount / 100) * 100;
 
 		// 산출식 생성
 		const gradeInfo = {};
@@ -125,7 +132,7 @@ export async function GET({ locals }) {
 			gradeInfo[grade] = {
 				count: currentCount,
 				ratio: (gradeRatios[grade] * 100).toFixed(0),
-				amount: Math.round(gradePayments[grade]),
+				amount: gradePayments[grade], // 이미 100원 단위로 절삭됨
 				formula: formula
 			};
 		});

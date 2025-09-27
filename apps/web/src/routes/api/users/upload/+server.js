@@ -2,6 +2,7 @@ import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db.js';
 import User from '$lib/server/models/User.js';
 import { treeService } from '$lib/server/services/treeService.js';
+import { batchProcessor } from '$lib/server/services/batchProcessor.js';
 import bcrypt from 'bcryptjs';
 import * as XLSX from 'xlsx';
 
@@ -35,6 +36,9 @@ export async function POST({ request, locals }) {
 			warnings: []
 		};
 
+		// 새로 등록된 사용자 ID 수집용
+		const newUserIds = [];
+
 		// 데이터 처리
 		for (const row of data) {
 			try {
@@ -66,6 +70,7 @@ export async function POST({ request, locals }) {
 
 				// 사용자 생성
 				const user = await createUserFromExcel(userData);
+				newUserIds.push(user._id); // 새로 생성된 사용자 ID 수집
 				results.success.push({
 					name: user.name,
 					loginId: user.loginId,
@@ -82,6 +87,17 @@ export async function POST({ request, locals }) {
 
 		// 전체 사용자 등급 재계산
 		await recalculateAllGrades();
+
+		// 배치 처리 실행 (등급 재계산, 매출 계산, 지급 계획 생성)
+		if (newUserIds.length > 0) {
+			try {
+				await batchProcessor.processNewUsers(newUserIds);
+				console.log(`엑셀 업로드: ${newUserIds.length}명에 대한 배치 처리 완료`);
+			} catch (batchError) {
+				console.error('배치 처리 오류:', batchError);
+				results.warnings.push('사용자는 등록되었으나 지급 계획 생성 중 오류가 발생했습니다.');
+			}
+		}
 
 		return json({
 			success: true,

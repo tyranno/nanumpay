@@ -41,8 +41,8 @@ weeklyPaymentSchema.index({ paymentStatus: 1 });
 weeklyPaymentSchema.pre('save', function(next) {
 	// 총액 계산
 	this.totalAmount = this.installments.reduce((sum, inst) => sum + (inst.amount || 0), 0);
-	// 원천징수 3.3%
-	this.taxAmount = Math.floor(this.totalAmount * 0.033);
+	// 원천징수 3.3% (100원 단위 절삭)
+	this.taxAmount = Math.floor((this.totalAmount * 0.033) / 100) * 100;
 	// 실지급액
 	this.netAmount = this.totalAmount - this.taxAmount;
 	this.updatedAt = Date.now();

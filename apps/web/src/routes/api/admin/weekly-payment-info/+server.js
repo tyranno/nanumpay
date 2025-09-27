@@ -58,11 +58,11 @@ export async function GET({ locals }) {
 			}).sort({ year: -1, month: -1 }).limit(3)
 		]);
 
-		// 주간 지급 정보 정리
+		// 주간 지급 정보 정리 (100원 단위로 절삭)
 		const weeklyPayment = weeklyPaymentData[0] ? {
-			totalAmount: weeklyPaymentData[0].totalAmount || 0,
-			totalTax: weeklyPaymentData[0].totalTax || 0,
-			totalNet: weeklyPaymentData[0].totalNet || 0,
+			totalAmount: Math.floor((weeklyPaymentData[0].totalAmount || 0) / 100) * 100,
+			totalTax: Math.floor((weeklyPaymentData[0].totalTax || 0) / 100) * 100,
+			totalNet: Math.floor((weeklyPaymentData[0].totalNet || 0) / 100) * 100,
 			userCount: weeklyPaymentData[0].userCount || 0,
 			period: `${currentYear}년 ${currentMonth}월 ${weekOfMonth}주차`
 		} : {

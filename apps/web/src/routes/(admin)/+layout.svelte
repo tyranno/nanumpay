@@ -17,16 +17,6 @@
 	function goHome() {
 		goto('/admin');
 	}
-
-	// 현재 페이지에 따른 서브타이틀
-	let pageTitle = $derived.by(() => {
-		const path = $page.url.pathname;
-		if (path === '/admin') return '홈';
-		if (path.includes('/admin/payment')) return '용역비 지급명부';
-		if (path.includes('/admin/members')) return '용역자 관리명부';
-		if (path.includes('/admin/organization')) return '용역자 산하정보';
-		return '';
-	})
 </script>
 
 <style>
@@ -56,13 +46,7 @@
 						title="홈으로 이동"
 					>
 						<img src="/logo.svg" alt="나눔페이" class="h-8 w-8 mr-3" />
-						<div class="flex items-center">
-							<h1 class="text-xl font-semibold text-blue-600">나눔페이 관리자</h1>
-							{#if pageTitle}
-								<span class="mx-2 text-gray-400">|</span>
-								<span class="text-lg font-medium text-gray-700">{pageTitle}</span>
-							{/if}
-						</div>
+						<h1 class="text-xl font-semibold text-blue-600">나눔페이 관리자</h1>
 					</button>
 				</div>
 				<div class="flex items-center space-x-4">
