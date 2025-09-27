@@ -44,6 +44,8 @@
 		"@capacitor/android": "^7.4.3",
 		"@capacitor/core": "^7.4.3",
 		"@capacitor/ios": "^7.4.3",
+		"@tanstack/svelte-table": "^8.21.3",
+		"@vincjo/datatables": "^2.6.4",
 		"bcryptjs": "^2.4.3",
 		"d3": "^7.9.0",
 		"dotenv": "^16.3.1",
@@ -51,8 +53,11 @@
 		"jsonwebtoken": "^9.0.2",
 		"mongoose": "^8.0.0",
 		"multer": "^2.0.2",
+		"svelte-table": "^0.6.5",
+		"tabulator-tables": "^6.3.1",
 		"winston": "^3.17.0",
 		"winston-daily-rotate-file": "^5.0.0",
+		"wx-svelte-core": "^2.3.1",
 		"xlsx": "^0.18.5"
 	}
 }

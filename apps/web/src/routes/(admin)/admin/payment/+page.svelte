@@ -192,22 +192,12 @@
 			// 월간도 3개월씩 표시
 			const endIndex = Math.min(displayStartIndex + 3, monthlyData.length);
 			weeklyColumns = monthlyData.slice(displayStartIndex, endIndex);
-			console.log(
-				`Displaying months ${displayStartIndex + 1} to ${endIndex} of ${monthlyData.length}`
-			);
 		} else {
 			// 주간 표시: 기존 방식대로
 			const endIndex = Math.min(displayStartIndex + 4, allWeeklyData.length);
 			weeklyColumns = allWeeklyData.slice(displayStartIndex, endIndex);
-			console.log(
-				`Displaying weeks ${displayStartIndex + 1} to ${endIndex} of ${allWeeklyData.length}`
-			);
 		}
 
-		console.log(
-			'Display columns:',
-			weeklyColumns.map((w) => w.label)
-		);
 		processPaymentData();
 	}
 
@@ -269,8 +259,7 @@
 
 	// 데이터 처리
 	function processPaymentData() {
-		console.log('processPaymentData called with columns:', weeklyColumns.length);
-
+	
 		if (weeklyColumns.length === 0) {
 			paymentList = [];
 			return;
@@ -313,8 +302,6 @@
 			no: (currentPage - 1) * itemsPerPage + index + 1
 		}));
 
-		console.log('Payment list updated:', paymentList.length, 'users');
-		console.log('First user payments:', paymentList[0]?.payments);
 
 		// 검색 필터 적용
 		filterPayments();
@@ -501,7 +488,6 @@
 		if (filterType === 'period' && allWeeklyData.length > 0) {
 			if (displayStartIndex > 0) {
 				displayStartIndex -= 1;
-				console.log('Move previous - new display index:', displayStartIndex);
 				updateDisplayData();
 			}
 		} else {
@@ -521,14 +507,12 @@
 				const monthlyData = aggregateMonthlyData(allWeeklyData);
 				if (displayStartIndex < monthlyData.length - 1) {
 					displayStartIndex += 1;
-					console.log('Move next (monthly) - new display index:', displayStartIndex);
 					updateDisplayData();
 				}
 			} else {
 				// 주간 모드
 				if (displayStartIndex < allWeeklyData.length - 1) {
 					displayStartIndex += 1;
-					console.log('Move next (weekly) - new display index:', displayStartIndex);
 					updateDisplayData();
 				}
 			}
@@ -542,6 +526,7 @@
 			}
 		}
 	}
+
 
 	onMount(() => {
 		loadPaymentData();
@@ -559,79 +544,80 @@
 	<!-- 필터 영역 -->
 	<div class="filter-section">
 		<div class="filter-box">
-			<div class="filter-content single-line">
-				<label class="radio-label">
-					<input
-						type="radio"
-						bind:group={filterType}
-						value="date"
-						onchange={handleFilterTypeChange}
-					/>
-					<span>주간</span>
-				</label>
-				<input
-					type="date"
-					bind:value={selectedDate}
-					onchange={loadPaymentData}
-					disabled={filterType !== 'date'}
-					class="date-input"
-				/>
+			<div class="filter-content">
+				<div class="filter-row">
+					<label class="radio-label">
+						<input
+							type="radio"
+							bind:group={filterType}
+							value="date"
+							onchange={handleFilterTypeChange}
+						/>
+						<span>주간</span>
+					</label>
+					{#if filterType === 'date'}
+						<input
+							type="date"
+							bind:value={selectedDate}
+							onchange={loadPaymentData}
+							class="date-input"
+						/>
+					{/if}
 
-				<div class="divider"></div>
+					<div class="divider"></div>
 
-				<label class="radio-label">
-					<input
-						type="radio"
-						bind:group={filterType}
-						value="period"
-						onchange={handleFilterTypeChange}
-					/>
-					<span>기간</span>
-				</label>
+					<label class="radio-label">
+						<input
+							type="radio"
+							bind:group={filterType}
+							value="period"
+							onchange={handleFilterTypeChange}
+						/>
+						<span>기간</span>
+					</label>
+				</div>
 				{#if filterType === 'period'}
-					<input
-						type="number"
-						bind:value={startYear}
-						onchange={handlePeriodChange}
-						class="year-input"
-						min="2020"
-						max="2030"
-						style="margin-left: 10px;"
-					/>
-					<span>년</span>
-					<select bind:value={startMonth} onchange={handlePeriodChange} class="month-input">
-						{#each Array(12) as _, i}
-							<option value={i + 1}>{i + 1}월</option>
-						{/each}
-					</select>
-					<span style="margin: 0 8px;">~</span>
-					<input
-						type="number"
-						bind:value={endYear}
-						onchange={handlePeriodChange}
-						class="year-input"
-						min="2020"
-						max="2030"
-					/>
-					<span>년</span>
-					<select bind:value={endMonth} onchange={handlePeriodChange} class="month-input">
-						{#each Array(12) as _, i}
-							<option value={i + 1}>{i + 1}월</option>
-						{/each}
-					</select>
-
-					<div class="divider" style="margin: 0 15px;"></div>
-
-					<label style="font-weight: bold; margin-right: 8px;">표시 단위:</label>
-					<select
-						bind:value={periodType}
-						onchange={handlePeriodChange}
-						class="select-input"
-						style="width: 80px;"
-					>
-						<option value="weekly">주간</option>
-						<option value="monthly">월간</option>
-					</select>
+					<div class="period-controls">
+						<input
+							type="number"
+							bind:value={startYear}
+							onchange={handlePeriodChange}
+							class="year-input"
+							min="2020"
+							max="2030"
+						/>
+						<span>년</span>
+						<select bind:value={startMonth} onchange={handlePeriodChange} class="month-input">
+							{#each Array(12) as _, i}
+								<option value={i + 1}>{i + 1}월</option>
+							{/each}
+						</select>
+						<span class="range-divider">~</span>
+						<input
+							type="number"
+							bind:value={endYear}
+							onchange={handlePeriodChange}
+							class="year-input"
+							min="2020"
+							max="2030"
+						/>
+						<span>년</span>
+						<select bind:value={endMonth} onchange={handlePeriodChange} class="month-input">
+							{#each Array(12) as _, i}
+								<option value={i + 1}>{i + 1}월</option>
+							{/each}
+						</select>
+						<div class="divider"></div>
+						<span class="period-label">표시:</span>
+						<select
+							bind:value={periodType}
+							onchange={handlePeriodChange}
+							class="period-select"
+						>
+							<option value="weekly">주간</option>
+							<option value="monthly">월간</option>
+						</select>
+					</div>
 				{/if}
 			</div>
 		</div>
@@ -664,42 +650,36 @@
 
 	<!-- 검색 및 페이지 설정 -->
 	<div class="search-section">
-		<div class="search-box">
-			<input
-				type="text"
-				bind:value={searchQuery}
-				onkeyup={handleSearch}
-				placeholder="이름 또는 은행명으로 검색..."
-				class="search-input"
-			/>
-			<button onclick={handleSearch} class="search-button">
-				<img src="/icons/search.svg" alt="검색" width="20" height="20" />
+		<input
+			type="text"
+			bind:value={searchQuery}
+			onkeyup={handleSearch}
+			placeholder="이름 또는 은행명으로 검색..."
+			class="search-input"
+		/>
+		<button onclick={handleSearch} class="search-button">
+			<img src="/icons/search.svg" alt="검색" width="20" height="20" />
+		</button>
+
+		<label class="per-page-label">
+			페이지당
+			<select
+				bind:value={itemsPerPage}
+				onchange={handleItemsPerPageChange}
+				class="per-page-select"
+			>
+				<option value={10}>10개</option>
+				<option value={20}>20개</option>
+				<option value={50}>50개</option>
+				<option value={100}>100개</option>
+			</select>
+		</label>
+
+		{#if filteredPaymentList.length > 0}
+			<button onclick={exportToExcel} class="export-button">
+				<img src="/icons/download.svg" alt="다운로드" width="16" height="16" />
 			</button>
-		</div>
-
-		<div class="page-settings">
-			<label class="per-page-label">
-				페이지당
-				<select
-					bind:value={itemsPerPage}
-					onchange={handleItemsPerPageChange}
-					class="per-page-select"
-				>
-					<option value={10}>10개</option>
-					<option value={20}>20개</option>
-					<option value={50}>50개</option>
-					<option value={100}>100개</option>
-				</select>
-			</label>
-
-			{#if filteredPaymentList.length > 0}
-				<div class="divider"></div>
-				<button onclick={exportToExcel} class="export-button">
-					<img src="/icons/download.svg" alt="다운로드" width="16" height="16" />
-					엑셀 다운로드
-				</button>
-			{/if}
-		</div>
+		{/if}
 	</div>
 
 	<!-- 테이블 영역 -->
@@ -709,34 +689,15 @@
 		<div class="error">{error}</div>
 	{:else}
 		<div class="table-container">
-			{#if filterType === 'period' && weeklyColumns.length > 0}
-				<div class="week-nav-container">
-					<div class="week-nav-buttons">
-						<button
-							onclick={movePreviousWeek}
-							disabled={displayStartIndex === 0}
-							class="week-nav-button"
-						>
-							<img src="/icons/chevron-left.svg" alt="이전" width="20" height="20" />
-						</button>
-						<button
-							onclick={moveNextWeek}
-							disabled={displayStartIndex >= allWeeklyData.length - 1}
-							class="week-nav-button"
-						>
-							<img src="/icons/chevron-right.svg" alt="다음" width="20" height="20" />
-						</button>
-					</div>
-				</div>
-			{/if}
+
 			<div class="table-wrapper">
 				<table class="payment-table">
 					<thead>
 						<tr class="header-row-1">
 							<th rowspan="2" class="sticky-col sticky-col-0">순번</th>
 							<th rowspan="2" class="sticky-col sticky-col-1">성명</th>
-							<th rowspan="2" class="sticky-col sticky-col-2">은행</th>
-							<th rowspan="2" class="sticky-col sticky-col-3">계좌번호</th>
+							<th rowspan="2">은행</th>
+							<th rowspan="2">계좌번호</th>
 							{#each weeklyColumns as week}
 								<th colspan="3" class="week-header">{week.label}</th>
 							{/each}
@@ -755,8 +716,8 @@
 								<tr>
 									<td class="sticky-col sticky-col-0">{user.no}</td>
 									<td class="sticky-col sticky-col-1">{user.name}</td>
-									<td class="sticky-col sticky-col-2">{user.bank}</td>
-									<td class="sticky-col sticky-col-3">{user.accountNumber}</td>
+									<td>{user.bank}</td>
+									<td>{user.accountNumber}</td>
 									{#each weeklyColumns as week}
 										{@const key = week.week || `month_${week.month}`}
 										{@const payment = user.payments[key]}
@@ -881,11 +842,14 @@
 
 	.filter-content {
 		display: flex;
-		align-items: center;
+		flex-direction: column;
 		gap: 8px;
 	}
 
-	.filter-content.single-line {
+	.filter-row {
+		display: flex;
+		align-items: center;
+		gap: 8px;
 		flex-wrap: wrap;
 	}
 
@@ -904,38 +868,24 @@
 		font-size: 13px;
 	}
 
-	.date-input,
-	.select-input {
+	.date-input {
 		padding: 4px 6px;
 		border: 1px solid #ccc;
 		border-radius: 3px;
 		font-size: 13px;
 	}
 
-	.period-type {
-		width: 80px;
-	}
-
-	.date-input:disabled,
-	.select-input:disabled {
+	.date-input:disabled {
 		background: #f5f5f5;
 		cursor: not-allowed;
 	}
 
 	.year-input,
-	.month-input,
-	.week-input {
+	.month-input {
 		padding: 5px;
 		border: 1px solid #ccc;
 		border-radius: 3px;
 		font-size: 14px;
-	}
-
-	.period-selector {
-		display: inline-flex;
-		align-items: center;
-		gap: 5px;
-		margin-left: 10px;
 	}
 
 	.year-input {
@@ -943,14 +893,37 @@
 	}
 
 	.month-input {
-		width: 55px;
+		width: 75px;
+		padding: 5px 26px 5px 10px;
 	}
 
-	.period-info {
+	/* 기간 선택 컨트롤 */
+	.period-controls {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		flex-wrap: wrap;
+		margin-top: 4px;
+		padding-left: 0;
+	}
+
+	.range-divider {
+		margin: 0 4px;
 		color: #666;
+	}
+
+	.period-label {
+		font-weight: bold;
 		font-size: 13px;
-		margin-left: 10px;
-		font-style: italic;
+		white-space: nowrap;
+	}
+
+	.period-select {
+		padding: 5px 26px 5px 10px;
+		border: 1px solid #ccc;
+		border-radius: 3px;
+		font-size: 14px;
+		width: 90px;
 	}
 
 	/* 테이블 컨테이너 */
@@ -958,145 +931,57 @@
 		position: relative;
 	}
 
-	/* 인라인 네비게이션 버튼 */
-	.nav-button-inline {
-		position: absolute;
-		top: 50%;
-		transform: translateY(-50%);
-		width: 24px;
-		height: 24px;
-		background: rgba(255, 255, 255, 0.8);
-		border: 1px solid rgba(102, 126, 234, 0.3);
-		border-radius: 4px;
-		cursor: pointer;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		transition: all 0.2s ease;
-		z-index: 1;
-	}
-
-	.nav-button-left-inline {
-		left: 4px;
-	}
-
-	.nav-button-right-inline {
-		right: 4px;
-	}
-
-	.nav-button-inline:hover:not(:disabled) {
-		background: rgba(102, 126, 234, 0.9);
-		border-color: rgba(102, 126, 234, 0.6);
-	}
-
-	.nav-button-inline:hover:not(:disabled) img {
-		filter: brightness(0) invert(1);
-	}
-
-	.nav-button-inline:disabled {
-		opacity: 0.3;
-		cursor: not-allowed;
-		background: rgba(248, 248, 248, 0.5);
-	}
-
-	.nav-button-inline img {
-		width: 16px;
-		height: 16px;
-	}
-
-	/* 주간 이동 네비게이션 */
-	.week-navigation {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		padding: 10px;
-		background: #f8f9fa;
-		border: 2px solid #333;
-		border-bottom: none;
-		gap: 20px;
-	}
-
-	.nav-group {
-		display: flex;
-		gap: 2px;
-	}
-
-	.nav-icon-button {
-		width: 36px;
-		height: 36px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		background: white;
-		border: 1px solid #d0d0d0;
-		border-radius: 6px;
-		cursor: pointer;
-		transition: all 0.2s;
-		padding: 0;
-		box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-	}
-
-	.nav-icon-button img {
-		filter: brightness(0.3);
-		transition: filter 0.2s;
-	}
-
-	.nav-icon-button:hover:not(:disabled) {
-		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-		border-color: #667eea;
-		box-shadow: 0 2px 4px rgba(102, 126, 234, 0.3);
-		transform: translateY(-1px);
-	}
-
-	.nav-icon-button:hover:not(:disabled) img {
-		filter: brightness(0) invert(1);
-	}
-
-	.nav-icon-button:active:not(:disabled) {
-		transform: translateY(0);
-		box-shadow: 0 1px 2px rgba(102, 126, 234, 0.3);
-	}
-
-	.nav-icon-button:disabled {
-		opacity: 0.3;
-		cursor: not-allowed;
-		background: #f8f8f8;
-		border-color: #e0e0e0;
-		box-shadow: none;
-	}
-
-	.nav-icon-button:disabled img {
-		filter: brightness(0.6);
-	}
-
-	.current-period {
-		font-weight: bold;
-		font-size: 14px;
-		color: #333;
-	}
-
 	/* 테이블 영역 */
 	.table-wrapper {
 		overflow-x: auto;
-		border: 2px solid #333;
+		border: 1px solid #ddd;
 		background: white;
 		position: relative;
 	}
 
 	.payment-table {
-		border-collapse: collapse;
+		border-collapse: separate;
+		border-spacing: 0;
 		width: 100%;
 		min-width: max-content;
 	}
 
 	.payment-table th,
 	.payment-table td {
-		border: 1px solid #333;
+		border-right: 1px solid #ddd;
+		border-bottom: 1px solid #ddd;
 		padding: 6px;
 		text-align: center;
 		white-space: nowrap;
-		font-size: 12px;
 		font-size: 14px;
+	}
+
+	.payment-table th:first-child,
+	.payment-table td:first-child {
+		border-left: 1px solid #ddd;
+	}
+
+	.payment-table thead tr:first-child th {
+		border-top: 1px solid #ddd;
+	}
+
+	/* 고정 컬럼 기본 스타일 */
+	.sticky-col {
+		position: sticky !important;
+		z-index: 10;
+		background: white !important;
+	}
+
+	.sticky-col-0 {
+		left: 0;
+		min-width: 60px;
+		z-index: 12;
+	}
+
+	.sticky-col-1 {
+		left: 60px;
+		min-width: 80px;
+		z-index: 11;
 	}
 
 	/* 헤더 스타일 */
@@ -1107,7 +992,6 @@
 
 	.week-header {
 		background: #d0e0f0;
-		border-bottom: 2px solid #333;
 	}
 
 	.header-row-2 th {
@@ -1122,74 +1006,6 @@
 
 	.tax-header {
 		background: #ffe0e0;
-	}
-
-	/* 고정 컬럼 스타일 */
-	.sticky-col {
-		position: sticky;
-		background: white !important;
-		z-index: 10;
-	}
-
-	.sticky-col-0 {
-		left: 0;
-		min-width: 50px;
-		z-index: 14;
-	}
-
-	.sticky-col-1 {
-		left: 50px;
-		min-width: 80px;
-		z-index: 13;
-	}
-
-	.sticky-col-2 {
-		left: 130px;
-		min-width: 80px;
-		z-index: 12;
-	}
-
-	.sticky-col-3 {
-		left: 210px;
-		min-width: 150px;
-		z-index: 11;
-	}
-
-	/* 고정 컬럼 헤더 */
-	thead .sticky-col {
-		background: #e8e8e8 !important;
-		z-index: 20;
-	}
-
-	thead .sticky-col-0 {
-		z-index: 24;
-	}
-
-	thead .sticky-col-1 {
-		z-index: 23;
-	}
-
-	thead .sticky-col-2 {
-		z-index: 22;
-	}
-
-	thead .sticky-col-3 {
-		z-index: 21;
-	}
-
-	/* 고정 컬럼 경계선 강조 */
-	.sticky-col-3 {
-		border-right: 2px solid #666 !important;
-	}
-
-	/* hover 효과 제거 - 스크롤 시 겹침 문제로 인해 비활성화 */
-	tbody tr:hover td {
-		/* hover 효과 없음 */
-	}
-
-	/* 고정 컬럼은 항상 흰색 배경 유지 */
-	tbody .sticky-col {
-		background: white !important;
 	}
 
 	/* 데이터 셀 스타일 */
@@ -1212,6 +1028,17 @@
 		font-weight: bold;
 		text-align: right;
 		padding-right: 12px;
+	}
+
+	/* 고정 컬럼 헤더 */
+	thead .sticky-col {
+		background: #e8e8e8 !important;
+		z-index: 20;
+	}
+
+	/* 고정 컬럼은 항상 흰색 배경 유지 */
+	tbody .sticky-col {
+		background: white !important;
 	}
 
 	.empty-message {
@@ -1245,7 +1072,7 @@
 			min-width: unset;
 		}
 
-		.filter-content {
+		.filter-row {
 			font-size: 12px;
 		}
 
@@ -1259,30 +1086,25 @@
 		}
 
 		.search-section {
-			flex-direction: column;
-			align-items: stretch;
+			flex-wrap: wrap;
+			gap: 8px;
 		}
 
-		.search-box {
-			width: 100%;
-			margin-bottom: 8px;
-		}
-
-		.page-settings {
-			justify-content: space-between;
-			width: 100%;
+		.search-input {
+			min-width: 150px;
 		}
 
 		.table-wrapper {
 			font-size: 12px;
 		}
 
-		.sticky-col {
-			min-width: 60px;
+		.sticky-col-0 {
+			min-width: 50px;
 		}
 
 		.sticky-col-1 {
-			min-width: 80px;
+			left: 50px;
+			min-width: 60px;
 		}
 
 		.week-header {
@@ -1294,13 +1116,22 @@
 		}
 
 		.year-input {
-			width: 55px;
+			width: 60px;
 		}
 
-		.month-input,
-		.select-input {
-			width: auto;
-			min-width: 60px;
+		.period-controls {
+			gap: 4px;
+			margin-left: 6px;
+		}
+
+		.month-input {
+			width: 60px;
+			padding: 4px 20px 4px 6px;
+		}
+
+		.period-select {
+			width: 70px;
+			padding: 4px 20px 4px 6px;
 		}
 	}
 
@@ -1319,12 +1150,9 @@
 			padding: 4px 5px;
 		}
 
-		.filter-content {
+		.filter-row {
 			font-size: 10px;
 			gap: 4px;
-		}
-
-		.filter-content.single-line {
 			flex-direction: row;
 			flex-wrap: wrap;
 			align-items: center;
@@ -1334,8 +1162,7 @@
 			font-size: 10px;
 		}
 
-		.date-input,
-		.select-input {
+		.date-input {
 			padding: 2px 4px;
 			font-size: 10px;
 		}
@@ -1345,21 +1172,21 @@
 		}
 
 		.month-input {
-			width: 40px;
+			width: 35px;
 		}
 
-		.period-type {
-			width: 55px;
-		}
-
-		.period-selector {
-			margin-left: 5px;
+		.period-controls {
 			gap: 3px;
+			margin-left: 4px;
 		}
 
-		.period-info {
-			font-size: 9px;
-			margin-left: 3px;
+		.period-select {
+			width: 45px;
+			font-size: 11px;
+		}
+
+		.period-label {
+			font-size: 11px;
 		}
 
 		.summary-section {
@@ -1386,18 +1213,15 @@
 		}
 
 		.search-section {
-			padding: 4px 5px;
 			margin: 4px 0;
 			gap: 4px;
-		}
-
-		.search-box {
-			gap: 4px;
+			flex-wrap: wrap;
 		}
 
 		.search-input {
 			padding: 4px 6px;
 			font-size: 11px;
+			min-width: 120px;
 		}
 
 		.search-button {
@@ -1409,25 +1233,21 @@
 			height: 14px;
 		}
 
-		.page-settings {
-			gap: 4px;
-		}
-
 		.per-page-label {
 			font-size: 10px;
 			gap: 3px;
 		}
 
 		.per-page-select {
-			padding: 3px 14px 3px 5px;
+			padding: 3px 16px 3px 5px;
 			font-size: 10px;
 			min-width: 55px;
 		}
 
 		.export-button {
-			padding: 4px 6px;
-			font-size: 10px;
-			gap: 3px;
+			padding: 4px;
+			min-width: 28px;
+			height: 28px;
 		}
 
 		.export-button img {
@@ -1447,22 +1267,11 @@
 
 		.sticky-col-0 {
 			min-width: 30px;
-			left: 0;
 		}
 
 		.sticky-col-1 {
-			min-width: 45px;
 			left: 30px;
-		}
-
-		.sticky-col-2 {
-			min-width: 40px;
-			left: 75px;
-		}
-
-		.sticky-col-3 {
-			min-width: 80px;
-			left: 115px;
+			min-width: 45px;
 		}
 
 		.week-header {
@@ -1482,14 +1291,6 @@
 			padding-right: 2px;
 		}
 
-		.week-nav-button {
-			padding: 3px 5px;
-		}
-
-		.week-nav-button img {
-			width: 14px;
-			height: 14px;
-		}
 
 		.pagination {
 			padding: 5px;
@@ -1534,16 +1335,6 @@
 			height: 15px;
 			margin: 0 3px;
 		}
-
-		.total-row td {
-			font-size: 9px;
-			padding: 3px;
-		}
-
-		.total-cell {
-			font-size: 10px;
-			padding: 4px;
-		}
 	}
 
 	/* 스크롤바 스타일 */
@@ -1579,30 +1370,6 @@
 
 	tbody tr:hover .net-cell {
 		background: #ddffdd;
-	}
-
-	/* 합계 행 스타일 */
-	.total-row {
-		background: #f0f0f0;
-		font-weight: bold;
-		border-top: 2px solid #333;
-	}
-
-	.total-label {
-		text-align: center;
-		background: #e0e0e0;
-		font-size: 15px;
-	}
-
-	.total-cell {
-		text-align: right;
-		padding: 12px 8px;
-		font-size: 14px;
-		background: #f8f8f8;
-	}
-
-	.total-cell.tax-total {
-		background: #fff5f5;
 	}
 
 	/* 요약 섹션 */
@@ -1670,22 +1437,10 @@
 	/* 검색 및 페이지 설정 */
 	.search-section {
 		display: flex;
-		justify-content: space-between;
 		align-items: center;
 		margin: 8px 0;
-		padding: 8px 10px;
-		background: #f8f9fa;
-		border-radius: 4px;
-		flex-wrap: wrap;
 		gap: 10px;
-	}
-
-	.search-box {
-		display: flex;
-		align-items: center;
-		gap: 10px;
-		flex: 1;
-		max-width: 400px;
+		flex-wrap: nowrap;
 	}
 
 	.search-input {
@@ -1694,6 +1449,7 @@
 		border: 1px solid #ddd;
 		border-radius: 4px;
 		font-size: 14px;
+		min-width: 200px;
 	}
 
 	.search-button {
@@ -1706,6 +1462,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
+		flex-shrink: 0;
 	}
 
 	.search-button:hover {
@@ -1716,22 +1473,18 @@
 		filter: brightness(0) invert(1);
 	}
 
-	.page-settings {
-		display: flex;
-		align-items: center;
-		gap: 10px;
-	}
-
 	.per-page-label {
 		display: flex;
 		align-items: center;
 		gap: 8px;
 		font-size: 14px;
+		white-space: nowrap;
+		flex-shrink: 0;
 	}
 
 	.per-page-select {
-		padding: 6px 24px 6px 10px;
-		min-width: 85px;
+		padding: 6px 24px 6px 8px;
+		min-width: 70px;
 		border: 1px solid #ddd;
 		border-radius: 4px;
 		font-size: 14px;
@@ -1741,18 +1494,19 @@
 	}
 
 	.export-button {
-		padding: 8px 16px;
+		padding: 8px;
 		background: #28a745;
 		color: white;
 		border: none;
 		border-radius: 4px;
-		font-size: 14px;
-		font-weight: 500;
 		cursor: pointer;
 		display: flex;
 		align-items: center;
-		gap: 6px;
+		justify-content: center;
 		transition: background 0.2s;
+		min-width: 36px;
+		height: 36px;
+		flex-shrink: 0;
 	}
 
 	.export-button img {
@@ -1763,42 +1517,6 @@
 		background: #218838;
 	}
 
-	/* 주간 네비게이션 컨테이너 */
-	.week-nav-container {
-		display: flex;
-		justify-content: flex-end;
-		margin-bottom: 10px;
-	}
-
-	.week-nav-buttons {
-		display: flex;
-		gap: 8px;
-	}
-
-	.week-nav-button {
-		padding: 6px 10px;
-		background: white;
-		border: 1px solid #ddd;
-		border-radius: 4px;
-		cursor: pointer;
-		display: flex;
-		align-items: center;
-		transition: all 0.2s;
-	}
-
-	.week-nav-button:hover:not(:disabled) {
-		background: #007bff;
-		border-color: #007bff;
-	}
-
-	.week-nav-button:hover:not(:disabled) img {
-		filter: brightness(0) invert(1);
-	}
-
-	.week-nav-button:disabled {
-		opacity: 0.4;
-		cursor: not-allowed;
-	}
 
 	/* 페이지네이션 */
 	.pagination {
