@@ -3,18 +3,18 @@ set -euo pipefail
 
 # 기본값
 MONGO_URI="${MONGO_URI:-mongodb://localhost:27017}"
-DB_NAME="${DB_NAME:-agent-tree}"
-ADMIN_LOGIN_ID="${ADMIN_LOGIN_ID:-admin}"
+DB_NAME="${DB_NAME:-nanumpay}"
+ADMIN_LOGIN_ID="${ADMIN_LOGIN_ID:-관리자}"
 ADMIN_NAME="${ADMIN_NAME:-관리자}"
 ROLE="${ROLE:-admin}"
 FORCE="${FORCE:-false}"        # true/false
 BCRYPT_COST="${BCRYPT_COST:-10}"
 BCRYPT_HASH="${BCRYPT_HASH:-}"
 
-DB_DIR="${DB_DIR:-/opt/agent-tree/db}"  # init.mongo.js, JSON이 설치될 위치
+DB_DIR="${DB_DIR:-/opt/nanumpay/db}"  # init.mongo.js, JSON이 설치될 위치
 
 usage() {
-  echo "Usage: sudo /opt/agent-tree/tools/db_init.sh [--uri=URI] [--db=NAME] [--loginId=ID] [--name=NAME] [--role=ROLE] [--password=PWD | --hash=BCRYPT] [--force] [--cost=N]"
+  echo "Usage: sudo /opt/nanumpay/tools/db_init.sh [--uri=URI] [--db=NAME] [--loginId=ID] [--name=NAME] [--role=ROLE] [--password=PWD | --hash=BCRYPT] [--force] [--cost=N]"
   exit 1
 }
 
@@ -67,8 +67,8 @@ CONNECT_URI="$MONGO_URI"
 cd "$DB_DIR"
 
 # /tmp 에 임시 래퍼 생성 + 자동 삭제
-TMP_SCHEMA="$(mktemp /tmp/agent-tree.schema.XXXXXX.js)"
-TMP_INDEXES="$(mktemp /tmp/agent-tree.indexes.XXXXXX.js)"
+TMP_SCHEMA="$(mktemp /tmp/nanumpay.schema.XXXXXX.js)"
+TMP_INDEXES="$(mktemp /tmp/nanumpay.indexes.XXXXXX.js)"
 trap 'rm -f "$TMP_SCHEMA" "$TMP_INDEXES"' EXIT
 
 { echo -n 'globalThis.USERS_SCHEMA=';  cat ./schema.users.json;  echo ';'; }  > "$TMP_SCHEMA"

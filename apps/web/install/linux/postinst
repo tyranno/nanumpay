@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-APP=agent-tree
+APP=nanumpay
 APPDIR=/opt/$APP
 USER=$APP
 

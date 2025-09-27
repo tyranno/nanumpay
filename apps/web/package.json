@@ -10,8 +10,8 @@
 		"prepare": "svelte-kit sync || echo ''",
 		"format": "prettier --write .",
 		"lint": "prettier --check . && eslint .",
-		"release:linux": "yarn build && node scripts/release-linux.cjs",
-		"release:win": "yarn build && node scripts/release-win.cjs"
+		"release:linux": "pnpm build && node scripts/release-linux.cjs",
+		"release:win": "pnpm build && node scripts/release-win.cjs"
 	},
 	"devDependencies": {
 		"@capacitor/cli": "^7.4.3",

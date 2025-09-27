@@ -1,29 +1,29 @@
 param(
-  [string]$InstallDir = "$env:ProgramFiles\AgentTree"
+  [string]$InstallDir = "$env:ProgramFiles\Nanumpay"
 )
 
 $ErrorActionPreference = "Stop"
 
 # 1) ProgramData 환경파일 준비
-$envDir  = Join-Path $env:ProgramData "AgentTree"
-$envFile = Join-Path $envDir "agent-tree.env"
+$envDir  = Join-Path $env:ProgramData "Nanumpay"
+$envFile = Join-Path $envDir "nanumpay.env"
 if (-not (Test-Path $envDir)) { New-Item -Force -ItemType Directory -Path $envDir | Out-Null }
 if (-not (Test-Path $envFile)) {
 @'
 PORT=3000
 HOST=0.0.0.0
-MONGODB_URI=mongodb://localhost:27017/agent-tree
+MONGODB_URI=mongodb://localhost:27017/nanumpay
 JWT_SECRET=change-me
 JWT_EXPIRES=7d
 '@ | Set-Content -Encoding UTF8 $envFile
 }
 
 # 2) WinSW 선택(아키텍처 감지) 및 서비스 EXE 이름 정렬
-$svcId     = "AgentTree"
-$exePath   = Join-Path $InstallDir "agent-tree.exe"     # 애플리케이션 실행파일
+$svcId     = "Nanumpay"
+$exePath   = Join-Path $InstallDir "nanumpay.exe"     # 애플리케이션 실행파일
 $winswX64  = Join-Path $InstallDir "WinSW-x64.exe"      # 설치본에 동봉된 파일
 $winswX86  = Join-Path $InstallDir "WinSW-x86.exe"      # 설치본에 동봉된 파일
-$winswDst  = Join-Path $InstallDir "$svcId.exe"         # 베이스명 통일: AgentTree.exe (WinSW 규칙)
+$winswDst  = Join-Path $InstallDir "$svcId.exe"         # 베이스명 통일: Nanumpay.exe (WinSW 규칙)
 $xmlPath   = Join-Path $InstallDir "$svcId.xml"
 $logDir    = Join-Path $InstallDir "logs"
 
@@ -55,7 +55,7 @@ $xml = @"
 <service>
   <id>$svcId</id>
   <name>$svcId</name>
-  <description>AgentTree EXE service</description>
+  <description>Nanumpay EXE service</description>
   <executable>$exePath</executable>
   <workingdirectory>$InstallDir</workingdirectory>
   <logpath>$logDir</logpath>

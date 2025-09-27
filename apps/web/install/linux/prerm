@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-APP=agent-tree
+APP=nanumpay
 
 if [ "$1" = "remove" ] || [ "$1" = "upgrade" ]; then
   systemctl stop ${APP}.service || true

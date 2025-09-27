@@ -3,9 +3,12 @@
   "private": true,
   "version": "0.0.1",
   "scripts": {
+    "dev": "pnpm dev:web",
     "dev:web": "pnpm --filter nanumpay-web dev",
     "build:web": "pnpm --filter nanumpay-web build",
     "start:web": "pnpm --filter nanumpay-web start",
+    "release:linux": "pnpm --filter nanumpay-web release:linux",
+    "release:win": "pnpm --filter nanumpay-web release:win",
     "dev:app": "pnpm --filter nanumpay-app dev",
     "build:app": "pnpm --filter nanumpay-app build",
     "cap:sync": "pnpm --filter nanumpay-app cap:sync",

@@ -28,7 +28,7 @@ Section "Install"
   CreateDirectory "$INSTDIR\db"
 
   ; 실행파일
-  File "/oname=agent-tree.exe" "${INPUT_DIR}\dist\agent-tree.exe"
+  File "/oname=nanumpay.exe" "${INPUT_DIR}\dist\nanumpay.exe"
 
   ; 설치/제거 스크립트 & WinSW & DB init 배치
   File "${INPUT_DIR}\install\win\install.ps1"
@@ -46,8 +46,8 @@ Section "Install"
 
   ; ProgramData 환경파일(없으면 신규 생성)
   CreateDirectory "$COMMONAPPDATA\Nanumpay"
-  IfFileExists "$COMMONAPPDATA\Nanumpay\agent-tree.env" +3 0
-    File "/oname=$COMMONAPPDATA\Nanumpay\agent-tree.env" "${INPUT_DIR}\install\win\agent-tree.env"
+  IfFileExists "$COMMONAPPDATA\Nanumpay\nanumpay.env" +3 0
+    File "/oname=$COMMONAPPDATA\Nanumpay\nanumpay.env" "${INPUT_DIR}\install\win\nanumpay.env"
 
   ; 설치 스크립트 호출 (서비스 등록 + DB 초기화)
   nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\install.ps1" -InstallDir "$INSTDIR"'

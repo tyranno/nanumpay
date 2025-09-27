@@ -135,12 +135,18 @@ if (!seedHash && seedPass && bcrypt) {
 // - 필요하면 ADMIN_LOGIN_ID/NAME/ROLE도 SEED_ADMIN_* 로 추가 가능
 const dbArgs = [];
 dbArgs.push(`"--uri=\\"$MONGODB_URI\\""`);
+// 기본 관리자 계정 설정
+dbArgs.push(`"--loginId=관리자"`);
+dbArgs.push(`"--name=관리자"`);
+dbArgs.push(`"--role=admin"`);
 if (seedHash) {
 	dbArgs.push(`"--hash=${seedHash.replace(/"/g, '\\"')}"`);
 } else if (seedPass) {
 	dbArgs.push(`"--password=${seedPass.replace(/"/g, '\\"')}"`);
+} else {
+	// 기본 비밀번호 설정 (설치 후 변경 권장)
+	dbArgs.push(`"--password=1234"`);
 }
-// (원하면 여기에 --loginId= --name= --role= 추가 가능)
 
 const postinst = `#!/bin/bash
 set -e

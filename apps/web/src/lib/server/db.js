@@ -28,7 +28,7 @@ export async function db() {
 
 	if (!cached.promise) {
 		const opts = {
-			bufferCommands: false,
+			bufferCommands: false
 		};
 
 		cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongoose) => {
@@ -47,9 +47,10 @@ export async function db() {
 }
 
 export async function connectDB() {
-	const mongoUri = typeof process !== 'undefined' && process.env.MONGODB_URI
-		? process.env.MONGODB_URI
-		: 'mongodb://localhost:27017/nanumpay';
+	const mongoUri =
+		typeof process !== 'undefined' && process.env.MONGODB_URI
+			? process.env.MONGODB_URI
+			: 'mongodb://localhost:27017/nanumpay';
 
 	if (mongoose.connection.readyState === 0) {
 		await mongoose.connect(mongoUri, { bufferCommands: false });

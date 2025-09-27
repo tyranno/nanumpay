@@ -3,12 +3,12 @@ setlocal enabledelayedexpansion
 
 rem 기본값
 if "%MONGO_URI%"=="" set "MONGO_URI=mongodb://localhost:27017"
-if "%DB_NAME%"=="" set "DB_NAME=agent-tree"
-if "%ADMIN_LOGIN_ID%"=="" set "ADMIN_LOGIN_ID=admin"
+if "%DB_NAME%"=="" set "DB_NAME=nanumpay"
+if "%ADMIN_LOGIN_ID%"=="" set "ADMIN_LOGIN_ID=관리자"
 if "%ADMIN_NAME%"=="" set "ADMIN_NAME=관리자"
 if "%ROLE%"=="" set "ROLE=admin"
 if "%FORCE%"=="" set "FORCE=false"
-if "%DB_DIR%"=="" set "DB_DIR=%ProgramFiles%\AgentTree\db"
+if "%DB_DIR%"=="" set "DB_DIR=%ProgramFiles%\Nanumpay\db"
 if "%BCRYPT_COST%"=="" set "BCRYPT_COST=10"
 
 set "BCRYPT_HASH=%BCRYPT_HASH%"
@@ -54,8 +54,8 @@ set "CONNECT_URI=%MONGO_URI%"
 echo %CONNECT_URI% | find "/" >nul || set "CONNECT_URI=%MONGO_URI%/%DB_NAME%"
 
 rem ===== 여기부터 추가: TEMP에 임시 래퍼 생성 =====
-set "TMP_SCHEMA=%TEMP%\agent-tree.schema.%RANDOM%.%RANDOM%.js"
-set "TMP_INDEXES=%TEMP%\agent-tree.indexes.%RANDOM%.%RANDOM%.js"
+set "TMP_SCHEMA=%TEMP%\nanumpay.schema.%RANDOM%.%RANDOM%.js"
+set "TMP_INDEXES=%TEMP%\nanumpay.indexes.%RANDOM%.%RANDOM%.js"
 
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$dbDir = '%DB_DIR%';" ^

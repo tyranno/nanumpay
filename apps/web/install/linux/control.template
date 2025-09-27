@@ -1,4 +1,4 @@
-Package: agent-tree
+Package: nanumpay
 Version: {{VERSION}}
 Section: utils
 Priority: optional
@@ -6,5 +6,5 @@ Architecture: {{ARCH}}
 Maintainer: Nanum Asset <ops@nanum-asset.example>
 Depends: adduser, bash, coreutils, systemd
 Recommends: mongosh | mongodb-mongosh, apache2-utils | whois
-Description: AgentTree app by Nanum Asset
+Description: Nanumpay app by Nanum Asset
  Runs as a native systemd service.

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -e
 
-APP=agent-tree
+APP=nanumpay
 
 if [ "$1" = "purge" ]; then
   rm -f /lib/systemd/system/${APP}.service || true
   systemctl daemon-reload || true
-  # /etc/default/agent-tree 는 conffile 로 관리되어 dpkg가 처리
-  # /opt/agent-tree 는 필요 시 수동 삭제 안내
+  # /etc/default/nanumpay 는 conffile 로 관리되어 dpkg가 처리
+  # /opt/nanumpay 는 필요 시 수동 삭제 안내
 fi
