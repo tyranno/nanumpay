@@ -230,104 +230,186 @@ export async function POST({ request, locals }) {
 			}
 		}
 
-		// 2단계: 부모-자식 관계 설정 (엑셀 순서대로)
-		// 부모-자식 관계 설정 시작
+		// 2단계: MLM 규칙 검증 및 부모-자식 관계 설정
+
+		// 먼저 루트 노드 검증: "-" 판매인은 하나만 허용
+		const rootCandidates = Array.from(registeredUsers.values()).filter(info =>
+			info.salesperson === '-' || info.salesperson === '' || !info.salesperson
+		);
+
+		excelLogger.info(`🌱 루트 후보자: ${rootCandidates.length}명`, {
+			candidates: rootCandidates.map(r => `${r.name}(판매인:${r.salesperson})`)
+		});
+
+		// 기존 루트 노드 확인 (방금 등록한 사용자들 제외)
+		const registeredUserIds = Array.from(registeredUsers.values()).map(info => info.user._id);
+		const existingRoot = await User.findOne({
+			parentId: null,
+			type: 'user',
+			_id: { $nin: registeredUserIds }  // 방금 등록한 사용자들 제외
+		});
+
+		if (existingRoot) {
+			excelLogger.info(`🌳 기존 루트 발견: ${existingRoot.name}`);
+		} else {
+			excelLogger.info(`🌱 기존 루트 없음`);
+		}
+
+		if (rootCandidates.length > 1) {
+			results.failed += rootCandidates.length - 1;
+			results.errors.push(`❌ 루트 노드는 하나만 허용됩니다. 판매인이 "-"인 사람은 ${rootCandidates.length}명입니다.`);
+			excelLogger.error('다중 루트 노드 시도', { count: rootCandidates.length });
+			return json({
+				success: false,
+				error: '루트 노드는 하나만 허용됩니다. 판매인이 "-"인 사람은 한 명만 가능합니다.'
+			}, { status: 400 });
+		}
+
+		if (rootCandidates.length === 1 && existingRoot) {
+			results.failed++;
+			results.errors.push(`❌ 루트 노드가 이미 존재합니다: ${existingRoot.name}`);
+			excelLogger.error('루트 노드 중복', { existing: existingRoot.name, new: rootCandidates[0].name });
+			return json({
+				success: false,
+				error: `루트 노드가 이미 존재합니다: ${existingRoot.name}`
+			}, { status: 400 });
+		}
+
+		// 부모-자식 관계 설정 (엑셀 순서대로)
+		const failedUsers = [];
+
 		for (const orderInfo of usersByOrder) {
 			const loginId = orderInfo.loginId;
 			const info = registeredUsers.get(loginId);
-			if (info.salesperson) {
-				// 자기 자신을 판매인으로 등록하는 것 방지
-				if (info.salesperson === info.name) {
-					logger.warn(`⚠️ 자기 참조 방지: ${info.name}님이 자기 자신을 판매인으로 등록하려 함`);
-					notificationDetails.push({
-						type: 'warning',
-						message: `${info.name}님: 자기 자신을 판매인으로 등록할 수 없습니다.`
-					});
-					continue; // 이 사용자의 부모 관계는 설정하지 않고 건너뜀
+
+			// 루트 노드 처리 (판매인이 "-" 또는 빈값)
+			if (info.salesperson === '-' || info.salesperson === '' || !info.salesperson) {
+				// 루트는 부모 없이 그대로 둠 (parentId: null)
+				excelLogger.info(`🌳 루트 노드 설정: ${info.name}, 판매인: ${info.salesperson}`);
+				continue;
+			}
+
+			// 자기 자신을 판매인으로 등록하는 것 방지
+			if (info.salesperson === info.name) {
+				failedUsers.push(info.name);
+				results.errors.push(`❌ ${info.name}: 자기 자신을 판매인으로 등록할 수 없습니다.`);
+				excelLogger.warn(`자기 참조 방지: ${info.name}`);
+				continue;
+			}
+
+			try {
+				// 판매인 찾기 (DB 또는 방금 등록한 사용자 중에서)
+				let parentUser = null;
+
+				// 먼저 DB에서 찾기
+				excelLogger.info(`🔍 ${info.name}: 판매인 '${info.salesperson}' 검색 시작`);
+				parentUser = await User.findOne({
+					$or: [
+						{ name: info.salesperson },
+						{ loginId: info.salesperson.toLowerCase() }
+					],
+					type: 'user'  // 용역자만
+				});
+
+				if (parentUser) {
+					excelLogger.info(`✅ ${info.name}: DB에서 판매인 발견 - ${parentUser.name} (${parentUser.loginId})`);
+				} else {
+					excelLogger.info(`❌ ${info.name}: DB에서 판매인 '${info.salesperson}' 없음`);
 				}
-				try {
-					// 판매인 찾기 (DB 또는 방금 등록한 사용자 중에서)
-					let parentUser = null;
 
-					// "관리자"인 경우 특별 처리
-					if (info.salesperson === '관리자') {
-						// 관리자는 Admin 컬렉션에 있으므로 User로 찾을 수 없음
-						// 관리자 직속은 부모 없이 최상위 노드로 처리
-						// 관리자 직속은 최상위 노드로 처리
-						continue; // 부모 관계 설정하지 않고 넘어감
+				// DB에 없으면 방금 등록한 사용자들 중에서 찾기
+				if (!parentUser) {
+					excelLogger.info(`🔍 ${info.name}: 방금 등록한 사용자들 중에서 '${info.salesperson}' 검색`);
+					for (const [regLoginId, regInfo] of registeredUsers) {
+						if (regInfo.name === info.salesperson) {
+							parentUser = regInfo.user;
+							excelLogger.info(`✅ ${info.name}: 방금 등록된 사용자에서 발견 - ${regInfo.name}`);
+							break;
+						}
 					}
-
-					parentUser = await User.findOne({
-						$or: [
-							{ name: info.salesperson },
-							{ loginId: info.salesperson.toLowerCase() }
-						]
-					});
-
 					if (!parentUser) {
-						// 방금 등록한 사용자들 중에서 찾기
-						for (const [regLoginId, regInfo] of registeredUsers) {
-							if (regInfo.name === info.salesperson) {
-								parentUser = regInfo.user;
-								break;
-							}
-						}
+						excelLogger.info(`❌ ${info.name}: 방금 등록된 사용자들에서도 '${info.salesperson}' 없음`);
 					}
+				}
 
-					if (parentUser) {
-						const parentLoginId = parentUser.loginId;
+				// 부모를 찾을 수 없으면 등록 실패
+				if (!parentUser) {
+					failedUsers.push(info.name);
+					results.errors.push(`❌ ${info.name}: 판매인 '${info.salesperson}'을(를) 찾을 수 없습니다.`);
+					excelLogger.error(`부모 없음: ${info.name} -> ${info.salesperson}`);
+					continue;
+				}
 
-						// 자식 노드 확인
-						const leftChild = await User.findOne({
-							parentId: parentLoginId,
-							position: 'L'
-						});
-						const rightChild = await User.findOne({
-							parentId: parentLoginId,
-							position: 'R'
-						});
+				const parentLoginId = parentUser.loginId;
 
-						let position = null;
-						if (!leftChild) {
-							position = 'L';
-						} else if (!rightChild) {
-							position = 'R';
-						}
+				// 자식 노드 확인
+				const leftChild = await User.findOne({
+					parentId: parentLoginId,
+					position: 'L'
+				});
+				const rightChild = await User.findOne({
+					parentId: parentLoginId,
+					position: 'R'
+				});
 
-						if (position) {
-							// 사용자 업데이트: 부모 및 위치 설정
-							await User.findOneAndUpdate(
-								{ loginId },
-								{ parentId: parentLoginId, position }
-							);
+				let position = null;
+				if (!leftChild) {
+					position = 'L';
+				} else if (!rightChild) {
+					position = 'R';
+				}
 
-							// 부모 업데이트: 자식 참조 설정
-							const updateField = position === 'L' ? 'leftChildId' : 'rightChildId';
-							await User.findOneAndUpdate(
-								{ loginId: parentLoginId },
-								{ [updateField]: loginId }
-							);
+				if (position) {
+					// 사용자 업데이트: 부모 및 위치 설정
+					excelLogger.info(`🔗 ${info.name}: 부모 관계 설정 시작 - 부모: ${parentLoginId}, 위치: ${position}`);
 
-							// 배치 완료
-							// 부모의 등급 업데이트
-							await updateParentGrade(parentLoginId);
-						} else {
-							// 좌우 자리가 모두 찬 경우
-							const alertMsg = `${info.salesperson}님의 좌우 자리가 모두 찼습니다. ${info.name}님은 수동으로 배치해 주세요.`;
-							if (!results.alerts) results.alerts = [];
-							results.alerts.push({
-								type: 'warning',
-								message: alertMsg,
-								parent: info.salesperson,
-								user: info.name
-							});
-							excelLogger.warn(`${info.name}: ${info.salesperson}의 자리가 모두 참`);
-						}
-					} else {
-						excelLogger.warn(`${info.name}: 판매인 ${info.salesperson}을(를) 찾을 수 없음`);
-					}
-				} catch (err) {
-					excelLogger.error(`관계 설정 오류 (${info.name}):`, err.message);
+					const userUpdateResult = await User.findOneAndUpdate(
+						{ loginId },
+						{ parentId: parentLoginId, position }
+					);
+					excelLogger.info(`📝 ${info.name}: 사용자 parentId 업데이트 완료 - ${userUpdateResult ? '성공' : '실패'}`);
+
+					// 부모 업데이트: 자식 참조 설정
+					const updateField = position === 'L' ? 'leftChildId' : 'rightChildId';
+					const parentUpdateResult = await User.findOneAndUpdate(
+						{ loginId: parentLoginId },
+						{ [updateField]: loginId }
+					);
+					excelLogger.info(`📝 ${info.name}: 부모 ${updateField} 업데이트 완료 - ${parentUpdateResult ? '성공' : '실패'}`);
+
+					// 부모의 등급 업데이트
+					await updateParentGrade(parentLoginId);
+					excelLogger.info(`🎯 관계 설정 완료: ${info.name} -> ${info.salesperson} (${position})`);
+				} else {
+					// 좌우 자리가 모두 찬 경우
+					failedUsers.push(info.name);
+					const alertMsg = `${info.salesperson}님의 좌우 자리가 모두 찼습니다. ${info.name}님은 수동으로 배치해 주세요.`;
+					if (!results.alerts) results.alerts = [];
+					results.alerts.push({
+						type: 'warning',
+						message: alertMsg,
+						parent: info.salesperson,
+						user: info.name
+					});
+					results.errors.push(`⚠️ ${alertMsg}`);
+					excelLogger.warn(`자리 부족: ${info.name} -> ${info.salesperson}`);
+				}
+			} catch (err) {
+				failedUsers.push(info.name);
+				results.errors.push(`❌ ${info.name}: 관계 설정 오류 - ${err.message}`);
+				excelLogger.error(`관계 설정 오류 (${info.name}):`, err.message);
+			}
+		}
+
+		// 부모 관계 설정에 실패한 사용자들 삭제
+		if (failedUsers.length > 0) {
+			for (const userName of failedUsers) {
+				const userInfo = Array.from(registeredUsers.values()).find(info => info.name === userName);
+				if (userInfo) {
+					await User.findByIdAndDelete(userInfo.user._id);
+					results.created--;
+					results.failed++;
+					excelLogger.warn(`사용자 삭제: ${userName} (부모 관계 설정 실패)`);
 				}
 			}
 		}
