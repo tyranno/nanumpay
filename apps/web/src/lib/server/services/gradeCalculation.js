@@ -59,38 +59,38 @@ export async function calculateGradeForUser(userId) {
   const leftGrades = await collectSubtreeGrades(leftChild.loginId);
   const rightGrades = await collectSubtreeGrades(rightChild.loginId);
 
-  // F8 체크: 좌우 서브트리의 F7이 1:2 또는 2:1
+  // F8 체크: 좌우 서브트리의 F7이 최소 2:1 조건
   const totalF7 = leftGrades.F7 + rightGrades.F7;
   if (totalF7 >= 3) {
-    if ((leftGrades.F7 === 1 && rightGrades.F7 === 2) ||
-        (leftGrades.F7 === 2 && rightGrades.F7 === 1)) {
+    if ((leftGrades.F7 >= 2 && rightGrades.F7 >= 1) ||
+        (leftGrades.F7 >= 1 && rightGrades.F7 >= 2)) {
       return 'F8';
     }
   }
 
-  // F7 체크: 좌우 서브트리의 F6이 1:2 또는 2:1
+  // F7 체크: 좌우 서브트리의 F6이 최소 2:1 조건
   const totalF6 = leftGrades.F6 + rightGrades.F6;
   if (totalF6 >= 3) {
-    if ((leftGrades.F6 === 1 && rightGrades.F6 === 2) ||
-        (leftGrades.F6 === 2 && rightGrades.F6 === 1)) {
+    if ((leftGrades.F6 >= 2 && rightGrades.F6 >= 1) ||
+        (leftGrades.F6 >= 1 && rightGrades.F6 >= 2)) {
       return 'F7';
     }
   }
 
-  // F6 체크: 좌우 서브트리의 F5가 1:2 또는 2:1
+  // F6 체크: 좌우 서브트리의 F5가 최소 2:1 조건
   const totalF5 = leftGrades.F5 + rightGrades.F5;
   if (totalF5 >= 3) {
-    if ((leftGrades.F5 === 1 && rightGrades.F5 === 2) ||
-        (leftGrades.F5 === 2 && rightGrades.F5 === 1)) {
+    if ((leftGrades.F5 >= 2 && rightGrades.F5 >= 1) ||
+        (leftGrades.F5 >= 1 && rightGrades.F5 >= 2)) {
       return 'F6';
     }
   }
 
-  // F5 체크: 좌우 서브트리의 F4가 1:2 또는 2:1
+  // F5 체크: 좌우 서브트리의 F4가 최소 2:1 조건
   const totalF4 = leftGrades.F4 + rightGrades.F4;
   if (totalF4 >= 3) {
-    if ((leftGrades.F4 === 1 && rightGrades.F4 === 2) ||
-        (leftGrades.F4 === 2 && rightGrades.F4 === 1)) {
+    if ((leftGrades.F4 >= 2 && rightGrades.F4 >= 1) ||
+        (leftGrades.F4 >= 1 && rightGrades.F4 >= 2)) {
       return 'F5';
     }
   }
