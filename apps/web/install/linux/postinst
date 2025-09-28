@@ -16,4 +16,20 @@ systemctl daemon-reload
 systemctl enable ${APP}.service
 systemctl restart ${APP}.service || systemctl start ${APP}.service
 
+# DB 초기화 (관리자 계정이 없는 경우만)
+echo "Checking database initialization..."
+if command -v mongosh >/dev/null 2>&1 || command -v mongo >/dev/null 2>&1; then
+    if [ -f "$APPDIR/tools/db_init.sh" ]; then
+        echo "Initializing database (admin account setup)..."
+        if "$APPDIR/tools/db_init.sh" --uri=mongodb://localhost:27017 2>&1; then
+            echo "Database initialization completed successfully"
+        else
+            echo "DB initialization skipped (admin may already exist or MongoDB not ready)"
+        fi
+    fi
+else
+    echo "MongoDB not found - skipping database initialization"
+    echo "Please install MongoDB and run: sudo $APPDIR/tools/db_init.sh"
+fi
+
 echo "Installed. Check logs: journalctl -u ${APP} -f"

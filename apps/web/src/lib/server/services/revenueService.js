@@ -3,6 +3,7 @@ import MonthlyRevenue from '../models/MonthlyRevenue.js';
 import UserPaymentPlan from '../models/UserPaymentPlan.js';
 import WeeklyPayment from '../models/WeeklyPayment.js';
 import { excelLogger as logger } from '../logger.js';
+import { calculatePaymentWeek } from '../../utils/weekCalculator.js';
 
 /**
  * 특정 월의 매출 계산
@@ -18,6 +19,7 @@ export async function calculateMonthlyRevenueForMonth(year, month) {
     const lastDay = new Date(year, month, 0, 23, 59, 59);
 
     const newUsers = await User.find({
+      type: 'user', // 용역자만 대상
       createdAt: { $gte: firstDay, $lte: lastDay }
     });
 
@@ -27,9 +29,10 @@ export async function calculateMonthlyRevenueForMonth(year, month) {
     const totalRevenue = newUsersCount * 1000000;
     const revenuePerInstallment = totalRevenue / 10;
 
-    // 등급별 인원 분포 (해당 월 기준)
+    // 등급별 인원 분포 (해당 월 기준, 용역자만)
     const gradeDistribution = await User.aggregate([
       { $match: {
+        type: 'user', // 용역자만 대상
         status: 'active',
         createdAt: { $lte: lastDay } // 해당 월까지의 모든 활성 사용자
       }},
@@ -162,15 +165,11 @@ async function createUserPaymentPlans(year, month, userRevenues) {
     const amountPerInstallment = userRevenue.totalAmount / 10;
 
     for (let installmentNumber = 1; installmentNumber <= 10; installmentNumber++) {
-      // 각 할부의 일정 계산 (매월 1주씩 증가)
-      let scheduleMonth = month + Math.floor((installmentNumber - 1) / 4);
-      let scheduleYear = year;
-      const scheduleWeek = ((installmentNumber - 1) % 4) + 1;
-
-      if (scheduleMonth > 12) {
-        scheduleYear += Math.floor((scheduleMonth - 1) / 12);
-        scheduleMonth = ((scheduleMonth - 1) % 12) + 1;
-      }
+      // 정확한 주차 계산 (월별 실제 주차 수 고려)
+      const paymentSchedule = calculatePaymentWeek(year, month, installmentNumber);
+      const scheduleYear = paymentSchedule.year;
+      const scheduleMonth = paymentSchedule.month;
+      const scheduleWeek = paymentSchedule.week;
 
       installments.push({
         installmentNumber,
@@ -233,18 +232,11 @@ async function createWeeklyPaymentSchedules(year, month, monthlyRevenue) {
 
   // 10회차 지급 생성
   for (let installment = 1; installment <= 10; installment++) {
-    // 주차 계산 (1-4주차 반복)
-    const weekNum = ((installment - 1) % 4) + 1;
-
-    // 월 계산
-    const monthOffset = Math.floor((installment - 1) / 4);
-    let scheduleYear = paymentYear;
-    let scheduleMonth = paymentMonth + monthOffset;
-
-    if (scheduleMonth > 12) {
-      scheduleYear += Math.floor((scheduleMonth - 1) / 12);
-      scheduleMonth = ((scheduleMonth - 1) % 12) + 1;
-    }
+    // 정확한 주차 계산 (월별 실제 주차 수 고려)
+    const paymentSchedule = calculatePaymentWeek(year, month, installment);
+    const scheduleYear = paymentSchedule.year;
+    const scheduleMonth = paymentSchedule.month;
+    const weekNum = paymentSchedule.week;
 
     logger.info(`${installment}회차: ${scheduleYear}년 ${scheduleMonth}월 ${weekNum}주차`);
 

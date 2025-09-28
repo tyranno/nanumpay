@@ -50,7 +50,7 @@ fs.chmodSync(path.join(optDir, 'nanumpay'), 0o755);
 // 2) 환경파일(설정 샘플)
 fs.writeFileSync(
 	path.join(etcDir, 'nanumpay.env'),
-	`PORT=3000
+	`PORT=3100
 HOST=0.0.0.0
 MONGODB_URI=mongodb://localhost:27017/nanumpay
 JWT_SECRET=change-me
@@ -133,19 +133,21 @@ if (!seedHash && seedPass && bcrypt) {
 // - MONGODB_URI는 설치 시점의 /etc/nanumpay/nanumpay.env에서 읽어 --uri로 전달
 // - 해시/패스워드는 빌드 시 고정하고 싶을 때만 포함
 // - 필요하면 ADMIN_LOGIN_ID/NAME/ROLE도 SEED_ADMIN_* 로 추가 가능
-const dbArgs = [];
-dbArgs.push(`"--uri=\\"$MONGODB_URI\\""`);
-// 기본 관리자 계정 설정
-dbArgs.push(`"--loginId=관리자"`);
-dbArgs.push(`"--name=관리자"`);
-dbArgs.push(`"--role=admin"`);
+// DB 초기화 인자들 - 간단한 형태로 변경
+const dbArgs = [
+	'--uri=mongodb://localhost:27017',
+	'--loginId=관리자',
+	'--name=관리자',
+	'--role=admin'
+];
+
 if (seedHash) {
-	dbArgs.push(`"--hash=${seedHash.replace(/"/g, '\\"')}"`);
+	dbArgs.push(`--hash=${seedHash}`);
 } else if (seedPass) {
-	dbArgs.push(`"--password=${seedPass.replace(/"/g, '\\"')}"`);
+	dbArgs.push(`--password=${seedPass}`);
 } else {
 	// 기본 비밀번호 설정 (설치 후 변경 권장)
-	dbArgs.push(`"--password=1234"`);
+	dbArgs.push('--password=admin1234!!');
 }
 
 const postinst = `#!/bin/bash
@@ -159,16 +161,20 @@ chown -R nanumpay:nanumpay /opt/nanumpay
 systemctl daemon-reload
 systemctl enable nanumpay.service
 
-# 환경파일에서 MONGODB_URI 로드
-ENV_FILE="/etc/nanumpay/nanumpay.env"
-if [ -f "$ENV_FILE" ]; then
-  # shellcheck disable=SC1090
-  . "$ENV_FILE"
-fi
-
 # DB 초기화 (mongosh 없으면 내부에서 스킵)
-if [ -x /opt/nanumpay/tools/db_init.sh ]; then
-  /opt/nanumpay/tools/db_init.sh ${dbArgs.join(' ')} || true
+echo "Checking database initialization..."
+if command -v mongosh >/dev/null 2>&1 || command -v mongo >/dev/null 2>&1; then
+    if [ -f "/opt/nanumpay/tools/db_init.sh" ]; then
+        echo "Initializing database (admin account setup)..."
+        if /opt/nanumpay/tools/db_init.sh ${dbArgs.join(' ')} 2>&1; then
+            echo "Database initialization completed successfully"
+        else
+            echo "DB initialization skipped (admin may already exist or MongoDB not ready)"
+        fi
+    fi
+else
+    echo "MongoDB not found - skipping database initialization"
+    echo "Please install MongoDB and run: sudo /opt/nanumpay/tools/db_init.sh"
 fi
 
 # 서비스 시작

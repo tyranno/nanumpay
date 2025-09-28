@@ -115,7 +115,6 @@ export async function POST({ request, locals }) {
 			parentId: finalParentLoginId,  // loginId로 저장
 			position: finalParentLoginId ? position : null,
 			salesperson,
-			rootAdminId: locals.user.id, // 관리자 ID 저장
 			sequence: nextSequence, // 순번 설정
 			...otherFields
 		});

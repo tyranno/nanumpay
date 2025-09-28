@@ -161,8 +161,8 @@ class PaymentService {
 			return null;
 		}
 
-		// 전체 사용자 조회
-		const users = await User.find({}).lean();
+		// 전체 용역자 조회 (Admin 제외)
+		const users = await User.find({ type: 'user' }).lean();
 		console.log(`[calculateWeeklyPayments] 사용자 조회 결과: ${users.length}명`);
 
 		const payments = [];

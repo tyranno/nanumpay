@@ -115,8 +115,8 @@ export async function calculateGradeForUser(userId) {
 export async function recalculateAllGrades() {
   console.log('등급 재계산 시작...');
 
-  // 모든 사용자 가져오기 (관리자 포함)
-  const users = await User.find({}).sort({ createdAt: 1 });
+  // 모든 용역자(User) 가져오기 - Admin은 별도 컬렉션이므로 제외
+  const users = await User.find({ type: 'user' }).sort({ createdAt: 1 });
 
   // 트리 레벨별로 정렬하기 위한 맵 생성
   const levelMap = new Map();

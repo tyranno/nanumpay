@@ -67,8 +67,9 @@
 			name: name,
 			loginId: loginId,
 			passwordHash: hash,
-			type: 'admin',
-			status: 'active',
+			permissions: ['full_access'],
+			isActive: true,
+			loginAttempts: 0,
 			createdAt: new Date()
 		});
 		print('[init] Created admin "' + loginId + '" in admins collection');

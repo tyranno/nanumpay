@@ -8,7 +8,7 @@ export default defineConfig(({ mode }) => {
 	return {
 		plugins: [tailwindcss(), sveltekit()],
 		server: {
-			port: parseInt(env.PORT || '3000')
+			port: parseInt(env.PORT || '3100')
 		},
 		optimizeDeps: {
 			exclude: ['@capacitor/storage']

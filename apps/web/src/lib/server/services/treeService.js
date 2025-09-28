@@ -195,8 +195,8 @@ class TreeService {
 	async recalculateEntireTree() {
 		console.log('Starting full tree recalculation...');
 
-		// 1. 모든 사용자를 레벨 순으로 정렬 (리프부터)
-		const users = await User.find({})
+		// 1. 모든 용역자를 레벨 순으로 정렬 (리프부터) - Admin 제외
+		const users = await User.find({ type: 'user' })
 			.sort({ level: -1 })
 			.lean();
 

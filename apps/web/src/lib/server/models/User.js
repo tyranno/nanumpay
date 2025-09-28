@@ -78,16 +78,10 @@ const userSchema = new mongoose.Schema({
 			default: 'pending'
 		}
 	}],
-	// 관리자 참조 (최상위 노드만)
-	rootAdminId: {
-		type: mongoose.Schema.Types.ObjectId,
-		ref: 'Admin',
-		default: null
-	},
-	// 사용자 타입
+	// 사용자 타입 (용역자만)
 	type: {
 		type: String,
-		enum: ['user', 'admin'],
+		enum: ['user'],
 		default: 'user'
 	},
 	// 등급 정보

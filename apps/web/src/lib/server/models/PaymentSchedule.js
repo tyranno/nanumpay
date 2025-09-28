@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { calculatePaymentWeek } from '../../utils/weekCalculator.js';
 
 const paymentScheduleSchema = new mongoose.Schema({
 	revenueId: { type: mongoose.Schema.Types.ObjectId, ref: 'Revenue', required: true },
@@ -40,24 +41,12 @@ paymentScheduleSchema.statics.calculatePaymentWeek = function(revenueYear, reven
 	const startMonth = revenueMonth + 1;
 	const startYear = revenueMonth === 12 ? revenueYear + 1 : revenueYear;
 
-	// 주차 계산 (1회차 = 1주차, 2회차 = 2주차, ...)
-	// 한 달에 최대 4주로 가정, 5주차부터는 다음 달로
-	const weekNumber = ((installmentNumber - 1) % 4) + 1;
-	const monthOffset = Math.floor((installmentNumber - 1) / 4);
-
-	let paymentMonth = startMonth + monthOffset;
-	let paymentYear = startYear;
-
-	// 12월 넘어가면 연도 증가
-	if (paymentMonth > 12) {
-		paymentYear += Math.floor((paymentMonth - 1) / 12);
-		paymentMonth = ((paymentMonth - 1) % 12) + 1;
-	}
-
+	// 정확한 주차 계산 (월별 실제 주차 수 고려)
+	const result = calculatePaymentWeek(revenueYear, revenueMonth, installmentNumber);
 	return {
-		paymentYear,
-		paymentMonth,
-		paymentWeek: weekNumber
+		paymentYear: result.year,
+		paymentMonth: result.month,
+		paymentWeek: result.week
 	};
 };
 

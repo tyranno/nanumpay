@@ -2,6 +2,7 @@ import User from '../models/User.js';
 import UserPaymentPlan from '../models/UserPaymentPlan.js';
 import MonthlyRevenue from '../models/MonthlyRevenue.js';
 import { db } from '../db.js';
+import { calculatePaymentWeek } from '../../utils/weekCalculator.js';
 
 /**
  * 월말 매출 계산 및 지급 스케줄 생성
@@ -190,28 +191,8 @@ function calculateInstallmentDate(revenueYear, revenueMonth, installmentNumber) 
     year++;
   }
   
-  // 4주씩 지급하므로, 회차를 주차로 변환
-  // 1-4회: 철달 1-4주
-  // 5-8회: 둘째달 1-4주  
-  // 9-10회: 셋째달 1-2주
-  
-  let additionalWeeks = installmentNumber - 1;
-  let additionalMonths = Math.floor(additionalWeeks / 4);
-  let weekOfMonth = (additionalWeeks % 4) + 1;
-  
-  month += additionalMonths;
-  
-  // 월 조정
-  while (month > 12) {
-    month -= 12;
-    year++;
-  }
-  
-  return {
-    year,
-    month,
-    week: weekOfMonth
-  };
+  // 정확한 주차 계산 (월별 실제 주차 수 고려)
+  return calculatePaymentWeek(revenueYear, revenueMonth, installmentNumber);
 }
 
 /**

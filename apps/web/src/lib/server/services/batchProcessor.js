@@ -5,6 +5,7 @@ import UserPaymentPlan from '../models/UserPaymentPlan.js';
 import WeeklyPayment from '../models/WeeklyPayment.js';
 import { recalculateAllGrades } from './gradeCalculation.js';
 import { excelLogger as logger } from '../logger.js';
+import { calculatePaymentWeek } from '../../utils/weekCalculator.js';
 
 /**
  * 용역자 등록 시 자동 처리 시스템
@@ -305,37 +306,22 @@ export class BatchProcessor {
    */
   generateInstallments(sourceYear, sourceMonth, amount) {
     const installments = [];
-    let targetYear = sourceYear;
-    let targetMonth = sourceMonth + 1;
-    let targetWeek = 1;
-
-    if (targetMonth > 12) {
-      targetMonth = 1;
-      targetYear++;
-    }
 
     for (let i = 1; i <= 10; i++) {
+      // 정확한 주차 계산 (월별 실제 주차 수 고려)
+      const paymentSchedule = calculatePaymentWeek(sourceYear, sourceMonth, i);
+
       installments.push({
         installmentNumber: i,
         scheduledDate: {
-          year: targetYear,
-          month: targetMonth,
-          week: targetWeek
+          year: paymentSchedule.year,
+          month: paymentSchedule.month,
+          week: paymentSchedule.week
         },
         amount,
         status: 'pending',
         paidAt: null
       });
-
-      targetWeek++;
-      if (targetWeek > 4) {
-        targetWeek = 1;
-        targetMonth++;
-        if (targetMonth > 12) {
-          targetMonth = 1;
-          targetYear++;
-        }
-      }
     }
 
     return installments;

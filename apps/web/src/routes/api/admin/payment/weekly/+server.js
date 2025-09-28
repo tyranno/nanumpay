@@ -2,6 +2,7 @@ import { json } from '@sveltejs/kit';
 import { connectDB } from '$lib/server/db.js';
 import WeeklyPayment from '$lib/server/models/WeeklyPayment.js';
 import User from '$lib/server/models/User.js';
+import { getMondaysInMonth } from '$lib/utils/weekCalculator.js';
 
 export async function GET({ url }) {
 	try {
@@ -127,8 +128,9 @@ export async function GET({ url }) {
 			let currentMonth = startMonth;
 
 			while (currentYear < endYear || (currentYear === endYear && currentMonth <= endMonth)) {
-				// 각 월의 4주 데이터
-				for (let weekNum = 1; weekNum <= 4; weekNum++) {
+				// 각 월의 실제 주차 수만큼 데이터 수집
+				const mondaysInMonth = getMondaysInMonth(currentYear, currentMonth);
+				for (let weekNum = 1; weekNum <= mondaysInMonth.length; weekNum++) {
 					const payments = await WeeklyPayment.find({
 						year: currentYear,
 						month: currentMonth,
@@ -214,11 +216,27 @@ export async function GET({ url }) {
 		// 각 주차별로 데이터 수집
 		for (let i = 0; i < weekCount; i++) {
 			const currentWeek = startWeek + i;
-			const calcWeek = ((currentWeek - 1) % 4) + 1; // 1-4 주차
-			const monthOffset = Math.floor((currentWeek - 1) / 4);
-			const calcMonth = ((monthOffset) % 12) + 1;
-			const yearOffset = Math.floor(monthOffset / 12);
-			const targetYear = year + yearOffset;
+			// 정확한 주차 계산
+			let calcYear = year;
+			let calcMonth = month || 1;
+			let remainingWeeks = currentWeek;
+
+			// 주차가 해당 월을 초과하면 다음 월로 이동
+			while (remainingWeeks > 0) {
+				const mondaysInCurrentMonth = getMondaysInMonth(calcYear, calcMonth);
+				if (remainingWeeks <= mondaysInCurrentMonth.length) {
+					break;
+				}
+				remainingWeeks -= mondaysInCurrentMonth.length;
+				calcMonth++;
+				if (calcMonth > 12) {
+					calcMonth = 1;
+					calcYear++;
+				}
+			}
+
+			const calcWeek = remainingWeeks;
+			const targetYear = calcYear;
 
 			// 해당 사용자들의 지급 데이터만 가져오기
 			const payments = await WeeklyPayment.find({

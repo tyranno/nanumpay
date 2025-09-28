@@ -6,6 +6,7 @@ MONGO_URI="${MONGO_URI:-mongodb://localhost:27017}"
 DB_NAME="${DB_NAME:-nanumpay}"
 ADMIN_LOGIN_ID="${ADMIN_LOGIN_ID:-관리자}"
 ADMIN_NAME="${ADMIN_NAME:-관리자}"
+ADMIN_PASSWORD="${ADMIN_PASSWORD:-admin1234!!}"
 ROLE="${ROLE:-admin}"
 FORCE="${FORCE:-false}"        # true/false
 BCRYPT_COST="${BCRYPT_COST:-10}"
@@ -59,24 +60,34 @@ MONGO_SHELL="$(command -v mongosh || true)"
 [[ -z "$MONGO_SHELL" ]] && MONGO_SHELL="$(command -v mongo || true)"
 [[ -z "$MONGO_SHELL" ]] && { echo "ERROR: mongosh/mongo not found"; exit 3; }
 
-# 연결 URI
-CONNECT_URI="$MONGO_URI"
-[[ "$CONNECT_URI" != */* ]] && CONNECT_URI="$CONNECT_URI/$DB_NAME"
+# 연결 URI 처리 - 단순화
+# mongodb://localhost:27017 → mongodb://localhost:27017/nanumpay
+if [[ "$MONGO_URI" == */ ]]; then
+  # 마지막에 /가 있으면 제거하고 DB 추가
+  CONNECT_URI="${MONGO_URI%/}/$DB_NAME"
+elif [[ "$MONGO_URI" == *:27017 ]] || [[ "$MONGO_URI" == mongodb://localhost ]]; then
+  # 포트만 있거나 기본 URI면 DB 추가
+  CONNECT_URI="$MONGO_URI/$DB_NAME"
+else
+  # 이미 DB가 포함된 경우 그대로 사용
+  CONNECT_URI="$MONGO_URI"
+fi
 
 # db 디렉토리에서 실행 (상대 경로 JSON 로딩)
 cd "$DB_DIR"
 
-# /tmp 에 임시 래퍼 생성 + 자동 삭제
-TMP_SCHEMA="$(mktemp /tmp/nanumpay.schema.XXXXXX.js)"
-TMP_INDEXES="$(mktemp /tmp/nanumpay.indexes.XXXXXX.js)"
-trap 'rm -f "$TMP_SCHEMA" "$TMP_INDEXES"' EXIT
-
-{ echo -n 'globalThis.USERS_SCHEMA=';  cat ./schema.users.json;  echo ';'; }  > "$TMP_SCHEMA"
-{ echo -n 'globalThis.USERS_INDEXES='; cat ./indexes.users.json; echo ';'; } > "$TMP_INDEXES"
+# 관리자 존재 여부 확인 (FORCE가 아닌 경우)
+if [ "$FORCE" != "true" ]; then
+    ADMIN_EXISTS=$("$MONGO_SHELL" $CONNECT_URI --quiet --eval "db.admins.countDocuments({loginId: '$ADMIN_LOGIN_ID'})")
+    if [ "$ADMIN_EXISTS" -gt 0 ]; then
+        echo "[init] Admin '$ADMIN_LOGIN_ID' already exists. Skipping initialization."
+        echo "[init] Use --force to reinitialize."
+        exit 0
+    fi
+fi
 
 echo "[init] connecting: $CONNECT_URI"
-"$MONGO_SHELL" "$CONNECT_URI" --quiet \
-  --eval "load('$TMP_SCHEMA'); load('$TMP_INDEXES');" \
+"$MONGO_SHELL" $CONNECT_URI --quiet \
   --eval "var DB_NAME='$DB_NAME', ADMIN_LOGIN_ID='$ADMIN_LOGIN_ID', ADMIN_NAME='$ADMIN_NAME', ADMIN_HASH='$BCRYPT', ROLE='$ROLE', FORCE=$FORCE;" \
   --file "./init.mongo.js"
 

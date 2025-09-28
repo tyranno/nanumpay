@@ -30,8 +30,9 @@ export async function GET({ locals }) {
 				month: currentMonth
 			}),
 
-			// 등급별 사용자 수
+			// 등급별 용역자 수 (Admin 제외)
 			User.aggregate([
+				{ $match: { type: 'user' } }, // 용역자만
 				{
 					$group: {
 						_id: '$grade',
