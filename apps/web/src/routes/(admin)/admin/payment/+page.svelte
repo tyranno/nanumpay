@@ -1,7 +1,9 @@
 <script>
 	import { onMount } from 'svelte';
 	import * as XLSX from 'xlsx';
+	import ExcelJS from 'exceljs';
 	import FileSaver from 'file-saver';
+	import { getWeekOfMonthByFriday } from '$lib/utils/fridayWeekCalculator.js';
 	const { saveAs } = FileSaver;
 
 	// 상태 변수
@@ -37,17 +39,18 @@
 
 	// 검색 및 페이지네이션
 	let searchQuery = '';
+	let searchCategory = 'name'; // 'name' 또는 'planner'
 	let currentPage = 1;
 	let itemsPerPage = 20;
 	let totalPages = 1;
 
-	// 주차 계산 함수 (월의 첫날 기준)
-	function getWeekOfMonth(date) {
-		const d = new Date(date);
-		const firstDay = new Date(d.getFullYear(), d.getMonth(), 1).getDay();
-		const dayOfMonth = d.getDate();
-		return Math.ceil((dayOfMonth + firstDay) / 7);
-	}
+	// 전체 총액 (API에서 받은 grandTotal)
+	let apiGrandTotal = null;
+	// 전체 지급 대상 인원수 (API에서 받은 totalItems)
+	let totalPaymentTargets = 0;
+
+	// 주차 계산 함수 (금요일 기준) - DEPRECATED: API에서 직접 처리하므로 불필요
+	// fridayWeekCalculator의 getWeekOfMonthByFriday 사용
 
 	// 데이터 로드 (페이지네이션 포함)
 	async function loadPaymentData(page = 1) {
@@ -59,9 +62,10 @@
 
 		try {
 			if (filterType === 'date') {
-				// 단일 날짜 조회
+				// 단일 날짜 조회 (금요일 기준 주차 계산)
 				const [year, month, day] = selectedDate.split('-');
-				const week = getWeekOfMonth(selectedDate);
+				const weekInfo = getWeekOfMonthByFriday(new Date(selectedDate));
+				const week = weekInfo.week;
 
 				// 서버 사이드 페이지네이션 파라미터 포함
 				const params = new URLSearchParams({
@@ -70,7 +74,8 @@
 					week,
 					page: currentPage,
 					limit: itemsPerPage,
-					search: searchQuery
+					search: searchQuery,
+					searchCategory: searchCategory
 				});
 
 				const response = await fetch(`/api/admin/payment/weekly?${params}`);
@@ -81,7 +86,11 @@
 					if (result.data.pagination) {
 						totalPages = result.data.pagination.totalPages;
 						// 전체 아이템 수도 설정
-						const totalItems = result.data.pagination.totalItems;
+						totalPaymentTargets = result.data.pagination.totalItems || 0;
+					}
+					// API에서 전체 검색 결과의 총액 받아오기
+					if (result.data.grandTotal) {
+						apiGrandTotal = result.data.grandTotal;
 					}
 					weeklyColumns = [
 						{
@@ -93,11 +102,12 @@
 						}
 					];
 					// 서버에서 받은 payments를 직접 사용하고 인덱스 추가
-					const weekKey = result.data.weekNumber || 1;
+					const weekKey = `${result.data.year}_${result.data.monthNumber}_${result.data.weekNumber}`;
 					paymentList = (result.data.payments || []).map((user, index) => ({
 						...user,
-						no: index + 1,
+						no: (currentPage - 1) * itemsPerPage + index + 1,
 						name: user.userName || user.name || 'Unknown',
+						planner: user.planner || '',
 						payments: {
 							[weekKey]: {
 								amount: user.actualAmount || 0,
@@ -126,8 +136,14 @@
 					return;
 				}
 
-				// 처음 로드할 때만 전체 데이터를 가져옴
-				if (allWeeklyData.length === 0 || page === 1) {
+				// 기간이 변경되거나 검색어가 변경되면 새로 로드
+				const needReload = !allWeeklyData.length ||
+					lastLoadedStartYear !== startYear ||
+					lastLoadedStartMonth !== startMonth ||
+					lastLoadedEndYear !== endYear ||
+					lastLoadedEndMonth !== endMonth;
+
+				if (needReload) {
 					displayStartIndex = 0;
 
 					// 마지막 로드 정보 저장
@@ -135,39 +151,42 @@
 					lastLoadedStartMonth = startMonth;
 					lastLoadedEndYear = endYear;
 					lastLoadedEndMonth = endMonth;
+				}
 
-					// 전체 기간 데이터를 한 번에 로드
-					// 각 월별로 4주씩 할당
-					const totalWeeks = monthDiff * 4;
+				// 전체 기간 데이터를 페이지별로 로드
+				const params = new URLSearchParams({
+					startYear: startYear,
+					startMonth: startMonth,
+					endYear: endYear,
+					endMonth: endMonth,
+					page: page,
+					limit: itemsPerPage,
+					search: searchQuery,
+					searchCategory: searchCategory
+				});
 
-					const params = new URLSearchParams({
-						startYear: startYear,
-						startMonth: startMonth,
-						endYear: endYear,
-						endMonth: endMonth,
-						page: 1,
-						limit: itemsPerPage,
-						search: searchQuery
-					});
+				const response = await fetch(`/api/admin/payment/weekly?${params}`);
+				const result = await response.json();
 
-					const response = await fetch(`/api/admin/payment/weekly?${params}`);
-					const result = await response.json();
+				if (result.success && result.data) {
+					if (result.data.weeks && Array.isArray(result.data.weeks)) {
+						// 전체 데이터 저장
+						allWeeklyData = result.data.weeks.map((weekData) => ({
+							year: weekData.year,
+							month: weekData.monthNumber,
+							week: weekData.weekNumber,
+							label: weekData.week,
+							data: weekData
+						}));
 
-					if (result.success && result.data) {
-						if (result.data.weeks && Array.isArray(result.data.weeks)) {
-							// 전체 데이터 저장
-							allWeeklyData = result.data.weeks.map((weekData) => ({
-								year: weekData.year,
-								month: weekData.monthNumber,
-								week: weekData.weekNumber,
-								label: weekData.week,
-								data: weekData
-							}));
-
-							if (result.data.pagination) {
-								totalPages = result.data.pagination.totalPages;
-							}
+						if (result.data.pagination) {
+							totalPages = result.data.pagination.totalPages;
+							totalPaymentTargets = result.data.pagination.totalItems || 0;
 						}
+					}
+					// API에서 전체 검색 결과의 총액 받아오기
+					if (result.data.grandTotal) {
+						apiGrandTotal = result.data.grandTotal;
 					}
 				}
 
@@ -187,15 +206,12 @@
 		if (allWeeklyData.length === 0) return;
 
 		if (periodType === 'monthly') {
-			// 월간 표시: 월별로 데이터 집계 후 표시 범위 선택
+			// 월간 표시: 월별로 데이터 집계 후 전체 표시
 			const monthlyData = aggregateMonthlyData(allWeeklyData);
-			// 월간도 3개월씩 표시
-			const endIndex = Math.min(displayStartIndex + 3, monthlyData.length);
-			weeklyColumns = monthlyData.slice(displayStartIndex, endIndex);
+			weeklyColumns = monthlyData;
 		} else {
-			// 주간 표시: 기존 방식대로
-			const endIndex = Math.min(displayStartIndex + 4, allWeeklyData.length);
-			weeklyColumns = allWeeklyData.slice(displayStartIndex, endIndex);
+			// 주간 표시: 전체 주차 표시
+			weeklyColumns = allWeeklyData;
 		}
 
 		processPaymentData();
@@ -275,17 +291,18 @@
 						userMap.set(payment.userId, {
 							userId: payment.userId,
 							name: payment.userName,
+							planner: payment.planner,
 							bank: payment.bank,
 							accountNumber: payment.accountNumber,
 							payments: {}
 						});
 					}
 
-					// 키 생성: 주간이면 week 번호, 월간이면 month_월
+					// 키 생성: 주간이면 year_month_week, 월간이면 month_월
 					const key =
 						periodType === 'monthly'
 							? `month_${column.month}`
-							: column.week || `month_${column.month}`;
+							: `${column.year}_${column.month}_${column.week}`;
 
 					userMap.get(payment.userId).payments[key] = {
 						amount: payment.actualAmount || 0,
@@ -331,6 +348,13 @@
 		loadPaymentData(1); // 검색 시 첫 페이지로
 	}
 
+	// Enter 키로 검색
+	function handleKeyPress(event) {
+		if (event.key === 'Enter') {
+			handleSearch();
+		}
+	}
+
 	// 페이지당 항목 수 변경
 	function handleItemsPerPageChange() {
 		loadPaymentData(1); // 항목 수 변경 시 첫 페이지로
@@ -361,8 +385,18 @@
 		return { amount: totalAmount, tax: totalTax, net: totalNet };
 	}
 
-	// 전체 합계 계산
+	// 전체 합계 계산 (API에서 받은 전체 검색 결과의 총액 사용)
 	function calculateGrandTotal() {
+		// API에서 받은 grandTotal이 있으면 그것을 사용 (검색 기간의 전체 총액)
+		if (apiGrandTotal && apiGrandTotal.totalAmount !== undefined) {
+			return {
+				amount: apiGrandTotal.totalAmount || 0,
+				tax: apiGrandTotal.totalTax || 0,
+				net: apiGrandTotal.totalNet || 0
+			};
+		}
+
+		// API 데이터가 없는 경우 현재 페이지 데이터로 계산 (fallback)
 		let grandTotal = { amount: 0, tax: 0, net: 0 };
 
 		weeklyColumns.forEach((week) => {
@@ -375,69 +409,261 @@
 		return grandTotal;
 	}
 
-	// 엑셀 Export 기능
-	function exportToExcel() {
-		// 엑셀 데이터 준비
-		const excelData = [];
+	// 엑셀 Export 기능 (ExcelJS로 완전한 스타일 적용)
+	async function exportToExcel() {
+		const workbook = new ExcelJS.Workbook();
+		const worksheet = workbook.addWorksheet('용역비 지급명부');
 
-		// 헤더 행
-		const headers = ['순번', '성명', '은행', '계좌번호'];
-		weeklyColumns.forEach((week) => {
-			headers.push(`${week.label}_지급액`);
-			headers.push(`${week.label}_원천징수`);
-			headers.push(`${week.label}_실지급액`);
+		const totalCols = 5 + weeklyColumns.length * 3;
+
+		// 조회 조건 정보
+		let periodInfo = '';
+		if (filterType === 'date') {
+			const date = new Date(selectedDate);
+			const weekInfo = getWeekOfMonthByFriday(date);
+			periodInfo = `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${weekInfo.week}주차 (${selectedDate})`;
+		} else {
+			periodInfo = `${startYear}년 ${startMonth}월 ~ ${endYear}년 ${endMonth}월 (${periodType === 'weekly' ? '주간' : '월간'} 표시)`;
+		}
+
+		const searchInfo = searchQuery
+			? `${searchCategory === 'name' ? '이름' : '설계자'}: ${searchQuery}`
+			: '전체';
+
+		const totalSummary = calculateGrandTotal();
+
+		// 1. 제목 행
+		const titleRow = worksheet.addRow(['용역비 지급명부']);
+		worksheet.mergeCells(1, 1, 1, totalCols);
+		titleRow.height = 30;
+		titleRow.getCell(1).font = { bold: true, size: 16, color: { argb: 'FF1F4788' } };
+		titleRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE3F2FD' } };
+		titleRow.getCell(1).alignment = { vertical: 'middle', horizontal: 'center' };
+		// 제목은 테두리 없음
+
+		// 2. 빈 행
+		worksheet.addRow([]);
+
+		// 3. 조회 기간
+		const periodRow = worksheet.addRow(['조회 기간:', periodInfo]);
+		periodRow.getCell(1).font = { bold: true, size: 11 };
+		periodRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F5F5' } };
+		periodRow.getCell(1).border = {
+			top: { style: 'thin', color: { argb: 'FFDDDDDD' } },
+			bottom: { style: 'thin', color: { argb: 'FFDDDDDD' } },
+			left: { style: 'thin', color: { argb: 'FFDDDDDD' } },
+			right: { style: 'thin', color: { argb: 'FFDDDDDD' } }
+		};
+		periodRow.getCell(2).alignment = { vertical: 'middle', horizontal: 'left' };
+
+		// 4. 검색 조건
+		const searchRow = worksheet.addRow(['검색 조건:', searchInfo]);
+		searchRow.getCell(1).font = { bold: true, size: 11 };
+		searchRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F5F5' } };
+		searchRow.getCell(1).border = {
+			top: { style: 'thin', color: { argb: 'FFDDDDDD' } },
+			bottom: { style: 'thin', color: { argb: 'FFDDDDDD' } },
+			left: { style: 'thin', color: { argb: 'FFDDDDDD' } },
+			right: { style: 'thin', color: { argb: 'FFDDDDDD' } }
+		};
+		searchRow.getCell(2).alignment = { vertical: 'middle', horizontal: 'left' };
+
+		// 5. 총액 정보
+		const summaryRow = worksheet.addRow([
+			'총 지급액:', `${totalSummary.amount.toLocaleString()}원`, '',
+			'총 원천징수:', `${totalSummary.tax.toLocaleString()}원`, '',
+			'총 실지급액:', `${totalSummary.net.toLocaleString()}원`
+		]);
+		[1, 4, 7].forEach(col => {
+			summaryRow.getCell(col).font = { bold: true, size: 11 };
+			summaryRow.getCell(col).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3E0' } };
+			summaryRow.getCell(col).border = {
+				top: { style: 'thin', color: { argb: 'FFDDDDDD' } },
+				bottom: { style: 'thin', color: { argb: 'FFDDDDDD' } },
+				left: { style: 'thin', color: { argb: 'FFDDDDDD' } },
+				right: { style: 'thin', color: { argb: 'FFDDDDDD' } }
+			};
 		});
-		excelData.push(headers);
+		[2, 5, 8].forEach(col => {
+			summaryRow.getCell(col).font = { bold: true, size: 12, color: { argb: 'FFE65100' } };
+			summaryRow.getCell(col).alignment = { vertical: 'middle', horizontal: 'right' };
+		});
 
-		// 데이터 행
-		filteredPaymentList.forEach((user, index) => {
-			const row = [index + 1, user.name, user.bank || '', user.accountNumber || ''];
+		// 6. 지급 대상
+		const targetRow = worksheet.addRow(['지급 대상:', `${totalPaymentTargets || filteredPaymentList.length}명`]);
+		targetRow.getCell(1).font = { bold: true, size: 11 };
+		targetRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F5F5' } };
+		targetRow.getCell(1).border = {
+			top: { style: 'thin', color: { argb: 'FFDDDDDD' } },
+			bottom: { style: 'thin', color: { argb: 'FFDDDDDD' } },
+			left: { style: 'thin', color: { argb: 'FFDDDDDD' } },
+			right: { style: 'thin', color: { argb: 'FFDDDDDD' } }
+		};
+		targetRow.getCell(2).alignment = { vertical: 'middle', horizontal: 'left' };
 
-			weeklyColumns.forEach((week) => {
-				const key = week.week || `month_${week.month}`;
+		// 7. 빈 행
+		worksheet.addRow([]);
+
+		// 8. 테이블 헤더 1행 (주차 정보)
+		const headerRow1Data = ['순번', '성명', '설계자', '은행', '계좌번호'];
+		weeklyColumns.forEach(week => {
+			headerRow1Data.push(week.label);
+		});
+		const headerRow1 = worksheet.addRow(headerRow1Data);
+		headerRow1.height = 25;
+		// 개별 셀에 스타일 적용
+		for (let i = 1; i <= 5 + weeklyColumns.length; i++) {
+			headerRow1.getCell(i).font = { bold: true };
+			headerRow1.getCell(i).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8E8E8' } };
+			headerRow1.getCell(i).alignment = { vertical: 'middle', horizontal: 'center' };
+		}
+
+		// 고정 컬럼 병합
+		for (let i = 1; i <= 5; i++) {
+			worksheet.mergeCells(headerRow1.number, i, headerRow1.number + 1, i);
+		}
+
+		// 주차 헤더 병합 및 색상
+		let colStart = 6;
+		weeklyColumns.forEach(() => {
+			worksheet.mergeCells(headerRow1.number, colStart, headerRow1.number, colStart + 2);
+			[colStart, colStart + 1, colStart + 2].forEach(c => {
+				headerRow1.getCell(c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD0E0F0' } };
+			});
+			colStart += 3;
+		});
+
+		// 9. 테이블 헤더 2행 (세부 항목)
+		const headerRow2Data = ['', '', '', '', ''];
+		weeklyColumns.forEach(() => {
+			headerRow2Data.push('지급액', '원천징수(3.3%)', '실지급액');
+		});
+		const headerRow2 = worksheet.addRow(headerRow2Data);
+		// 개별 셀에 스타일 적용 (세부 항목 헤더)
+		for (let i = 6; i <= 5 + weeklyColumns.length * 3; i++) {
+			headerRow2.getCell(i).font = { bold: true };
+			headerRow2.getCell(i).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8E8E8' } };
+			headerRow2.getCell(i).alignment = { vertical: 'middle', horizontal: 'center' };
+		}
+
+		// 10. 데이터 행
+		filteredPaymentList.forEach(user => {
+			const rowData = [
+				user.no,
+				user.name,
+				user.planner || '',
+				user.bank || '',
+				user.accountNumber || ''
+			];
+
+			weeklyColumns.forEach(week => {
+				const key = periodType === 'monthly'
+					? `month_${week.month}`
+					: `${week.year}_${week.month}_${week.week}`;
 				const payment = user.payments[key];
-				row.push(payment?.amount || 0);
-				row.push(payment?.tax || 0);
-				row.push(payment?.net || 0);
+				rowData.push(
+					payment?.amount || 0,
+					payment?.tax || 0,
+					payment?.net || 0
+				);
 			});
 
-			excelData.push(row);
+			const dataRow = worksheet.addRow(rowData);
+			dataRow.alignment = { vertical: 'middle', horizontal: 'center' };
+
+			// 금액 컬럼 스타일
+			let col = 6;
+			weeklyColumns.forEach(() => {
+				// 지급액
+				dataRow.getCell(col).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFCC' } };
+				dataRow.getCell(col).font = { bold: true };
+				dataRow.getCell(col).numFmt = '#,##0';
+				dataRow.getCell(col).alignment = { vertical: 'middle', horizontal: 'right' };
+
+				// 원천징수
+				dataRow.getCell(col + 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEEEE' } };
+				dataRow.getCell(col + 1).font = { color: { argb: 'FFD9534F' } };
+				dataRow.getCell(col + 1).numFmt = '#,##0';
+				dataRow.getCell(col + 1).alignment = { vertical: 'middle', horizontal: 'right' };
+
+				// 실지급액
+				dataRow.getCell(col + 2).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8F5E9' } };
+				dataRow.getCell(col + 2).numFmt = '#,##0';
+				dataRow.getCell(col + 2).alignment = { vertical: 'middle', horizontal: 'right' };
+
+				col += 3;
+			});
 		});
 
-		// 합계 행
-		const totalRow = ['', '', '', '합계'];
-		weeklyColumns.forEach((week) => {
+		// 11. 합계 행
+		const totalRowData = ['', '', '', '', '합계'];
+		weeklyColumns.forEach(week => {
 			const total = calculateColumnTotal(week);
-			totalRow.push(total.amount);
-			totalRow.push(total.tax);
-			totalRow.push(total.net);
+			totalRowData.push(total.amount, total.tax, total.net);
 		});
-		excelData.push(totalRow);
+		const totalRow = worksheet.addRow(totalRowData);
+		// 개별 셀에 스타일 적용 (합계 행)
+		for (let i = 1; i <= totalCols; i++) {
+			totalRow.getCell(i).font = { bold: true };
+			totalRow.getCell(i).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F0F0' } };
+			totalRow.getCell(i).alignment = { vertical: 'middle', horizontal: 'center' };
+		}
+		for (let i = 6; i <= totalCols; i++) {
+			totalRow.getCell(i).numFmt = '#,##0';
+			totalRow.getCell(i).alignment = { vertical: 'middle', horizontal: 'right' };
+		}
 
-		// 워크북 생성
-		const ws = XLSX.utils.aoa_to_sheet(excelData);
-		const wb = XLSX.utils.book_new();
-		XLSX.utils.book_append_sheet(wb, ws, '용역비 지급명부');
-
-		// 컬럼 너비 조정
-		const colWidths = [
-			{ wch: 8 }, // 순번
-			{ wch: 15 }, // 성명
-			{ wch: 15 }, // 은행
-			{ wch: 20 } // 계좌번호
-		];
-		weeklyColumns.forEach(() => {
-			colWidths.push({ wch: 15 }, { wch: 15 }, { wch: 15 });
+		// 12. 총합계 행
+		const grandTotalData = ['', '', '', '', '총합계'];
+		const grandTotal = calculateGrandTotal();
+		grandTotalData.push(grandTotal.amount, grandTotal.tax, grandTotal.net);
+		weeklyColumns.slice(1).forEach(() => {
+			grandTotalData.push('', '', '');
 		});
-		ws['!cols'] = colWidths;
+		const grandTotalRow = worksheet.addRow(grandTotalData);
+		// 개별 셀에 스타일 적용 (총합계 행)
+		for (let i = 1; i <= totalCols; i++) {
+			grandTotalRow.getCell(i).font = { bold: true, size: 12, color: { argb: 'FFE65100' } };
+			grandTotalRow.getCell(i).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE0B2' } };
+			grandTotalRow.getCell(i).alignment = { vertical: 'middle', horizontal: 'center' };
+		}
+		for (let i = 6; i <= 8; i++) {
+			grandTotalRow.getCell(i).numFmt = '#,##0';
+			grandTotalRow.getCell(i).alignment = { vertical: 'middle', horizontal: 'right' };
+		}
+
+		// 테이블 영역 테두리
+		const tableStartRow = headerRow1.number;
+		const tableEndRow = grandTotalRow.number;
+		for (let r = tableStartRow; r <= tableEndRow; r++) {
+			for (let c = 1; c <= totalCols; c++) {
+				const cell = worksheet.getRow(r).getCell(c);
+				cell.border = {
+					top: { style: 'thin', color: { argb: 'FF000000' } },
+					bottom: { style: 'thin', color: { argb: 'FF000000' } },
+					left: { style: 'thin', color: { argb: 'FF000000' } },
+					right: { style: 'thin', color: { argb: 'FF000000' } }
+				};
+			}
+		}
+
+		// 컬럼 너비 설정
+		worksheet.getColumn(1).width = 15;
+		worksheet.getColumn(2).width = 12;
+		worksheet.getColumn(3).width = 12;
+		worksheet.getColumn(4).width = 12;
+		worksheet.getColumn(5).width = 18;
+		for (let i = 6; i <= totalCols; i++) {
+			worksheet.getColumn(i).width = 14;
+		}
 
 		// 파일명 생성
 		const today = new Date();
-		const fileName = `용역비 지급명부_${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}.xlsx`;
+		const fileName = `용역비지급명부_${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}.xlsx`;
 
-		// 엑셀 파일 생성 및 다운로드
-		const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-		const blob = new Blob([wbout], { type: 'application/octet-stream' });
+		// 파일 생성 및 다운로드
+		const buffer = await workbook.xlsx.writeBuffer();
+		const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 		saveAs(blob, fileName);
 	}
 
@@ -642,7 +868,7 @@
 				</div>
 				<div class="summary-card info-card">
 					<div class="summary-label">지급 대상</div>
-					<div class="summary-value">{filteredPaymentList.length}명</div>
+					<div class="summary-value">{totalPaymentTargets || filteredPaymentList.length}명</div>
 				</div>
 			</div>
 		</div>
@@ -650,11 +876,15 @@
 
 	<!-- 검색 및 페이지 설정 -->
 	<div class="search-section">
+		<select bind:value={searchCategory} class="search-category">
+			<option value="name">이름</option>
+			<option value="planner">설계자</option>
+		</select>
 		<input
 			type="text"
 			bind:value={searchQuery}
-			onkeyup={handleSearch}
-			placeholder="이름 또는 은행명으로 검색..."
+			onkeypress={handleKeyPress}
+			placeholder={searchCategory === 'name' ? '이름으로 검색...' : '설계자 이름으로 검색...'}
 			class="search-input"
 		/>
 		<button onclick={handleSearch} class="search-button">
@@ -696,6 +926,7 @@
 						<tr class="header-row-1">
 							<th rowspan="2" class="sticky-col sticky-col-0">순번</th>
 							<th rowspan="2" class="sticky-col sticky-col-1">성명</th>
+							<th rowspan="2">설계자</th>
 							<th rowspan="2">은행</th>
 							<th rowspan="2">계좌번호</th>
 							{#each weeklyColumns as week}
@@ -716,10 +947,11 @@
 								<tr>
 									<td class="sticky-col sticky-col-0">{user.no}</td>
 									<td class="sticky-col sticky-col-1">{user.name}</td>
+									<td>{user.planner || ''}</td>
 									<td>{user.bank}</td>
 									<td>{user.accountNumber}</td>
 									{#each weeklyColumns as week}
-										{@const key = week.week || `month_${week.month}`}
+										{@const key = periodType === 'monthly' ? `month_${week.month}` : `${week.year}_${week.month}_${week.week}`}
 										{@const payment = user.payments[key]}
 										<td
 											class="amount-cell"
@@ -759,16 +991,10 @@
 					</button>
 
 					<div class="page-numbers">
-						{#if currentPage > 3}
-							<button onclick={() => goToPage(1)} class="page-number">1</button>
-							{#if currentPage > 4}
-								<span class="page-dots">...</span>
-							{/if}
-						{/if}
-
-						{#each Array(Math.min(5, totalPages)) as _, i}
-							{@const pageNum = currentPage > 3 ? currentPage - 2 + i : i + 1}
-							{#if pageNum > 0 && pageNum <= totalPages}
+						{#each Array(totalPages) as _, i}
+							{@const pageNum = i + 1}
+							{#if totalPages <= 7}
+								<!-- 페이지가 7개 이하면 모두 표시 -->
 								<button
 									onclick={() => goToPage(pageNum)}
 									class="page-number"
@@ -776,15 +1002,23 @@
 								>
 									{pageNum}
 								</button>
+							{:else if pageNum === 1 || pageNum === totalPages || (pageNum >= currentPage - 2 && pageNum <= currentPage + 2)}
+								<!-- 첫 페이지, 마지막 페이지, 현재 페이지 주변만 표시 -->
+								{#if pageNum === totalPages && currentPage < totalPages - 3}
+									<span class="page-dots">...</span>
+								{/if}
+								<button
+									onclick={() => goToPage(pageNum)}
+									class="page-number"
+									class:active={pageNum === currentPage}
+								>
+									{pageNum}
+								</button>
+								{#if pageNum === 1 && currentPage > 4}
+									<span class="page-dots">...</span>
+								{/if}
 							{/if}
 						{/each}
-
-						{#if currentPage < totalPages - 2}
-							{#if currentPage < totalPages - 3}
-								<span class="page-dots">...</span>
-							{/if}
-							<button onclick={() => goToPage(totalPages)} class="page-number">{totalPages}</button>
-						{/if}
 					</div>
 
 					<button
@@ -796,9 +1030,9 @@
 					</button>
 
 					<div class="page-info">
-						총 {filteredPaymentList.length}명 중 {(currentPage - 1) * itemsPerPage + 1}-{Math.min(
+						총 {totalPaymentTargets || filteredPaymentList.length}명 중 {(currentPage - 1) * itemsPerPage + 1}-{Math.min(
 							currentPage * itemsPerPage,
-							filteredPaymentList.length
+							totalPaymentTargets || filteredPaymentList.length
 						)}명
 					</div>
 				</div>
@@ -1088,6 +1322,13 @@
 		.search-section {
 			flex-wrap: wrap;
 			gap: 8px;
+		}
+
+		.search-category {
+			padding: 6px 10px;
+			border: 1px solid #ddd;
+			border-radius: 4px;
+			font-size: 14px;
 		}
 
 		.search-input {
@@ -1438,83 +1679,176 @@
 	.search-section {
 		display: flex;
 		align-items: center;
-		margin: 8px 0;
+		margin: 12px 0;
 		gap: 10px;
 		flex-wrap: nowrap;
+		background: linear-gradient(to bottom, #f8f9fa, #ffffff);
+		padding: 12px;
+		border-radius: 6px;
+		box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+	}
+
+	.search-category {
+		padding: 7px 12px;
+		border: 2px solid #e0e0e0;
+		border-radius: 5px;
+		font-size: 14px;
+		font-weight: 500;
+		background: white;
+		cursor: pointer;
+		transition: all 0.2s ease;
+		outline: none;
+		min-width: 90px;
+		height: 36px;
+		line-height: 1.4;
+		display: flex;
+		align-items: center;
+	}
+
+	.search-category:hover {
+		border-color: #007bff;
+		box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.1);
+	}
+
+	.search-category:focus {
+		border-color: #007bff;
+		box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.15);
 	}
 
 	.search-input {
 		flex: 1;
-		padding: 8px 12px;
-		border: 1px solid #ddd;
-		border-radius: 4px;
+		padding: 7px 14px;
+		border: 2px solid #e0e0e0;
+		border-radius: 5px;
 		font-size: 14px;
 		min-width: 200px;
+		transition: all 0.2s ease;
+		outline: none;
+		background: white;
+		height: 36px;
+		line-height: 1.4;
+	}
+
+	.search-input:hover {
+		border-color: #b0b0b0;
+	}
+
+	.search-input:focus {
+		border-color: #007bff;
+		box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.15);
+	}
+
+	.search-input::placeholder {
+		color: #999;
+		font-weight: 400;
 	}
 
 	.search-button {
-		padding: 8px 12px;
-		background: #007bff;
+		padding: 7px 14px;
+		background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
 		border: none;
-		border-radius: 4px;
+		border-radius: 5px;
 		color: white;
 		cursor: pointer;
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		flex-shrink: 0;
+		transition: all 0.2s ease;
+		box-shadow: 0 1px 4px rgba(0, 123, 255, 0.3);
+		min-width: 36px;
+		height: 36px;
 	}
 
 	.search-button:hover {
-		background: #0056b3;
+		background: linear-gradient(135deg, #0056b3 0%, #003d82 100%);
+		box-shadow: 0 2px 8px rgba(0, 123, 255, 0.4);
+		transform: translateY(-1px);
+	}
+
+	.search-button:active {
+		transform: translateY(0);
+		box-shadow: 0 1px 3px rgba(0, 123, 255, 0.3);
 	}
 
 	.search-button img {
 		filter: brightness(0) invert(1);
+		width: 18px;
+		height: 18px;
 	}
 
 	.per-page-label {
 		display: flex;
 		align-items: center;
-		gap: 8px;
+		gap: 6px;
 		font-size: 14px;
+		font-weight: 500;
 		white-space: nowrap;
 		flex-shrink: 0;
+		color: #495057;
 	}
 
 	.per-page-select {
-		padding: 6px 24px 6px 8px;
-		min-width: 70px;
-		border: 1px solid #ddd;
-		border-radius: 4px;
+		padding: 6px 26px 6px 12px;
+		min-width: 78px;
+		border: 2px solid #e0e0e0;
+		border-radius: 5px;
 		font-size: 14px;
 		cursor: pointer;
-		background-position: right 6px center;
+		background: white;
+		background-position: right 8px center;
 		background-repeat: no-repeat;
+		transition: all 0.2s ease;
+		outline: none;
+		font-weight: 500;
+		height: 36px;
+		line-height: 1.4;
+		display: flex;
+		align-items: center;
+	}
+
+	.per-page-select:hover {
+		border-color: #007bff;
+		box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.1);
+	}
+
+	.per-page-select:focus {
+		border-color: #007bff;
+		box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.15);
 	}
 
 	.export-button {
-		padding: 8px;
-		background: #28a745;
+		padding: 7px 14px;
+		background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%);
 		color: white;
 		border: none;
-		border-radius: 4px;
+		border-radius: 5px;
 		cursor: pointer;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		transition: background 0.2s;
+		transition: all 0.2s ease;
 		min-width: 36px;
 		height: 36px;
 		flex-shrink: 0;
+		box-shadow: 0 1px 4px rgba(40, 167, 69, 0.3);
+	}
+
+	.export-button:hover {
+		background: linear-gradient(135deg, #1e7e34 0%, #155724 100%);
+		box-shadow: 0 2px 8px rgba(40, 167, 69, 0.4);
+		transform: translateY(-1px);
+	}
+
+	.export-button:active {
+		transform: translateY(0);
+		box-shadow: 0 1px 3px rgba(40, 167, 69, 0.3);
 	}
 
 	.export-button img {
 		filter: brightness(0) invert(1);
-	}
-
-	.export-button:hover {
-		background: #218838;
+		width: 16px;
+		height: 16px;
 	}
 
 

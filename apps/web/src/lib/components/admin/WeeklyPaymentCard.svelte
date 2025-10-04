@@ -46,90 +46,31 @@
 		</div>
 	</div>
 {:else}
-	<div class="bg-white shadow-sm rounded-lg overflow-hidden h-full">
-		<div class="px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100">
-			<h3 class="text-base sm:text-lg font-medium text-gray-900 h-6">용역비 지급명부</h3>
-			<p class="mt-1 text-xs sm:text-sm text-gray-500">이번 주 지급 현황</p>
+	<div class="bg-white shadow-sm rounded-lg overflow-hidden">
+		<div class="px-4 py-2 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100">
+			<h3 class="text-base font-medium text-gray-900">이번주 용역비 금액</h3>
+			<p class="text-xs text-gray-500">{new Date().getFullYear()}년 {currentMonth}월 {currentWeek}</p>
 		</div>
-		<div class="px-3 sm:px-4 py-3">
-			<div class="space-y-3">
-				<!-- 이번 주 정보 -->
-				<div class="bg-blue-50 rounded-lg p-2 sm:p-3">
-					<div class="flex justify-between items-center">
-						<p class="text-xs sm:text-sm font-medium text-gray-700">이번 주</p>
-						<p class="text-sm sm:text-base font-bold text-blue-900">{new Date().getFullYear()}년 {currentMonth}월 {currentWeek}</p>
-					</div>
+		<div class="px-3 sm:px-4 py-2">
+			<!-- 총액 정보만 간단하게 표시 -->
+			<div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+				<div class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-2 text-center">
+					<p class="text-xs text-gray-600">총 지급액</p>
+					<p class="text-base sm:text-lg font-bold text-blue-900">
+						{weeklyPaymentInfo ? weeklyPaymentInfo.totalAmount.toLocaleString() : '0'}원
+					</p>
 				</div>
-
-				<!-- 이번 주 지급 구성 -->
-				<div class="space-y-1">
-					<p class="text-xs sm:text-sm font-medium text-gray-700 mb-2">이번 주 지급 구성</p>
-
-					{#if true}
-						{@const currentDate = new Date()}
-						{@const currentWeekNumber = Math.ceil(currentDate.getDate() / 7)}
-						{@const hasAnyPaymentDue = [1, 2, 3].some(monthsBack => {
-							const weeksSince = monthsBack * 4 + currentWeekNumber - 4;
-							return weeksSince > 0 && weeksSince <= 10;
-						})}
-
-						<div class="max-h-48 overflow-y-auto space-y-1">
-							<!-- 최대 3개월 이전 매출까지 확인 (10주 = 약 2.5개월) -->
-							{#each [1, 2, 3] as monthsBack}
-								{@const sourceDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - monthsBack, 1)}
-								{@const sourceYear = sourceDate.getFullYear()}
-								{@const sourceMonth = sourceDate.getMonth() + 1}
-								{@const weeksSincePaymentStart = monthsBack * 4 + currentWeekNumber - 4}
-								{@const paymentRound = weeksSincePaymentStart > 0 && weeksSincePaymentStart <= 10 ? weeksSincePaymentStart : 0}
-								{@const monthRevenue = monthlyRevenues ? monthlyRevenues.find(r => r.year === sourceYear && r.month === sourceMonth) : null}
-
-								{#if paymentRound > 0 && paymentRound <= 10}
-									<div class="{monthRevenue && monthRevenue.totalRevenue > 0 ? 'bg-gray-50 hover:bg-gray-100' : 'bg-gray-100 opacity-60'} rounded p-2 text-xs">
-										<div class="flex justify-between items-center">
-											<div class="flex items-center space-x-2">
-												<span class="font-medium text-gray-700">{sourceYear}.{sourceMonth}월 매출</span>
-												<span class="text-gray-500">({paymentRound}/10회차)</span>
-											</div>
-											<div class="text-right">
-												{#if monthRevenue && monthRevenue.totalRevenue > 0}
-													<span class="font-semibold text-gray-900">
-														{(monthRevenue.revenuePerInstallment || 0).toLocaleString()}
-													</span>
-													<span class="text-gray-500 ml-1">원</span>
-												{:else}
-													<span class="text-gray-400 text-xs">매출 없음</span>
-												{/if}
-											</div>
-										</div>
-									</div>
-								{/if}
-							{/each}
-
-							{#if !hasAnyPaymentDue}
-								<div class="text-xs text-gray-500 text-center py-2">
-									이번 주 지급 예정 없음
-								</div>
-							{/if}
-						</div>
-					{/if}
+				<div class="bg-gradient-to-br from-red-50 to-red-100 rounded-lg p-2 text-center">
+					<p class="text-xs text-gray-600">원천징수 (3.3%)</p>
+					<p class="text-base sm:text-lg font-bold text-red-900">
+						{weeklyPaymentInfo ? weeklyPaymentInfo.totalTax.toLocaleString() : '0'}원
+					</p>
 				</div>
-
-				<!-- 총 지급액 요약 -->
-				<div class="border-t pt-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-3">
-					<div class="grid grid-cols-2 gap-2">
-						<div>
-							<p class="text-xs text-gray-600">총 지급</p>
-							<p class="text-sm sm:text-base font-bold text-gray-900">
-								{weeklyPaymentInfo ? weeklyPaymentInfo.totalAmount.toLocaleString() : '0'}원
-							</p>
-						</div>
-						<div>
-							<p class="text-xs text-gray-600">실지급(세후)</p>
-							<p class="text-sm sm:text-base font-bold text-green-900">
-								{weeklyPaymentInfo ? weeklyPaymentInfo.totalNet.toLocaleString() : '0'}원
-							</p>
-						</div>
-					</div>
+				<div class="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-2 text-center">
+					<p class="text-xs text-gray-600">실지급액 (세후)</p>
+					<p class="text-base sm:text-lg font-bold text-green-900">
+						{weeklyPaymentInfo ? weeklyPaymentInfo.totalNet.toLocaleString() : '0'}원
+					</p>
 				</div>
 			</div>
 		</div>

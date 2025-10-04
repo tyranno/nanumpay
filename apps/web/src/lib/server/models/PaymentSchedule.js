@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { calculatePaymentWeek } from '../../utils/weekCalculator.js';
+import { calculatePaymentWeek } from '../../utils/fridayWeekCalculator.js';
 
 const paymentScheduleSchema = new mongoose.Schema({
 	revenueId: { type: mongoose.Schema.Types.ObjectId, ref: 'Revenue', required: true },

@@ -3,7 +3,7 @@ import MonthlyRevenue from '../models/MonthlyRevenue.js';
 import UserPaymentPlan from '../models/UserPaymentPlan.js';
 import WeeklyPayment from '../models/WeeklyPayment.js';
 import { excelLogger as logger } from '../logger.js';
-import { calculatePaymentWeek } from '../../utils/weekCalculator.js';
+import { calculatePaymentWeek } from '../../utils/fridayWeekCalculator.js';
 
 /**
  * 특정 월의 매출 계산
@@ -87,8 +87,8 @@ export async function calculateMonthlyRevenueForMonth(year, month) {
     // 개인별 지급 계획 생성
     await createUserPaymentPlans(year, month, userRevenues);
 
-    // 주간 지급 스케줄 생성 (WeeklyPayment 생성)
-    await createWeeklyPaymentSchedules(year, month, monthlyRevenue);
+    // NOTE: WeeklyPayment는 실제 금요일 지급 스케줄러에서 생성됨
+    // createWeeklyPaymentSchedules는 더 이상 사용하지 않음
 
     logger.info(`${year}년 ${month}월 매출 계산 완료:`, {
       newUsers: newUsersCount,
@@ -157,10 +157,14 @@ function calculateGradePayments(totalRevenue, gradeCount) {
  * 개인별 지급 계획 생성
  */
 async function createUserPaymentPlans(year, month, userRevenues) {
+  logger.info(`createUserPaymentPlans 시작: ${year}년 ${month}월, 대상 사용자 ${userRevenues.length}명`);
+  
   const totalRevenue = userRevenues.reduce((sum, ur) => sum + 1000000, 0); // 1인당 100만원
   const revenuePerInstallment = totalRevenue / 10;
 
   for (const userRevenue of userRevenues) {
+    logger.info(`UserPaymentPlan 생성: ${userRevenue.userName} (${userRevenue.grade}), 총액: ${userRevenue.totalAmount}`);
+    
     const installments = [];
     const amountPerInstallment = userRevenue.totalAmount / 10;
 
@@ -183,7 +187,7 @@ async function createUserPaymentPlans(year, month, userRevenues) {
       });
     }
 
-    await UserPaymentPlan.findOneAndUpdate(
+    const plan = await UserPaymentPlan.findOneAndUpdate(
       {
         userId: userRevenue.userId,
         'revenueMonth.year': year,
@@ -203,7 +207,11 @@ async function createUserPaymentPlans(year, month, userRevenues) {
       },
       { upsert: true, new: true }
     );
+    
+    logger.info(`UserPaymentPlan 생성 완료: ${userRevenue.userName}, ID: ${plan._id}`);
   }
+  
+  logger.info(`createUserPaymentPlans 완료: ${year}년 ${month}월, 총 ${userRevenues.length}개 생성`);
 }
 
 /**

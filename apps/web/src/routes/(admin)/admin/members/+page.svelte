@@ -25,7 +25,9 @@
 		accountNumber: false,
 		salesperson: true,
 		planner: true,
-		insuranceProduct: false
+		plannerPhone: false,  // 설계사 연락처 기본 숨김
+		insuranceProduct: false,
+		insuranceCompany: false  // 보험회사도 추가
 	};
 	let showColumnSettings = false;
 
@@ -63,7 +65,8 @@
 		planner: '',
 		plannerPhone: '',
 		insuranceProduct: '',
-		insuranceCompany: ''
+		insuranceCompany: '',
+		registrationDate: new Date().toISOString().split('T')[0]  // 기본값: 오늘 날짜
 	};
 
 	onMount(async () => {
@@ -430,7 +433,8 @@
 			planner: '',
 			plannerPhone: '',
 			insuranceProduct: '',
-			insuranceCompany: ''
+			insuranceCompany: '',
+			registrationDate: new Date().toISOString().split('T')[0]  // 리셋 시 오늘 날짜로 초기화
 		};
 	}
 
@@ -515,12 +519,12 @@
 						</th>
 						{#if visibleColumns.date}
 							<th onclick={() => changeSort('createdAt')} class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 whitespace-nowrap" style="min-width: 100px;">
-								날짜 {sortBy === 'createdAt' && (sortOrder === 'asc' ? '↑' : '↓')}
+								날짜 {#if sortBy === 'createdAt'}{sortOrder === 'asc' ? '↑' : '↓'}{/if}
 							</th>
 						{/if}
 						{#if visibleColumns.name}
-							<th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style="min-width: 80px;">
-								성명
+							<th onclick={() => changeSort('name')} class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 whitespace-nowrap" style="min-width: 80px;">
+								성명 {#if sortBy === 'name'}{sortOrder === 'asc' ? '↑' : '↓'}{/if}
 							</th>
 						{/if}
 						{#if visibleColumns.phone}
@@ -549,18 +553,28 @@
 							</th>
 						{/if}
 						{#if visibleColumns.salesperson}
-							<th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style="min-width: 80px;">
-								판매인
+							<th onclick={() => changeSort('salesperson')} class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 whitespace-nowrap" style="min-width: 80px;">
+								판매인 {#if sortBy === 'salesperson'}{sortOrder === 'asc' ? '↑' : '↓'}{/if}
 							</th>
 						{/if}
 						{#if visibleColumns.planner}
-							<th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style="min-width: 80px;">
-								설계사
+							<th onclick={() => changeSort('planner')} class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 whitespace-nowrap" style="min-width: 80px;">
+								설계사 {#if sortBy === 'planner'}{sortOrder === 'asc' ? '↑' : '↓'}{/if}
+							</th>
+						{/if}
+						{#if visibleColumns.plannerPhone}
+							<th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style="min-width: 110px;">
+								설계사 연락처
 							</th>
 						{/if}
 						{#if visibleColumns.insuranceProduct}
 							<th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style="min-width: 120px;">
 								보험상품
+							</th>
+						{/if}
+						{#if visibleColumns.insuranceCompany}
+							<th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style="min-width: 80px;">
+								보험회사
 							</th>
 						{/if}
 						<th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style="min-width: 100px;">
@@ -632,9 +646,19 @@
 										{member.planner || '-'}
 									</td>
 								{/if}
+								{#if visibleColumns.plannerPhone}
+									<td class="px-3 py-2 text-sm text-gray-700 whitespace-nowrap">
+										{member.plannerPhone || '-'}
+									</td>
+								{/if}
 								{#if visibleColumns.insuranceProduct}
 									<td class="px-3 py-2 text-sm text-gray-700 whitespace-nowrap">
 										{member.insuranceProduct || '-'}
+									</td>
+								{/if}
+								{#if visibleColumns.insuranceCompany}
+									<td class="px-3 py-2 text-sm text-gray-700 whitespace-nowrap">
+										{member.insuranceCompany || '-'}
 									</td>
 								{/if}
 								<td class="px-3 py-2 whitespace-nowrap">
@@ -759,135 +783,151 @@
 		{/if}
 	</div>
 
-	<!-- 새 회원 추가 모달 -->
+	<!-- 용역자 등록 모달 -->
 	{#if showAddModal}
 		<div class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-			<div class="bg-white rounded-lg p-6 w-full max-w-3xl max-h-[85vh] overflow-y-auto">
-				<h3 class="text-lg font-medium text-gray-900 mb-4">새 회원 등록</h3>
+			<div class="bg-white rounded-lg p-4 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+				<h3 class="text-lg font-bold text-gray-900 mb-4 text-center">용역자 등록</h3>
 
-				<div class="grid grid-cols-2 gap-6">
+				<div class="grid grid-cols-2 gap-4">
 					<!-- 왼쪽: 사용자 기본 정보 -->
-					<div class="space-y-4">
-						<h4 class="text-sm font-semibold text-gray-900 border-b pb-2">기본 정보</h4>
+					<div class="space-y-3">
+						<h4 class="text-sm font-semibold text-gray-900 border-b pb-1">기본 정보</h4>
 						<div>
-							<label class="block text-sm font-medium text-gray-700 mb-1">성명 *</label>
+							<label class="block text-xs font-medium text-gray-700">성명 *</label>
 							<input
 								type="text"
 								bind:value={newMember.name}
-								class="w-full px-3 py-2 border border-gray-300 rounded-md"
+								class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
 							/>
-							<p class="text-xs text-gray-500 mt-1">※ ID는 이름을 기준으로 자동 생성됩니다</p>
+							<p class="text-xs text-gray-500 mt-0.5">※ ID 자동 생성</p>
 						</div>
 						<div>
-							<label class="block text-sm font-medium text-gray-700 mb-1">연락처 *</label>
+							<label class="block text-xs font-medium text-gray-700">연락처 *</label>
 							<input
 								type="text"
 								bind:value={newMember.phone}
-								class="w-full px-3 py-2 border border-gray-300 rounded-md"
+								class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
 								placeholder="010-1234-5678"
 							/>
-							<p class="text-xs text-gray-500 mt-1">※ 전화번호 뒤 4자리가 초기 암호로 설정됩니다</p>
+							<p class="text-xs text-gray-500 mt-0.5">※ 뒤 4자리가 초기 암호</p>
 						</div>
-						<div>
-							<label class="block text-sm font-medium text-gray-700 mb-1">주민번호</label>
-							<input
-								type="text"
-								bind:value={newMember.idNumber}
-								class="w-full px-3 py-2 border border-gray-300 rounded-md"
-								placeholder="000000-0000000"
-							/>
+						<div class="grid grid-cols-2 gap-2">
+							<div>
+								<label class="block text-xs font-medium text-gray-700">주민번호</label>
+								<input
+									type="text"
+									bind:value={newMember.idNumber}
+									class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
+									placeholder="000000-0000000"
+								/>
+							</div>
+							<div>
+								<label class="block text-xs font-medium text-gray-700">등록날짜</label>
+								<input
+									type="date"
+									bind:value={newMember.registrationDate}
+									class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
+								/>
+							</div>
 						</div>
-						<div>
-							<label class="block text-sm font-medium text-gray-700 mb-1">은행</label>
-							<input
-								type="text"
-								bind:value={newMember.bank}
-								class="w-full px-3 py-2 border border-gray-300 rounded-md"
-							/>
+						<div class="grid grid-cols-2 gap-2">
+							<div>
+								<label class="block text-xs font-medium text-gray-700">은행</label>
+								<input
+									type="text"
+									bind:value={newMember.bank}
+									class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
+								/>
+							</div>
+							<div>
+								<label class="block text-xs font-medium text-gray-700">계좌번호</label>
+								<input
+									type="text"
+									bind:value={newMember.accountNumber}
+									class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
+								/>
+							</div>
 						</div>
-						<div>
-							<label class="block text-sm font-medium text-gray-700 mb-1">계좌번호</label>
-							<input
-								type="text"
-								bind:value={newMember.accountNumber}
-								class="w-full px-3 py-2 border border-gray-300 rounded-md"
-							/>
-						</div>
-						<div>
-							<label class="block text-sm font-medium text-gray-700 mb-1">보험상품명</label>
-							<input
-								type="text"
-								bind:value={newMember.insuranceProduct}
-								class="w-full px-3 py-2 border border-gray-300 rounded-md"
-							/>
-						</div>
-						<div>
-							<label class="block text-sm font-medium text-gray-700 mb-1">보험회사</label>
-							<input
-								type="text"
-								bind:value={newMember.insuranceCompany}
-								class="w-full px-3 py-2 border border-gray-300 rounded-md"
-							/>
+						<div class="grid grid-cols-2 gap-2">
+							<div>
+								<label class="block text-xs font-medium text-gray-700">보험상품</label>
+								<input
+									type="text"
+									bind:value={newMember.insuranceProduct}
+									class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
+								/>
+							</div>
+							<div>
+								<label class="block text-xs font-medium text-gray-700">보험회사</label>
+								<input
+									type="text"
+									bind:value={newMember.insuranceCompany}
+									class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
+								/>
+							</div>
 						</div>
 					</div>
 
 					<!-- 오른쪽: 판매인/설계사 정보 -->
-					<div class="space-y-4">
-						<h4 class="text-sm font-semibold text-gray-900 border-b pb-2">판매/설계 정보</h4>
+					<div class="space-y-3">
+						<h4 class="text-sm font-semibold text-gray-900 border-b pb-1">판매/설계 정보</h4>
 						<div>
-							<label class="block text-sm font-medium text-gray-700 mb-1">소속/지사</label>
+							<label class="block text-xs font-medium text-gray-700">소속/지사</label>
 							<input
 								type="text"
 								bind:value={newMember.branch}
-								class="w-full px-3 py-2 border border-gray-300 rounded-md"
+								class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
 							/>
 						</div>
 						<div>
-							<label class="block text-sm font-medium text-gray-700 mb-1">판매인</label>
+							<label class="block text-xs font-medium text-gray-700">판매인</label>
 							<input
 								type="text"
 								bind:value={newMember.salesperson}
-								class="w-full px-3 py-2 border border-gray-300 rounded-md"
+								class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
 							/>
-							<p class="text-xs text-gray-500 mt-1">※ 판매인은 계층도에서 부모가 됩니다</p>
+							<p class="text-xs text-gray-500 mt-0.5">※ 계층도 부모</p>
+						</div>
+						<div class="grid grid-cols-2 gap-2">
+							<div>
+								<label class="block text-xs font-medium text-gray-700">판매인 연락처</label>
+								<input
+									type="text"
+									bind:value={newMember.salespersonPhone}
+									class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
+								/>
+							</div>
+							<div>
+								<label class="block text-xs font-medium text-gray-700">설계사</label>
+								<input
+									type="text"
+									bind:value={newMember.planner}
+									class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
+								/>
+							</div>
 						</div>
 						<div>
-							<label class="block text-sm font-medium text-gray-700 mb-1">판매인 연락처</label>
-							<input
-								type="text"
-								bind:value={newMember.salespersonPhone}
-								class="w-full px-3 py-2 border border-gray-300 rounded-md"
-							/>
-						</div>
-						<div>
-							<label class="block text-sm font-medium text-gray-700 mb-1">설계사</label>
-							<input
-								type="text"
-								bind:value={newMember.planner}
-								class="w-full px-3 py-2 border border-gray-300 rounded-md"
-							/>
-						</div>
-						<div>
-							<label class="block text-sm font-medium text-gray-700 mb-1">설계사 연락처</label>
+							<label class="block text-xs font-medium text-gray-700">설계사 연락처</label>
 							<input
 								type="text"
 								bind:value={newMember.plannerPhone}
-								class="w-full px-3 py-2 border border-gray-300 rounded-md"
+								class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
 							/>
 						</div>
 					</div>
 				</div>
 
-				<div class="flex justify-end gap-3 mt-6">
+				<div class="flex justify-end gap-2 mt-4 pt-3 border-t">
 					<button
 						onclick={() => showAddModal = false}
-						class="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50"
+						class="px-3 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50"
 					>
 						취소
 					</button>
 					<button
 						onclick={handleAddMember}
-						class="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
+						class="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
 					>
 						등록
 					</button>
@@ -1270,10 +1310,26 @@
 					<label class="flex items-center p-2 hover:bg-gray-50 rounded">
 						<input
 							type="checkbox"
+							bind:checked={visibleColumns.plannerPhone}
+							class="mr-2 h-4 w-4 text-blue-600 rounded border-gray-300"
+						/>
+						<span class="text-sm text-gray-700">설계사 연락처</span>
+					</label>
+					<label class="flex items-center p-2 hover:bg-gray-50 rounded">
+						<input
+							type="checkbox"
 							bind:checked={visibleColumns.insuranceProduct}
 							class="mr-2 h-4 w-4 text-blue-600 rounded border-gray-300"
 						/>
 						<span class="text-sm text-gray-700">보험상품</span>
+					</label>
+					<label class="flex items-center p-2 hover:bg-gray-50 rounded">
+						<input
+							type="checkbox"
+							bind:checked={visibleColumns.insuranceCompany}
+							class="mr-2 h-4 w-4 text-blue-600 rounded border-gray-300"
+						/>
+						<span class="text-sm text-gray-700">보험회사</span>
 					</label>
 				</div>
 

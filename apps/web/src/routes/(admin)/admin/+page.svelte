@@ -8,11 +8,13 @@
 </svelte:head>
 
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
-	<div class="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
-		<!-- 왼쪽 카드: 등급별 지급 정보 -->
+	<!-- 등급별 지급 정보 - 전체 폭 -->
+	<div class="mb-4 lg:mb-6">
 		<GradePaymentCard />
+	</div>
 
-		<!-- 오른쪽 카드: 용역비 지급명부 -->
+	<!-- 이번주 용역비 금액 - 전체 폭 -->
+	<div class="mb-4 lg:mb-6">
 		<WeeklyPaymentCard />
 	</div>
 

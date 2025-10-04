@@ -9,6 +9,7 @@
     "start:web": "pnpm --filter nanumpay-web start",
     "release:linux": "pnpm --filter nanumpay-web release:linux",
     "release:win": "pnpm --filter nanumpay-web release:win",
+    "release:deploy:web": "pnpm deploy:build && node apps/web/scripts/deploy.cjs",
     "deploy:build": "pnpm build:web && pnpm release:linux",
     "deploy:install": "sudo dpkg -i apps/web/release/nanumpay_0.0.1-*_amd64.deb",
     "deploy:restart": "sudo systemctl restart nanumpay",
@@ -21,8 +22,16 @@
     "cap:ios": "pnpm --filter nanumpay-app cap:ios"
   },
   "devDependencies": {
+    "form-data": "^4.0.4",
+    "playwright": "^1.55.1",
     "prettier": "^3.6.2",
     "prettier-plugin-svelte": "^3.4.0",
     "prettier-plugin-tailwindcss": "^0.6.14"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "mongodb": "^6.20.0",
+    "node-fetch": "^3.3.2",
+    "xlsx": "^0.18.5"
   }
 }

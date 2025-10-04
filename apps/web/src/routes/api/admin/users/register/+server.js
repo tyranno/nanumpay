@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db.js';
 import User from '$lib/server/models/User.js';
+import { SystemConfig } from '$lib/server/models/SystemConfig.js';
 import bcrypt from 'bcryptjs';
 import { batchProcessor } from '$lib/server/services/batchProcessor.js';
 
@@ -20,9 +21,20 @@ export async function POST({ request, locals }) {
 			autoPassword,
 			salesperson,
 			parentId,
+			registrationDate,  // 등록날짜 추가
 			...otherFields
 		} = data;
 		let position = data.position || 'L';
+
+		// 등록날짜 처리 (없으면 오늘 날짜)
+		let createdAt = new Date();
+		if (registrationDate) {
+			createdAt = new Date(registrationDate);
+			// 날짜가 유효한지 확인
+			if (isNaN(createdAt.getTime())) {
+				createdAt = new Date();
+			}
+		}
 
 		// 필수 필드 확인
 		if (!name || !phone) {
@@ -106,7 +118,7 @@ export async function POST({ request, locals }) {
 		const lastUser = await User.findOne().sort({ sequence: -1 }).select('sequence');
 		const nextSequence = (lastUser?.sequence || 0) + 1;
 
-		// 사용자 생성
+		// 사용자 생성 - 새로운 스키마에 맞게 필드 추가
 		const newUser = new User({
 			name,
 			loginId,
@@ -116,6 +128,14 @@ export async function POST({ request, locals }) {
 			position: finalParentLoginId ? position : null,
 			salesperson,
 			sequence: nextSequence, // 순번 설정
+			// 새로운 필드들 추가
+			grade: 'F1',  // 초기 등급
+			gradePaymentCount: 0,  // 등급별 지급 횟수
+			lastGradeChangeDate: createdAt,  // 등록날짜와 동일하게 설정
+			consecutiveGradeWeeks: 0,  // 연속 등급 유지 주차
+			insuranceActive: false,  // 보험 유지 여부
+			insuranceAmount: 0,  // 보험료
+			createdAt,  // 등록날짜 설정
 			...otherFields
 		});
 

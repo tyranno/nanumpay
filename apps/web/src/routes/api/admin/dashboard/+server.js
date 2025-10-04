@@ -4,7 +4,7 @@ import User from '$lib/server/models/User.js';
 import MonthlyRevenue from '$lib/server/models/MonthlyRevenue.js';
 import WeeklyPayment from '$lib/server/models/WeeklyPayment.js';
 import SimpleCache from '$lib/server/cache.js';
-import { getWeekOfMonthByMonday } from '$lib/utils/weekCalculator.js';
+import { getWeekOfMonthByFriday } from '$lib/utils/fridayWeekCalculator.js';
 
 // 캐시 설정 (TTL: 60초)
 const cache = new SimpleCache(60000);
@@ -43,7 +43,7 @@ export async function GET({ locals, url }) {
 
 		// 정확한 주차 계산 (일요일 시작, 월요일 기준)
 		const currentDate = new Date();
-		const weekInfo = getWeekOfMonthByMonday(currentDate);
+		const weekInfo = getWeekOfMonthByFriday(currentDate);
 		const year = weekInfo.year;
 		const month = weekInfo.month;
 		const weekOfMonth = weekInfo.week;

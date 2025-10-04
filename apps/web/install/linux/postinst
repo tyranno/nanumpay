@@ -11,6 +11,15 @@ if ! id -u "$USER" >/dev/null 2>&1; then
 fi
 chown -R $USER:$USER "$APPDIR"
 
+# 로그 디렉토리 생성 및 권한 설정
+LOGDIR=/logs
+if [ ! -d "$LOGDIR" ]; then
+  mkdir -p "$LOGDIR"
+  echo "Created log directory: $LOGDIR"
+fi
+chown -R $USER:$USER "$LOGDIR"
+chmod 755 "$LOGDIR"
+
 # systemd 유닛 설치/리로드/활성화/시작
 systemctl daemon-reload
 systemctl enable ${APP}.service

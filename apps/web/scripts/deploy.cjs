@@ -6,7 +6,7 @@ const path = require('path');
 const cp = require('child_process');
 
 const ROOT = process.cwd();
-const RELEASE_DIR = path.join(ROOT, 'release');
+const RELEASE_DIR = path.join(ROOT, 'apps', 'web', 'release');
 const SSH_KEY = path.join(process.env.HOME, '.ssh', 'ocp_tyranno');
 const PROD_SERVER = '34.170.107.151';
 const PROD_PORT = 3100;

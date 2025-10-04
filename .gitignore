@@ -32,3 +32,4 @@ apps/web/scripts/*.js
 
 # Work logs
 work_logs/
+.serena

@@ -27,9 +27,29 @@ const userPaymentPlanSchema = new mongoose.Schema(
         month: { type: Number, required: true },
         week: { type: Number, required: true }
       },
+
+      // v3.0: 등급 참조 날짜 (지급일 -1개월 -1일)
+      gradeReferenceDate: { type: Date },
+
+      // v3.0: 지급 시점의 등급 (스냅샷에서 조회한 등급)
+      gradeAtPayment: { type: String },
+
+      // 동적 계산 금액 (등급별 비율로 계산된 금액)
+      calculatedAmount: { type: Number },
+
+      // 관리자가 수동 지정한 고정 금액 (설정되면 이 값 우선 사용)
+      fixedAmount: { type: Number },
+
+      // 실제 지급 금액 (fixedAmount || calculatedAmount)
       amount: { type: Number, required: true },
-      status: { 
-        type: String, 
+
+      // 관리자 조정 정보
+      adjustedBy: { type: String }, // 조정한 관리자 ID
+      adjustedAt: { type: Date }, // 조정 시각
+      adjustmentReason: { type: String }, // 조정 사유
+
+      status: {
+        type: String,
         enum: ['pending', 'paid', 'cancelled'],
         default: 'pending'
       },

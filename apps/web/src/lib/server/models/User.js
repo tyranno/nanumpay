@@ -90,6 +90,27 @@ const userSchema = new mongoose.Schema({
 		enum: ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'],
 		default: 'F1'
 	},
+	gradePaymentCount: {
+		type: Number,
+		default: 0
+	},
+	lastGradeChangeDate: {
+		type: Date,
+		default: Date.now
+	},
+	consecutiveGradeWeeks: {
+		type: Number,
+		default: 0
+	},
+	// 보험 관련 (F3+ 필수)
+	insuranceActive: {
+		type: Boolean,
+		default: false
+	},
+	insuranceAmount: {
+		type: Number,
+		default: 0
+	},
 	// 상태 관리
 	level: {
 		type: Number,

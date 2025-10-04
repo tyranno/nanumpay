@@ -4,6 +4,28 @@ import User from '$lib/server/models/User.js';
 import bcrypt from 'bcryptjs';
 import { recalculateAllGrades, updateParentGrade } from '$lib/server/services/gradeCalculation.js';
 import { excelLogger } from '$lib/server/logger.js';
+import { smartTreeRestructure } from '$lib/server/services/treeRestructure.js';
+import RevenueRecalculation from '$lib/server/services/revenueRecalculation.js';
+import ValidationService from '$lib/server/services/validationService.js';
+
+// 트리 구조 요약 생성 함수
+function generateTreeSummary(structure) {
+	const levelCounts = {};
+	let maxLevel = 0;
+
+	structure.forEach(node => {
+		if (node.level !== undefined) {
+			levelCounts[node.level] = (levelCounts[node.level] || 0) + 1;
+			maxLevel = Math.max(maxLevel, node.level);
+		}
+	});
+
+	return {
+		totalDepth: maxLevel + 1,
+		levelDistribution: levelCounts,
+		totalNodes: structure.length
+	};
+}
 
 export async function POST({ request, locals }) {
 	// 관리자 권한 확인
@@ -131,6 +153,23 @@ export async function POST({ request, locals }) {
 					continue;
 				}
 
+				// ValidationService로 등록 전 검증
+				const validation = await ValidationService.validateRegistration({
+					name,
+					phone,
+					bank,
+					accountNumber,
+					salesperson
+				});
+
+				if (!validation.isValid) {
+					results.failed++;
+					const errorMessages = validation.errors.map(e => `${e.field}: ${e.message}`).join(', ');
+					results.errors.push(`행 ${i + 1} (${name}): ${errorMessages}`);
+					excelLogger.warn(`행 ${i + 1} 검증 실패: ${errorMessages}`);
+					continue;
+				}
+
 				// 전화번호에서 암호 생성
 				const phoneDigits = phone.replace(/[^0-9]/g, '');
 				const password = phoneDigits.length >= 4 ? phoneDigits.slice(-4) : '1234';
@@ -159,7 +198,7 @@ export async function POST({ request, locals }) {
 				// 시퀀스 번호 할당 (순서대로 증가)
 				currentSequence++;
 
-				// 사용자 생성 (부모 관계 없이)
+				// 사용자 생성 (부모 관계 없이) - 새로운 스키마 필드 추가
 				const newUser = new User({
 					name,
 					loginId,
@@ -170,6 +209,11 @@ export async function POST({ request, locals }) {
 					bank,
 					accountNumber,
 					grade,
+					gradePaymentCount: 0,  // 등급별 지급 횟수
+					lastGradeChangeDate: new Date(),  // 마지막 등급 변경일
+					consecutiveGradeWeeks: 0,  // 연속 등급 유지 주차
+					insuranceActive: false,  // 보험 유지 여부
+					insuranceAmount: 0,  // 보험료
 					salesperson,  // 판매인 정보만 저장 (관계는 나중에)
 					salespersonPhone,  // 판매인 연락처 추가
 					planner,  // planner 필드명 사용
@@ -230,188 +274,59 @@ export async function POST({ request, locals }) {
 			}
 		}
 
-		// 2단계: MLM 규칙 검증 및 부모-자식 관계 설정
+		// 2단계: 스마트 트리 재구성 (판매인 관계를 고려한 자동 배치)
+		excelLogger.info('=== 스마트 트리 재구성 시작 ===');
 
-		// 먼저 루트 노드 검증: "-" 판매인은 하나만 허용
-		const rootCandidates = Array.from(registeredUsers.values()).filter(info =>
-			info.salesperson === '-' || info.salesperson === '' || !info.salesperson
-		);
+		// 등록된 모든 사용자 수집
+		const allRegisteredUsers = Array.from(registeredUsers.values()).map(info => info.user);
 
-		excelLogger.info(`🌱 루트 후보자: ${rootCandidates.length}명`, {
-			candidates: rootCandidates.map(r => `${r.name}(판매인:${r.salesperson})`)
-		});
+		try {
+			// 스마트 트리 재구성 실행
+			const treeResults = await smartTreeRestructure(allRegisteredUsers, {
+				preserveSalesRelations: true,  // 판매인 관계 최대한 유지
+				autoPlaceUnmatched: true       // 매칭 안 되는 사용자도 자동 배치
+			});
 
-		// 기존 루트 노드 확인 (방금 등록한 사용자들 제외)
-		const registeredUserIds = Array.from(registeredUsers.values()).map(info => info.user._id);
-		const existingRoot = await User.findOne({
-			parentId: null,
-			type: 'user',
-			_id: { $nin: registeredUserIds }  // 방금 등록한 사용자들 제외
-		});
+			excelLogger.info('🌳 트리 재구성 결과:', {
+				successful: treeResults.successful,
+				failed: treeResults.failed,
+				warnings: treeResults.warnings?.length || 0
+			});
 
-		if (existingRoot) {
-			excelLogger.info(`🌳 기존 루트 발견: ${existingRoot.name}`);
-		} else {
-			excelLogger.info(`🌱 기존 루트 없음`);
-		}
-
-		if (rootCandidates.length > 1) {
-			results.failed += rootCandidates.length - 1;
-			results.errors.push(`❌ 루트 노드는 하나만 허용됩니다. 판매인이 "-"인 사람은 ${rootCandidates.length}명입니다.`);
-			excelLogger.error('다중 루트 노드 시도', { count: rootCandidates.length });
-			return json({
-				success: false,
-				error: '루트 노드는 하나만 허용됩니다. 판매인이 "-"인 사람은 한 명만 가능합니다.'
-			}, { status: 400 });
-		}
-
-		if (rootCandidates.length === 1 && existingRoot) {
-			results.failed++;
-			results.errors.push(`❌ 루트 노드가 이미 존재합니다: ${existingRoot.name}`);
-			excelLogger.error('루트 노드 중복', { existing: existingRoot.name, new: rootCandidates[0].name });
-			return json({
-				success: false,
-				error: `루트 노드가 이미 존재합니다: ${existingRoot.name}`
-			}, { status: 400 });
-		}
-
-		// 부모-자식 관계 설정 (엑셀 순서대로)
-		const failedUsers = [];
-
-		for (const orderInfo of usersByOrder) {
-			const loginId = orderInfo.loginId;
-			const info = registeredUsers.get(loginId);
-
-			// 루트 노드 처리 (판매인이 "-" 또는 빈값)
-			if (info.salesperson === '-' || info.salesperson === '' || !info.salesperson) {
-				// 루트는 부모 없이 그대로 둠 (parentId: null)
-				excelLogger.info(`🌳 루트 노드 설정: ${info.name}, 판매인: ${info.salesperson}`);
-				continue;
-			}
-
-			// 자기 자신을 판매인으로 등록하는 것 방지
-			if (info.salesperson === info.name) {
-				failedUsers.push(info.name);
-				results.errors.push(`❌ ${info.name}: 자기 자신을 판매인으로 등록할 수 없습니다.`);
-				excelLogger.warn(`자기 참조 방지: ${info.name}`);
-				continue;
-			}
-
-			try {
-				// 판매인 찾기 (DB 또는 방금 등록한 사용자 중에서)
-				let parentUser = null;
-
-				// 먼저 DB에서 찾기
-				excelLogger.info(`🔍 ${info.name}: 판매인 '${info.salesperson}' 검색 시작`);
-				parentUser = await User.findOne({
-					$or: [
-						{ name: info.salesperson },
-						{ loginId: info.salesperson.toLowerCase() }
-					],
-					type: 'user'  // 용역자만
-				});
-
-				if (parentUser) {
-					excelLogger.info(`✅ ${info.name}: DB에서 판매인 발견 - ${parentUser.name} (${parentUser.loginId})`);
-				} else {
-					excelLogger.info(`❌ ${info.name}: DB에서 판매인 '${info.salesperson}' 없음`);
-				}
-
-				// DB에 없으면 방금 등록한 사용자들 중에서 찾기
-				if (!parentUser) {
-					excelLogger.info(`🔍 ${info.name}: 방금 등록한 사용자들 중에서 '${info.salesperson}' 검색`);
-					for (const [regLoginId, regInfo] of registeredUsers) {
-						if (regInfo.name === info.salesperson) {
-							parentUser = regInfo.user;
-							excelLogger.info(`✅ ${info.name}: 방금 등록된 사용자에서 발견 - ${regInfo.name}`);
-							break;
-						}
-					}
-					if (!parentUser) {
-						excelLogger.info(`❌ ${info.name}: 방금 등록된 사용자들에서도 '${info.salesperson}' 없음`);
-					}
-				}
-
-				// 부모를 찾을 수 없으면 등록 실패
-				if (!parentUser) {
-					failedUsers.push(info.name);
-					results.errors.push(`❌ ${info.name}: 판매인 '${info.salesperson}'을(를) 찾을 수 없습니다.`);
-					excelLogger.error(`부모 없음: ${info.name} -> ${info.salesperson}`);
-					continue;
-				}
-
-				const parentLoginId = parentUser.loginId;
-
-				// 자식 노드 확인
-				const leftChild = await User.findOne({
-					parentId: parentLoginId,
-					position: 'L'
-				});
-				const rightChild = await User.findOne({
-					parentId: parentLoginId,
-					position: 'R'
-				});
-
-				let position = null;
-				if (!leftChild) {
-					position = 'L';
-				} else if (!rightChild) {
-					position = 'R';
-				}
-
-				if (position) {
-					// 사용자 업데이트: 부모 및 위치 설정
-					excelLogger.info(`🔗 ${info.name}: 부모 관계 설정 시작 - 부모: ${parentLoginId}, 위치: ${position}`);
-
-					const userUpdateResult = await User.findOneAndUpdate(
-						{ loginId },
-						{ parentId: parentLoginId, position }
-					);
-					excelLogger.info(`📝 ${info.name}: 사용자 parentId 업데이트 완료 - ${userUpdateResult ? '성공' : '실패'}`);
-
-					// 부모 업데이트: 자식 참조 설정
-					const updateField = position === 'L' ? 'leftChildId' : 'rightChildId';
-					const parentUpdateResult = await User.findOneAndUpdate(
-						{ loginId: parentLoginId },
-						{ [updateField]: loginId }
-					);
-					excelLogger.info(`📝 ${info.name}: 부모 ${updateField} 업데이트 완료 - ${parentUpdateResult ? '성공' : '실패'}`);
-
-					// 부모의 등급 업데이트
-					await updateParentGrade(parentLoginId);
-					excelLogger.info(`🎯 관계 설정 완료: ${info.name} -> ${info.salesperson} (${position})`);
-				} else {
-					// 좌우 자리가 모두 찬 경우
-					failedUsers.push(info.name);
-					const alertMsg = `${info.salesperson}님의 좌우 자리가 모두 찼습니다. ${info.name}님은 수동으로 배치해 주세요.`;
-					if (!results.alerts) results.alerts = [];
+			// 경고 메시지 처리
+			if (treeResults.warnings && treeResults.warnings.length > 0) {
+				if (!results.alerts) results.alerts = [];
+				treeResults.warnings.forEach(warning => {
 					results.alerts.push({
-						type: 'warning',
-						message: alertMsg,
-						parent: info.salesperson,
-						user: info.name
+						type: 'info',
+						message: warning
 					});
-					results.errors.push(`⚠️ ${alertMsg}`);
-					excelLogger.warn(`자리 부족: ${info.name} -> ${info.salesperson}`);
-				}
-			} catch (err) {
-				failedUsers.push(info.name);
-				results.errors.push(`❌ ${info.name}: 관계 설정 오류 - ${err.message}`);
-				excelLogger.error(`관계 설정 오류 (${info.name}):`, err.message);
+				});
 			}
-		}
 
-		// 부모 관계 설정에 실패한 사용자들 삭제
-		if (failedUsers.length > 0) {
-			for (const userName of failedUsers) {
-				const userInfo = Array.from(registeredUsers.values()).find(info => info.name === userName);
-				if (userInfo) {
-					await User.findByIdAndDelete(userInfo.user._id);
-					results.created--;
-					results.failed++;
-					excelLogger.warn(`사용자 삭제: ${userName} (부모 관계 설정 실패)`);
-				}
+			// 실패한 배치 처리
+			if (treeResults.failed > 0) {
+				results.failed += treeResults.failed;
+				treeResults.errors.forEach(error => {
+					results.errors.push(`⚠️ 자동 배치 실패: ${error}`);
+				});
 			}
+
+			// 트리 구조 요약 생성
+			const structureSummary = generateTreeSummary(treeResults.structure);
+			excelLogger.info('📊 트리 구조 요약:', structureSummary);
+
+			// 결과에 트리 구조 정보 추가
+			results.treeStructure = {
+				totalNodes: treeResults.structure.length,
+				directPlacements: treeResults.structure.filter(s => s.relationship === 'direct').length,
+				indirectPlacements: treeResults.structure.filter(s => s.relationship === 'indirect').length,
+				autoPlaced: treeResults.structure.filter(s => s.note === '자동 배치 (판매인 관계 없음)').length
+			};
+
+		} catch (treeError) {
+			excelLogger.error('트리 재구성 오류:', treeError);
+			results.errors.push('❌ 트리 자동 재구성 중 오류 발생');
 		}
 
 		// 엑셀 업로드 결과 로그
@@ -446,21 +361,11 @@ export async function POST({ request, locals }) {
 
 				excelLogger.info('월별 사용자 분포:', Array.from(usersByMonth.keys()).map(m => `${m}: ${usersByMonth.get(m).length}명`).join(', '));
 
-				// 월별로 매출 계산 및 지급 계획 생성
-				const { calculateMonthlyRevenueForMonth } = await import('$lib/server/services/revenueService.js');
-
-				for (const [monthKey, users] of usersByMonth) {
-					const [year, month] = monthKey.split('-').map(Number);
-					excelLogger.info(`${monthKey} 매출 계산 중...`);
-
-					// 해당 월의 매출 계산
-					await calculateMonthlyRevenueForMonth(year, month);
-				}
-
 				// 등록된 사용자 ID 수집
 				const userIds = Array.from(registeredUsers.values()).map(info => info.user._id);
 
-				// BatchProcessor로 등급 재계산
+				// BatchProcessor로 등급 재계산 및 지급 계획 생성
+				// (등급 재계산 후 정확한 등급으로 지급 계획 생성)
 				const { batchProcessor } = await import('$lib/server/services/batchProcessor.js');
 				const batchResult = await batchProcessor.processNewUsers(userIds);
 
@@ -473,6 +378,34 @@ export async function POST({ request, locals }) {
 
 				// 결과에 배치 처리 정보 추가
 				results.batchProcessing = batchResult.results;
+
+				// 과거 날짜 데이터가 포함된 경우 놓친 지급 처리
+				excelLogger.info('놓친 지급 확인 및 처리 중...');
+				try {
+					// 과거 날짜 사용자가 있는지 확인
+					const now = new Date();
+					const hasPastData = Array.from(registeredUsers.values()).some(info => {
+						const userDate = info.user.createdAt;
+						return userDate < now && (
+							userDate.getFullYear() < now.getFullYear() ||
+							(userDate.getFullYear() === now.getFullYear() && userDate.getMonth() < now.getMonth())
+						);
+					});
+
+					if (hasPastData) {
+						excelLogger.info('과거 날짜 데이터 감지 - 매출 재계산 및 놓친 지급 처리');
+						const recalcResult = await RevenueRecalculation.processAfterBulkUpload();
+
+						if (recalcResult.success) {
+							excelLogger.info('매출 재계산 완료:', recalcResult.results);
+							results.revenueRecalculation = recalcResult.results;
+						} else {
+							excelLogger.warn('매출 재계산 실패:', recalcResult.error);
+						}
+					}
+				} catch (recalcError) {
+					excelLogger.error('놓친 지급 처리 오류:', recalcError);
+				}
 			} catch (err) {
 				excelLogger.error('배치 처리 실패:', err);
 				results.batchError = err.message;

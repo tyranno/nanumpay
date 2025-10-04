@@ -2,6 +2,8 @@ import { MonthlyRevenue, WeeklyPayment } from '../models/Payment.js';
 import User from '../models/User.js';
 import PaymentSchedule from '../models/PaymentSchedule.js';
 import Revenue from '../models/Revenue.js';
+import UserPaymentPlan from '../models/UserPaymentPlan.js';
+import SnapshotService from './snapshotService.js';
 
 class PaymentService {
 	static GRADE_RATIOS = {
@@ -142,7 +144,9 @@ class PaymentService {
 	/**
 	 * 특정 주차의 지급액 계산 (여러 매출원의 분할금 합계)
 	 */
-	static async calculateWeeklyPayments(year, month, week) {
+	static async calculateWeeklyPayments(year, month, week, options = {}) {
+		const { validateEligibility = false, gradeReferenceDate = null } = options;
+
 		console.log(`[calculateWeeklyPayments] 시작: ${year}년 ${month}월 ${week}주차`);
 
 		// 기존 지급 데이터 확인
@@ -387,6 +391,147 @@ class PaymentService {
 		const daysPerWeek = daysInMonth / this.PAYMENT_INSTALLMENTS;
 
 		return Math.min(Math.ceil(currentDay / daysPerWeek), this.PAYMENT_INSTALLMENTS);
+	}
+
+	/**
+	 * v3.0: 등급 참조 날짜 계산 (지급일 -1개월 -1일)
+	 */
+	static calculateGradeReferenceDate(paymentDate) {
+		const refDate = new Date(paymentDate);
+		refDate.setMonth(refDate.getMonth() - 1);
+		refDate.setDate(refDate.getDate() - 1);
+		return refDate;
+	}
+
+	/**
+	 * v3.0: 동적 지급액 계산 (스냅샷 기반)
+	 */
+	static async calculateDynamicPaymentAmount(userId, installmentNumber, paymentDate, totalRevenue) {
+		try {
+			// 1. 등급 참조 날짜 계산
+			const gradeReferenceDate = this.calculateGradeReferenceDate(paymentDate);
+
+			// 2. 스냅샷에서 해당 날짜의 사용자 등급 조회
+			const gradeAtPayment = await SnapshotService.getUserGradeAtDate(userId, gradeReferenceDate);
+
+			if (!gradeAtPayment) {
+				console.log(`[calculateDynamicPayment] 스냅샷에서 등급을 찾을 수 없음. 현재 등급 사용: userId=${userId}`);
+				const user = await User.findById(userId);
+				return {
+					gradeReferenceDate,
+					gradeAtPayment: user.grade,
+					calculatedAmount: this.calculateGradeAmount(user.grade, totalRevenue / 10)
+				};
+			}
+
+			// 3. 해당 등급의 지급액 계산 (누적 방식)
+			const revenuePerInstallment = totalRevenue / 10;
+			const calculatedAmount = this.calculateGradeAmount(gradeAtPayment, revenuePerInstallment);
+
+			return {
+				gradeReferenceDate,
+				gradeAtPayment,
+				calculatedAmount
+			};
+		} catch (error) {
+			console.error('[calculateDynamicPayment] 오류:', error);
+			throw error;
+		}
+	}
+
+	/**
+	 * 등급별 누적 지급액 계산
+	 */
+	static calculateGradeAmount(grade, revenuePerInstallment) {
+		const grades = ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'];
+		const gradeIndex = grades.indexOf(grade);
+
+		if (gradeIndex === -1) {
+			console.error(`[calculateGradeAmount] 잘못된 등급: ${grade}`);
+			return 0;
+		}
+
+		// 누적 계산
+		let totalAmount = 0;
+		for (let i = 0; i <= gradeIndex; i++) {
+			const currentGrade = grades[i];
+			const ratio = this.GRADE_RATIOS[currentGrade];
+			totalAmount += revenuePerInstallment * ratio;
+		}
+
+		return Math.floor(totalAmount);
+	}
+
+	/**
+	 * v3.0: UserPaymentPlan 회차별 금액 업데이트
+	 */
+	static async updateInstallmentAmounts(paymentPlanId, installmentNumber) {
+		const plan = await UserPaymentPlan.findById(paymentPlanId);
+		if (!plan) {
+			throw new Error('지급 계획을 찾을 수 없습니다.');
+		}
+
+		const installment = plan.installments.find(i => i.installmentNumber === installmentNumber);
+		if (!installment) {
+			throw new Error(`${installmentNumber}회차를 찾을 수 없습니다.`);
+		}
+
+		// 지급 날짜 계산
+		const paymentDate = new Date(installment.scheduledDate.year, installment.scheduledDate.month - 1, installment.scheduledDate.week * 3);
+
+		// 동적 금액 계산
+		const dynamicData = await this.calculateDynamicPaymentAmount(
+			plan.userId,
+			installmentNumber,
+			paymentDate,
+			plan.totalRevenue
+		);
+
+		// 회차 정보 업데이트
+		installment.gradeReferenceDate = dynamicData.gradeReferenceDate;
+		installment.gradeAtPayment = dynamicData.gradeAtPayment;
+		installment.calculatedAmount = dynamicData.calculatedAmount;
+
+		// 실제 지급액 결정 (고정값 우선)
+		installment.amount = installment.fixedAmount || installment.calculatedAmount;
+
+		await plan.save();
+		return installment;
+	}
+
+	/**
+	 * 관리자가 회차별 금액 수동 조정
+	 */
+	static async adjustInstallmentAmount(paymentPlanId, installmentNumber, fixedAmount, adminId, reason) {
+		const plan = await UserPaymentPlan.findById(paymentPlanId);
+		if (!plan) {
+			throw new Error('지급 계획을 찾을 수 없습니다.');
+		}
+
+		const installment = plan.installments.find(i => i.installmentNumber === installmentNumber);
+		if (!installment) {
+			throw new Error(`${installmentNumber}회차를 찾을 수 없습니다.`);
+		}
+
+		// 고정 금액 설정
+		installment.fixedAmount = fixedAmount;
+		installment.amount = fixedAmount; // 실제 지급액도 업데이트
+		installment.adjustedBy = adminId;
+		installment.adjustedAt = new Date();
+		installment.adjustmentReason = reason;
+
+		await plan.save();
+
+		console.log(`[adjustInstallmentAmount] 금액 조정 완료:`, {
+			planId: paymentPlanId,
+			회차: installmentNumber,
+			기존금액: installment.calculatedAmount,
+			조정금액: fixedAmount,
+			조정자: adminId,
+			사유: reason
+		});
+
+		return installment;
 	}
 }
 
