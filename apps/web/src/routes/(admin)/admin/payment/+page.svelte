@@ -295,6 +295,7 @@
 							planner: payment.planner,
 							bank: payment.bank,
 							accountNumber: payment.accountNumber,
+							grade: payment.grade || 'F1',
 							payments: {}
 						});
 					}
@@ -1169,7 +1170,7 @@
 											<div style="position: relative; display: inline-flex; align-items: baseline;">
 												{user.name}
 												{#if user.grade}
-													<img src="/icons/{user.grade}.svg" alt="{user.grade}" style="width: 16px; height: 16px; position: absolute; top: -4px; right: -16px;" title="{user.grade} 등급" />
+													<img src="/icons/{user.grade}.svg" alt="{user.grade}" style="width: 20px; height: 20px; position: absolute; top: -6px; right: -20px;" title="{user.grade} 등급" />
 												{/if}
 											</div>
 										</div>

@@ -2,15 +2,15 @@ import User from '../models/User.js';
 
 /**
  * 서브트리의 모든 등급 수집 (DFS)
- * @param {String} userId - 사용자 loginId
+ * @param {ObjectId} userObjectId - 사용자 _id (ObjectId)
  * @returns {Object} 등급별 개수
  */
-async function collectSubtreeGrades(userId) {
+async function collectSubtreeGrades(userObjectId) {
   const grades = { F1: 0, F2: 0, F3: 0, F4: 0, F5: 0, F6: 0, F7: 0, F8: 0 };
 
-  if (!userId) return grades;
+  if (!userObjectId) return grades;
 
-  const user = await User.findOne({ loginId: userId });
+  const user = await User.findById(userObjectId);
   if (!user) return grades;
 
   // 현재 노드의 등급 추가
@@ -46,18 +46,14 @@ export async function calculateGradeForUser(userId) {
   const user = await User.findOne({ loginId: userId });
   if (!user) return 'F1';
 
-  // 직속 자식 확인
-  const leftChild = await User.findOne({ parentId: userId, position: 'L' });
-  const rightChild = await User.findOne({ parentId: userId, position: 'R' });
-
   // F1: 자식이 없거나 하나인 경우
-  if (!leftChild || !rightChild) {
+  if (!user.leftChildId || !user.rightChildId) {
     return 'F1';
   }
 
-  // 좌우 서브트리의 등급 분포 수집
-  const leftGrades = await collectSubtreeGrades(leftChild.loginId);
-  const rightGrades = await collectSubtreeGrades(rightChild.loginId);
+  // 좌우 서브트리의 등급 분포 수집 - ObjectId로 직접 전달
+  const leftGrades = await collectSubtreeGrades(user.leftChildId);
+  const rightGrades = await collectSubtreeGrades(user.rightChildId);
 
   // F8 체크: 좌우 서브트리의 F7이 최소 2:1 조건
   const totalF7 = leftGrades.F7 + rightGrades.F7;
@@ -121,10 +117,12 @@ export async function recalculateAllGrades() {
   // 트리 레벨별로 정렬하기 위한 맵 생성
   const levelMap = new Map();
   const userMap = new Map();
+  const userMapById = new Map(); // ObjectId로도 찾을 수 있도록 추가
 
   // 사용자 맵 생성
   for (const user of users) {
     userMap.set(user.loginId, user);
+    userMapById.set(user._id.toString(), user); // ObjectId를 String으로 변환하여 저장
   }
 
   // 각 사용자의 레벨 계산 (루트로부터의 거리)
@@ -135,10 +133,16 @@ export async function recalculateAllGrades() {
       const user = userMap.get(userId);
       if (user) {
         if (user.leftChildId) {
-          await calculateLevel(user.leftChildId, level + 1);
+          const leftChild = userMapById.get(user.leftChildId.toString()); // ObjectId → String 변환 후 조회
+          if (leftChild) {
+            await calculateLevel(leftChild.loginId, level + 1); // loginId 전달
+          }
         }
         if (user.rightChildId) {
-          await calculateLevel(user.rightChildId, level + 1);
+          const rightChild = userMapById.get(user.rightChildId.toString());
+          if (rightChild) {
+            await calculateLevel(rightChild.loginId, level + 1);
+          }
         }
       }
     }
@@ -224,7 +228,11 @@ export async function updateParentGrade(parentId) {
 
     // 부모의 부모도 확인 (연쇄 작용)
     if (parent.parentId && parent.parentId !== '관리자') {
-      await updateParentGrade(parent.parentId);
+      // parentId가 ObjectId이므로 해당 유저를 찾아서 loginId를 전달
+      const grandParent = await User.findById(parent.parentId);
+      if (grandParent) {
+        await updateParentGrade(grandParent.loginId);
+      }
     }
   }
 }

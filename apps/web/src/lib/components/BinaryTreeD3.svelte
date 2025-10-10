@@ -483,7 +483,7 @@
 								<img
 									src="/icons/{n.data.grade}.svg"
 									alt="{n.data.grade}"
-									class="w-3.5 h-3.5 absolute -top-1 -right-4"
+									class="w-5 h-5 absolute -top-1.5 -right-5"
 									title="{n.data.grade} 등급"
 								/>
 							{/if}
