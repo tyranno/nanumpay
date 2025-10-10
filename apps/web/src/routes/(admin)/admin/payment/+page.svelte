@@ -1164,7 +1164,16 @@
 							{#each getCurrentPageData() as user}
 								<tr>
 									<td class="sticky-col sticky-col-0">{user.no}</td>
-									<td class="sticky-col sticky-col-1">{user.name}</td>
+									<td class="sticky-col sticky-col-1">
+										<div style="display: flex; align-items: center; justify-content: center;">
+											<div style="position: relative; display: inline-flex; align-items: baseline;">
+												{user.name}
+												{#if user.grade}
+													<img src="/icons/{user.grade}.svg" alt="{user.grade}" style="width: 16px; height: 16px; position: absolute; top: -4px; right: -16px;" title="{user.grade} 등급" />
+												{/if}
+											</div>
+										</div>
+									</td>
 									<td>{user.planner || ''}</td>
 									<td>{user.bank}</td>
 									<td>{user.accountNumber}</td>

@@ -608,10 +608,15 @@
 									</td>
 								{/if}
 								{#if visibleColumns.name}
-									<td class="px-3 py-2 text-sm font-medium text-gray-900 whitespace-nowrap">
-										{member.name}
-									</td>
-								{/if}
+								<td class="px-3 py-2 text-sm font-medium text-gray-900 whitespace-nowrap">
+									<div class="relative inline-flex items-baseline">
+											{member.name}
+											{#if member.grade}
+												<img src="/icons/{member.grade}.svg" alt="{member.grade}" class="w-4 h-4 absolute -top-1 -right-4" title="{member.grade} 등급" />
+											{/if}
+										</div>
+								</td>
+							{/if}
 								{#if visibleColumns.phone}
 									<td class="px-3 py-2 text-sm text-gray-700 whitespace-nowrap">
 										{member.phone || '-'}

@@ -62,7 +62,7 @@ export async function GET({ url, locals }) {
 
 				return {
 					...user,
-					grade: stats?.grade || 'F1',
+					grade: stats?.grade || user.grade || 'F1',
 					totalDescendants: stats?.totalDescendants || 0,
 					leftCount: stats?.leftCount || 0,
 					rightCount: stats?.rightCount || 0
