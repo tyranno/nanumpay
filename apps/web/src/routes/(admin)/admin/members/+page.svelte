@@ -30,6 +30,7 @@
 		insuranceProduct: false,
 		insuranceCompany: false  // 보험회사도 추가
 	};
+	let tempVisibleColumns = { ...visibleColumns }; // 임시 컬럼 설정
 	let showColumnSettings = false;
 
 	// 모달 상태
@@ -480,7 +481,7 @@
 					type="text"
 					bind:value={searchTerm}
 					oninput={handleSearch}
-					placeholder="이름, ID, 전화번호, 지사명으로 검색..."
+					placeholder="이름, 판매인, 설계사로 검색..."
 					class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
 				/>
 			</div>
@@ -499,7 +500,10 @@
 				</select>
 			</div>
 			<button
-				onclick={() => showColumnSettings = !showColumnSettings}
+				onclick={() => {
+					tempVisibleColumns = { ...visibleColumns };
+					showColumnSettings = !showColumnSettings;
+				}}
 				class="p-1.5 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
 				title="컬럼 설정"
 			>
@@ -515,42 +519,22 @@
 			<table class="divide-y divide-gray-200" style="min-width: 1000px;">
 				<thead class="bg-gray-50">
 					<tr>
-						<th class="sticky left-0 z-10 bg-gray-50 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap border-r border-gray-200" style="min-width: 60px;">
+						<th class="sticky left-0 z-20 bg-gray-50 px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style="width: 50px; min-width: 50px; max-width: 50px;">
 							순번
 						</th>
-						{#if visibleColumns.date}
-							<th onclick={() => changeSort('createdAt')} class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 whitespace-nowrap" style="min-width: 100px;">
-								날짜 {#if sortBy === 'createdAt'}{sortOrder === 'asc' ? '↑' : '↓'}{/if}
+						{#if visibleColumns.name}
+							<th onclick={() => changeSort('name')} class="sticky left-[50px] z-20 bg-gray-50 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 whitespace-nowrap" style="width: 90px; min-width: 90px;">
+								성명 {#if sortBy === 'name'}{sortOrder === 'asc' ? '↑' : '↓'}{/if}
 							</th>
 						{/if}
-						{#if visibleColumns.name}
-							<th onclick={() => changeSort('name')} class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 whitespace-nowrap" style="min-width: 80px;">
-								성명 {#if sortBy === 'name'}{sortOrder === 'asc' ? '↑' : '↓'}{/if}
+						{#if visibleColumns.date}
+							<th onclick={() => changeSort('createdAt')} class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 whitespace-nowrap" style="min-width: 100px;">
+								등록일 {#if sortBy === 'createdAt'}{sortOrder === 'asc' ? '↑' : '↓'}{/if}
 							</th>
 						{/if}
 						{#if visibleColumns.phone}
 							<th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style="min-width: 120px;">
 								연락처
-							</th>
-						{/if}
-						{#if visibleColumns.idNumber}
-							<th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style="min-width: 140px;">
-								주민번호
-							</th>
-						{/if}
-						{#if visibleColumns.branch}
-							<th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style="min-width: 80px;">
-								지사
-							</th>
-						{/if}
-						{#if visibleColumns.bank}
-							<th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style="min-width: 80px;">
-								은행
-							</th>
-						{/if}
-						{#if visibleColumns.accountNumber}
-							<th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style="min-width: 140px;">
-								계좌번호
 							</th>
 						{/if}
 						{#if visibleColumns.salesperson}
@@ -561,6 +545,26 @@
 						{#if visibleColumns.planner}
 							<th onclick={() => changeSort('planner')} class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 whitespace-nowrap" style="min-width: 80px;">
 								설계사 {#if sortBy === 'planner'}{sortOrder === 'asc' ? '↑' : '↓'}{/if}
+							</th>
+						{/if}
+						{#if visibleColumns.branch}
+							<th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style="min-width: 80px;">
+								지사
+							</th>
+						{/if}
+						{#if visibleColumns.idNumber}
+							<th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style="min-width: 140px;">
+								주민번호
+							</th>
+						{/if}
+						{#if visibleColumns.bank}
+							<th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style="min-width: 80px;">
+								은행
+							</th>
+						{/if}
+						{#if visibleColumns.accountNumber}
+							<th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style="min-width: 140px;">
+								계좌번호
 							</th>
 						{/if}
 						{#if visibleColumns.plannerPhone}
@@ -578,7 +582,7 @@
 								보험회사
 							</th>
 						{/if}
-						<th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style="min-width: 100px;">
+						<th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style="min-width: 60px; width: 60px;">
 							작업
 						</th>
 					</tr>
@@ -598,17 +602,12 @@
 						</tr>
 					{:else}
 						{#each members as member, index}
-							<tr class="hover:bg-gray-50">
-								<td class="sticky left-0 z-10 bg-white px-3 py-2 text-sm text-gray-700 whitespace-nowrap border-r border-gray-100">
+							<tr class="group hover:bg-gray-50">
+								<td class="sticky left-0 z-10 bg-white group-hover:bg-gray-50 px-2 py-2 text-sm text-gray-700 text-center whitespace-nowrap" style="width: 50px; min-width: 50px; max-width: 50px;">
 									{(currentPage - 1) * itemsPerPage + index + 1}
 								</td>
-								{#if visibleColumns.date}
-									<td class="px-3 py-2 text-sm text-gray-700 whitespace-nowrap">
-										{member.createdAt ? new Date(member.createdAt).toLocaleDateString('ko-KR') : '-'}
-									</td>
-								{/if}
 								{#if visibleColumns.name}
-								<td class="px-3 py-2 text-sm font-medium text-gray-900 whitespace-nowrap">
+								<td class="sticky left-[50px] z-10 bg-white group-hover:bg-gray-50 px-3 py-2 text-sm font-medium text-gray-900 whitespace-nowrap" style="width: 90px; min-width: 90px;">
 									<div class="relative inline-flex items-baseline">
 											{member.name}
 											{#if member.grade}
@@ -617,29 +616,14 @@
 										</div>
 								</td>
 							{/if}
+								{#if visibleColumns.date}
+									<td class="px-3 py-2 text-sm text-gray-700 whitespace-nowrap">
+										{member.createdAt ? new Date(member.createdAt).toLocaleDateString('ko-KR') : '-'}
+									</td>
+								{/if}
 								{#if visibleColumns.phone}
 									<td class="px-3 py-2 text-sm text-gray-700 whitespace-nowrap">
 										{member.phone || '-'}
-									</td>
-								{/if}
-								{#if visibleColumns.idNumber}
-									<td class="px-3 py-2 text-sm text-gray-700 whitespace-nowrap">
-										{member.idNumber || '-'}
-									</td>
-								{/if}
-								{#if visibleColumns.branch}
-									<td class="px-3 py-2 text-sm text-gray-700 whitespace-nowrap">
-										{member.branch || '-'}
-									</td>
-								{/if}
-								{#if visibleColumns.bank}
-									<td class="px-3 py-2 text-sm text-gray-700 whitespace-nowrap">
-										{member.bank || '-'}
-									</td>
-								{/if}
-								{#if visibleColumns.accountNumber}
-									<td class="px-3 py-2 text-sm text-gray-700 whitespace-nowrap">
-										{member.accountNumber || '-'}
 									</td>
 								{/if}
 								{#if visibleColumns.salesperson}
@@ -650,6 +634,26 @@
 								{#if visibleColumns.planner}
 									<td class="px-3 py-2 text-sm text-gray-700 whitespace-nowrap">
 										{member.planner || '-'}
+									</td>
+								{/if}
+								{#if visibleColumns.branch}
+									<td class="px-3 py-2 text-sm text-gray-700 whitespace-nowrap">
+										{member.branch || '-'}
+									</td>
+								{/if}
+								{#if visibleColumns.idNumber}
+									<td class="px-3 py-2 text-sm text-gray-700 whitespace-nowrap">
+										{member.idNumber || '-'}
+									</td>
+								{/if}
+								{#if visibleColumns.bank}
+									<td class="px-3 py-2 text-sm text-gray-700 whitespace-nowrap">
+										{member.bank || '-'}
+									</td>
+								{/if}
+								{#if visibleColumns.accountNumber}
+									<td class="px-3 py-2 text-sm text-gray-700 whitespace-nowrap">
+										{member.accountNumber || '-'}
 									</td>
 								{/if}
 								{#if visibleColumns.plannerPhone}
@@ -667,21 +671,21 @@
 										{member.insuranceCompany || '-'}
 									</td>
 								{/if}
-								<td class="px-3 py-2 whitespace-nowrap">
-									<div class="flex gap-1">
+								<td class="px-1 py-2 whitespace-nowrap">
+									<div class="flex gap-0.5">
 										<button
 											onclick={() => openEditModal(member)}
-											class="p-1 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded transition-colors"
+											class="p-0.5 hover:bg-blue-50 rounded transition-colors"
 											title="수정"
 										>
-											<img src="/icons/edit.svg" alt="Edit" class="w-3.5 h-3.5" />
+											<img src="/icons/edit-blue.svg" alt="Edit" class="w-4 h-4" />
 										</button>
 										<button
 											onclick={() => deleteMember(member)}
-											class="p-1 text-red-600 hover:text-red-900 hover:bg-red-50 rounded transition-colors"
+											class="p-0.5 hover:bg-red-50 rounded transition-colors"
 											title="삭제"
 										>
-											<img src="/icons/trash.svg" alt="Delete" class="w-3.5 h-3.5" />
+											<img src="/icons/trash-red.svg" alt="Delete" class="w-4 h-4" />
 										</button>
 									</div>
 								</td>
@@ -897,9 +901,7 @@
 							class="block w-full px-4 py-3 bg-white border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all duration-200"
 						>
 							<div class="flex items-center justify-center gap-2">
-								<svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-								</svg>
+								<img src="/icons/upload.svg" alt="Upload" class="w-5 h-5" />
 								<span class="text-sm font-medium text-gray-600">
 									{uploadFile ? '다른 파일 선택' : '파일 선택하기'}
 								</span>
@@ -912,9 +914,7 @@
 					<div class="mb-4 sm:mb-6 p-3 sm:p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
 						<div class="flex items-center gap-2 sm:gap-3">
 							<div class="w-6 h-6 sm:w-8 sm:h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-								<svg class="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-									<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-								</svg>
+								<img src="/icons/check-circle-blue.svg" alt="Check" class="w-4 h-4 sm:w-5 sm:h-5" />
 							</div>
 							<div class="flex-1 min-w-0">
 								<p class="text-xs sm:text-sm font-semibold text-blue-900">선택된 파일</p>
@@ -924,9 +924,7 @@
 								onclick={() => uploadFile = null}
 								class="w-5 h-5 sm:w-6 sm:h-6 bg-blue-100 rounded-full flex items-center justify-center hover:bg-blue-200 transition-colors flex-shrink-0"
 							>
-								<svg class="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-								</svg>
+								<img src="/icons/close-blue.svg" alt="Close" class="w-3 h-3" />
 							</button>
 						</div>
 					</div>
@@ -959,15 +957,10 @@
 					>
 						<span class="flex items-center gap-2">
 							{#if isUploading}
-								<svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-									<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-									<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-								</svg>
+								<img src="/icons/spinner-white.svg" alt="Loading" class="animate-spin h-4 w-4" />
 								처리 중...
 							{:else}
-								<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-								</svg>
+								<img src="/icons/upload-white.svg" alt="Upload" class="w-4 h-4" />
 								업로드
 							{/if}
 						</span>
@@ -979,10 +972,7 @@
 					<div class="absolute inset-0 bg-white bg-opacity-90 rounded-xl flex flex-col items-center justify-center z-10">
 						<div class="text-center">
 							<div class="inline-flex items-center justify-center w-16 h-16 mb-4">
-								<svg class="animate-spin h-16 w-16 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-									<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-									<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-								</svg>
+								<img src="/icons/spinner-blue.svg" alt="Loading" class="animate-spin h-16 w-16" />
 							</div>
 							<p class="text-lg font-semibold text-gray-700">업로드 처리 중...</p>
 							<p class="text-sm text-gray-500 mt-2">잠시만 기다려주세요.</p>
@@ -1151,113 +1141,144 @@
 	<!-- 컬럼 설정 모달 -->
 	{#if showColumnSettings}
 		<div class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-			<div class="bg-white rounded-lg p-6 w-full max-w-md">
-				<h3 class="text-lg font-medium text-gray-900 mb-4">테이블 컬럼 설정</h3>
-				<p class="text-sm text-gray-600 mb-4">표시할 컬럼을 선택하세요.</p>
-
-				<div class="space-y-2 max-h-60 overflow-y-auto">
-					<label class="flex items-center p-2 hover:bg-gray-50 rounded">
-						<input
-							type="checkbox"
-							bind:checked={visibleColumns.date}
-							class="mr-2 h-4 w-4 text-blue-600 rounded border-gray-300"
-						/>
-						<span class="text-sm text-gray-700">날짜</span>
-					</label>
-					<label class="flex items-center p-2 hover:bg-gray-50 rounded">
-						<input
-							type="checkbox"
-							bind:checked={visibleColumns.name}
-							class="mr-2 h-4 w-4 text-blue-600 rounded border-gray-300"
-						/>
-						<span class="text-sm text-gray-700">성명 (필수)</span>
-					</label>
-					<label class="flex items-center p-2 hover:bg-gray-50 rounded">
-						<input
-							type="checkbox"
-							bind:checked={visibleColumns.phone}
-							class="mr-2 h-4 w-4 text-blue-600 rounded border-gray-300"
-						/>
-						<span class="text-sm text-gray-700">연락처</span>
-					</label>
-					<label class="flex items-center p-2 hover:bg-gray-50 rounded">
-						<input
-							type="checkbox"
-							bind:checked={visibleColumns.idNumber}
-							class="mr-2 h-4 w-4 text-blue-600 rounded border-gray-300"
-						/>
-						<span class="text-sm text-gray-700">주민번호</span>
-					</label>
-					<label class="flex items-center p-2 hover:bg-gray-50 rounded">
-						<input
-							type="checkbox"
-							bind:checked={visibleColumns.branch}
-							class="mr-2 h-4 w-4 text-blue-600 rounded border-gray-300"
-						/>
-						<span class="text-sm text-gray-700">지사</span>
-					</label>
-					<label class="flex items-center p-2 hover:bg-gray-50 rounded">
-						<input
-							type="checkbox"
-							bind:checked={visibleColumns.bank}
-							class="mr-2 h-4 w-4 text-blue-600 rounded border-gray-300"
-						/>
-						<span class="text-sm text-gray-700">은행</span>
-					</label>
-					<label class="flex items-center p-2 hover:bg-gray-50 rounded">
-						<input
-							type="checkbox"
-							bind:checked={visibleColumns.accountNumber}
-							class="mr-2 h-4 w-4 text-blue-600 rounded border-gray-300"
-						/>
-						<span class="text-sm text-gray-700">계좌번호</span>
-					</label>
-					<label class="flex items-center p-2 hover:bg-gray-50 rounded">
-						<input
-							type="checkbox"
-							bind:checked={visibleColumns.salesperson}
-							class="mr-2 h-4 w-4 text-blue-600 rounded border-gray-300"
-						/>
-						<span class="text-sm text-gray-700">판매인</span>
-					</label>
-					<label class="flex items-center p-2 hover:bg-gray-50 rounded">
-						<input
-							type="checkbox"
-							bind:checked={visibleColumns.planner}
-							class="mr-2 h-4 w-4 text-blue-600 rounded border-gray-300"
-						/>
-						<span class="text-sm text-gray-700">설계사</span>
-					</label>
-					<label class="flex items-center p-2 hover:bg-gray-50 rounded">
-						<input
-							type="checkbox"
-							bind:checked={visibleColumns.plannerPhone}
-							class="mr-2 h-4 w-4 text-blue-600 rounded border-gray-300"
-						/>
-						<span class="text-sm text-gray-700">설계사 연락처</span>
-					</label>
-					<label class="flex items-center p-2 hover:bg-gray-50 rounded">
-						<input
-							type="checkbox"
-							bind:checked={visibleColumns.insuranceProduct}
-							class="mr-2 h-4 w-4 text-blue-600 rounded border-gray-300"
-						/>
-						<span class="text-sm text-gray-700">보험상품</span>
-					</label>
-					<label class="flex items-center p-2 hover:bg-gray-50 rounded">
-						<input
-							type="checkbox"
-							bind:checked={visibleColumns.insuranceCompany}
-							class="mr-2 h-4 w-4 text-blue-600 rounded border-gray-300"
-						/>
-						<span class="text-sm text-gray-700">보험회사</span>
-					</label>
+			<div class="bg-white rounded-lg shadow-xl w-full max-w-sm border border-gray-200">
+				<!-- Windows 스타일 타이틀바 -->
+				<div class="bg-gradient-to-r from-blue-500 to-blue-600 px-3 py-1.5 flex items-center justify-between select-none rounded-t-lg">
+					<div class="flex items-center gap-2">
+						<img src="/icons/settings-white.svg" alt="Settings" class="w-4 h-4" />
+						<h3 class="text-sm font-medium text-white">컬럼 설정</h3>
+					</div>
+					<button
+						onclick={() => showColumnSettings = false}
+						class="w-7 h-7 flex items-center justify-center hover:bg-red-600 transition-colors"
+						title="닫기"
+					>
+						<img src="/icons/close-white.svg" alt="Close" class="w-3.5 h-3.5" />
+					</button>
 				</div>
 
-				<div class="flex justify-between items-center mt-6 pt-4 border-t">
+				<!-- 컬럼 목록 -->
+				<div class="px-4 py-3">
+					<div class="grid grid-cols-2 gap-1.5 max-h-80 overflow-y-auto">
+						<!-- 기본 정보 섹션 -->
+						<div class="col-span-2">
+							<h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">기본 정보</h4>
+						</div>
+						<label class="flex items-center p-1.5 bg-gray-50 hover:bg-blue-50 rounded cursor-pointer transition-colors">
+							<input
+								type="checkbox"
+								bind:checked={tempVisibleColumns.date}
+								class="mr-3 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
+							/>
+							<span class="text-sm font-medium text-gray-700">등록일</span>
+						</label>
+						<label class="flex items-center p-1.5 bg-blue-50 rounded cursor-not-allowed border border-blue-200">
+							<input
+								type="checkbox"
+								bind:checked={tempVisibleColumns.name}
+								disabled
+								class="mr-3 h-4 w-4 text-blue-600 rounded border-gray-300"
+							/>
+							<span class="text-sm font-medium text-gray-700">성명 <span class="text-xs text-blue-600">(필수)</span></span>
+						</label>
+						<label class="flex items-center p-1.5 bg-gray-50 hover:bg-blue-50 rounded cursor-pointer transition-colors">
+							<input
+								type="checkbox"
+								bind:checked={tempVisibleColumns.phone}
+								class="mr-3 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
+							/>
+							<span class="text-sm font-medium text-gray-700">연락처</span>
+						</label>
+						<label class="flex items-center p-1.5 bg-gray-50 hover:bg-blue-50 rounded cursor-pointer transition-colors">
+							<input
+								type="checkbox"
+								bind:checked={tempVisibleColumns.idNumber}
+								class="mr-3 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
+							/>
+							<span class="text-sm font-medium text-gray-700">주민번호</span>
+						</label>
+
+						<!-- 조직 정보 섹션 -->
+						<div class="col-span-2 mt-1.5">
+							<h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">조직 정보</h4>
+						</div>
+						<label class="flex items-center p-1.5 bg-gray-50 hover:bg-blue-50 rounded cursor-pointer transition-colors">
+							<input
+								type="checkbox"
+								bind:checked={tempVisibleColumns.salesperson}
+								class="mr-3 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
+							/>
+							<span class="text-sm font-medium text-gray-700">판매인</span>
+						</label>
+						<label class="flex items-center p-1.5 bg-gray-50 hover:bg-blue-50 rounded cursor-pointer transition-colors">
+							<input
+								type="checkbox"
+								bind:checked={tempVisibleColumns.planner}
+								class="mr-3 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
+							/>
+							<span class="text-sm font-medium text-gray-700">설계사</span>
+						</label>
+						<label class="flex items-center p-1.5 bg-gray-50 hover:bg-blue-50 rounded cursor-pointer transition-colors">
+							<input
+								type="checkbox"
+								bind:checked={tempVisibleColumns.plannerPhone}
+								class="mr-3 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
+							/>
+							<span class="text-sm font-medium text-gray-700">설계사 연락처</span>
+						</label>
+						<label class="flex items-center p-1.5 bg-gray-50 hover:bg-blue-50 rounded cursor-pointer transition-colors">
+							<input
+								type="checkbox"
+								bind:checked={tempVisibleColumns.branch}
+								class="mr-3 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
+							/>
+							<span class="text-sm font-medium text-gray-700">지사</span>
+						</label>
+
+						<!-- 금융/보험 정보 섹션 -->
+						<div class="col-span-2 mt-1.5">
+							<h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">금융/보험 정보</h4>
+						</div>
+						<label class="flex items-center p-1.5 bg-gray-50 hover:bg-blue-50 rounded cursor-pointer transition-colors">
+							<input
+								type="checkbox"
+								bind:checked={tempVisibleColumns.bank}
+								class="mr-3 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
+							/>
+							<span class="text-sm font-medium text-gray-700">은행</span>
+						</label>
+						<label class="flex items-center p-1.5 bg-gray-50 hover:bg-blue-50 rounded cursor-pointer transition-colors">
+							<input
+								type="checkbox"
+								bind:checked={tempVisibleColumns.accountNumber}
+								class="mr-3 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
+							/>
+							<span class="text-sm font-medium text-gray-700">계좌번호</span>
+						</label>
+						<label class="flex items-center p-1.5 bg-gray-50 hover:bg-blue-50 rounded cursor-pointer transition-colors">
+							<input
+								type="checkbox"
+								bind:checked={tempVisibleColumns.insuranceProduct}
+								class="mr-3 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
+							/>
+							<span class="text-sm font-medium text-gray-700">보험상품</span>
+						</label>
+						<label class="flex items-center p-1.5 bg-gray-50 hover:bg-blue-50 rounded cursor-pointer transition-colors">
+							<input
+								type="checkbox"
+								bind:checked={tempVisibleColumns.insuranceCompany}
+								class="mr-3 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
+							/>
+							<span class="text-sm font-medium text-gray-700">보험회사</span>
+						</label>
+					</div>
+				</div>
+
+				<!-- 푸터 -->
+				<div class="px-4 py-2 bg-gray-50 border-t border-gray-200 flex justify-between items-center rounded-b-lg">
 					<button
 						onclick={() => {
-							visibleColumns = {
+							tempVisibleColumns = {
 								date: true,
 								name: true,
 								phone: true,
@@ -1267,27 +1288,29 @@
 								accountNumber: true,
 								salesperson: true,
 								planner: true,
-								insuranceProduct: true
+								plannerPhone: true,
+								insuranceProduct: true,
+								insuranceCompany: true
 							};
 						}}
-						class="text-sm text-gray-600 hover:text-gray-900"
+						class="text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors"
 					>
 						모두 표시
 					</button>
 					<div class="flex gap-2">
 						<button
 							onclick={() => showColumnSettings = false}
-							class="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50"
+							class="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
 						>
 							취소
 						</button>
 						<button
 							onclick={() => {
-								// 설정 저장 (선택사항: localStorage에 저장)
+								visibleColumns = { ...tempVisibleColumns };
 								localStorage.setItem('tableColumns', JSON.stringify(visibleColumns));
 								showColumnSettings = false;
 							}}
-							class="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
+							class="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors shadow-sm"
 						>
 							적용
 						</button>

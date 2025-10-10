@@ -25,10 +25,8 @@ export async function GET({ url, locals }) {
 			query = {
 				$or: [
 					{ name: { $regex: search, $options: 'i' } },
-					{ loginId: { $regex: search, $options: 'i' } },
-					{ phone: { $regex: search, $options: 'i' } },
-					{ branch: { $regex: search, $options: 'i' } },
-					{ bank: { $regex: search, $options: 'i' } }
+					{ salesperson: { $regex: search, $options: 'i' } },
+					{ planner: { $regex: search, $options: 'i' } }
 				]
 			};
 		}
