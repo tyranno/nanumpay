@@ -73,6 +73,30 @@
 		return cur || null;
 	}
 
+	// ID로 노드 찾기 (BFS)
+	function findNodeById(root, targetId) {
+		if (!root) return null;
+
+		const queue = [{ node: root, path: '' }];
+
+		while (queue.length > 0) {
+			const { node, path } = queue.shift();
+
+			if (node.id === targetId) {
+				return { node, path };
+			}
+
+			if (node.left) {
+				queue.push({ node: node.left, path: path + 'L' });
+			}
+			if (node.right) {
+				queue.push({ node: node.right, path: path + 'R' });
+			}
+		}
+
+		return null;
+	}
+
 	// 경로 문자열을 노드 레이블 배열로 변환
 	function getNodeNamePath(root, path = '') {
 		const names = [];
@@ -292,6 +316,23 @@
 		return currentPath;
 	}
 
+	// ID로 노드를 찾아서 해당 노드로 포커스
+	export function focusOnNodeById(nodeId) {
+		if (!originalData) {
+			console.warn('[Tree] originalData가 없습니다.');
+			return;
+		}
+
+		const result = findNodeById(originalData, nodeId);
+		if (!result) {
+			console.warn('[Tree] ID에 해당하는 노드를 찾을 수 없습니다:', nodeId);
+			return;
+		}
+
+		// 해당 노드로 reroot
+		rerootByPath(result.path);
+	}
+
 	// === Lifecycle ===
 	onMount(async () => {
 		if (!data) {
@@ -404,7 +445,7 @@
 
 <div bind:this={wrapEl} class="tree-wrap">
 	<!-- 링크 -->
-	<svg bind:this={svgEl} class="link-svg" on:dblclick={() => backToFull()}>
+	<svg bind:this={svgEl} class="link-svg" ondblclick={() => backToFull()}>
 		<g bind:this={gEl}>
 			{#each layoutLinks as l}
 				<path
@@ -427,10 +468,10 @@
 				style={`left:${n.x - nodeWidth / 2}px; top:${n.y - nodeHeight / 2}px; width:${nodeWidth}px; height:${nodeHeight}px; z-index:${hoverPath === n.data.__path ? 10 : 1};`}
 				role="button"
 				tabindex="0"
-				on:click={handleClick}
-				on:keydown={handleKeydown}
-				on:mouseenter={() => onEnterNode(n.data.__path)}
-				on:mouseleave={onLeaveNode}
+				onclick={handleClick}
+				onkeydown={handleKeydown}
+				onmouseenter={() => onEnterNode(n.data.__path)}
+				onmouseleave={onLeaveNode}
 			>
 				{#if nodeComponent}
 					<svelte:component this={nodeComponent} node={n.data} />
@@ -451,7 +492,7 @@
 							<span class="hint">▼ 아래 단계</span>
 						{/if}
 						{#if n.data.__path === currentPath && currentRoot?.__hasParentAbove}
-							<button class="hint-btn" on:click|stopPropagation={goParent} title="윗 단계 이동">
+							<button class="hint-btn" onclick={(e) => { e.stopPropagation(); goParent(); }} title="윗 단계 이동">
 								▲ 윗 단계
 							</button>
 						{/if}

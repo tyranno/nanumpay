@@ -2,8 +2,6 @@
 	import { onMount } from 'svelte';
 	import BinaryTreeD3 from '$lib/components/BinaryTreeD3.svelte';
 
-	let selectedUserId = null;
-	let rootUsers = [];
 	let treeData = null;
 	let selectedNode = null;
 	let breadcrumbPath = []; // 트리 로드 시 초기화됨
@@ -12,27 +10,75 @@
 	let treeComponent; // BinaryTreeD3 컴포넌트 참조
 	let error = null;
 
-	// 루트 사용자 목록 로드
-	async function loadRootUsers() {
-		try {
-			const response = await fetch('/api/users/tree?getRoots=true');
-			const data = await response.json();
+	// 노드 검색 관련
+	let searchQuery = '';
+	let searchResults = [];
+	let showSearchResults = false;
+	let isSearching = false;
 
-			if (!response.ok) {
-				throw new Error(data.error || '루트 사용자 목록을 불러오는데 실패했습니다.');
-			}
-
-			if (data.success && data.roots) {
-				rootUsers = data.roots;
-				// 첫 번째 루트 사용자 자동 선택
-				if (rootUsers.length > 0) {
-					selectedUserId = rootUsers[0].id;
-				}
-			}
-		} catch (err) {
-			console.error('Error loading root users:', err);
-			error = err.message;
+	// 트리 내 노드 검색 (CLIENT-SIDE)
+	function searchNodesInTree(query) {
+		if (!query || query.trim().length < 2) {
+			searchResults = [];
+			showSearchResults = false;
+			return;
 		}
+
+		if (!treeData) {
+			searchResults = [];
+			showSearchResults = false;
+			return;
+		}
+
+		isSearching = true;
+		const searchTerm = query.trim().toLowerCase();
+		const results = [];
+
+		// BFS를 사용하여 트리 순회
+		function traverseTree(node) {
+			if (!node) return;
+
+			// 노드 이름이 검색어를 포함하는지 확인
+			if (node.label && node.label.toLowerCase().includes(searchTerm)) {
+				results.push({
+					id: node.id,
+					name: node.label,
+					loginId: node.loginId || '',
+					level: node.level,
+					grade: node.grade
+				});
+			}
+
+			// 자식 노드 재귀 검색
+			if (node.left) traverseTree(node.left);
+			if (node.right) traverseTree(node.right);
+		}
+
+		traverseTree(treeData);
+
+		searchResults = results;
+		showSearchResults = results.length > 0;
+		isSearching = false;
+	}
+
+	// 검색어 입력 디바운싱
+	let searchTimeout;
+	function handleSearchInput() {
+		if (searchTimeout) clearTimeout(searchTimeout);
+		searchTimeout = setTimeout(() => {
+			searchNodesInTree(searchQuery);
+		}, 300);
+	}
+
+	// 검색 결과에서 노드 선택
+	function selectSearchResult(user) {
+		showSearchResults = false;
+		// BinaryTreeD3의 메서드를 사용하여 해당 노드로 이동
+		if (treeComponent && user.id) {
+			treeComponent.focusOnNodeById(user.id);
+		}
+		searchQuery = '';
+		searchResults = [];
 	}
 
 	// 트리 데이터 로드
@@ -68,13 +114,28 @@
 		}
 	}
 
-	// 루트 사용자 변경 시 트리 재로드
-	$: if (selectedUserId) {
-		loadTreeData(selectedUserId);
+	// 드롭다운 외부 클릭 시 닫기
+	function handleClickOutside(event) {
+		if (!showSearchResults) return;
+
+		const target = event.target;
+		const searchContainer = target.closest('.search-container');
+		if (!searchContainer) {
+			showSearchResults = false;
+		}
 	}
 
 	onMount(async () => {
-		await loadRootUsers();
+		// 관리자는 루트부터 로드 (userId 없이)
+		await loadTreeData();
+
+		// 외부 클릭 이벤트 리스너
+		document.addEventListener('click', handleClickOutside);
+
+		return () => {
+			document.removeEventListener('click', handleClickOutside);
+			if (searchTimeout) clearTimeout(searchTimeout);
+		};
 	});
 
 	function handleSelect(event) {
@@ -112,19 +173,73 @@
 			<h2 class="text-2xl font-bold text-gray-800">용역자 산하정보</h2>
 			<p class="text-gray-600 mt-1">조직도 및 산하 구조를 확인할 수 있습니다.</p>
 		</div>
-		{#if rootUsers.length > 0}
-			<div class="flex items-center gap-2 bg-white px-4 py-2 rounded-lg shadow">
-				<label class="text-sm font-medium text-gray-700">루트 사용자:</label>
-				<select
-					bind:value={selectedUserId}
-					class="block w-48 border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm"
-				>
-					{#each rootUsers as root}
-						<option value={root.id}>{root.name} ({root.loginId})</option>
-					{/each}
-				</select>
+
+		<!-- 노드 검색 -->
+		<div class="relative search-container">
+			<div class="flex items-center gap-2">
+				<div class="relative">
+					<input
+						type="text"
+						bind:value={searchQuery}
+						oninput={handleSearchInput}
+						onfocus={() => { if (searchResults.length > 0) showSearchResults = true; }}
+						placeholder="이름 검색..."
+						class="w-64 px-4 py-2 pr-10 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+					/>
+					<svg class="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+					</svg>
+				</div>
 			</div>
-		{/if}
+
+			<!-- 검색 결과 드롭다운 -->
+			{#if showSearchResults && searchResults.length > 0}
+				<div class="absolute right-0 top-full mt-2 w-96 bg-white rounded-lg shadow-xl border border-gray-200 max-h-96 overflow-y-auto z-50">
+					<div class="p-2">
+						<div class="text-xs text-gray-500 px-3 py-2 border-b">
+							{searchResults.length}명의 용역자를 찾았습니다
+						</div>
+						{#each searchResults as user}
+							<button
+								type="button"
+								onclick={() => selectSearchResult(user)}
+								class="w-full text-left px-3 py-2.5 hover:bg-blue-50 rounded flex items-center justify-between transition-colors group"
+							>
+								<div class="flex-1">
+									<div class="font-medium text-gray-900 group-hover:text-blue-600">
+										{user.name}
+									</div>
+								</div>
+								{#if user.grade}
+									<img
+										src="/icons/{user.grade}.svg"
+										alt="{user.grade}"
+										class="w-6 h-6 flex-shrink-0"
+										title="{user.grade} 등급"
+									/>
+								{/if}
+							</button>
+						{/each}
+					</div>
+				</div>
+			{/if}
+
+			{#if showSearchResults && searchResults.length === 0 && searchQuery.trim().length >= 2 && !isSearching}
+				<div class="absolute right-0 top-full mt-2 w-96 bg-white rounded-lg shadow-xl border border-gray-200 p-4 z-50">
+					<div class="text-sm text-gray-500 text-center">
+						검색 결과가 없습니다
+					</div>
+				</div>
+			{/if}
+
+			{#if isSearching}
+				<div class="absolute right-0 top-full mt-2 w-96 bg-white rounded-lg shadow-xl border border-gray-200 p-4 z-50">
+					<div class="text-sm text-gray-500 text-center">
+						검색 중...
+					</div>
+				</div>
+			{/if}
+		</div>
 	</div>
 
 	{#if isLoading}
