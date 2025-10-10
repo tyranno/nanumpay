@@ -62,7 +62,140 @@ export async function POST({ request, locals }) {
 			alerts: []  // 알림 추가
 		};
 
-		// 1단계: 모든 사용자를 먼저 등록 (부모 관계 설정 없이)
+		// ===== 사전 검증 단계: 전체 엑셀 데이터 검증 =====
+		excelLogger.info('=== 사전 검증 시작 ===');
+		
+		const parsedUsers = []; // 파싱된 사용자 데이터
+		const excelUserNames = new Set(); // 엑셀 내 모든 사용자 이름
+		let rootCount = 0; // 최상위 루트 개수
+
+		// 1차 패스: 엑셀 내 모든 사용자 이름 수집
+		for (let i = 0; i < users.length; i++) {
+			const userData = users[i];
+
+			const getValue = (obj, keys) => {
+				for (const key of keys) {
+					const value = obj[key];
+					if (value !== undefined && value !== null && value !== '') {
+						return String(value).trim();
+					}
+				}
+				return '';
+			};
+
+			// 헤더 행 건너뛰기
+			if (userData['용 역 자 관 리 명 부'] === '순번' || userData['__EMPTY_1'] === '성명') {
+				continue;
+			}
+
+			const name = getValue(userData, ['성명', '이름', 'name', '__EMPTY_1']);
+			if (!name) {
+				continue; // 빈 행 건너뛰기
+			}
+
+			excelUserNames.add(name);
+		}
+
+		// 2차 패스: 판매인 검증
+		for (let i = 0; i < users.length; i++) {
+			const userData = users[i];
+
+			const getValue = (obj, keys) => {
+				for (const key of keys) {
+					const value = obj[key];
+					if (value !== undefined && value !== null && value !== '') {
+						return String(value).trim();
+					}
+				}
+				return '';
+			};
+
+			// 헤더 행 건너뛰기
+			if (userData['용 역 자 관 리 명 부'] === '순번' || userData['__EMPTY_1'] === '성명') {
+				continue;
+			}
+
+			const name = getValue(userData, ['성명', '이름', 'name', '__EMPTY_1']);
+			if (!name) {
+				continue; // 빈 행 건너뛰기
+			}
+
+			const salesperson = getValue(userData, ['판매인', '추천인', 'salesperson', '__EMPTY_6']);
+			
+			// 판매인 검증
+			if (!salesperson || salesperson === '-') {
+				// 최상위 루트
+				rootCount++;
+				if (rootCount > 1) {
+					const error = `엑셀 업로드 실패: 최상위 루트(판매인 없음)는 1명만 가능합니다. 행 ${i + 1} (${name})에서 2번째 루트 발견.`;
+					excelLogger.error(error);
+					return json({ 
+						error,
+						details: '판매인이 없거나 "-"인 사용자는 계층의 최상위 루트가 되며, 1명만 허용됩니다.'
+					}, { status: 400 });
+				}
+			} else {
+				// 판매인이 있는 경우
+				// 1) 같은 엑셀 파일 내에 있는지 확인 (순차 등록 허용)
+				const isInExcel = excelUserNames.has(salesperson);
+				
+				// 2) 이미 DB에 등록된 사용자인지 확인
+				const existingSeller = await User.findOne({
+					$or: [
+						{ name: salesperson },
+						{ loginId: salesperson }
+					]
+				});
+
+				// 엑셀에도 없고 DB에도 없으면 에러
+				if (!isInExcel && !existingSeller) {
+					const error = `엑셀 업로드 실패: 행 ${i + 1} (${name})의 판매인 "${salesperson}"이(가) 시스템에 등록되어 있지 않으며, 엑셀 파일에도 없습니다.`;
+					excelLogger.error(error);
+					return json({ 
+						error,
+						details: '판매인은 이미 시스템에 등록된 용역자이거나, 같은 엑셀 파일 내에서 앞쪽에 위치한 사용자여야 합니다.'
+					}, { status: 400 });
+				}
+
+				// 엑셀 내에 있는 경우, 순서 확인 (판매인이 현재 사용자보다 앞에 있어야 함)
+				if (isInExcel) {
+					let sellerRowIndex = -1;
+					let currentRowIndex = -1;
+
+					for (let j = 0; j < users.length; j++) {
+						const checkUserData = users[j];
+						const checkName = getValue(checkUserData, ['성명', '이름', 'name', '__EMPTY_1']);
+						
+						if (checkName === salesperson) {
+							sellerRowIndex = j;
+						}
+						if (checkName === name) {
+							currentRowIndex = j;
+							break;
+						}
+					}
+
+					if (sellerRowIndex >= currentRowIndex) {
+						const error = `엑셀 업로드 실패: 행 ${i + 1} (${name})의 판매인 "${salesperson}"이(가) 현재 행보다 뒤에 위치하거나 같은 행에 있습니다.`;
+						excelLogger.error(error);
+						return json({ 
+							error,
+							details: '판매인은 엑셀 파일에서 현재 사용자보다 앞쪽에 위치해야 합니다.'
+						}, { status: 400 });
+					}
+				}
+			}
+
+			parsedUsers.push({ userData, row: i + 1 });
+		}
+
+		excelLogger.info('=== 사전 검증 완료 ===', { 
+			totalRows: parsedUsers.length,
+			rootCount,
+			excelUsers: excelUserNames.size
+		})
+
+		// ===== 1단계: 모든 사용자를 먼저 등록 (부모 관계 설정 없이) =====
 		const registeredUsers = new Map(); // loginId -> user 매핑
 		const usersByOrder = []; // 엑셀 순서대로 저장
 
@@ -70,12 +203,11 @@ export async function POST({ request, locals }) {
 		const lastUser = await User.findOne().sort({ sequence: -1 }).select('sequence');
 		let currentSequence = lastUser ? lastUser.sequence : 0;
 
-		for (let i = 0; i < users.length; i++) {
-			const userData = users[i];
+		for (let i = 0; i < parsedUsers.length; i++) {
+			const { userData, row } = parsedUsers[i];
 			// 행 처리 시작
-
 			// 행별 처리 로그
-			excelLogger.debug(`처리 중 [행 ${i + 1}]`, { row: i + 1, data: userData });
+			excelLogger.debug(`처리 중 [행 ${row}]`, { row, data: userData });
 
 			// name 변수를 try 블록 밖에서 선언
 			let name = '';
@@ -124,7 +256,7 @@ export async function POST({ request, locals }) {
 					// 날짜가 유효하지 않으면 오늘 날짜 사용
 					if (isNaN(createdAt.getTime())) {
 						createdAt = new Date();
-						excelLogger.debug(`행 ${i + 1}: 날짜 형식 오류, 오늘 날짜로 설정`);
+						excelLogger.debug(`행 ${row}: 날짜 형식 오류, 오늘 날짜로 설정`);
 					}
 				} else {
 					// 날짜 필드가 없으면 오늘 날짜 사용
@@ -148,8 +280,8 @@ export async function POST({ request, locals }) {
 
 				if (!name) {
 					results.failed++;
-					results.errors.push(`행 ${i + 1}: 이름이 없습니다.`);
-					excelLogger.warn(`행 ${i + 1} 실패: 이름 없음`);
+					results.errors.push(`행 ${row}: 이름이 없습니다.`);
+					excelLogger.warn(`행 ${row} 실패: 이름 없음`);
 					continue;
 				}
 
@@ -165,8 +297,8 @@ export async function POST({ request, locals }) {
 				if (!validation.isValid) {
 					results.failed++;
 					const errorMessages = validation.errors.map(e => `${e.field}: ${e.message}`).join(', ');
-					results.errors.push(`행 ${i + 1} (${name}): ${errorMessages}`);
-					excelLogger.warn(`행 ${i + 1} 검증 실패: ${errorMessages}`);
+					results.errors.push(`행 ${row} (${name}): ${errorMessages}`);
+					excelLogger.warn(`행 ${row} 검증 실패: ${errorMessages}`);
 					continue;
 				}
 
@@ -227,13 +359,13 @@ export async function POST({ request, locals }) {
 				});
 
 				const savedUser = await newUser.save();
-				registeredUsers.set(loginId, { user: savedUser, salesperson, name, row: i + 1 });
-				usersByOrder.push({ loginId, salesperson, name, row: i + 1 }); // 순서대로 저장
+				registeredUsers.set(loginId, { user: savedUser, salesperson, name, row });
+				usersByOrder.push({ loginId, salesperson, name, row }); // 순서대로 저장
 
 				results.created++;
 				// 사용자 등록 성공
-					excelLogger.info('사용자 등록 성공', {
-					row: i + 1,
+				excelLogger.info('사용자 등록 성공', {
+					row,
 					name,
 					loginId,
 					grade
@@ -243,7 +375,7 @@ export async function POST({ request, locals }) {
 				results.failed++;
 
 				// 사용자 친화적인 오류 메시지
-				let userFriendlyMsg = `행 ${i + 1}: `;
+				let userFriendlyMsg = `행 ${row}: `;
 
 				// Cast to ObjectId 오류 처리
 				if (error.message.includes('Cast to ObjectId')) {
@@ -266,7 +398,7 @@ export async function POST({ request, locals }) {
 
 				// 개발자용 상세 로그는 서버 로그에만 기록
 				excelLogger.error('사용자 등록 실패', {
-					row: i + 1,
+					row,
 					name: name || 'unknown',
 					error: error.message,
 					stack: error.stack

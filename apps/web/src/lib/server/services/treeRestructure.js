@@ -407,11 +407,11 @@ export async function smartTreeRestructure(users, options = {}) {
 				if (!seller.leftChildId && !leftPlaced) {
 					// 좌측 자식으로 배치
 					await User.findByIdAndUpdate(soldUser._id, {
-						parentId: seller.loginId,
+						parentId: seller._id,
 						position: 'L'
 					});
 					await User.findByIdAndUpdate(seller._id, {
-						leftChildId: soldUser.loginId
+						leftChildId: soldUser._id
 					});
 
 					results.structure.push({
@@ -427,11 +427,11 @@ export async function smartTreeRestructure(users, options = {}) {
 				} else if (!seller.rightChildId && !rightPlaced) {
 					// 우측 자식으로 배치
 					await User.findByIdAndUpdate(soldUser._id, {
-						parentId: seller.loginId,
+						parentId: seller._id,
 						position: 'R'
 					});
 					await User.findByIdAndUpdate(seller._id, {
-						rightChildId: soldUser.loginId
+						rightChildId: soldUser._id
 					});
 
 					results.structure.push({
@@ -456,7 +456,7 @@ export async function smartTreeRestructure(users, options = {}) {
 
 						const updateField = nearestSpot.position === 'L' ? 'leftChildId' : 'rightChildId';
 						await User.findByIdAndUpdate(nearestSpot.parent._id, {
-							[updateField]: soldUser.loginId
+							[updateField]: soldUser._id
 						});
 
 						results.structure.push({
@@ -503,7 +503,7 @@ async function findNearestEmptySpot(startLoginId) {
 		if (!node.leftChildId) {
 			return {
 				parent: node,
-				parentId: node.loginId,
+				parentId: node._id,
 				position: 'L',
 				distance: distance + 1
 			};
@@ -513,7 +513,7 @@ async function findNearestEmptySpot(startLoginId) {
 		if (!node.rightChildId) {
 			return {
 				parent: node,
-				parentId: node.loginId,
+				parentId: node._id,
 				position: 'R',
 				distance: distance + 1
 			};

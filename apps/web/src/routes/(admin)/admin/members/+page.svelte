@@ -1,7 +1,7 @@
 <script>
 	import { onMount } from 'svelte';
 	import * as XLSX from 'xlsx';
-	import NotificationModal from '$lib/components/NotificationModal.svelte';
+	import WindowsModal from '$lib/components/WindowsModal.svelte';
 	import Pagination from '$lib/components/Pagination.svelte';
 	import MemberTable from '$lib/components/admin/members/MemberTable.svelte';
 	import MemberRegistrationModal from '$lib/components/admin/members/MemberRegistrationModal.svelte';
@@ -44,6 +44,7 @@
 	let uploadFile = null;
 	let editingMember = null;
 	let isUploading = false;
+	let memberToDelete = null; // 삭제할 회원 정보
 
 	// 회원 등록 모달 참조
 	let registrationModal;
@@ -257,11 +258,37 @@
 		}
 	}
 
-	// 회원 삭제
-	async function deleteMember(member) {
-		if (!confirm(`정말 ${member.name}님을 삭제하시겠습니까?`)) {
-			return;
-		}
+	// 회원 삭제 확인
+	function deleteMember(member) {
+		memberToDelete = member;
+		notificationConfig = {
+			type: 'warning',
+			title: '삭제 확인',
+			message: `정말 ${member.name}님을 삭제하시겠습니까?`,
+			results: null,
+			details: [],
+			primaryAction: {
+				label: '삭제',
+				handler: confirmDelete
+			},
+			secondaryAction: {
+				label: '취소',
+				handler: () => {
+					memberToDelete = null;
+					notificationOpen = false;
+				}
+			}
+		};
+		notificationOpen = true;
+	}
+
+	// 회원 삭제 실행
+	async function confirmDelete() {
+		if (!memberToDelete) return;
+
+		const member = memberToDelete;
+		memberToDelete = null;
+		notificationOpen = false;
 
 		try {
 			const response = await fetch('/api/admin/users', {
@@ -552,13 +579,94 @@
 	/>
 
 	<!-- 알림 모달 -->
-	<NotificationModal
-		bind:isOpen={notificationOpen}
-		type={notificationConfig.type}
+	<WindowsModal
+		isOpen={notificationOpen}
 		title={notificationConfig.title}
-		message={notificationConfig.message}
-		results={notificationConfig.results}
-		details={notificationConfig.details}
+		icon={notificationConfig.type === 'success' ? '/icons/check-circle-blue.svg' :
+		      notificationConfig.type === 'error' ? '/icons/close-blue.svg' :
+		      notificationConfig.type === 'warning' ? '/icons/edit-blue.svg' :
+		      '/icons/settings.svg'}
+		size="sm"
 		onClose={() => { notificationOpen = false; }}
-	/>
+	>
+		<div class="space-y-3">
+			{#if notificationConfig.message}
+				<p class="text-sm text-gray-700 whitespace-pre-wrap">{notificationConfig.message}</p>
+			{/if}
+
+			{#if notificationConfig.results}
+				<div class="flex gap-3 text-sm">
+					{#if notificationConfig.results.created !== undefined}
+						<span class="text-green-600 font-medium">✓ 성공: {notificationConfig.results.created}</span>
+					{/if}
+					{#if notificationConfig.results.failed !== undefined && notificationConfig.results.failed > 0}
+						<span class="text-red-600 font-medium">✗ 실패: {notificationConfig.results.failed}</span>
+					{/if}
+				</div>
+
+				{#if notificationConfig.results.alerts && notificationConfig.results.alerts.length > 0}
+					<div class="text-sm text-yellow-700 bg-yellow-50 border border-yellow-200 rounded p-2">
+						<p class="font-medium">⚠ {notificationConfig.results.alerts[0].message}</p>
+						{#if notificationConfig.results.alerts.length > 1}
+							<p class="text-xs mt-1">외 {notificationConfig.results.alerts.length - 1}건</p>
+						{/if}
+					</div>
+				{/if}
+
+				{#if notificationConfig.results.errors && notificationConfig.results.errors.length > 0}
+					<div class="text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2">
+						{#if notificationConfig.results.errors.length <= 2}
+							{#each notificationConfig.results.errors as error}
+								<p class="mb-1">• {error}</p>
+							{/each}
+						{:else}
+							<p>• {notificationConfig.results.errors[0]}</p>
+							<p class="text-xs mt-1">• 외 {notificationConfig.results.errors.length - 1}개 오류</p>
+						{/if}
+					</div>
+				{/if}
+			{/if}
+
+			{#if notificationConfig.details && notificationConfig.details.length > 0}
+				<div class="space-y-2">
+					{#each notificationConfig.details as detail}
+						<div class="p-3 bg-gray-50 rounded border {detail.type === 'error' ? 'border-red-200 bg-red-50' : 'border-gray-200'}">
+							{#if detail.title}
+								<p class="text-sm font-semibold {detail.type === 'error' ? 'text-red-900' : 'text-gray-900'}">{detail.title}</p>
+							{/if}
+							{#if detail.content}
+								<p class="text-xs {detail.type === 'error' ? 'text-red-700' : 'text-gray-600'} mt-1 whitespace-pre-wrap">{detail.content}</p>
+							{/if}
+						</div>
+					{/each}
+				</div>
+			{/if}
+		</div>
+
+		<svelte:fragment slot="footer">
+			{#if notificationConfig.secondaryAction}
+				<button
+					onclick={notificationConfig.secondaryAction.handler}
+					class="px-4 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+				>
+					{notificationConfig.secondaryAction.label}
+				</button>
+			{/if}
+			{#if notificationConfig.primaryAction}
+				<button
+					onclick={notificationConfig.primaryAction.handler}
+					class="px-4 py-1.5 text-sm font-medium text-white bg-red-600 rounded hover:bg-red-700 transition-colors"
+				>
+					{notificationConfig.primaryAction.label}
+				</button>
+			{:else}
+				<button
+					onclick={() => { notificationOpen = false; }}
+					class="px-4 py-1.5 text-sm font-medium text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors"
+				>
+					확인
+				</button>
+			{/if}
+		</svelte:fragment>
+	</WindowsModal>
 </div>
