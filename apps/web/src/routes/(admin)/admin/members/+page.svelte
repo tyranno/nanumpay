@@ -874,7 +874,7 @@
 					<button
 						onclick={() => { showUploadModal = false; uploadFile = null; }}
 						disabled={isUploading}
-						class="w-7 h-7 flex items-center justify-center hover:bg-red-600 transition-colors disabled:opacity-50"
+						class="w-7 h-7 flex items-center justify-center hover:bg-white/20 rounded transition-colors disabled:opacity-50"
 						title="닫기"
 					>
 						<img src="/icons/close-white.svg" alt="Close" class="w-3.5 h-3.5" />
@@ -1158,7 +1158,7 @@
 					</div>
 					<button
 						onclick={() => showColumnSettings = false}
-						class="w-7 h-7 flex items-center justify-center hover:bg-red-600 transition-colors"
+						class="w-7 h-7 flex items-center justify-center hover:bg-white/20 rounded transition-colors"
 						title="닫기"
 					>
 						<img src="/icons/close-white.svg" alt="Close" class="w-3.5 h-3.5" />
