@@ -23,9 +23,9 @@ const userSchema = new mongoose.Schema({
 		type: String,
 		sparse: true
 	},
-	// 계층 구조 필드 - loginId를 사용하여 참조
+	// 계층 구조 필드 - ObjectId를 사용하여 참조
 	parentId: {
-		type: String,  // loginId로 참조
+		type: mongoose.Schema.Types.ObjectId,
 		ref: 'User',
 		default: null
 	},
@@ -35,12 +35,12 @@ const userSchema = new mongoose.Schema({
 		default: null
 	},
 	leftChildId: {
-		type: String,  // loginId로 참조
+		type: mongoose.Schema.Types.ObjectId,
 		ref: 'User',
 		default: null
 	},
 	rightChildId: {
-		type: String,  // loginId로 참조
+		type: mongoose.Schema.Types.ObjectId,
 		ref: 'User',
 		default: null
 	},

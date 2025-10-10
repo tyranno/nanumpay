@@ -1,6 +1,8 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db.js';
 import User from '$lib/server/models/User.js';
+import { TreeStats } from '$lib/server/models/TreeStats.js';
+import { treeService } from '$lib/server/services/treeService.js';
 
 // GET: 사용자 트리 구조 조회
 export async function GET({ url, locals }) {
@@ -8,21 +10,39 @@ export async function GET({ url, locals }) {
 		await db();
 
 		const userId = url.searchParams.get('userId');
-		const depth = parseInt(url.searchParams.get('depth') || '5');
+		const getRoots = url.searchParams.get('getRoots'); // 루트 목록만 가져오기
+		const depth = parseInt(url.searchParams.get('depth') || '7');
+
+		// 루트 사용자 목록만 요청하는 경우
+		if (getRoots === 'true') {
+			const rootUsers = await User.find({ parentId: null }).lean();
+			return json({
+				success: true,
+				roots: rootUsers.map((u) => ({
+					id: u._id.toString(),
+					name: u.name,
+					loginId: u.loginId,
+					grade: u.grade
+				}))
+			});
+		}
 
 		let rootUser;
 		if (userId) {
+			// 특정 사용자 ID로 시작
 			rootUser = await User.findById(userId).lean();
+			if (!rootUser) {
+				return json({ error: 'User not found' }, { status: 404 });
+			}
 		} else {
-			// 루트 사용자 찾기
+			// userId가 없으면 첫 번째 루트 사용자 사용
 			rootUser = await User.findOne({ parentId: null }).lean();
+			if (!rootUser) {
+				return json({ error: 'No root users found' }, { status: 404 });
+			}
 		}
 
-		if (!rootUser) {
-			return json({ error: 'User not found' }, { status: 404 });
-		}
-
-		// 트리 구조 생성
+		// 트리 구조 생성 (TreeStats 데이터 사용)
 		const tree = await buildTree(rootUser._id, depth);
 
 		return json({
@@ -35,72 +55,86 @@ export async function GET({ url, locals }) {
 	}
 }
 
-// 재귀적으로 트리 구조 생성
-async function buildTree(userId, maxDepth, currentDepth = 0) {
-	if (currentDepth >= maxDepth) {
-		return null;
-	}
+// 재귀적으로 트리 구조 생성 (성능 최적화: 한 번에 모든 데이터 로드)
+async function buildTree(rootUserId, maxDepth) {
+	// 1. 루트 사용자의 모든 하위 사용자를 한 번에 조회
+	const rootUser = await User.findById(rootUserId).lean();
+	if (!rootUser) return null;
 
-	const user = await User.findById(userId).lean();
-	if (!user) {
-		return null;
-	}
+	// 2. 루트와 그 하위 노드들을 BFS로 수집 (maxDepth 제한)
+	const userIds = [rootUserId];
+	const visited = new Set([rootUserId.toString()]);
+	let currentLevel = [rootUserId];
 
-	// 자식 노드 찾기
-	const leftChild = await User.findOne({ parentId: userId, position: 'L' }).lean();
-	const rightChild = await User.findOne({ parentId: userId, position: 'R' }).lean();
+	for (let depth = 0; depth < maxDepth && currentLevel.length > 0; depth++) {
+		const nextLevel = [];
+		const children = await User.find({
+			parentId: { $in: currentLevel }
+		}).lean();
 
-	// D3.js 형식으로 변환
-	const node = {
-		id: user._id.toString(),
-		name: user.name,
-		loginId: user.loginId,
-		grade: user.grade,
-		phone: user.phone,
-		bank: user.bank,
-		accountNumber: user.accountNumber,
-		level: user.level,
-		leftCount: user.leftCount,
-		rightCount: user.rightCount,
-		status: user.status,
-		children: []
-	};
-
-	// 왼쪽 자식 추가
-	if (leftChild) {
-		const leftTree = await buildTree(leftChild._id, maxDepth, currentDepth + 1);
-		if (leftTree) {
-			node.children.push(leftTree);
+		for (const child of children) {
+			const childId = child._id.toString();
+			if (!visited.has(childId)) {
+				visited.add(childId);
+				userIds.push(child._id);
+				nextLevel.push(child._id);
+			}
 		}
-	} else if (currentDepth < maxDepth - 1) {
-		// 빈 노드 표시
-		node.children.push({
-			id: `empty-left-${userId}`,
-			name: '빈 자리',
-			isEmpty: true,
-			position: 'L',
-			parentId: userId.toString()
-		});
+		currentLevel = nextLevel;
 	}
 
-	// 오른쪽 자식 추가
-	if (rightChild) {
-		const rightTree = await buildTree(rightChild._id, maxDepth, currentDepth + 1);
-		if (rightTree) {
-			node.children.push(rightTree);
+	// 3. 모든 사용자와 TreeStats를 한 번에 조회
+	const [users, statsArray] = await Promise.all([
+		User.find({ _id: { $in: userIds } }).lean(),
+		TreeStats.find({ userId: { $in: userIds } }).lean()
+	]);
+
+	// 4. Map으로 빠른 조회를 위한 인덱싱
+	const userMap = new Map();
+	const statsMap = new Map();
+
+	users.forEach(u => userMap.set(u._id.toString(), u));
+	statsArray.forEach(s => statsMap.set(s.userId.toString(), s));
+
+	// 5. 재귀적으로 트리 구성 (메모리에서 처리)
+	function buildNode(userId, currentDepth = 0) {
+		if (currentDepth >= maxDepth) return null;
+
+		const user = userMap.get(userId.toString());
+		if (!user) return null;
+
+		const stats = statsMap.get(userId.toString());
+
+		// BinaryTreeD3 형식으로 변환 (계층 관계 정보만)
+		const node = {
+			id: user._id.toString(),
+			label: user.name,              // 노드에 표시할 이름
+			grade: stats?.grade || user.grade,  // 등급 뱃지 표시
+			level: user.level              // 트리 레벨
+		};
+
+		// 자식 찾기 (메모리에서)
+		const children = users.filter(u =>
+			u.parentId && u.parentId.toString() === userId.toString()
+		);
+
+		const leftChild = children.find(c => c.position === 'L');
+		const rightChild = children.find(c => c.position === 'R');
+
+		if (leftChild) {
+			const leftNode = buildNode(leftChild._id, currentDepth + 1);
+			if (leftNode) node.left = leftNode;
 		}
-	} else if (currentDepth < maxDepth - 1) {
-		// 빈 노드 표시
-		node.children.push({
-			id: `empty-right-${userId}`,
-			name: '빈 자리',
-			isEmpty: true,
-			position: 'R',
-			parentId: userId.toString()
-		});
+
+		if (rightChild) {
+			const rightNode = buildNode(rightChild._id, currentDepth + 1);
+			if (rightNode) node.right = rightNode;
+		}
+
+		return node;
 	}
 
-	return node;
+	return buildNode(rootUserId);
 }
 
 // POST: 특정 위치에 사용자 배치
@@ -158,16 +192,10 @@ export async function POST({ request, locals }) {
 	}
 }
 
-// 상위 노드들의 등급 재계산
+// 상위 노드들의 등급 재계산 (TreeStats 사용 - 성능 최적화)
 async function updateAncestorsGrade(userId) {
-	const user = await User.findById(userId);
-	if (!user) return;
-
-	// 현재 노드의 트리 구조 업데이트
-	await user.updateTreeStructure();
-
-	// 부모 노드가 있으면 재귀적으로 상위 노드 업데이트
-	if (user.parentId) {
-		await updateAncestorsGrade(user.parentId);
-	}
+	// treeService의 최적화된 배치 처리 시스템 사용
+	// - isDirty 플래그로 변경된 노드만 표시
+	// - 비동기 배치 처리로 성능 최적화
+	await treeService.onUserAdded(userId);
 }

@@ -10,6 +10,7 @@
 	export let siblingGapX = 10;
 	export let nodeComponent = null;
 	export let maxDepth = 6;
+	export let onselect = null; // 선택 이벤트 콜백
 
 	// 상단 간격 압축(상위 레벨 수평 간격 축소)
 	export let topScale = 0.3;
@@ -70,6 +71,28 @@
 			cur = ch === 'L' ? cur.left : cur.right;
 		}
 		return cur || null;
+	}
+
+	// 경로 문자열을 노드 레이블 배열로 변환
+	function getNodeNamePath(root, path = '') {
+		const names = [];
+		let cur = root;
+		
+		// 루트 노드 추가
+		if (cur) {
+			names.push(cur.label);
+		}
+		
+		// 경로 따라가면서 노드 이름 수집
+		for (const ch of path) {
+			if (!cur) break;
+			cur = ch === 'L' ? cur.left : cur.right;
+			if (cur) {
+				names.push(cur.label);
+			}
+		}
+		
+		return names;
 	}
 
 	// === 깊이 제한 (잘린 곳은 플래그 달기) ===
@@ -257,7 +280,10 @@
 			await raf();
 			focusSmart(true);
 		});
-		dispatch('select', { path, node: sub });
+		const namePath = getNodeNamePath(originalData, path);
+		const eventData = { path, node: sub, namePath };
+		dispatch('select', eventData);
+		if (onselect) onselect({ detail: eventData });
 	}
 	export function backToFull() {
 		rerootByPath('');
@@ -348,7 +374,9 @@
 		});
 		ro.observe(wrapEl);
 
-		dispatch('select', { path: '', node: originalData });
+		const initialEventData = { path: '', node: originalData, namePath: originalData ? [originalData.label] : [] };
+		dispatch('select', initialEventData);
+		if (onselect) onselect({ detail: initialEventData });
 		applyTransforms();
 	});
 
@@ -408,7 +436,17 @@
 					<svelte:component this={nodeComponent} node={n.data} />
 				{:else}
 					<div class="node-default">
-						<strong>{n.data.label}</strong>
+						<div class="relative inline-block">
+							<strong>{n.data.label}</strong>
+							{#if n.data.grade}
+								<img
+									src="/icons/{n.data.grade}.svg"
+									alt="{n.data.grade}"
+									class="w-3.5 h-3.5 absolute -top-1 -right-4"
+									title="{n.data.grade} 등급"
+								/>
+							{/if}
+						</div>
 						{#if n.data.__hasMoreBelow}
 							<span class="hint">▼ 아래 단계</span>
 						{/if}
