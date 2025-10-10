@@ -4,6 +4,7 @@
 	import ExcelJS from 'exceljs';
 	import FileSaver from 'file-saver';
 	import { getWeekOfMonthByFriday } from '$lib/utils/fridayWeekCalculator.js';
+	import Pagination from '$lib/components/Pagination.svelte';
 	const { saveAs } = FileSaver;
 
 	// 상태 변수
@@ -409,12 +410,199 @@
 		return grandTotal;
 	}
 
+	// 전체 데이터 가져오기 (페이지네이션 없이)
+	async function getAllPaymentData() {
+		try {
+			if (filterType === 'date') {
+				// 단일 날짜 조회
+				const [year, month, day] = selectedDate.split('-');
+				const weekInfo = getWeekOfMonthByFriday(new Date(selectedDate));
+				const week = weekInfo.week;
+
+				const params = new URLSearchParams({
+					year,
+					month: parseInt(month),
+					week,
+					page: 1,
+					limit: 10000, // 충분히 큰 값
+					search: searchQuery,
+					searchCategory: searchCategory
+				});
+
+				const response = await fetch(`/api/admin/payment/weekly?${params}`);
+				const result = await response.json();
+
+				if (result.success && result.data) {
+					const weekKey = `${result.data.year}_${result.data.monthNumber}_${result.data.weekNumber}`;
+					const allWeeks = [{
+						year: result.data.year,
+						month: result.data.monthNumber,
+						week: result.data.weekNumber,
+						label: result.data.week
+					}];
+					
+					const users = (result.data.payments || []).map((user, index) => ({
+						...user,
+						no: index + 1,
+						name: user.userName || user.name || 'Unknown',
+						planner: user.planner || '',
+						payments: {
+							[weekKey]: {
+								amount: user.actualAmount || 0,
+								tax: user.taxAmount || 0,
+								net: user.netAmount || 0,
+								installmentDetails: user.installments || []
+							}
+						}
+					}));
+					
+					return { users, weeks: allWeeks };
+				}
+			} else {
+				// 기간 조회
+				const params = new URLSearchParams({
+					startYear: startYear,
+					startMonth: startMonth,
+					endYear: endYear,
+					endMonth: endMonth,
+					page: 1,
+					limit: 10000, // 충분히 큰 값
+					search: searchQuery,
+					searchCategory: searchCategory
+				});
+
+				const response = await fetch(`/api/admin/payment/weekly?${params}`);
+				const result = await response.json();
+
+				if (result.success && result.data) {
+					// 기간 조회 데이터 처리
+					const weeks = result.data.weeks || [];
+					const allUsers = new Map();
+					
+					// 전체 주차 정보 생성
+					const allWeeks = weeks.map(weekData => ({
+						year: weekData.year,
+						month: weekData.monthNumber,
+						week: weekData.weekNumber,
+						label: weekData.week
+					}));
+
+					weeks.forEach(weekData => {
+						const weekKey = `${weekData.year}_${weekData.monthNumber}_${weekData.weekNumber}`;
+						(weekData.payments || []).forEach(payment => {
+							const userId = payment.userId;
+							if (!allUsers.has(userId)) {
+								allUsers.set(userId, {
+									userId: payment.userId,
+									name: payment.userName || payment.name || 'Unknown',
+									planner: payment.planner || '',
+									bank: payment.bank || '',
+									accountNumber: payment.accountNumber || '',
+									payments: {}
+								});
+							}
+							const user = allUsers.get(userId);
+							user.payments[weekKey] = {
+								amount: payment.actualAmount || 0,
+								tax: payment.taxAmount || 0,
+								net: payment.netAmount || 0,
+								installmentDetails: payment.installments || []
+							};
+						});
+					});
+
+					const users = Array.from(allUsers.values()).map((user, index) => ({
+						...user,
+						no: index + 1
+					}));
+					
+					// periodType에 따라 다른 데이터 구조 반환
+					if (periodType === 'monthly') {
+						// 월간 표시: 월별로 데이터 집계
+						const monthlyMap = new Map();
+						const monthlyPeriods = [];
+						
+						weeks.forEach(weekData => {
+							const monthKey = `${weekData.year}_${weekData.monthNumber}`;
+							
+							if (!monthlyMap.has(monthKey)) {
+								monthlyMap.set(monthKey, {
+									year: weekData.year,
+									month: weekData.monthNumber,
+									label: `${weekData.year}년 ${weekData.monthNumber}월`
+								});
+								monthlyPeriods.push({
+									year: weekData.year,
+									month: weekData.monthNumber,
+									label: `${weekData.year}년 ${weekData.monthNumber}월`
+								});
+							}
+						});
+						
+						// 사용자별 월간 데이터 집계
+						const monthlyUsers = Array.from(allUsers.values()).map((user, index) => {
+							const monthlyPayments = {};
+							
+							// 각 월별로 해당 월의 모든 주차 데이터를 합산
+							monthlyPeriods.forEach(period => {
+								const monthKey = `${period.year}_${period.month}`;
+								let monthTotal = { amount: 0, tax: 0, net: 0 };
+								
+								// 해당 월의 모든 주차 찾아서 합산
+								weeks.forEach(weekData => {
+									if (weekData.year === period.year && weekData.monthNumber === period.month) {
+										const weekKey = `${weekData.year}_${weekData.monthNumber}_${weekData.weekNumber}`;
+										const weekPayment = user.payments[weekKey];
+										if (weekPayment) {
+											monthTotal.amount += weekPayment.amount || 0;
+											monthTotal.tax += weekPayment.tax || 0;
+											monthTotal.net += weekPayment.net || 0;
+										}
+									}
+								});
+								
+								monthlyPayments[monthKey] = monthTotal;
+							});
+							
+							return {
+								userId: user.userId,
+								name: user.name,
+								planner: user.planner,
+								bank: user.bank,
+								accountNumber: user.accountNumber,
+								no: index + 1,
+								payments: monthlyPayments
+							};
+						});
+						
+						return { users: monthlyUsers, weeks: monthlyPeriods };
+					} else {
+						// 주간 표시: 주차별 데이터 그대로 반환
+						return { users, weeks: allWeeks };
+					}
+				}
+			}
+			return { users: [], weeks: [] };
+		} catch (err) {
+			console.error('Error fetching all payment data:', err);
+			return { users: [], weeks: [] };
+		}
+	}
+
 	// 엑셀 Export 기능 (ExcelJS로 완전한 스타일 적용)
 	async function exportToExcel() {
+		// 전체 데이터 가져오기
+		const { users: allData, weeks: allWeeks } = await getAllPaymentData();
+		
+		if (allData.length === 0) {
+			alert('다운로드할 데이터가 없습니다.');
+			return;
+		}
+
 		const workbook = new ExcelJS.Workbook();
 		const worksheet = workbook.addWorksheet('용역비 지급명부');
 
-		const totalCols = 5 + weeklyColumns.length * 3;
+		const totalCols = 5 + allWeeks.length * 3;
 
 		// 조회 조건 정보
 		let periodInfo = '';
@@ -430,7 +618,37 @@
 			? `${searchCategory === 'name' ? '이름' : '설계자'}: ${searchQuery}`
 			: '전체';
 
-		const totalSummary = calculateGrandTotal();
+		// 전체 데이터로 합계 계산
+		const calculateAllDataTotal = (data, week) => {
+			// periodType에 따라 다른 키 생성
+			const key = (filterType === 'period' && periodType === 'monthly')
+				? `${week.year}_${week.month}`
+				: `${week.year}_${week.month}_${week.week}`;
+			
+			let totalAmount = 0;
+			let totalTax = 0;
+			let totalNet = 0;
+
+			data.forEach((user) => {
+				const payment = user.payments[key];
+				if (payment) {
+					totalAmount += payment.amount || 0;
+					totalTax += payment.tax || 0;
+					totalNet += payment.net || 0;
+				}
+			});
+
+			return { amount: totalAmount, tax: totalTax, net: totalNet };
+		};
+
+		// 전체 합계 계산
+		let totalSummary = { amount: 0, tax: 0, net: 0 };
+		allWeeks.forEach((week) => {
+			const total = calculateAllDataTotal(allData, week);
+			totalSummary.amount += total.amount;
+			totalSummary.tax += total.tax;
+			totalSummary.net += total.net;
+		});
 
 		// 1. 제목 행
 		const titleRow = worksheet.addRow(['용역비 지급명부']);
@@ -490,7 +708,7 @@
 		});
 
 		// 6. 지급 대상
-		const targetRow = worksheet.addRow(['지급 대상:', `${totalPaymentTargets || filteredPaymentList.length}명`]);
+		const targetRow = worksheet.addRow(['지급 대상:', `${allData.length}명`]);
 		targetRow.getCell(1).font = { bold: true, size: 11 };
 		targetRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F5F5' } };
 		targetRow.getCell(1).border = {
@@ -506,13 +724,13 @@
 
 		// 8. 테이블 헤더 1행 (주차 정보)
 		const headerRow1Data = ['순번', '성명', '설계자', '은행', '계좌번호'];
-		weeklyColumns.forEach(week => {
-			headerRow1Data.push(week.label);
+		allWeeks.forEach(week => {
+			headerRow1Data.push(week.label, '', '');  // 3칸 차지: 레이블 + 빈칸 2개
 		});
 		const headerRow1 = worksheet.addRow(headerRow1Data);
 		headerRow1.height = 25;
 		// 개별 셀에 스타일 적용
-		for (let i = 1; i <= 5 + weeklyColumns.length; i++) {
+		for (let i = 1; i <= 5 + allWeeks.length * 3; i++) {
 			headerRow1.getCell(i).font = { bold: true };
 			headerRow1.getCell(i).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8E8E8' } };
 			headerRow1.getCell(i).alignment = { vertical: 'middle', horizontal: 'center' };
@@ -525,7 +743,7 @@
 
 		// 주차 헤더 병합 및 색상
 		let colStart = 6;
-		weeklyColumns.forEach(() => {
+		allWeeks.forEach(() => {
 			worksheet.mergeCells(headerRow1.number, colStart, headerRow1.number, colStart + 2);
 			[colStart, colStart + 1, colStart + 2].forEach(c => {
 				headerRow1.getCell(c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD0E0F0' } };
@@ -535,19 +753,19 @@
 
 		// 9. 테이블 헤더 2행 (세부 항목)
 		const headerRow2Data = ['', '', '', '', ''];
-		weeklyColumns.forEach(() => {
+		allWeeks.forEach(() => {
 			headerRow2Data.push('지급액', '원천징수(3.3%)', '실지급액');
 		});
 		const headerRow2 = worksheet.addRow(headerRow2Data);
 		// 개별 셀에 스타일 적용 (세부 항목 헤더)
-		for (let i = 6; i <= 5 + weeklyColumns.length * 3; i++) {
+		for (let i = 6; i <= 5 + allWeeks.length * 3; i++) {
 			headerRow2.getCell(i).font = { bold: true };
 			headerRow2.getCell(i).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8E8E8' } };
 			headerRow2.getCell(i).alignment = { vertical: 'middle', horizontal: 'center' };
 		}
 
 		// 10. 데이터 행
-		filteredPaymentList.forEach(user => {
+		allData.forEach(user => {
 			const rowData = [
 				user.no,
 				user.name,
@@ -556,9 +774,10 @@
 				user.accountNumber || ''
 			];
 
-			weeklyColumns.forEach(week => {
-				const key = periodType === 'monthly'
-					? `month_${week.month}`
+			allWeeks.forEach(week => {
+				// periodType에 따라 다른 키 생성
+				const key = (filterType === 'period' && periodType === 'monthly')
+					? `${week.year}_${week.month}`
 					: `${week.year}_${week.month}_${week.week}`;
 				const payment = user.payments[key];
 				rowData.push(
@@ -573,7 +792,7 @@
 
 			// 금액 컬럼 스타일
 			let col = 6;
-			weeklyColumns.forEach(() => {
+			allWeeks.forEach(() => {
 				// 지급액
 				dataRow.getCell(col).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFCC' } };
 				dataRow.getCell(col).font = { bold: true };
@@ -597,8 +816,8 @@
 
 		// 11. 합계 행
 		const totalRowData = ['', '', '', '', '합계'];
-		weeklyColumns.forEach(week => {
-			const total = calculateColumnTotal(week);
+		allWeeks.forEach(week => {
+			const total = calculateAllDataTotal(allData, week);
 			totalRowData.push(total.amount, total.tax, total.net);
 		});
 		const totalRow = worksheet.addRow(totalRowData);
@@ -615,9 +834,8 @@
 
 		// 12. 총합계 행
 		const grandTotalData = ['', '', '', '', '총합계'];
-		const grandTotal = calculateGrandTotal();
-		grandTotalData.push(grandTotal.amount, grandTotal.tax, grandTotal.net);
-		weeklyColumns.slice(1).forEach(() => {
+		grandTotalData.push(totalSummary.amount, totalSummary.tax, totalSummary.net);
+		allWeeks.slice(1).forEach(() => {
 			grandTotalData.push('', '', '');
 		});
 		const grandTotalRow = worksheet.addRow(grandTotalData);
@@ -981,61 +1199,13 @@
 
 			<!-- 페이지네이션 -->
 			{#if filteredPaymentList.length > 0}
-				<div class="pagination">
-					<button
-						onclick={() => goToPage(currentPage - 1)}
-						disabled={currentPage === 1}
-						class="page-button"
-					>
-						이전
-					</button>
-
-					<div class="page-numbers">
-						{#each Array(totalPages) as _, i}
-							{@const pageNum = i + 1}
-							{#if totalPages <= 7}
-								<!-- 페이지가 7개 이하면 모두 표시 -->
-								<button
-									onclick={() => goToPage(pageNum)}
-									class="page-number"
-									class:active={pageNum === currentPage}
-								>
-									{pageNum}
-								</button>
-							{:else if pageNum === 1 || pageNum === totalPages || (pageNum >= currentPage - 2 && pageNum <= currentPage + 2)}
-								<!-- 첫 페이지, 마지막 페이지, 현재 페이지 주변만 표시 -->
-								{#if pageNum === totalPages && currentPage < totalPages - 3}
-									<span class="page-dots">...</span>
-								{/if}
-								<button
-									onclick={() => goToPage(pageNum)}
-									class="page-number"
-									class:active={pageNum === currentPage}
-								>
-									{pageNum}
-								</button>
-								{#if pageNum === 1 && currentPage > 4}
-									<span class="page-dots">...</span>
-								{/if}
-							{/if}
-						{/each}
-					</div>
-
-					<button
-						onclick={() => goToPage(currentPage + 1)}
-						disabled={currentPage === totalPages}
-						class="page-button"
-					>
-						다음
-					</button>
-
-					<div class="page-info">
-						총 {totalPaymentTargets || filteredPaymentList.length}명 중 {(currentPage - 1) * itemsPerPage + 1}-{Math.min(
-							currentPage * itemsPerPage,
-							totalPaymentTargets || filteredPaymentList.length
-						)}명
-					</div>
-				</div>
+				<Pagination
+					currentPage={currentPage}
+					totalPages={totalPages}
+					totalItems={totalPaymentTargets || filteredPaymentList.length}
+					itemsPerPage={itemsPerPage}
+					onPageChange={goToPage}
+				/>
 			{/if}
 		</div>
 	{/if}
@@ -1533,34 +1703,6 @@
 		}
 
 
-		.pagination {
-			padding: 5px;
-			gap: 4px;
-		}
-
-		.page-button {
-			padding: 3px 6px;
-			font-size: 10px;
-		}
-
-		.page-numbers {
-			gap: 2px;
-		}
-
-		.page-number {
-			width: 20px;
-			height: 20px;
-			font-size: 9px;
-		}
-
-		.page-info {
-			font-size: 9px;
-		}
-
-		.page-dots {
-			font-size: 9px;
-		}
-
 		.loading,
 		.error {
 			padding: 20px;
@@ -1852,72 +1994,5 @@
 	}
 
 
-	/* 페이지네이션 */
-	.pagination {
-		display: flex;
-		justify-content: center;
-		align-items: center;
-		gap: 10px;
-		padding: 20px;
-		background: #f8f9fa;
-		border-top: 1px solid #ddd;
-	}
 
-	.page-button {
-		padding: 8px 16px;
-		background: white;
-		border: 1px solid #ddd;
-		border-radius: 4px;
-		cursor: pointer;
-		font-size: 14px;
-		transition: all 0.2s;
-	}
-
-	.page-button:hover:not(:disabled) {
-		background: #e9ecef;
-	}
-
-	.page-button:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-	}
-
-	.page-numbers {
-		display: flex;
-		align-items: center;
-		gap: 5px;
-	}
-
-	.page-number {
-		min-width: 36px;
-		height: 36px;
-		padding: 0;
-		background: white;
-		border: 1px solid #ddd;
-		border-radius: 4px;
-		cursor: pointer;
-		font-size: 14px;
-		transition: all 0.2s;
-	}
-
-	.page-number:hover {
-		background: #e9ecef;
-	}
-
-	.page-number.active {
-		background: #007bff;
-		color: white;
-		border-color: #007bff;
-	}
-
-	.page-dots {
-		padding: 0 8px;
-		color: #999;
-	}
-
-	.page-info {
-		margin-left: 20px;
-		font-size: 14px;
-		color: #666;
-	}
 </style>

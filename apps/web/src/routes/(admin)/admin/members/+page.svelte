@@ -3,6 +3,7 @@
 	import * as XLSX from 'xlsx';
 	import GradeBadge from '$lib/components/GradeBadge.svelte';
 	import NotificationModal from '$lib/components/NotificationModal.svelte';
+	import Pagination from '$lib/components/Pagination.svelte';
 
 	let members = [];
 	let isLoading = true;
@@ -688,98 +689,13 @@
 
 		<!-- 페이지네이션 -->
 		{#if totalPages > 0}
-			<div class="px-6 py-4 bg-white border-t border-gray-200">
-				<div class="flex items-center justify-between">
-					<div class="flex items-center gap-4">
-						<p class="text-sm text-gray-700">
-							전체 <span class="font-semibold text-gray-900">{totalMembers}</span>개 항목 중
-							<span class="font-semibold text-gray-900">{(currentPage - 1) * itemsPerPage + 1}</span>
-							-
-							<span class="font-semibold text-gray-900">{Math.min(currentPage * itemsPerPage, totalMembers)}</span>
-							표시
-						</p>
-					</div>
-
-					<nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
-						<!-- 이전 페이지 -->
-						<button
-							onclick={() => changePage(Math.max(1, currentPage - 1))}
-							disabled={currentPage === 1}
-							class="relative inline-flex items-center rounded-l-md px-1.5 py-1 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
-						>
-							<span class="sr-only">이전</span>
-							<img src="/icons/chevron-left.svg" alt="Previous" class="h-4 w-4" />
-						</button>
-
-						<!-- 페이지 번호들 -->
-						<div class="flex items-center gap-1">
-							{#if currentPage > 3}
-								<button
-									onclick={() => changePage(1)}
-									class="relative inline-flex items-center px-3 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
-								>
-									1
-								</button>
-								{#if currentPage > 4}
-									<span class="relative inline-flex items-center px-2 py-1 text-sm text-gray-700 bg-white border border-gray-300">
-										...
-									</span>
-								{/if}
-							{/if}
-
-							{#each Array(Math.min(5, totalPages)) as _, i}
-								{@const pageNum = Math.max(1, Math.min(currentPage - 2 + i, totalPages - 4)) + Math.min(i, Math.max(0, 2 - (currentPage - 1)))}
-								{#if pageNum > 0 && pageNum <= totalPages && (pageNum >= currentPage - 2 && pageNum <= currentPage + 2)}
-									<button
-										onclick={() => changePage(pageNum)}
-										class="relative inline-flex items-center px-3 py-1 text-sm font-medium border transition-all duration-200 {
-											pageNum === currentPage
-												? 'z-20 bg-blue-600 border-blue-600 text-white shadow-lg transform scale-105'
-												: 'text-gray-700 bg-white border-gray-300 hover:bg-gray-50 hover:text-gray-900 focus:z-20 focus:outline-none focus:ring-2 focus:ring-blue-500'
-										}"
-									>
-										{pageNum}
-									</button>
-								{/if}
-							{/each}
-
-							{#if currentPage < totalPages - 2}
-								{#if currentPage < totalPages - 3}
-									<span class="relative inline-flex items-center px-2 py-1 text-sm text-gray-700 bg-white border border-gray-300">
-										...
-									</span>
-								{/if}
-								<button
-									onclick={() => changePage(totalPages)}
-									class="relative inline-flex items-center px-3 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
-								>
-									{totalPages}
-								</button>
-							{/if}
-						</div>
-
-						<!-- 다음 페이지 -->
-						<button
-							onclick={() => changePage(Math.min(totalPages, currentPage + 1))}
-							disabled={currentPage === totalPages}
-							class="relative inline-flex items-center px-1.5 py-1 text-gray-400 bg-white border border-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-							aria-label="다음 페이지"
-						>
-							<img src="/icons/chevron-right.svg" alt="Next" class="w-4 h-4" />
-						</button>
-
-						<!-- 마지막 페이지 -->
-						<button
-							onclick={() => changePage(totalPages)}
-							disabled={currentPage === totalPages}
-							class="relative inline-flex items-center px-1.5 py-1 text-gray-400 bg-white rounded-r-lg border border-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-							aria-label="마지막 페이지"
-						>
-							<img src="/icons/chevron-double-right.svg" alt="Last" class="w-4 h-4" />
-						</button>
-					</nav>
-				</div>
-			</div>
+			<Pagination
+				currentPage={currentPage}
+				totalPages={totalPages}
+				totalItems={totalMembers}
+				itemsPerPage={itemsPerPage}
+				onPageChange={changePage}
+			/>
 		{/if}
 	</div>
 
