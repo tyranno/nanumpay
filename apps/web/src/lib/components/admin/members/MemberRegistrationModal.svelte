@@ -1,5 +1,6 @@
 <script>
 	import WindowsModal from '$lib/components/WindowsModal.svelte';
+	import Autocomplete from '$lib/components/Autocomplete.svelte';
 
 	export let isOpen = false;
 	export let members = [];
@@ -46,14 +47,71 @@
 		};
 	}
 
-	function handleSubmit() {
-		// 판매인을 부모로 설정
-		if (newMember.salesperson) {
-			const parentUser = members.find(m => m.name === newMember.salesperson);
-			if (parentUser) {
-				newMember.parentId = parentUser._id;
-			}
+	// 판매인 선택 핸들러
+	function handleSalespersonSelect(user) {
+		newMember.salesperson = user.name;
+		newMember.salespersonPhone = user.phone || '';
+		newMember.parentId = user._id;
+	}
+
+	// 설계사 선택 핸들러
+	function handlePlannerSelect(planner) {
+		newMember.planner = planner.name;
+		newMember.plannerPhone = planner.phone || '';
+	}
+
+	// 판매인 이름 변경 시 자동으로 연락처 추출
+	async function handleSalespersonNameChange(event) {
+		const name = event.target.value.trim();
+		if (!name) {
+			newMember.salespersonPhone = '';
+			newMember.parentId = '';
+			return;
 		}
+
+		try {
+			const response = await fetch(`/api/admin/users/search?q=${encodeURIComponent(name)}`);
+			const data = await response.json();
+
+			// 정확히 일치하는 이름 찾기
+			const exactMatch = data.users?.find(u => u.name === name);
+			if (exactMatch) {
+				newMember.salespersonPhone = exactMatch.phone || '';
+				newMember.parentId = exactMatch._id;
+			}
+		} catch (error) {
+			console.error('Failed to fetch salesperson data:', error);
+		}
+	}
+
+	// 설계사 이름 변경 시 자동으로 연락처 추출
+	async function handlePlannerNameChange(event) {
+		const name = event.target.value.trim();
+		if (!name) {
+			newMember.plannerPhone = '';
+			return;
+		}
+
+		try {
+			const response = await fetch(`/api/planners/search?q=${encodeURIComponent(name)}`);
+			const data = await response.json();
+
+			// 정확히 일치하는 이름 찾기
+			const exactMatch = data.planners?.find(p => p.name === name);
+			if (exactMatch) {
+				newMember.plannerPhone = exactMatch.phone || '';
+			}
+		} catch (error) {
+			console.error('Failed to fetch planner data:', error);
+		}
+	}
+
+	// 소속/지사 선택 핸들러
+	function handleBranchSelect(branch) {
+		newMember.branch = branch.name;
+	}
+
+	function handleSubmit() {
 		onSubmit(newMember);
 	}
 </script>
@@ -150,47 +208,66 @@
 			<h4 class="text-sm font-semibold text-gray-900 border-b pb-1">판매/설계 정보</h4>
 			<div class="grid grid-cols-2 gap-2">
 				<div>
-					<label class="block text-xs font-medium text-gray-700">판매인</label>
-					<input
-						type="text"
+					<label class="block text-xs font-medium text-gray-700 mb-1">
+						판매인 <span class="text-red-500">*</span>
+					</label>
+					<Autocomplete
 						bind:value={newMember.salesperson}
-						class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
+						placeholder="판매인 이름 검색..."
+						apiUrl="/api/admin/users/search"
+						displayKey="name"
+						subtextKey="phone"
+						onSelect={handleSalespersonSelect}
+						onInputChange={handleSalespersonNameChange}
+						required
 					/>
 					<p class="text-xs text-gray-500 mt-0.5">※ 계층도 부모</p>
 				</div>
 				<div>
-					<label class="block text-xs font-medium text-gray-700">판매인 연락처</label>
+					<label class="block text-xs font-medium text-gray-700 mb-1">판매인 연락처</label>
 					<input
 						type="text"
 						bind:value={newMember.salespersonPhone}
 						class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
+						readonly
 					/>
 				</div>
 			</div>
 			<div class="grid grid-cols-2 gap-2">
 				<div>
-					<label class="block text-xs font-medium text-gray-700">설계사</label>
-					<input
-						type="text"
+					<label class="block text-xs font-medium text-gray-700 mb-1">
+						설계사 <span class="text-red-500">*</span>
+					</label>
+					<Autocomplete
 						bind:value={newMember.planner}
-						class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
+						placeholder="설계사 이름 검색..."
+						apiUrl="/api/planners/search"
+						displayKey="name"
+						subtextKey="phone"
+						onSelect={handlePlannerSelect}
+						onInputChange={handlePlannerNameChange}
+						required
 					/>
 				</div>
 				<div>
-					<label class="block text-xs font-medium text-gray-700">설계사 연락처</label>
+					<label class="block text-xs font-medium text-gray-700 mb-1">설계사 연락처</label>
 					<input
 						type="text"
 						bind:value={newMember.plannerPhone}
 						class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
+						readonly
 					/>
 				</div>
 			</div>
 			<div>
-				<label class="block text-xs font-medium text-gray-700">소속/지사</label>
-				<input
-					type="text"
+				<Autocomplete
+					label="소속/지사"
 					bind:value={newMember.branch}
-					class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
+					placeholder="소속/지사 검색..."
+					apiUrl="/api/branches/search"
+					displayKey="name"
+					onSelect={handleBranchSelect}
+					inputClass="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
 				/>
 			</div>
 		</div>

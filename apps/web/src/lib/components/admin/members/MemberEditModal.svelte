@@ -1,10 +1,75 @@
 <script>
 	import WindowsModal from '$lib/components/WindowsModal.svelte';
+	import Autocomplete from '$lib/components/Autocomplete.svelte';
 
 	export let isOpen = false;
 	export let member = null;
 	export let onClose = () => {};
 	export let onSubmit = (memberData) => {};
+
+	// 판매인 선택 핸들러
+	function handleSalespersonSelect(user) {
+		member.salesperson = user.name;
+		member.salespersonPhone = user.phone || '';
+		member.parentId = user._id;
+	}
+
+	// 설계사 선택 핸들러
+	function handlePlannerSelect(planner) {
+		member.planner = planner.name;
+		member.plannerPhone = planner.phone || '';
+	}
+
+	// 판매인 이름 변경 시 자동으로 연락처 추출
+	async function handleSalespersonNameChange(event) {
+		const name = event.target.value.trim();
+		if (!name) {
+			member.salespersonPhone = '';
+			member.parentId = '';
+			return;
+		}
+
+		try {
+			const response = await fetch(`/api/admin/users/search?q=${encodeURIComponent(name)}`);
+			const data = await response.json();
+
+			// 정확히 일치하는 이름 찾기
+			const exactMatch = data.users?.find(u => u.name === name);
+			if (exactMatch) {
+				member.salespersonPhone = exactMatch.phone || '';
+				member.parentId = exactMatch._id;
+			}
+		} catch (error) {
+			console.error('Failed to fetch salesperson data:', error);
+		}
+	}
+
+	// 설계사 이름 변경 시 자동으로 연락처 추출
+	async function handlePlannerNameChange(event) {
+		const name = event.target.value.trim();
+		if (!name) {
+			member.plannerPhone = '';
+			return;
+		}
+
+		try {
+			const response = await fetch(`/api/planners/search?q=${encodeURIComponent(name)}`);
+			const data = await response.json();
+
+			// 정확히 일치하는 이름 찾기
+			const exactMatch = data.planners?.find(p => p.name === name);
+			if (exactMatch) {
+				member.plannerPhone = exactMatch.phone || '';
+			}
+		} catch (error) {
+			console.error('Failed to fetch planner data:', error);
+		}
+	}
+
+	// 소속/지사 선택 핸들러
+	function handleBranchSelect(branch) {
+		member.branch = branch.name;
+	}
 </script>
 
 <WindowsModal
@@ -88,11 +153,15 @@
 
 				<div class="grid grid-cols-2 gap-4">
 					<div>
-						<label class="block text-sm font-medium text-gray-700 mb-1">판매인</label>
-						<input
-							type="text"
+						<Autocomplete
+							label="판매인"
 							bind:value={member.salesperson}
-							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+							placeholder="판매인 이름 검색..."
+							apiUrl="/api/admin/users/search"
+							displayKey="name"
+							subtextKey="phone"
+							onSelect={handleSalespersonSelect}
+							onInputChange={handleSalespersonNameChange}
 						/>
 					</div>
 					<div>
@@ -101,17 +170,22 @@
 							type="text"
 							bind:value={member.salespersonPhone}
 							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+							readonly
 						/>
 					</div>
 				</div>
 
 				<div class="grid grid-cols-2 gap-4">
 					<div>
-						<label class="block text-sm font-medium text-gray-700 mb-1">설계사</label>
-						<input
-							type="text"
+						<Autocomplete
+							label="설계사"
 							bind:value={member.planner}
-							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+							placeholder="설계사 이름 검색..."
+							apiUrl="/api/planners/search"
+							displayKey="name"
+							subtextKey="phone"
+							onSelect={handlePlannerSelect}
+							onInputChange={handlePlannerNameChange}
 						/>
 					</div>
 					<div>
@@ -120,16 +194,19 @@
 							type="text"
 							bind:value={member.plannerPhone}
 							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+							readonly
 						/>
 					</div>
 				</div>
 
 				<div>
-					<label class="block text-sm font-medium text-gray-700 mb-1">소속/지사</label>
-					<input
-						type="text"
+					<Autocomplete
+						label="소속/지사"
 						bind:value={member.branch}
-						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+						placeholder="소속/지사 검색..."
+						apiUrl="/api/branches/search"
+						displayKey="name"
+						onSelect={handleBranchSelect}
 					/>
 				</div>
 			</div>
