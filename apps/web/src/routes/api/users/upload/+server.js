@@ -145,8 +145,17 @@ async function createUserFromExcel(data) {
 	let position = null;
 	let level = 1;
 
-	if (data.seller) {
-		// 판매인 찾기
+	// 판매인 검증
+	if (!data.seller || data.seller === '-') {
+		// 루트 용역자로 등록 시도
+		// 이미 루트가 있는지 확인
+		const existingRoot = await User.findOne({ parentId: null });
+		if (existingRoot) {
+			throw new Error(`루트 용역자는 1명만 존재할 수 있습니다. 기존 루트: ${existingRoot.name} (${existingRoot.loginId})`);
+		}
+		// 판매인 없음 - 루트로 등록 (parentId = null, level = 1)
+	} else {
+		// 판매인이 있는 경우 - 기존 용역자 중에 있어야 함
 		const parent = await User.findOne({
 			$or: [
 				{ name: data.seller },
@@ -154,31 +163,33 @@ async function createUserFromExcel(data) {
 			]
 		});
 
-		if (parent) {
-			parentId = parent._id;
-			level = parent.level + 1;
+		if (!parent) {
+			throw new Error(`판매인 '${data.seller}'은(는) 등록된 용역자가 아닙니다. 먼저 판매인을 등록해주세요.`);
+		}
 
-			// 빈 위치 찾기
-			const leftChild = await User.findOne({ parentId: parent._id, position: 'L' });
-			const rightChild = await User.findOne({ parentId: parent._id, position: 'R' });
+		parentId = parent._id;
+		level = parent.level + 1;
 
-			if (!leftChild) {
-				position = 'L';
-				parent.leftChildId = null; // 새 사용자가 저장된 후 업데이트됨
-			} else if (!rightChild) {
-				position = 'R';
-				parent.rightChildId = null; // 새 사용자가 저장된 후 업데이트됨
+		// 빈 위치 찾기
+		const leftChild = await User.findOne({ parentId: parent._id, position: 'L' });
+		const rightChild = await User.findOne({ parentId: parent._id, position: 'R' });
+
+		if (!leftChild) {
+			position = 'L';
+			parent.leftChildId = null; // 새 사용자가 저장된 후 업데이트됨
+		} else if (!rightChild) {
+			position = 'R';
+			parent.rightChildId = null; // 새 사용자가 저장된 후 업데이트됨
+		} else {
+			// 자리가 없으면 자동으로 하위 노드 중 빈 자리 찾기
+			const emptySpot = await findEmptyPosition(parent._id);
+			if (emptySpot) {
+				parentId = emptySpot.parentId;
+				position = emptySpot.position;
+				const spotParent = await User.findById(parentId);
+				level = spotParent.level + 1;
 			} else {
-				// 자리가 없으면 자동으로 하위 노드 중 빈 자리 찾기
-				const emptySpot = await findEmptyPosition(parent._id);
-				if (emptySpot) {
-					parentId = emptySpot.parentId;
-					position = emptySpot.position;
-					const spotParent = await User.findById(parentId);
-					level = spotParent.level + 1;
-				} else {
-					throw new Error(`${data.seller}의 조직에 빈 자리가 없습니다.`);
-				}
+				throw new Error(`${data.seller}의 조직에 빈 자리가 없습니다.`);
 			}
 		}
 	}

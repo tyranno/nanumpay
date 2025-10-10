@@ -19,11 +19,10 @@ export async function GET({ url, locals }) {
 		const sortBy = url.searchParams.get('sortBy') || 'sequence';
 		const sortOrder = url.searchParams.get('sortOrder') || 'asc';
 
-		// 검색 조건 구성 (용역자만)
-		let query = { type: 'user' }; // Admin 제외, 용역자만
+		// 검색 조건 구성
+		let query = {}; // users 컬렉션은 모두 용역자 (관리자는 별도 admins 컬렉션)
 		if (search) {
 			query = {
-				type: 'user', // Admin 제외
 				$or: [
 					{ name: { $regex: search, $options: 'i' } },
 					{ loginId: { $regex: search, $options: 'i' } },

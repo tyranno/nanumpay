@@ -138,8 +138,17 @@ async function createUser(data) {
 	let parentId = null;
 	let position = null;
 
-	if (data.seller) {
-		// 판매인이 지정된 경우
+	// 판매인 검증
+	if (!data.seller || data.seller === '-') {
+		// 루트 용역자로 등록 시도
+		// 이미 루트가 있는지 확인
+		const existingRoot = await User.findOne({ parentId: null });
+		if (existingRoot) {
+			throw new Error(`루트 용역자는 1명만 존재할 수 있습니다. 기존 루트: ${existingRoot.name} (${existingRoot.loginId})`);
+		}
+		// 판매인 없음 - 루트로 등록 (parentId = null)
+	} else {
+		// 판매인이 있는 경우 - 기존 용역자 중에 있어야 함
 		const parent = await User.findOne({
 			$or: [
 				{ name: data.seller },
@@ -147,27 +156,22 @@ async function createUser(data) {
 			]
 		});
 
-		if (parent) {
-			parentId = parent._id;
+		if (!parent) {
+			throw new Error(`판매인 '${data.seller}'은(는) 등록된 용역자가 아닙니다. 먼저 판매인을 등록해주세요.`);
+		}
 
-			// 빈 위치 찾기
-			const leftChild = await User.findOne({ parentId: parent._id, position: 'L' });
-			const rightChild = await User.findOne({ parentId: parent._id, position: 'R' });
+		parentId = parent._id;
 
-			if (!leftChild) {
-				position = 'L';
-			} else if (!rightChild) {
-				position = 'R';
-			} else {
-				throw new Error(`${data.seller}님은 이미 2명의 하위 회원이 있습니다.`);
-			}
+		// 빈 위치 찾기
+		const leftChild = await User.findOne({ parentId: parent._id, position: 'L' });
+		const rightChild = await User.findOne({ parentId: parent._id, position: 'R' });
 
-			// 부모 노드 업데이트
-			if (position === 'L') {
-				parent.leftChildId = parent._id;
-			} else {
-				parent.rightChildId = parent._id;
-			}
+		if (!leftChild) {
+			position = 'L';
+		} else if (!rightChild) {
+			position = 'R';
+		} else {
+			throw new Error(`${data.seller}님은 이미 2명의 하위 회원이 있습니다.`);
 		}
 	}
 
