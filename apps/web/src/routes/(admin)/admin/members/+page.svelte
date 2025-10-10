@@ -1,9 +1,13 @@
 <script>
 	import { onMount } from 'svelte';
 	import * as XLSX from 'xlsx';
-	import GradeBadge from '$lib/components/GradeBadge.svelte';
 	import NotificationModal from '$lib/components/NotificationModal.svelte';
 	import Pagination from '$lib/components/Pagination.svelte';
+	import MemberTable from '$lib/components/admin/members/MemberTable.svelte';
+	import MemberRegistrationModal from '$lib/components/admin/members/MemberRegistrationModal.svelte';
+	import MemberEditModal from '$lib/components/admin/members/MemberEditModal.svelte';
+	import ExcelUploadModal from '$lib/components/admin/members/ExcelUploadModal.svelte';
+	import ColumnSettingsModal from '$lib/components/admin/members/ColumnSettingsModal.svelte';
 
 	let members = [];
 	let isLoading = true;
@@ -15,7 +19,7 @@
 	let sortBy = 'sequence';
 	let sortOrder = 'asc';
 
-	// 콜럼 표시/숨김 설정
+	// 컬럼 표시/숨김 설정
 	let visibleColumns = {
 		date: true,
 		name: true,
@@ -26,11 +30,11 @@
 		accountNumber: false,
 		salesperson: true,
 		planner: true,
-		plannerPhone: false,  // 설계사 연락처 기본 숨김
+		plannerPhone: false,
 		insuranceProduct: false,
-		insuranceCompany: false  // 보험회사도 추가
+		insuranceCompany: false
 	};
-	let tempVisibleColumns = { ...visibleColumns }; // 임시 컬럼 설정
+	let tempVisibleColumns = { ...visibleColumns };
 	let showColumnSettings = false;
 
 	// 모달 상태
@@ -39,7 +43,10 @@
 	let showEditModal = false;
 	let uploadFile = null;
 	let editingMember = null;
-	let isUploading = false; // 업로드 진행 상태
+	let isUploading = false;
+
+	// 회원 등록 모달 참조
+	let registrationModal;
 
 	// 알림 상태
 	let notificationOpen = false;
@@ -49,26 +56,6 @@
 		message: '',
 		results: null,
 		details: []
-	};
-
-	// 새 회원 폼
-	let newMember = {
-		name: '',
-		loginId: '',
-		phone: '',
-		idNumber: '',
-		bank: '',
-		accountNumber: '',
-		branch: '',
-		parentId: '',
-		position: 'L',
-		salesperson: '',
-		salespersonPhone: '',
-		planner: '',
-		plannerPhone: '',
-		insuranceProduct: '',
-		insuranceCompany: '',
-		registrationDate: new Date().toISOString().split('T')[0]  // 기본값: 오늘 날짜
 	};
 
 	onMount(async () => {
@@ -142,8 +129,8 @@
 	}
 
 	// 새 회원 추가
-	async function handleAddMember() {
-		if (!newMember.name || !newMember.phone) {
+	async function handleAddMember(memberData) {
+		if (!memberData.name || !memberData.phone) {
 			notificationConfig = {
 				type: 'warning',
 				title: '입력 오류',
@@ -156,7 +143,7 @@
 		}
 
 		// 전화번호 뒤 4자리를 암호로 사용
-		const phoneDigits = newMember.phone.replace(/[^0-9]/g, '');
+		const phoneDigits = memberData.phone.replace(/[^0-9]/g, '');
 		if (phoneDigits.length < 4) {
 			notificationConfig = {
 				type: 'warning',
@@ -170,19 +157,9 @@
 		}
 		const autoPassword = phoneDigits.slice(-4);
 
-		// 판매인을 부모로 설정
-		if (newMember.salesperson) {
-			// 판매인 이름으로 부모 찾기
-			const parentUser = members.find(m => m.name === newMember.salesperson);
-			if (parentUser) {
-				newMember.parentId = parentUser._id;
-			}
-		}
-
 		try {
-			// loginId는 서버에서 자동 생성
 			const requestData = {
-				...newMember,
+				...memberData,
 				autoPassword: autoPassword
 			};
 			delete requestData.loginId; // loginId는 서버에서 생성
@@ -206,7 +183,7 @@
 				};
 				notificationOpen = true;
 				showAddModal = false;
-				resetNewMember();
+				registrationModal?.resetForm();
 				await loadMembers();
 			} else {
 				notificationConfig = {
@@ -232,7 +209,7 @@
 	}
 
 	// 회원 수정
-	async function handleEditMember() {
+	async function handleEditMember(memberData) {
 		try {
 			const response = await fetch('/api/admin/users', {
 				method: 'PUT',
@@ -240,8 +217,8 @@
 					'Content-Type': 'application/json'
 				},
 				body: JSON.stringify({
-					userId: editingMember._id,
-					...editingMember
+					userId: memberData._id,
+					...memberData
 				})
 			});
 
@@ -350,7 +327,7 @@
 			return;
 		}
 
-		isUploading = true; // 업로드 시작
+		isUploading = true;
 
 		const reader = new FileReader();
 		reader.onload = async (e) => {
@@ -370,7 +347,6 @@
 
 				const result = await response.json();
 				if (response.ok) {
-					// 성공 알림 표시
 					notificationConfig = {
 						type: result.failed > 0 ? 'warning' : 'success',
 						title: '엑셀 업로드 완료',
@@ -388,7 +364,6 @@
 					uploadFile = null;
 					await loadMembers();
 				} else {
-					// 오류 알림 표시
 					notificationConfig = {
 						type: 'error',
 						title: '업로드 실패',
@@ -413,36 +388,39 @@
 				};
 				notificationOpen = true;
 			} finally {
-				isUploading = false; // 업로드 종료
+				isUploading = false;
 			}
 		};
 		reader.readAsArrayBuffer(uploadFile);
 	}
 
-	function resetNewMember() {
-		newMember = {
-			name: '',
-			loginId: '',
-			phone: '',
-			idNumber: '',
-			bank: '',
-			accountNumber: '',
-			branch: '',
-			parentId: '',
-			position: 'L',
-			salesperson: '',
-			salespersonPhone: '',
-			planner: '',
-			plannerPhone: '',
-			insuranceProduct: '',
-			insuranceCompany: '',
-			registrationDate: new Date().toISOString().split('T')[0]  // 리셋 시 오늘 날짜로 초기화
-		};
-	}
-
 	function openEditModal(member) {
 		editingMember = { ...member };
 		showEditModal = true;
+	}
+
+	// 컬럼 설정 관련 함수
+	function handleShowAllColumns() {
+		tempVisibleColumns = {
+			date: true,
+			name: true,
+			phone: true,
+			idNumber: true,
+			branch: true,
+			bank: true,
+			accountNumber: true,
+			salesperson: true,
+			planner: true,
+			plannerPhone: true,
+			insuranceProduct: true,
+			insuranceCompany: true
+		};
+	}
+
+	function handleApplyColumnSettings() {
+		visibleColumns = { ...tempVisibleColumns };
+		localStorage.setItem('tableColumns', JSON.stringify(visibleColumns));
+		showColumnSettings = false;
 	}
 </script>
 
@@ -513,820 +491,65 @@
 	</div>
 
 	<!-- 테이블 -->
-	<div class="bg-white rounded-lg shadow overflow-hidden">
-		<!-- 모바일에서 가로 스크롤 가능 -->
-		<div class="overflow-x-auto">
-			<table class="divide-y divide-gray-200" style="min-width: 1000px;">
-				<thead class="bg-gray-50">
-					<tr>
-						<th class="sticky left-0 z-20 bg-gray-50 px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style="width: 50px; min-width: 50px; max-width: 50px;">
-							순번
-						</th>
-						{#if visibleColumns.name}
-							<th onclick={() => changeSort('name')} class="sticky left-[50px] z-20 bg-gray-50 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 whitespace-nowrap" style="width: 90px; min-width: 90px;">
-								성명 {#if sortBy === 'name'}{sortOrder === 'asc' ? '↑' : '↓'}{/if}
-							</th>
-						{/if}
-						{#if visibleColumns.date}
-							<th onclick={() => changeSort('createdAt')} class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 whitespace-nowrap" style="min-width: 100px;">
-								등록일 {#if sortBy === 'createdAt'}{sortOrder === 'asc' ? '↑' : '↓'}{/if}
-							</th>
-						{/if}
-						{#if visibleColumns.phone}
-							<th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style="min-width: 120px;">
-								연락처
-							</th>
-						{/if}
-						{#if visibleColumns.salesperson}
-							<th onclick={() => changeSort('salesperson')} class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 whitespace-nowrap" style="min-width: 80px;">
-								판매인 {#if sortBy === 'salesperson'}{sortOrder === 'asc' ? '↑' : '↓'}{/if}
-							</th>
-						{/if}
-						{#if visibleColumns.planner}
-							<th onclick={() => changeSort('planner')} class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 whitespace-nowrap" style="min-width: 80px;">
-								설계사 {#if sortBy === 'planner'}{sortOrder === 'asc' ? '↑' : '↓'}{/if}
-							</th>
-						{/if}
-						{#if visibleColumns.branch}
-							<th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style="min-width: 80px;">
-								지사
-							</th>
-						{/if}
-						{#if visibleColumns.idNumber}
-							<th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style="min-width: 140px;">
-								주민번호
-							</th>
-						{/if}
-						{#if visibleColumns.bank}
-							<th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style="min-width: 80px;">
-								은행
-							</th>
-						{/if}
-						{#if visibleColumns.accountNumber}
-							<th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style="min-width: 140px;">
-								계좌번호
-							</th>
-						{/if}
-						{#if visibleColumns.plannerPhone}
-							<th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style="min-width: 110px;">
-								설계사 연락처
-							</th>
-						{/if}
-						{#if visibleColumns.insuranceProduct}
-							<th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style="min-width: 120px;">
-								보험상품
-							</th>
-						{/if}
-						{#if visibleColumns.insuranceCompany}
-							<th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style="min-width: 80px;">
-								보험회사
-							</th>
-						{/if}
-						<th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style="min-width: 60px; width: 60px;">
-							작업
-						</th>
-					</tr>
-				</thead>
-				<tbody class="bg-white divide-y divide-gray-200">
-					{#if isLoading}
-						<tr>
-							<td colspan="12" class="text-center py-8 text-gray-500">
-								로딩 중...
-							</td>
-						</tr>
-					{:else if members.length === 0}
-						<tr>
-							<td colspan="12" class="text-left px-3 py-8 text-gray-500">
-								등록된 용역자가 없습니다.
-							</td>
-						</tr>
-					{:else}
-						{#each members as member, index}
-							<tr class="group hover:bg-gray-50">
-								<td class="sticky left-0 z-10 bg-white group-hover:bg-gray-50 px-2 py-2 text-sm text-gray-700 text-center whitespace-nowrap" style="width: 50px; min-width: 50px; max-width: 50px;">
-									{(currentPage - 1) * itemsPerPage + index + 1}
-								</td>
-								{#if visibleColumns.name}
-								<td class="sticky left-[50px] z-10 bg-white group-hover:bg-gray-50 px-3 py-2 text-sm font-medium text-gray-900 whitespace-nowrap" style="width: 90px; min-width: 90px;">
-									<div class="relative inline-flex items-baseline">
-											{member.name}
-											{#if member.grade}
-												<img src="/icons/{member.grade}.svg" alt="{member.grade}" class="w-4 h-4 absolute -top-1 -right-4" title="{member.grade} 등급" />
-											{/if}
-										</div>
-								</td>
-							{/if}
-								{#if visibleColumns.date}
-									<td class="px-3 py-2 text-sm text-gray-700 whitespace-nowrap">
-										{member.createdAt ? new Date(member.createdAt).toLocaleDateString('ko-KR') : '-'}
-									</td>
-								{/if}
-								{#if visibleColumns.phone}
-									<td class="px-3 py-2 text-sm text-gray-700 whitespace-nowrap">
-										{member.phone || '-'}
-									</td>
-								{/if}
-								{#if visibleColumns.salesperson}
-									<td class="px-3 py-2 text-sm text-gray-700 whitespace-nowrap">
-										{member.salesperson || '-'}
-									</td>
-								{/if}
-								{#if visibleColumns.planner}
-									<td class="px-3 py-2 text-sm text-gray-700 whitespace-nowrap">
-										{member.planner || '-'}
-									</td>
-								{/if}
-								{#if visibleColumns.branch}
-									<td class="px-3 py-2 text-sm text-gray-700 whitespace-nowrap">
-										{member.branch || '-'}
-									</td>
-								{/if}
-								{#if visibleColumns.idNumber}
-									<td class="px-3 py-2 text-sm text-gray-700 whitespace-nowrap">
-										{member.idNumber || '-'}
-									</td>
-								{/if}
-								{#if visibleColumns.bank}
-									<td class="px-3 py-2 text-sm text-gray-700 whitespace-nowrap">
-										{member.bank || '-'}
-									</td>
-								{/if}
-								{#if visibleColumns.accountNumber}
-									<td class="px-3 py-2 text-sm text-gray-700 whitespace-nowrap">
-										{member.accountNumber || '-'}
-									</td>
-								{/if}
-								{#if visibleColumns.plannerPhone}
-									<td class="px-3 py-2 text-sm text-gray-700 whitespace-nowrap">
-										{member.plannerPhone || '-'}
-									</td>
-								{/if}
-								{#if visibleColumns.insuranceProduct}
-									<td class="px-3 py-2 text-sm text-gray-700 whitespace-nowrap">
-										{member.insuranceProduct || '-'}
-									</td>
-								{/if}
-								{#if visibleColumns.insuranceCompany}
-									<td class="px-3 py-2 text-sm text-gray-700 whitespace-nowrap">
-										{member.insuranceCompany || '-'}
-									</td>
-								{/if}
-								<td class="px-1 py-2 whitespace-nowrap">
-									<div class="flex gap-0.5">
-										<button
-											onclick={() => openEditModal(member)}
-											class="p-0.5 hover:bg-blue-50 rounded transition-colors"
-											title="수정"
-										>
-											<img src="/icons/edit-blue.svg" alt="Edit" class="w-4 h-4" />
-										</button>
-										<button
-											onclick={() => deleteMember(member)}
-											class="p-0.5 hover:bg-red-50 rounded transition-colors"
-											title="삭제"
-										>
-											<img src="/icons/trash-red.svg" alt="Delete" class="w-4 h-4" />
-										</button>
-									</div>
-								</td>
-							</tr>
-						{/each}
-					{/if}
-				</tbody>
-			</table>
-		</div>
+	<MemberTable
+		{members}
+		{isLoading}
+		{currentPage}
+		{itemsPerPage}
+		{sortBy}
+		{sortOrder}
+		{visibleColumns}
+		onSort={changeSort}
+		onEdit={openEditModal}
+		onDelete={deleteMember}
+	/>
 
-		<!-- 페이지네이션 -->
-		{#if totalPages > 0}
-			<Pagination
-				currentPage={currentPage}
-				totalPages={totalPages}
-				totalItems={totalMembers}
-				itemsPerPage={itemsPerPage}
-				onPageChange={changePage}
-			/>
-		{/if}
-	</div>
+	<!-- 페이지네이션 -->
+	{#if totalPages > 0}
+		<Pagination
+			{currentPage}
+			{totalPages}
+			totalItems={totalMembers}
+			{itemsPerPage}
+			onPageChange={changePage}
+		/>
+	{/if}
 
 	<!-- 용역자 등록 모달 -->
-	{#if showAddModal}
-		<div class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-			<div class="bg-white rounded-lg p-4 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
-				<h3 class="text-lg font-bold text-gray-900 mb-4 text-center">용역자 등록</h3>
-
-				<div class="grid grid-cols-2 gap-4">
-					<!-- 왼쪽: 사용자 기본 정보 -->
-					<div class="space-y-3">
-						<h4 class="text-sm font-semibold text-gray-900 border-b pb-1">기본 정보</h4>
-						<div>
-							<label class="block text-xs font-medium text-gray-700">성명 *</label>
-							<input
-								type="text"
-								bind:value={newMember.name}
-								class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
-							/>
-							<p class="text-xs text-gray-500 mt-0.5">※ ID 자동 생성</p>
-						</div>
-						<div>
-							<label class="block text-xs font-medium text-gray-700">연락처 *</label>
-							<input
-								type="text"
-								bind:value={newMember.phone}
-								class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
-								placeholder="010-1234-5678"
-							/>
-							<p class="text-xs text-gray-500 mt-0.5">※ 뒤 4자리가 초기 암호</p>
-						</div>
-						<div class="grid grid-cols-2 gap-2">
-							<div>
-								<label class="block text-xs font-medium text-gray-700">주민번호</label>
-								<input
-									type="text"
-									bind:value={newMember.idNumber}
-									class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
-									placeholder="000000-0000000"
-								/>
-							</div>
-							<div>
-								<label class="block text-xs font-medium text-gray-700">등록날짜</label>
-								<input
-									type="date"
-									bind:value={newMember.registrationDate}
-									class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
-								/>
-							</div>
-						</div>
-						<div class="grid grid-cols-2 gap-2">
-							<div>
-								<label class="block text-xs font-medium text-gray-700">은행</label>
-								<input
-									type="text"
-									bind:value={newMember.bank}
-									class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
-								/>
-							</div>
-							<div>
-								<label class="block text-xs font-medium text-gray-700">계좌번호</label>
-								<input
-									type="text"
-									bind:value={newMember.accountNumber}
-									class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
-								/>
-							</div>
-						</div>
-						<div class="grid grid-cols-2 gap-2">
-							<div>
-								<label class="block text-xs font-medium text-gray-700">보험상품</label>
-								<input
-									type="text"
-									bind:value={newMember.insuranceProduct}
-									class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
-								/>
-							</div>
-							<div>
-								<label class="block text-xs font-medium text-gray-700">보험회사</label>
-								<input
-									type="text"
-									bind:value={newMember.insuranceCompany}
-									class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
-								/>
-							</div>
-						</div>
-					</div>
-
-					<!-- 오른쪽: 판매인/설계사 정보 -->
-					<div class="space-y-3">
-						<h4 class="text-sm font-semibold text-gray-900 border-b pb-1">판매/설계 정보</h4>
-						<div>
-							<label class="block text-xs font-medium text-gray-700">소속/지사</label>
-							<input
-								type="text"
-								bind:value={newMember.branch}
-								class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
-							/>
-						</div>
-						<div>
-							<label class="block text-xs font-medium text-gray-700">판매인</label>
-							<input
-								type="text"
-								bind:value={newMember.salesperson}
-								class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
-							/>
-							<p class="text-xs text-gray-500 mt-0.5">※ 계층도 부모</p>
-						</div>
-						<div class="grid grid-cols-2 gap-2">
-							<div>
-								<label class="block text-xs font-medium text-gray-700">판매인 연락처</label>
-								<input
-									type="text"
-									bind:value={newMember.salespersonPhone}
-									class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
-								/>
-							</div>
-							<div>
-								<label class="block text-xs font-medium text-gray-700">설계사</label>
-								<input
-									type="text"
-									bind:value={newMember.planner}
-									class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
-								/>
-							</div>
-						</div>
-						<div>
-							<label class="block text-xs font-medium text-gray-700">설계사 연락처</label>
-							<input
-								type="text"
-								bind:value={newMember.plannerPhone}
-								class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
-							/>
-						</div>
-					</div>
-				</div>
-
-				<div class="flex justify-end gap-2 mt-4 pt-3 border-t">
-					<button
-						onclick={() => showAddModal = false}
-						class="px-3 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50"
-					>
-						취소
-					</button>
-					<button
-						onclick={handleAddMember}
-						class="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
-					>
-						등록
-					</button>
-				</div>
-			</div>
-		</div>
-	{/if}
-
-	<!-- 엑셀 업로드 모달 -->
-	{#if showUploadModal}
-		<div class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-			<div class="bg-white rounded-lg shadow-xl w-full max-w-md border border-gray-200 relative">
-				<!-- Windows 스타일 타이틀바 -->
-				<div class="bg-gradient-to-r from-green-500 to-green-600 px-3 py-1.5 flex items-center justify-between select-none rounded-t-lg">
-					<div class="flex items-center gap-2">
-						<img src="/icons/excel.svg" alt="Excel" class="w-4 h-4 filter brightness-0 invert" />
-						<h3 class="text-sm font-medium text-white">엑셀 파일 업로드</h3>
-					</div>
-					<button
-						onclick={() => { showUploadModal = false; uploadFile = null; }}
-						disabled={isUploading}
-						class="w-7 h-7 flex items-center justify-center hover:bg-white/20 rounded transition-colors disabled:opacity-50"
-						title="닫기"
-					>
-						<img src="/icons/close-white.svg" alt="Close" class="w-3.5 h-3.5" />
-					</button>
-				</div>
-
-				<!-- 컨텐츠 -->
-				<div class="p-4">
-					<!-- 파일 형식 안내 -->
-					<div class="bg-blue-50 border border-blue-200 rounded p-3 mb-4">
-						<div class="flex items-start gap-2">
-							<div class="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-								<span class="text-white text-xs font-bold">i</span>
-							</div>
-							<div class="flex-1">
-								<p class="text-sm font-semibold text-gray-700 mb-1">파일 형식 안내</p>
-								<p class="text-xs text-gray-600">필수: 성명, 연락처, 지사, 은행, 계좌번호</p>
-							</div>
-						</div>
-					</div>
-
-					<!-- 파일 선택 -->
-					<div class="mb-4">
-						<input
-							type="file"
-							accept=".xlsx"
-							onchange={handleFileSelect}
-							id="excel-upload"
-							class="hidden"
-						/>
-						<label
-							for="excel-upload"
-							class="block w-full px-4 py-3 bg-white border-2 border-dashed border-gray-300 rounded cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all"
-						>
-							<div class="flex items-center justify-center gap-2">
-								<img src="/icons/upload.svg" alt="Upload" class="w-5 h-5" />
-								<span class="text-sm font-medium text-gray-600">
-									{uploadFile ? '다른 파일 선택' : '파일 선택하기'}
-								</span>
-							</div>
-						</label>
-					</div>
-
-				<!-- 선택된 파일 표시 -->
-					{#if uploadFile}
-						<div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded">
-							<div class="flex items-center gap-2">
-								<img src="/icons/check-circle-blue.svg" alt="Check" class="w-5 h-5" />
-								<div class="flex-1 min-w-0">
-									<p class="text-xs font-semibold text-blue-900">선택된 파일</p>
-									<p class="text-xs text-blue-700 truncate">{uploadFile.name}</p>
-								</div>
-								<button
-									onclick={() => uploadFile = null}
-									class="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center hover:bg-blue-200 transition-colors"
-								>
-									<img src="/icons/close-blue.svg" alt="Close" class="w-3 h-3" />
-								</button>
-							</div>
-						</div>
-					{/if}
-
-				<!-- 주의사항 -->
-					<div class="mb-4 p-3 bg-amber-50 border border-amber-200 rounded">
-						<div class="flex items-start gap-2">
-							<svg class="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-								<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
-							</svg>
-							<div class="text-xs text-amber-700">
-								<p><span class="font-semibold">주의:</span> 날짜 컬럼이 매출 발생일로 기록됩니다.</p>
-								<p class="mt-1">ID: 이름 자동생성, PW: 전화번호 뒤 4자리</p>
-							</div>
-						</div>
-					</div>
-				</div>
-
-				<!-- 푸터 버튼 -->
-				<div class="px-4 py-3 bg-gray-50 border-t border-gray-200 flex justify-end gap-2 rounded-b-lg">
-					<button
-						onclick={() => { showUploadModal = false; uploadFile = null; }}
-						disabled={isUploading}
-						class="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-					>
-						취소
-					</button>
-					<button
-						onclick={handleExcelUpload}
-						disabled={!uploadFile || isUploading}
-						class="px-3 py-1.5 text-sm font-medium text-white bg-green-600 rounded hover:bg-green-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-					>
-						<span class="flex items-center gap-2">
-							{#if isUploading}
-								<img src="/icons/spinner-white.svg" alt="Loading" class="animate-spin h-4 w-4" />
-								처리 중...
-							{:else}
-								<img src="/icons/upload-white.svg" alt="Upload" class="w-4 h-4" />
-								업로드
-							{/if}
-						</span>
-					</button>
-				</div>
-
-				<!-- 로딩 오버레이 -->
-				{#if isUploading}
-					<div class="absolute inset-0 bg-white bg-opacity-95 rounded-lg flex flex-col items-center justify-center z-10">
-						<div class="text-center">
-							<img src="/icons/spinner-blue.svg" alt="Loading" class="animate-spin h-12 w-12 mx-auto mb-3" />
-							<p class="text-base font-semibold text-gray-700">업로드 처리 중...</p>
-							<p class="text-sm text-gray-500 mt-1">잠시만 기다려주세요.</p>
-						</div>
-					</div>
-				{/if}
-			</div>
-		</div>
-	{/if}
+	<MemberRegistrationModal
+		bind:this={registrationModal}
+		isOpen={showAddModal}
+		{members}
+		onClose={() => showAddModal = false}
+		onSubmit={handleAddMember}
+	/>
 
 	<!-- 회원 수정 모달 -->
-	{#if showEditModal && editingMember}
-		<div class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-			<div class="bg-white rounded-lg p-6 w-full max-w-3xl max-h-[85vh] overflow-y-auto">
-				<h3 class="text-lg font-medium text-gray-900 mb-6">회원 정보 수정</h3>
+	<MemberEditModal
+		isOpen={showEditModal}
+		member={editingMember}
+		onClose={() => showEditModal = false}
+		onSubmit={handleEditMember}
+	/>
 
-				<div class="grid grid-cols-2 gap-6">
-					<!-- 왼쪽: 사용자 기본 정보 -->
-					<div class="space-y-4">
-						<h4 class="text-sm font-semibold text-gray-900 border-b pb-2">기본 정보</h4>
-
-						<div>
-							<label class="block text-sm font-medium text-gray-700 mb-1">성명</label>
-							<input
-								type="text"
-								bind:value={editingMember.name}
-								class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-							/>
-						</div>
-
-						<div>
-							<label class="block text-sm font-medium text-gray-700 mb-1">연락처</label>
-							<input
-								type="text"
-								bind:value={editingMember.phone}
-								class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-							/>
-						</div>
-
-						<div>
-							<label class="block text-sm font-medium text-gray-700 mb-1">주민번호</label>
-							<input
-								type="text"
-								bind:value={editingMember.idNumber}
-								class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-							/>
-						</div>
-
-						<div>
-							<label class="block text-sm font-medium text-gray-700 mb-1">은행</label>
-							<input
-								type="text"
-								bind:value={editingMember.bank}
-								class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-							/>
-						</div>
-
-						<div>
-							<label class="block text-sm font-medium text-gray-700 mb-1">계좌번호</label>
-							<input
-								type="text"
-								bind:value={editingMember.accountNumber}
-								class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-							/>
-						</div>
-						<div>
-							<label class="block text-sm font-medium text-gray-700 mb-1">보험상품명</label>
-							<input
-								type="text"
-								bind:value={editingMember.insuranceProduct}
-								class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-							/>
-						</div>
-						<div>
-							<label class="block text-sm font-medium text-gray-700 mb-1">보험회사</label>
-							<input
-								type="text"
-								bind:value={editingMember.insuranceCompany}
-								class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-							/>
-						</div>
-					</div>
-
-					<!-- 오른쪽: 판매인/설계사 정보 -->
-					<div class="space-y-4">
-						<h4 class="text-sm font-semibold text-gray-900 border-b pb-2">판매/설계 정보</h4>
-
-						<div>
-							<label class="block text-sm font-medium text-gray-700 mb-1">소속/지사</label>
-							<input
-								type="text"
-								bind:value={editingMember.branch}
-								class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-							/>
-						</div>
-
-						<div>
-							<label class="block text-sm font-medium text-gray-700 mb-1">판매인</label>
-							<input
-								type="text"
-								bind:value={editingMember.salesperson}
-								class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-							/>
-						</div>
-
-						<div>
-							<label class="block text-sm font-medium text-gray-700 mb-1">판매인 연락처</label>
-							<input
-								type="text"
-								bind:value={editingMember.salespersonPhone}
-								class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-							/>
-						</div>
-
-						<div>
-							<label class="block text-sm font-medium text-gray-700 mb-1">설계사</label>
-							<input
-								type="text"
-								bind:value={editingMember.planner}
-								class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-							/>
-						</div>
-
-						<div>
-							<label class="block text-sm font-medium text-gray-700 mb-1">설계사 연락처</label>
-							<input
-								type="text"
-								bind:value={editingMember.plannerPhone}
-								class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-							/>
-						</div>
-					</div>
-				</div>
-
-				<div class="mt-4">
-					<label class="block text-sm font-medium text-gray-700 mb-1">상태</label>
-					<select
-						bind:value={editingMember.status}
-						class="w-full px-3 py-2 border border-gray-300 rounded-md appearance-none bg-no-repeat"
-						style="background-image: url('/icons/chevron-down.svg'); background-position: right 0.5rem center; background-size: 1.5em 1.5em;"
-					>
-						<option value="active">활성</option>
-						<option value="inactive">비활성</option>
-						<option value="suspended">정지</option>
-					</select>
-				</div>
-
-				<div class="flex justify-end gap-3 mt-6">
-					<button
-						onclick={() => showEditModal = false}
-						class="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50"
-					>
-						취소
-					</button>
-					<button
-						onclick={handleEditMember}
-						class="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
-					>
-						수정
-					</button>
-				</div>
-			</div>
-		</div>
-	{/if}
+	<!-- 엑셀 업로드 모달 -->
+	<ExcelUploadModal
+		isOpen={showUploadModal}
+		{isUploading}
+		bind:uploadFile
+		onClose={() => { showUploadModal = false; uploadFile = null; }}
+		onFileSelect={handleFileSelect}
+		onUpload={handleExcelUpload}
+	/>
 
 	<!-- 컬럼 설정 모달 -->
-	{#if showColumnSettings}
-		<div class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-			<div class="bg-white rounded-lg shadow-xl w-full max-w-sm border border-gray-200">
-				<!-- Windows 스타일 타이틀바 -->
-				<div class="bg-gradient-to-r from-blue-500 to-blue-600 px-3 py-1.5 flex items-center justify-between select-none rounded-t-lg">
-					<div class="flex items-center gap-2">
-						<img src="/icons/settings-white.svg" alt="Settings" class="w-4 h-4" />
-						<h3 class="text-sm font-medium text-white">컬럼 설정</h3>
-					</div>
-					<button
-						onclick={() => showColumnSettings = false}
-						class="w-7 h-7 flex items-center justify-center hover:bg-white/20 rounded transition-colors"
-						title="닫기"
-					>
-						<img src="/icons/close-white.svg" alt="Close" class="w-3.5 h-3.5" />
-					</button>
-				</div>
-
-				<!-- 컬럼 목록 -->
-				<div class="px-4 py-3">
-					<div class="grid grid-cols-2 gap-1.5 max-h-80 overflow-y-auto">
-						<!-- 기본 정보 섹션 -->
-						<div class="col-span-2">
-							<h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">기본 정보</h4>
-						</div>
-						<label class="flex items-center p-1.5 bg-gray-50 hover:bg-blue-50 rounded cursor-pointer transition-colors">
-							<input
-								type="checkbox"
-								bind:checked={tempVisibleColumns.date}
-								class="mr-3 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
-							/>
-							<span class="text-sm font-medium text-gray-700">등록일</span>
-						</label>
-						<label class="flex items-center p-1.5 bg-blue-50 rounded cursor-not-allowed border border-blue-200">
-							<input
-								type="checkbox"
-								bind:checked={tempVisibleColumns.name}
-								disabled
-								class="mr-3 h-4 w-4 text-blue-600 rounded border-gray-300"
-							/>
-							<span class="text-sm font-medium text-gray-700">성명 <span class="text-xs text-blue-600">(필수)</span></span>
-						</label>
-						<label class="flex items-center p-1.5 bg-gray-50 hover:bg-blue-50 rounded cursor-pointer transition-colors">
-							<input
-								type="checkbox"
-								bind:checked={tempVisibleColumns.phone}
-								class="mr-3 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
-							/>
-							<span class="text-sm font-medium text-gray-700">연락처</span>
-						</label>
-						<label class="flex items-center p-1.5 bg-gray-50 hover:bg-blue-50 rounded cursor-pointer transition-colors">
-							<input
-								type="checkbox"
-								bind:checked={tempVisibleColumns.idNumber}
-								class="mr-3 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
-							/>
-							<span class="text-sm font-medium text-gray-700">주민번호</span>
-						</label>
-
-						<!-- 조직 정보 섹션 -->
-						<div class="col-span-2 mt-1.5">
-							<h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">조직 정보</h4>
-						</div>
-						<label class="flex items-center p-1.5 bg-gray-50 hover:bg-blue-50 rounded cursor-pointer transition-colors">
-							<input
-								type="checkbox"
-								bind:checked={tempVisibleColumns.salesperson}
-								class="mr-3 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
-							/>
-							<span class="text-sm font-medium text-gray-700">판매인</span>
-						</label>
-						<label class="flex items-center p-1.5 bg-gray-50 hover:bg-blue-50 rounded cursor-pointer transition-colors">
-							<input
-								type="checkbox"
-								bind:checked={tempVisibleColumns.planner}
-								class="mr-3 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
-							/>
-							<span class="text-sm font-medium text-gray-700">설계사</span>
-						</label>
-						<label class="flex items-center p-1.5 bg-gray-50 hover:bg-blue-50 rounded cursor-pointer transition-colors">
-							<input
-								type="checkbox"
-								bind:checked={tempVisibleColumns.plannerPhone}
-								class="mr-3 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
-							/>
-							<span class="text-sm font-medium text-gray-700">설계사 연락처</span>
-						</label>
-						<label class="flex items-center p-1.5 bg-gray-50 hover:bg-blue-50 rounded cursor-pointer transition-colors">
-							<input
-								type="checkbox"
-								bind:checked={tempVisibleColumns.branch}
-								class="mr-3 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
-							/>
-							<span class="text-sm font-medium text-gray-700">지사</span>
-						</label>
-
-						<!-- 금융/보험 정보 섹션 -->
-						<div class="col-span-2 mt-1.5">
-							<h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">금융/보험 정보</h4>
-						</div>
-						<label class="flex items-center p-1.5 bg-gray-50 hover:bg-blue-50 rounded cursor-pointer transition-colors">
-							<input
-								type="checkbox"
-								bind:checked={tempVisibleColumns.bank}
-								class="mr-3 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
-							/>
-							<span class="text-sm font-medium text-gray-700">은행</span>
-						</label>
-						<label class="flex items-center p-1.5 bg-gray-50 hover:bg-blue-50 rounded cursor-pointer transition-colors">
-							<input
-								type="checkbox"
-								bind:checked={tempVisibleColumns.accountNumber}
-								class="mr-3 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
-							/>
-							<span class="text-sm font-medium text-gray-700">계좌번호</span>
-						</label>
-						<label class="flex items-center p-1.5 bg-gray-50 hover:bg-blue-50 rounded cursor-pointer transition-colors">
-							<input
-								type="checkbox"
-								bind:checked={tempVisibleColumns.insuranceProduct}
-								class="mr-3 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
-							/>
-							<span class="text-sm font-medium text-gray-700">보험상품</span>
-						</label>
-						<label class="flex items-center p-1.5 bg-gray-50 hover:bg-blue-50 rounded cursor-pointer transition-colors">
-							<input
-								type="checkbox"
-								bind:checked={tempVisibleColumns.insuranceCompany}
-								class="mr-3 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
-							/>
-							<span class="text-sm font-medium text-gray-700">보험회사</span>
-						</label>
-					</div>
-				</div>
-
-				<!-- 푸터 -->
-				<div class="px-4 py-2 bg-gray-50 border-t border-gray-200 flex justify-between items-center rounded-b-lg">
-					<button
-						onclick={() => {
-							tempVisibleColumns = {
-								date: true,
-								name: true,
-								phone: true,
-								idNumber: true,
-								branch: true,
-								bank: true,
-								accountNumber: true,
-								salesperson: true,
-								planner: true,
-								plannerPhone: true,
-								insuranceProduct: true,
-								insuranceCompany: true
-							};
-						}}
-						class="text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors"
-					>
-						모두 표시
-					</button>
-					<div class="flex gap-2">
-						<button
-							onclick={() => showColumnSettings = false}
-							class="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
-						>
-							취소
-						</button>
-						<button
-							onclick={() => {
-								visibleColumns = { ...tempVisibleColumns };
-								localStorage.setItem('tableColumns', JSON.stringify(visibleColumns));
-								showColumnSettings = false;
-							}}
-							class="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors shadow-sm"
-						>
-							적용
-						</button>
-					</div>
-				</div>
-			</div>
-		</div>
-	{/if}
+	<ColumnSettingsModal
+		isOpen={showColumnSettings}
+		bind:tempVisibleColumns
+		onClose={() => showColumnSettings = false}
+		onShowAll={handleShowAllColumns}
+		onApply={handleApplyColumnSettings}
+	/>
 
 	<!-- 알림 모달 -->
 	<NotificationModal
