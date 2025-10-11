@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db.js';
-import MonthlyRevenue from '$lib/server/models/MonthlyRevenue.js';
+import MonthlyRegistrations from '$lib/server/models/MonthlyRegistrations.js';
 
 export async function GET({ locals }) {
 	if (!locals.user || locals.user.type !== 'admin') {
@@ -10,24 +10,27 @@ export async function GET({ locals }) {
 	await db();
 
 	try {
-		// 모든 월별 매출 데이터 조회
-		const revenues = await MonthlyRevenue.find()
-			.sort({ year: -1, month: -1 })
+		// v5.0: 모든 월별 등록 데이터 조회
+		const registrations = await MonthlyRegistrations.find()
+			.sort({ monthKey: -1 })
 			.lean();
 
 		return json({
 			success: true,
-			revenues: revenues.map(rev => ({
-				year: rev.year,
-				month: rev.month,
-				newUsersCount: rev.newUsersCount,
-				totalRevenue: rev.totalRevenue,
-				revenuePerInstallment: rev.revenuePerInstallment,
-				gradeDistribution: rev.gradeDistribution,
-				gradePayments: rev.gradePayments,
-				isCalculated: rev.isCalculated,
-				calculatedAt: rev.calculatedAt
-			}))
+			revenues: registrations.map(reg => {
+				const [year, month] = reg.monthKey.split('-').map(Number);
+				return {
+					year,
+					month,
+					newUsersCount: reg.registrations?.length || 0,
+					totalRevenue: reg.totalRevenue || 0,
+					revenuePerInstallment: (reg.totalRevenue || 0) / 10,
+					gradeDistribution: reg.gradeDistribution || {},
+					gradePayments: reg.gradePayments || {},
+					isCalculated: true,
+					calculatedAt: reg.updatedAt || reg.createdAt
+				};
+			})
 		});
 	} catch (error) {
 		console.error('월별 매출 조회 오류:', error);

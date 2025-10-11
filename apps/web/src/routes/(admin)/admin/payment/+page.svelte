@@ -170,29 +170,73 @@
 				const result = await response.json();
 
 				if (result.success && result.data) {
-					if (result.data.weeks && Array.isArray(result.data.weeks)) {
-						// 전체 데이터 저장
-						allWeeklyData = result.data.weeks.map((weekData) => ({
+					// 페이지네이션 정보
+					if (result.data.pagination) {
+						totalPages = result.data.pagination.totalPages;
+						totalPaymentTargets = result.data.pagination.totalItems || 0;
+					}
+
+					// 전체 총액
+					if (result.data.grandTotal) {
+						apiGrandTotal = result.data.grandTotal;
+					}
+
+					// 주차별 데이터를 weeklyColumns에 설정
+					if (result.data.weeks && result.data.weeks.length > 0) {
+						weeklyColumns = result.data.weeks.map(weekData => ({
 							year: weekData.year,
 							month: weekData.monthNumber,
 							week: weekData.weekNumber,
 							label: weekData.week,
 							data: weekData
 						}));
+					}
 
-						if (result.data.pagination) {
-							totalPages = result.data.pagination.totalPages;
-							totalPaymentTargets = result.data.pagination.totalItems || 0;
-						}
+					// 사용자별 지급 내역 처리 - weeks 데이터로부터 user.payments 구조 생성
+					const userMap = new Map();
+
+					// API의 payments 배열로부터 사용자 기본 정보 및 최신 등급 가져오기
+					if (result.data.payments) {
+						result.data.payments.forEach(p => {
+							userMap.set(p.userId, {
+								userId: p.userId,
+								name: p.userName || p.name || 'Unknown',
+								planner: p.planner || '',
+								bank: p.bank || '',
+								accountNumber: p.accountNumber || '',
+								grade: p.grade || 'F1',  // payments 배열에서 최신 등급 사용
+								payments: {}
+							});
+						});
 					}
-					// API에서 전체 검색 결과의 총액 받아오기
-					if (result.data.grandTotal) {
-						apiGrandTotal = result.data.grandTotal;
+
+					// 모든 주차 데이터를 순회하며 사용자별 주차별 지급 금액 집계
+					if (result.data.weeks) {
+						result.data.weeks.forEach(weekData => {
+							const weekKey = `${weekData.year}_${weekData.monthNumber}_${weekData.weekNumber}`;
+
+							(weekData.payments || []).forEach(payment => {
+								// 이미 userMap에 추가된 사용자만 처리
+								if (userMap.has(payment.userId)) {
+									const user = userMap.get(payment.userId);
+									user.payments[weekKey] = {
+										amount: payment.actualAmount || 0,
+										tax: payment.taxAmount || 0,
+										net: payment.netAmount || 0,
+										installmentDetails: payment.installments || []
+									};
+								}
+							});
+						});
 					}
+
+					paymentList = Array.from(userMap.values()).map((user, index) => ({
+						...user,
+						no: (currentPage - 1) * itemsPerPage + index + 1
+					}));
+
+					filteredPaymentList = paymentList;
 				}
-
-				// 표시할 범위만 설정
-				updateDisplayData();
 			}
 		} catch (err) {
 			console.error('Error loading payment data:', err);

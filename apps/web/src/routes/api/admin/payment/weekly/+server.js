@@ -1,12 +1,14 @@
 import { json } from '@sveltejs/kit';
 import { connectDB } from '$lib/server/db.js';
-import UserPaymentPlan from '$lib/server/models/UserPaymentPlan.js';
+import WeeklyPaymentPlans from '$lib/server/models/WeeklyPaymentPlans.js';
+import WeeklyPaymentSummary from '$lib/server/models/WeeklyPaymentSummary.js';
 import User from '$lib/server/models/User.js';
-import { getAllWeeksInPeriod, getWeeksInMonth } from '$lib/utils/fridayWeekCalculator.js';
+import { getAllWeeksInPeriod, getFridaysInMonth } from '$lib/utils/fridayWeekCalculator.js';
 
 /**
- * 용역비 지급명부 API
- * UserPaymentPlan 기반으로 실제 지급 계획 데이터 조회
+ * 용역비 지급명부 API v5.0
+ * WeeklyPaymentPlans 기반으로 실제 지급 계획 데이터 조회
+ * WeeklyPaymentSummary로 전체 총계 빠른 조회
  */
 export async function GET({ url }) {
 	try {
@@ -31,16 +33,16 @@ export async function GET({ url }) {
 
 		// === 단일 주차 조회 ===
 		if (month && week) {
-			return await getSingleWeekPayments(year, month, week, page, limit, search, searchCategory);
+			return await getSingleWeekPaymentsV5(year, month, week, page, limit, search, searchCategory);
 		}
 
 		// === 기간 조회 ===
 		if (startYear && startMonth && endYear && endMonth) {
-			return await getRangePayments(startYear, startMonth, endYear, endMonth, page, limit, search, searchCategory);
+			return await getRangePaymentsV5(startYear, startMonth, endYear, endMonth, page, limit, search, searchCategory);
 		}
 
 		// === 기본: 현재 월의 모든 주차 조회 ===
-		return await getDefaultPayments(year, month || new Date().getMonth() + 1, page, limit, search, searchCategory);
+		return await getDefaultPaymentsV5(year, month || new Date().getMonth() + 1, page, limit, search, searchCategory);
 
 	} catch (error) {
 		console.error('[API] Weekly payment error:', error);
@@ -52,313 +54,395 @@ export async function GET({ url }) {
 }
 
 /**
- * 단일 주차 지급 데이터 조회
+ * 단일 주차 지급 데이터 조회 (v5.0)
  */
-async function getSingleWeekPayments(year, month, week, page, limit, search, searchCategory = 'name') {
-	console.log(`[API] 단일 주차 조회: ${year}년 ${month}월 ${week}주차`);
+async function getSingleWeekPaymentsV5(year, month, week, page, limit, search, searchCategory) {
+	console.log(`[API v5.0] 단일 주차 조회: ${year}년 ${month}월 ${week}주차`);
 
-	// 1. 검색 조건에 맞는 사용자 먼저 조회 (페이지네이션)
-	const userQuery = buildUserSearchQuery(search, searchCategory);
-	const totalUsers = await User.countDocuments(userQuery);
-	const totalPages = Math.ceil(totalUsers / limit);
+	// 1. 해당 주차의 날짜 계산
+	const fridays = getFridaysInMonth(year, month);
+	const targetWeek = fridays.find(w => w.weekNumber === week);
+
+	if (!targetWeek) {
+		return json({
+			success: false,
+			error: '유효하지 않은 주차입니다.'
+		}, { status: 400 });
+	}
+
+	const weekDate = targetWeek.friday;
+	const weekNumber = WeeklyPaymentPlans.getISOWeek(weekDate);
+
+	// 2. 주차별 총계 조회 (전체 총액 - 페이지 무관)
+	const summary = await WeeklyPaymentSummary.findOne({ weekNumber });
+
+	const grandTotal = summary ? {
+		totalAmount: summary.totalAmount || 0,
+		totalTax: summary.totalTax || 0,
+		totalNet: summary.totalNet || 0
+	} : {
+		totalAmount: 0,
+		totalTax: 0,
+		totalNet: 0
+	};
+
+	// 3. 검색 조건 구성
+	const searchFilter = buildSearchFilter(search, searchCategory);
+
+	// 4. Aggregation Pipeline for 페이지네이션
+	const pipeline = [
+		// 해당 주차의 할부가 있는 계획만 필터
+		{
+			$match: {
+				'installments': {
+					$elemMatch: {
+						weekNumber: weekNumber,
+						status: { $in: ['paid', 'pending'] }
+					}
+				}
+			}
+		},
+		// 해당 주차의 할부만 필터링
+		{
+			$unwind: '$installments'
+		},
+		{
+			$match: {
+				'installments.weekNumber': weekNumber,
+				'installments.status': { $in: ['paid', 'pending'] }
+			}
+		},
+		// 검색 조건 적용
+		...(searchFilter.userName ? [{ $match: { userName: searchFilter.userName } }] : []),
+		// 사용자별 그룹화
+		{
+			$group: {
+				_id: '$userId',
+				userName: { $first: '$userName' },
+				baseGrade: { $first: '$baseGrade' },
+				payments: {
+					$push: {
+						planType: '$planType',
+						revenueMonth: '$installments.revenueMonth',
+						week: '$installments.week',
+						amount: '$installments.installmentAmount',
+						tax: '$installments.withholdingTax',
+						net: '$installments.netAmount',
+						status: '$installments.status'
+					}
+				},
+				totalAmount: { $sum: '$installments.installmentAmount' },
+				totalTax: { $sum: '$installments.withholdingTax' },
+				totalNet: { $sum: '$installments.netAmount' }
+			}
+		},
+		{
+			$lookup: {
+				from: 'users',
+				localField: '_id',
+				foreignField: 'loginId',
+				as: 'userInfo'
+			}
+		},
+		{
+			$addFields: {
+				registrationDate: { $arrayElemAt: ['$userInfo.registrationDate', 0] },
+				createdAt: { $arrayElemAt: ['$userInfo.createdAt', 0] },
+				userObjectId: { $arrayElemAt: ['$userInfo._id', 0] }
+			}
+		},
+		{
+			$sort: { registrationDate: 1, createdAt: 1, userObjectId: 1 }
+		}
+	];
+
+	// 전체 카운트
+	const countPipeline = [...pipeline, { $count: 'total' }];
+	const countResult = await WeeklyPaymentPlans.aggregate(countPipeline);
+	const totalCount = countResult[0]?.total || 0;
+	const totalPages = Math.ceil(totalCount / limit);
+
+	// 페이지네이션 적용
 	const skip = (page - 1) * limit;
+	const paginatedPipeline = [
+		...pipeline,
+		{ $skip: skip },
+		{ $limit: limit }
+	];
 
-	const users = await User.find(userQuery)
-		.skip(skip)
-		.limit(limit)
-		.lean();
+	const userPayments = await WeeklyPaymentPlans.aggregate(paginatedPipeline);
 
-	// UserPaymentPlan의 userId는 ObjectId 문자열을 저장하고 있음
-	const userIds = users.map(u => u._id.toString());
-	const userMap = new Map(users.map(u => [u._id.toString(), u]));
+	// 5. 사용자 상세 정보 추가
+	const userIds = userPayments.map(p => p._id);
+	const users = await User.find({ loginId: { $in: userIds } }).lean();
+	const userMap = new Map(users.map(u => [u.loginId, u]));
 
-	// 2. 해당 사용자들의 지급 계획에서 해당 주차 데이터 추출
-	const paymentPlans = await UserPaymentPlan.find({
-		userId: { $in: userIds },
-		'installments.scheduledDate.year': year,
-		'installments.scheduledDate.month': month,
-		'installments.scheduledDate.week': week
-	}).lean();
-
-	// 3. 사용자별 지급 데이터 구성
-	const userPayments = users.map(user => {
-		// 해당 사용자의 모든 지급 계획 (ObjectId 문자열로 매칭)
-		const userIdStr = user._id.toString();
-		const userPlans = paymentPlans.filter(p => p.userId === userIdStr);
-
-		// 해당 주차의 모든 installments 찾기
-		let totalAmount = 0;
-		let installmentDetails = [];
-
-		userPlans.forEach(plan => {
-			const matchingInstallments = plan.installments.filter(inst =>
-				inst.scheduledDate.year === year &&
-				inst.scheduledDate.month === month &&
-				inst.scheduledDate.week === week
-			);
-
-			matchingInstallments.forEach(inst => {
-				totalAmount += inst.amount || 0;
-				installmentDetails.push({
-					revenueMonth: `${plan.revenueMonth.year}-${String(plan.revenueMonth.month).padStart(2, '0')}`,
-					installmentNumber: inst.installmentNumber,
-					amount: inst.amount,
-					status: inst.status
-				});
-			});
-		});
-
-		// 세금 계산 (3.3%)
-		const taxAmount = Math.round(totalAmount * 0.033);
-		const netAmount = totalAmount - taxAmount;
-
+	const enrichedPayments = userPayments.map((payment, idx) => {
+		const user = userMap.get(payment._id) || {};
 		return {
-			userId: user.loginId,
-			userName: user.name || 'Unknown',
+			no: (page - 1) * limit + idx + 1,
+			userId: payment._id,
+			userName: payment.userName,
 			planner: user.planner || '',
 			bank: user.bank || '',
 			accountNumber: user.accountNumber || '',
-			grade: user.grade || 'F1',
-			actualAmount: totalAmount,
-			taxAmount: taxAmount,
-			netAmount: netAmount,
-			installments: installmentDetails
+			grade: user.grade || 'F1', // User 테이블의 최신 등급 사용
+			actualAmount: payment.totalAmount || 0,
+			taxAmount: payment.totalTax || 0,
+			netAmount: payment.totalNet || 0,
+			installments: payment.payments
 		};
 	});
 
-	// 4. 현재 페이지 합계 계산
-	const totalAmount = userPayments.reduce((sum, p) => sum + p.actualAmount, 0);
-	const totalTax = userPayments.reduce((sum, p) => sum + p.taxAmount, 0);
-	const totalNet = userPayments.reduce((sum, p) => sum + p.netAmount, 0);
-
-	// 5. 전체 검색 결과의 총액 계산 (모든 사용자)
-	const allUsers = await User.find(userQuery).lean();
-	const allUserIds = allUsers.map(u => u._id.toString());
-	const allPaymentPlans = await UserPaymentPlan.find({
-		userId: { $in: allUserIds },
-		'installments.scheduledDate.year': year,
-		'installments.scheduledDate.month': month,
-		'installments.scheduledDate.week': week
-	}).lean();
-
-	let grandTotalAmount = 0;
-	let grandTotalTax = 0;
-	let grandTotalNet = 0;
-
-	allPaymentPlans.forEach(plan => {
-		const matchingInstallments = plan.installments.filter(inst =>
-			inst.scheduledDate.year === year &&
-			inst.scheduledDate.month === month &&
-			inst.scheduledDate.week === week
-		);
-
-		matchingInstallments.forEach(inst => {
-			const amount = inst.amount || 0;
-			const tax = Math.round(amount * 0.033);
-			grandTotalAmount += amount;
-			grandTotalTax += tax;
-			grandTotalNet += (amount - tax);
-		});
-	});
+	// 6. 현재 페이지 합계
+	const pageTotal = {
+		amount: enrichedPayments.reduce((sum, p) => sum + p.actualAmount, 0),
+		tax: enrichedPayments.reduce((sum, p) => sum + p.taxAmount, 0),
+		net: enrichedPayments.reduce((sum, p) => sum + p.netAmount, 0)
+	};
 
 	return json({
 		success: true,
 		data: {
-			week: `${year}년 ${month}월 ${week}주차`,
-			year: year,
+			// 전체 총계 (페이지 무관)
+			grandTotal,
+			// 페이지네이션 정보
+			pagination: {
+				page,
+				totalPages,
+				totalItems: totalCount,
+				itemsPerPage: limit
+			},
+			// 현재 페이지 데이터
+			payments: enrichedPayments,
+			pageTotal,
+			// 메타 정보
+			year,
 			monthNumber: month,
 			weekNumber: week,
-			payments: userPayments,
-			totalAmount,
-			totalTax,
-			totalNet,
-			grandTotal: {
-				totalAmount: grandTotalAmount,
-				totalTax: grandTotalTax,
-				totalNet: grandTotalNet
-			},
-			pagination: {
-				currentPage: page,
-				totalPages,
-				totalItems: totalUsers,
-				itemsPerPage: limit
-			}
+			week: `${month}월 ${week}주`
 		}
 	});
 }
 
 /**
- * 기간별 지급 데이터 조회
+ * 기간 조회 (v5.0)
  */
-async function getRangePayments(startYear, startMonth, endYear, endMonth, page, limit, search, searchCategory = 'name') {
-	console.log(`[API] 기간 조회: ${startYear}-${startMonth} ~ ${endYear}-${endMonth}`);
+async function getRangePaymentsV5(startYear, startMonth, endYear, endMonth, page, limit, search, searchCategory) {
+	console.log(`[API v5.0] 기간 조회: ${startYear}/${startMonth} ~ ${endYear}/${endMonth}`);
 
-	// 1. 검색 조건에 맞는 사용자 먼저 조회
-	const userQuery = buildUserSearchQuery(search, searchCategory);
-	const totalUsers = await User.countDocuments(userQuery);
-	const totalPages = Math.ceil(totalUsers / limit);
-	const skip = (page - 1) * limit;
+	// 1. 기간 내 모든 금요일 날짜 수집
+	const allFridays = [];
+	let currentYear = startYear;
+	let currentMonth = startMonth;
 
-	const users = await User.find(userQuery)
-		.skip(skip)
-		.limit(limit)
-		.lean();
+	while (currentYear < endYear || (currentYear === endYear && currentMonth <= endMonth)) {
+		const fridays = getFridaysInMonth(currentYear, currentMonth);
+		allFridays.push(...fridays);
 
-	// UserPaymentPlan의 userId는 ObjectId 문자열을 저장하고 있음
-	const userIds = users.map(u => u._id.toString());
-	const userMap = new Map(users.map(u => [u._id.toString(), u]));
+		currentMonth++;
+		if (currentMonth > 12) {
+			currentMonth = 1;
+			currentYear++;
+		}
+	}
 
-	// 2. 기간 내 모든 주차 계산 (금요일 기준)
-	const allWeeks = getAllWeeksInPeriod(startYear, startMonth, endYear, endMonth);
+	// 2. 검색 조건 구성
+	const searchFilter = buildSearchFilter(search, searchCategory);
+
+	// 3. 모든 용역자 조회 (관리자 제외, 등록일자 순)
+	let allUsers = await User.find({ isAdmin: { $ne: true } }).sort({ registrationDate: 1, createdAt: 1 }).lean();
+	console.log(`[API 기간조회] 전체 용역자 ${allUsers.length}명 조회 (등록일자 순)`);
+
+	// 검색 필터 적용
+	if (searchFilter.userName) {
+		allUsers = allUsers.filter(u => searchFilter.userName.$regex.test(u.name));
+		console.log(`[API 기간조회] 검색 필터 적용 후 ${allUsers.length}명`);
+	}
+
+	// 4. 주차별 데이터 생성
+	console.log(`[API 기간조회] 주차별 데이터 생성 시작 (총 ${allFridays.length}주)`);
 	const weeks = [];
 
-	for (const weekInfo of allWeeks) {
-		const currentYear = weekInfo.year;
-		const currentMonth = weekInfo.month;
-		const weekNum = weekInfo.week;
-			// 해당 주차의 지급 계획 조회
-			const paymentPlans = await UserPaymentPlan.find({
-				userId: { $in: userIds },
-				'installments.scheduledDate.year': currentYear,
-				'installments.scheduledDate.month': currentMonth,
-				'installments.scheduledDate.week': weekNum
-			}).lean();
+	for (const fridayInfo of allFridays) {
+		const { friday, weekNumber: wWeek } = fridayInfo;
+		const wYear = friday.getFullYear();
+		const wMonth = friday.getMonth() + 1;
+		const weekNumber = WeeklyPaymentPlans.getISOWeek(friday);
 
-			// 사용자별 데이터 구성
-			const userPayments = users.map(user => {
-				const userIdStr = user._id.toString();
-				const userPlans = paymentPlans.filter(p => p.userId === userIdStr);
+		// 해당 주차의 모든 지급 계획 조회
+		const pipeline = [
+			{
+				$match: {
+					'installments': {
+						$elemMatch: {
+							weekNumber: weekNumber,
+							status: { $in: ['paid', 'pending'] }
+						}
+					}
+				}
+			},
+			{
+				$unwind: '$installments'
+			},
+			{
+				$match: {
+					'installments.weekNumber': weekNumber,
+					'installments.status': { $in: ['paid', 'pending'] }
+				}
+			},
+			{
+				$group: {
+					_id: '$userId',
+					userName: { $first: '$userName' },
+					baseGrade: { $first: '$baseGrade' },
+					installmentAmount: { $first: '$installments.installmentAmount' },
+					withholdingTax: { $first: '$installments.withholdingTax' },
+					netAmount: { $first: '$installments.netAmount' }
+				}
+			}
+		];
 
-				let totalAmount = 0;
-				let installmentDetails = [];
+		const weekPayments = await WeeklyPaymentPlans.aggregate(pipeline);
+		const paymentMap = new Map(weekPayments.map(p => [p._id, p]));
 
-				userPlans.forEach(plan => {
-					const matchingInstallments = plan.installments.filter(inst =>
-						inst.scheduledDate.year === currentYear &&
-						inst.scheduledDate.month === currentMonth &&
-						inst.scheduledDate.week === weekNum
-					);
+		// 모든 용역자에 대해 지급 정보 생성 (0원 포함)
+		const payments = allUsers.map(user => {
+			const payment = paymentMap.get(user.loginId);
+			return {
+				userId: user.loginId,
+				userName: user.name,
+				planner: user.planner || '',
+				bank: user.bank || '',
+				accountNumber: user.accountNumber || '',
+				grade: user.grade || 'F1', // 항상 User 테이블의 최신 등급 사용
+				actualAmount: payment ? payment.installmentAmount : 0,
+				taxAmount: payment ? payment.withholdingTax : 0,
+				netAmount: payment ? payment.netAmount : 0,
+				installments: []
+			};
+		});
 
-					matchingInstallments.forEach(inst => {
-						totalAmount += inst.amount || 0;
-						installmentDetails.push({
-							revenueMonth: `${plan.revenueMonth.year}-${String(plan.revenueMonth.month).padStart(2, '0')}`,
-							installmentNumber: inst.installmentNumber,
-							amount: inst.amount
-						});
-					});
-				});
-
-				const taxAmount = Math.round(totalAmount * 0.033);
-				const netAmount = totalAmount - taxAmount;
-
-				return {
-					userId: user.loginId,
-					userName: user.name || 'Unknown',
-					planner: user.planner || '',
-					bank: user.bank || '',
-					accountNumber: user.accountNumber || '',
-					grade: user.grade || 'F1',
-					actualAmount: totalAmount,
-					taxAmount: taxAmount,
-					netAmount: netAmount,
-					installments: installmentDetails
-				};
-			});
-
-			weeks.push({
-				week: `${currentYear}년 ${currentMonth}월 ${weekNum}주차`,
-				year: currentYear,
-				monthNumber: currentMonth,
-				weekNumber: weekNum,
-				payments: userPayments,
-				totalAmount: userPayments.reduce((sum, p) => sum + p.actualAmount, 0),
-				totalTax: userPayments.reduce((sum, p) => sum + p.taxAmount, 0),
-				totalNet: userPayments.reduce((sum, p) => sum + p.netAmount, 0)
-			});
-	}
-
-	// 3. 전체 검색 결과의 총액 계산 (모든 사용자, 모든 주차)
-	const allUsers = await User.find(userQuery).lean();
-	const allUserIds = allUsers.map(u => u._id.toString());
-
-	let grandTotalAmount = 0;
-	let grandTotalTax = 0;
-	let grandTotalNet = 0;
-
-	for (const weekInfo of allWeeks) {
-		const paymentPlans = await UserPaymentPlan.find({
-			userId: { $in: allUserIds },
-			'installments.scheduledDate.year': weekInfo.year,
-			'installments.scheduledDate.month': weekInfo.month,
-			'installments.scheduledDate.week': weekInfo.week
-		}).lean();
-
-		paymentPlans.forEach(plan => {
-			const matchingInstallments = plan.installments.filter(inst =>
-				inst.scheduledDate.year === weekInfo.year &&
-				inst.scheduledDate.month === weekInfo.month &&
-				inst.scheduledDate.week === weekInfo.week
-			);
-
-			matchingInstallments.forEach(inst => {
-				const amount = inst.amount || 0;
-				const tax = Math.round(amount * 0.033);
-				grandTotalAmount += amount;
-				grandTotalTax += tax;
-				grandTotalNet += (amount - tax);
-			});
+		weeks.push({
+			year: wYear,
+			monthNumber: wMonth,
+			weekNumber: wWeek,
+			week: `${wYear}년 ${wMonth}월 ${wWeek}주`,
+			payments
 		});
 	}
+
+	console.log(`[API 기간조회] weeks 배열 생성 완료 - 총 ${weeks.length}주`);
+	if (weeks.length > 0) {
+		console.log(`[API 기간조회] 첫 주차 샘플: ${weeks[0].week}, 용역자 ${weeks[0].payments.length}명`);
+		const nonZeroPayments = weeks[0].payments.filter(p => p.actualAmount > 0);
+		console.log(`[API 기간조회] 첫 주차 지급대상: ${nonZeroPayments.length}명`);
+		if (nonZeroPayments.length > 0) {
+			console.log(`[API 기간조회] 지급 샘플: ${nonZeroPayments[0].userName} - ${nonZeroPayments[0].actualAmount.toLocaleString()}원`);
+		}
+	}
+
+	// 전체 총계 계산
+	let grandTotal = { totalAmount: 0, totalTax: 0, totalNet: 0 };
+	let totalPaymentCount = 0;
+
+	weeks.forEach(week => {
+		week.payments.forEach(payment => {
+			if (payment.actualAmount > 0) {
+				grandTotal.totalAmount += payment.actualAmount;
+				grandTotal.totalTax += payment.taxAmount;
+				grandTotal.totalNet += payment.netAmount;
+				totalPaymentCount++;
+			}
+		});
+	});
+
+	// 기간 정보
+	const periodInfo = {
+		start: `${startYear}년 ${startMonth}월`,
+		end: `${endYear}년 ${endMonth}월`,
+		weekCount: weeks.length
+	};
+
+	console.log(`[API 기간조회] 전체 총계: ${grandTotal.totalAmount.toLocaleString()}원, 지급건수: ${totalPaymentCount}건`);
+	console.log(`[API 기간조회] WEB 응답 반환 - 전체 구조 포함\n`);
 
 	return json({
 		success: true,
 		data: {
-			weeks,
-			grandTotal: {
-				totalAmount: grandTotalAmount,
-				totalTax: grandTotalTax,
-				totalNet: grandTotalNet
-			},
+			// 전체 총계 (페이지 무관)
+			grandTotal,
+			// 기간 정보
+			period: periodInfo,
+			// 페이지네이션 정보
 			pagination: {
-				currentPage: page,
-				totalPages,
-				totalItems: totalUsers,
+				page,
+				totalPages: Math.ceil(allUsers.length / limit),
+				totalItems: allUsers.length,
 				itemsPerPage: limit
-			}
+			},
+			// 주차별 데이터
+			weeks,
+			// 현재 페이지 사용자 목록 (페이징 적용)
+			payments: allUsers.slice((page - 1) * limit, page * limit).map((user, idx) => ({
+				no: (page - 1) * limit + idx + 1,
+				userId: user.loginId,
+				userName: user.name,
+				planner: user.planner || '',
+				bank: user.bank || '',
+				accountNumber: user.accountNumber || '',
+				grade: user.grade || 'F1',
+				// 전체 기간 동안의 총 지급액
+				totalAmount: weeks.reduce((sum, week) => {
+					const payment = week.payments.find(p => p.userId === user.loginId);
+					return sum + (payment?.actualAmount || 0);
+				}, 0),
+				totalTax: weeks.reduce((sum, week) => {
+					const payment = week.payments.find(p => p.userId === user.loginId);
+					return sum + (payment?.taxAmount || 0);
+				}, 0),
+				totalNet: weeks.reduce((sum, week) => {
+					const payment = week.payments.find(p => p.userId === user.loginId);
+					return sum + (payment?.netAmount || 0);
+				}, 0),
+				paymentCount: weeks.reduce((count, week) => {
+					const payment = week.payments.find(p => p.userId === user.loginId);
+					return count + (payment?.actualAmount > 0 ? 1 : 0);
+				}, 0)
+			}))
 		}
 	});
 }
 
 /**
- * 기본 조회 (현재 월의 모든 주차)
+ * 기본 조회 - 현재 월 (v5.0)
  */
-async function getDefaultPayments(year, month, page, limit, search, searchCategory = 'name') {
-	console.log(`[API] 기본 조회: ${year}년 ${month}월`);
+async function getDefaultPaymentsV5(year, month, page, limit, search, searchCategory) {
+	console.log(`[API v5.0] 월 전체 조회: ${year}년 ${month}월`);
 
-	// 단순히 해당 월의 1~4주차를 조회
-	return await getRangePayments(year, month, year, month, page, limit, search, searchCategory);
+	// 해당 월의 모든 주차 계산
+	const fridays = getFridaysInMonth(year, month);
+	const weekNumbers = fridays.map(w => WeeklyPaymentPlans.getISOWeek(w.friday));
+
+	// 나머지 로직은 getRangePaymentsV5와 유사
+	return getRangePaymentsV5(year, month, year, month, page, limit, search, searchCategory);
 }
 
 /**
- * 사용자 검색 쿼리 빌더
+ * 검색 필터 구성
  */
-function buildUserSearchQuery(search, searchCategory = 'name') {
-	if (!search) {
-		return { type: 'user' };
+function buildSearchFilter(search, searchCategory) {
+	const filter = {};
+
+	if (search) {
+		if (searchCategory === 'name') {
+			filter.userName = { $regex: search, $options: 'i' };
+		} else if (searchCategory === 'planner') {
+			// planner 검색은 User 조회 후 처리 필요
+			filter.needPlannerSearch = true;
+			filter.plannerSearch = search;
+		}
 	}
 
-	// 검색 카테고리에 따라 검색 필드 결정
-	if (searchCategory === 'planner') {
-		return {
-			type: 'user',
-			planner: { $regex: search, $options: 'i' }
-		};
-	}
-
-	// 기본: 이름으로 검색
-	return {
-		type: 'user',
-		name: { $regex: search, $options: 'i' }
-	};
+	return filter;
 }

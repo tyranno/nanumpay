@@ -1,0 +1,417 @@
+/**
+ * 주간 지급 처리 서비스 v5.0
+ * 매주 금요일 자동 지급 처리
+ */
+
+import WeeklyPaymentPlans from '../models/WeeklyPaymentPlans.js';
+import WeeklyPaymentSummary from '../models/WeeklyPaymentSummary.js';
+import MonthlyRegistrations from '../models/MonthlyRegistrations.js';
+import MonthlyTreeSnapshots from '../models/MonthlyTreeSnapshots.js';
+import User from '../models/User.js';
+import { checkAndCreateAdditionalPlan } from './paymentPlanService.js';
+
+/**
+ * 매주 금요일 지급 처리 메인 함수
+ * Cron: 0 0 * * 5 (매주 금요일 00:00)
+ */
+export async function processWeeklyPayments(date = new Date()) {
+  try {
+    console.log(`=== 주간 지급 처리 시작: ${date.toISOString()} ===`);
+
+    // 오늘이 금요일인지 확인
+    if (date.getDay() !== 5) {
+      console.log('오늘은 금요일이 아닙니다. 처리를 건너뜁니다.');
+      return { success: false, message: '금요일이 아님' };
+    }
+
+    // 날짜 정규화 (시간 제거)
+    const paymentDate = new Date(date);
+    paymentDate.setHours(0, 0, 0, 0);
+
+    // 1. 오늘 지급 대상 조회
+    const pendingPlans = await WeeklyPaymentPlans.find({
+      'installments': {
+        $elemMatch: {
+          scheduledDate: {
+            $gte: paymentDate,
+            $lt: new Date(paymentDate.getTime() + 24 * 60 * 60 * 1000)
+          },
+          status: 'pending'
+        }
+      },
+      planStatus: 'active'
+    });
+
+    console.log(`처리 대상 계획: ${pendingPlans.length}개`);
+
+    // 2. 주차별 총계 문서 준비
+    const weekNumber = WeeklyPaymentPlans.getISOWeek(paymentDate);
+    let summary = await WeeklyPaymentSummary.findOne({ weekNumber });
+
+    if (!summary) {
+      summary = await WeeklyPaymentSummary.create([{
+        weekDate: paymentDate,
+        weekNumber,
+        monthKey: WeeklyPaymentSummary.generateMonthKey(paymentDate),
+        status: 'processing'
+      }], { session })[0];
+    } else {
+      summary.status = 'processing';
+      await summary.save({ session });
+    }
+
+    // 3. 각 계획별 지급 처리
+    const processedPayments = [];
+    const completedPlans = [];  // 10회 완료된 계획들
+
+    for (const plan of pendingPlans) {
+      const installment = plan.getInstallmentByDate(paymentDate);
+      if (!installment) continue;
+
+      // 사용자 정보 조회
+      const user = await User.findOne({ loginId: plan.userId });
+      if (!user) {
+        console.log(`사용자 ${plan.userId} 없음`);
+        continue;
+      }
+
+      // insuranceSkipped 플래그 확인 (보험 해지로 인한 건너뜀)
+      if (installment.insuranceSkipped) {
+        installment.status = 'skipped';
+        installment.skipReason = 'insurance_not_maintained';
+        plan.completedInstallments += 1;  // 회차는 증가하지만 지급 안함
+        await plan.save({ session });
+        console.log(`${user.name} 지급 건너뜀 (보험 미유지): 회차 ${plan.completedInstallments}`);
+        continue;
+      }
+
+      // 보험 조건 확인
+      const skipPayment = await checkInsuranceCondition(user, plan.baseGrade);
+      if (skipPayment) {
+        installment.status = 'skipped';
+        installment.skipReason = skipPayment.reason;
+        installment.insuranceSkipped = true;  // 플래그 설정
+        plan.completedInstallments += 1;  // 회차는 증가
+        await plan.save({ session });
+        console.log(`${user.name} 지급 건너뜀: ${skipPayment.reason}`);
+        continue;
+      }
+
+      // 지급액 계산
+      const paymentAmounts = await calculatePaymentAmount(
+        plan.baseGrade,
+        installment.revenueMonth
+      );
+
+      if (!paymentAmounts) {
+        console.log(`${user.name} 지급액 계산 실패`);
+        continue;
+      }
+
+      // 매출월 스냅샷에서 확정 등급 조회
+      const confirmedGrade = await getConfirmedGradeForPayment(
+        plan.userId,
+        installment.revenueMonth
+      );
+
+      // 할부 정보 업데이트
+      installment.gradeAtPayment = confirmedGrade || plan.baseGrade;
+      installment.baseAmount = paymentAmounts.baseAmount;
+      installment.installmentAmount = paymentAmounts.installmentAmount;
+      installment.withholdingTax = paymentAmounts.withholdingTax;
+      installment.netAmount = paymentAmounts.netAmount;
+      installment.status = 'paid';
+      installment.paidAt = new Date();
+
+      plan.completedInstallments += 1;
+
+      // 계획 완료 체크
+      if (plan.completedInstallments >= plan.totalInstallments) {
+        plan.planStatus = 'completed';
+      }
+
+      await plan.save({ session });
+
+      // 통계 업데이트
+      summary.incrementPayment(
+        plan.baseGrade,
+        plan.planType,
+        paymentAmounts.installmentAmount,
+        paymentAmounts.withholdingTax,
+        paymentAmounts.netAmount
+      );
+
+      processedPayments.push({
+        userId: user.loginId,
+        userName: user.name,
+        grade: plan.baseGrade,
+        amount: paymentAmounts.installmentAmount,
+        tax: paymentAmounts.withholdingTax,
+        net: paymentAmounts.netAmount
+      });
+
+      // 10회 완료 체크 (additional 계획 생성용)
+      if (plan.completedInstallments === 10 && plan.planType !== 'additional') {
+        completedPlans.push(plan);
+      }
+    }
+
+    // 4. 사용자 카운트는 증분 업데이트된 상태 (incrementPayment에서 처리)
+    // 필요시에만 재계산 (불일치 검증용)
+    // await summary.recalculateUserCount();
+
+    // 5. 총계 문서 저장
+    summary.status = 'completed';
+    summary.processedAt = new Date();
+    await summary.save({ session });
+
+    // 6. 처리 완료
+
+    console.log(`=== 지급 처리 완료: ${processedPayments.length}건 ===`);
+
+    // 7. 10회 완료된 계획들에 대해 additional 계획 생성 (트랜잭션 밖에서)
+    for (const plan of completedPlans) {
+      await checkAndCreateAdditionalPlan(plan);
+    }
+
+    return {
+      success: true,
+      date: paymentDate,
+      weekNumber,
+      processedCount: processedPayments.length,
+      totalAmount: summary.totalAmount,
+      totalTax: summary.totalTax,
+      totalNet: summary.totalNet,
+      payments: processedPayments
+    };
+
+  } catch (error) {
+    console.error('주간 지급 처리 실패:', error);
+    throw error;
+  }
+}
+
+/**
+ * 보험 조건 확인
+ */
+async function checkInsuranceCondition(user, grade) {
+  // F3 미만은 보험 조건 없음
+  if (['F1', 'F2'].includes(grade)) {
+    return null;
+  }
+
+  // 보험 필수 금액
+  const requiredAmounts = {
+    F3: 50000, F4: 50000,
+    F5: 70000, F6: 70000,
+    F7: 100000, F8: 100000
+  };
+
+  // 관리자가 설정한 보험 정보 확인
+  const insuranceSettings = user.insuranceSettings;
+
+  if (!insuranceSettings || !insuranceSettings.maintained) {
+    return {
+      skip: true,
+      reason: 'insurance_not_maintained'
+    };
+  }
+
+  if (insuranceSettings.amount < requiredAmounts[grade]) {
+    return {
+      skip: true,
+      reason: `insufficient_insurance_amount: ${insuranceSettings.amount} < ${requiredAmounts[grade]}`
+    };
+  }
+
+  return null;  // 조건 충족
+}
+
+/**
+ * 지급액 계산 (100원 단위 절삭 포함)
+ */
+async function calculatePaymentAmount(grade, revenueMonth) {
+  try {
+    // 월별 등록 정보 조회
+    const monthlyReg = await MonthlyRegistrations.findOne({
+      monthKey: revenueMonth
+    });
+
+    if (!monthlyReg) {
+      console.error(`월별 등록 정보 없음: ${revenueMonth}`);
+      return null;
+    }
+
+    // 실제 사용할 매출 (관리자 조정값 우선)
+    const revenue = monthlyReg.getEffectiveRevenue();
+
+    // 등급별 지급액 계산 (누적 방식)
+    const gradePayments = calculateGradePayments(revenue, monthlyReg.gradeDistribution);
+    const baseAmount = gradePayments[grade] || 0;
+
+    if (baseAmount === 0) {
+      console.error(`등급 ${grade}의 지급액이 0원`);
+      return null;
+    }
+
+    // 10분할 및 100원 단위 절삭
+    const installmentAmount = Math.floor(baseAmount / 10 / 100) * 100;
+
+    // 원천징수 계산 (3.3%)
+    const withholdingTax = Math.round(installmentAmount * 0.033);
+    const netAmount = installmentAmount - withholdingTax;
+
+    return {
+      baseAmount,         // 등급별 총 지급액 (절삭 전)
+      installmentAmount,  // 회차당 지급액 (100원 단위 절삭)
+      withholdingTax,     // 원천징수액
+      netAmount           // 실지급액
+    };
+  } catch (error) {
+    console.error('지급액 계산 실패:', error);
+    return null;
+  }
+}
+
+/**
+ * 등급별 누적 지급액 계산
+ */
+function calculateGradePayments(totalRevenue, gradeDistribution) {
+  const rates = {
+    F1: 0.24, F2: 0.19, F3: 0.14, F4: 0.09,
+    F5: 0.05, F6: 0.03, F7: 0.02, F8: 0.01
+  };
+
+  const payments = {};
+  let previousAmount = 0;
+
+  const grades = ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'];
+
+  for (let i = 0; i < grades.length; i++) {
+    const grade = grades[i];
+    const nextGrade = grades[i + 1];
+
+    const currentCount = gradeDistribution[grade] || 0;
+    const nextCount = gradeDistribution[nextGrade] || 0;
+
+    if (currentCount > 0) {
+      const poolAmount = totalRevenue * rates[grade];
+      const poolCount = currentCount + nextCount;
+
+      if (poolCount > 0) {
+        const additionalPerPerson = poolAmount / poolCount;
+        payments[grade] = previousAmount + additionalPerPerson;
+        previousAmount = payments[grade];
+      } else {
+        payments[grade] = previousAmount;
+      }
+    } else {
+      payments[grade] = 0;
+    }
+  }
+
+  return payments;
+}
+
+/**
+ * 매출월의 확정 등급 조회
+ */
+async function getConfirmedGradeForPayment(userId, revenueMonth) {
+  try {
+    const snapshot = await MonthlyTreeSnapshots.findOne({
+      monthKey: revenueMonth,
+      'users.userId': userId
+    });
+
+    if (!snapshot) {
+      console.warn(`매출월 ${revenueMonth}의 스냅샷이 없음 - userId: ${userId}`);
+      return null;
+    }
+
+    const userSnapshot = snapshot.users.find(u => u.userId === userId);
+    if (!userSnapshot) {
+      console.warn(`스냅샷에서 사용자 ${userId}를 찾을 수 없음`);
+      return null;
+    }
+
+    return userSnapshot.grade;
+  } catch (error) {
+    console.error('확정 등급 조회 실패:', error);
+    return null;
+  }
+}
+
+/**
+ * 특정 날짜의 지급 내역 조회
+ */
+export async function getWeeklyPaymentReport(date) {
+  try {
+    const paymentDate = new Date(date);
+    paymentDate.setHours(0, 0, 0, 0);
+
+    const weekNumber = WeeklyPaymentPlans.getISOWeek(paymentDate);
+
+    // 주차별 총계
+    const summary = await WeeklyPaymentSummary.findOne({ weekNumber });
+
+    if (!summary) {
+      return {
+        success: false,
+        message: '해당 주차의 지급 내역이 없습니다.'
+      };
+    }
+
+    // 개별 지급 내역
+    const plans = await WeeklyPaymentPlans.find({
+      'installments': {
+        $elemMatch: {
+          weekNumber: weekNumber,
+          status: 'paid'
+        }
+      }
+    });
+
+    const payments = [];
+    for (const plan of plans) {
+      const installment = plan.installments.find(
+        i => i.weekNumber === weekNumber && i.status === 'paid'
+      );
+
+      if (installment) {
+        const user = await User.findOne({ loginId: plan.userId });
+        payments.push({
+          userId: plan.userId,
+          userName: plan.userName,
+          planner: user?.planner || '',
+          bank: user?.bank || '',
+          accountNumber: user?.accountNumber || '',
+          grade: plan.baseGrade,
+          planType: plan.planType,
+          installmentNumber: installment.week,
+          amount: installment.installmentAmount,
+          tax: installment.withholdingTax,
+          net: installment.netAmount
+        });
+      }
+    }
+
+    return {
+      success: true,
+      date: paymentDate,
+      weekNumber,
+      summary: {
+        totalAmount: summary.totalAmount,
+        totalTax: summary.totalTax,
+        totalNet: summary.totalNet,
+        totalUserCount: summary.totalUserCount,
+        totalPaymentCount: summary.totalPaymentCount,
+        byGrade: summary.byGrade,
+        byPlanType: summary.byPlanType
+      },
+      payments
+    };
+  } catch (error) {
+    console.error('주간 지급 보고서 조회 실패:', error);
+    throw error;
+  }
+}

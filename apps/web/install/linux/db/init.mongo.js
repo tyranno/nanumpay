@@ -16,8 +16,27 @@
 
 	var dbx = db.getSiblingDB(dbName);
 
-	// Nanumpay 컬렉션 생성
-	var collections = ['admins', 'users', 'monthlyrevenues', 'userpaymentplans', 'weeklypayments'];
+	// FORCE 옵션이면 모든 컬렉션 삭제
+	if (force) {
+		print('[init] FORCE mode: Dropping all collections...');
+		var existingCollections = dbx.getCollectionNames();
+		existingCollections.forEach(function(colName) {
+			if (colName !== 'system.indexes') {
+				dbx.getCollection(colName).drop();
+				print('[init] Dropped collection: ' + colName);
+			}
+		});
+	}
+
+	// Nanumpay v5.0 컬렉션 생성
+	var collections = [
+		'admins',
+		'users',
+		'monthlyregistrations',
+		'monthlytreesnapshots',
+		'weeklypaymentplans',
+		'weeklypaymentsummary'
+	];
 	collections.forEach(function(colName) {
 		if (dbx.getCollectionNames().indexOf(colName) < 0) {
 			dbx.createCollection(colName);
@@ -40,18 +59,29 @@
 	dbx.users.createIndex({ createdAt: 1 });
 	dbx.users.createIndex({ sequence: 1 }, { unique: true });
 
-	// monthlyrevenues
-	dbx.monthlyrevenues.createIndex({ year: 1, month: 1 }, { unique: true });
-	dbx.monthlyrevenues.createIndex({ isCalculated: 1 });
+	// monthlyregistrations (v5.0)
+	dbx.monthlyregistrations.createIndex({ monthKey: 1 }, { unique: true });
+	dbx.monthlyregistrations.createIndex({ 'registrations.userId': 1 });
 
-	// userpaymentplans
-	dbx.userpaymentplans.createIndex({ userId: 1 });
-	dbx.userpaymentplans.createIndex({ 'revenueMonth.year': 1, 'revenueMonth.month': 1 });
+	// monthlytreesnapshots (v5.0)
+	dbx.monthlytreesnapshots.createIndex({ monthKey: 1 }, { unique: true });
+	dbx.monthlytreesnapshots.createIndex({ snapshotDate: 1 });
+	dbx.monthlytreesnapshots.createIndex({ 'users.userId': 1 });
 
-	// weeklypayments
-	dbx.weeklypayments.createIndex({ userId: 1 });
-	dbx.weeklypayments.createIndex({ year: 1, month: 1, week: 1 });
-	dbx.weeklypayments.createIndex({ status: 1 });
+	// weeklypaymentplans (v5.0)
+	dbx.weeklypaymentplans.createIndex({ userId: 1 });
+	dbx.weeklypaymentplans.createIndex({ planType: 1 });
+	dbx.weeklypaymentplans.createIndex({ baseGrade: 1 });
+	dbx.weeklypaymentplans.createIndex({ revenueMonth: 1 });
+	dbx.weeklypaymentplans.createIndex({ planStatus: 1 });
+	dbx.weeklypaymentplans.createIndex({ 'installments.weekNumber': 1 });
+	dbx.weeklypaymentplans.createIndex({ 'installments.status': 1 });
+
+	// weeklypaymentsummary (v5.0)
+	dbx.weeklypaymentsummary.createIndex({ weekNumber: 1 }, { unique: true });
+	dbx.weeklypaymentsummary.createIndex({ weekDate: 1 });
+	dbx.weeklypaymentsummary.createIndex({ monthKey: 1 });
+	dbx.weeklypaymentsummary.createIndex({ status: 1 });
 
 	print('[init] Indexes created for all collections');
 

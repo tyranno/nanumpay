@@ -1,8 +1,9 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db.js';
 import User from '$lib/server/models/User.js';
-import MonthlyRevenue from '$lib/server/models/MonthlyRevenue.js';
-import WeeklyPayment from '$lib/server/models/WeeklyPayment.js';
+import MonthlyRegistrations from '$lib/server/models/MonthlyRegistrations.js';
+import WeeklyPaymentSummary from '$lib/server/models/WeeklyPaymentSummary.js';
+import WeeklyPaymentPlans from '$lib/server/models/WeeklyPaymentPlans.js';
 import SimpleCache from '$lib/server/cache.js';
 import { getWeekOfMonthByFriday } from '$lib/utils/fridayWeekCalculator.js';
 
@@ -36,9 +37,9 @@ export async function GET({ locals, url }) {
 		const currentMonth = new Date();
 		const firstDayOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
 
-		// 가장 최근 매출이 있는 월을 찾기
-		const latestRevenue = await MonthlyRevenue.findOne({ totalRevenue: { $gt: 0 } })
-			.sort({ year: -1, month: -1 })
+		// v5.0: 가장 최근 매출이 있는 월을 찾기
+		const latestRevenue = await MonthlyRegistrations.findOne({ totalRevenue: { $gt: 0 } })
+			.sort({ monthKey: -1 })
 			.limit(1);
 
 		// 정확한 주차 계산 (일요일 시작, 월요일 기준)
@@ -66,30 +67,17 @@ export async function GET({ locals, url }) {
 			User.countDocuments({ type: 'user', createdAt: { $gte: today } }), // 오늘 신규 용역자
 			// 이번 달 신규 가입자 수 조회 (용역자만)
 			User.countDocuments({ type: 'user', createdAt: { $gte: firstDayOfMonth } }),
-			// 가장 최근 매출이 있는 월의 데이터 사용 (없으면 현재 월)
-			latestRevenue || MonthlyRevenue.findOne({
-				year: currentDate.getFullYear(),
-				month: currentDate.getMonth() + 1
+			// v5.0: 가장 최근 매출이 있는 월의 데이터 사용 (없으면 현재 월)
+			latestRevenue || MonthlyRegistrations.findOne({
+				monthKey: `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`
 			}),
-			// 이번 주 지급액 조회
-			WeeklyPayment.aggregate([
-				{
-					$match: {
-						year: year,
-						month: month,
-						week: weekOfMonth
-					}
-				},
-				{
-					$group: {
-						_id: null,
-						totalAmount: { $sum: '$totalAmount' },
-						totalTax: { $sum: '$taxAmount' },
-						totalNet: { $sum: '$netAmount' },
-						userCount: { $sum: 1 }
-					}
-				}
-			]),
+			// v5.0: 이번 주 지급액 조회 (WeeklyPaymentSummary에서)
+			(async () => {
+				const startOfYear = new Date(year, 0, 1);
+				const dayOfYear = Math.floor((currentDate - startOfYear) / (1000 * 60 * 60 * 24));
+				const weekNumber = Math.ceil((dayOfYear + startOfYear.getDay() + 1) / 7);
+				return WeeklyPaymentSummary.findOne({ weekNumber });
+			})(),
 			// 등급별 사용자 수 조회
 			User.aggregate([
 				{
@@ -112,13 +100,19 @@ export async function GET({ locals, url }) {
 			}
 		});
 
-		// 이번 주 실제 지급액을 등급별로 집계
-		const thisWeekPaymentsByGrade = await WeeklyPayment.aggregate([
+		// v5.0: 이번 주 실제 지급액을 등급별로 집계 (WeeklyPaymentPlans에서)
+		const startOfYear = new Date(year, 0, 1);
+		const dayOfYear = Math.floor((currentDate - startOfYear) / (1000 * 60 * 60 * 24));
+		const weekNumber = Math.ceil((dayOfYear + startOfYear.getDay() + 1) / 7);
+
+		const thisWeekPaymentsByGrade = await WeeklyPaymentPlans.aggregate([
+			{
+				$unwind: '$installments'
+			},
 			{
 				$match: {
-					year: year,
-					month: month,
-					week: weekOfMonth
+					'installments.weekNumber': weekNumber,
+					'installments.status': 'completed'
 				}
 			},
 			{
@@ -136,8 +130,8 @@ export async function GET({ locals, url }) {
 				$group: {
 					_id: '$user.grade',
 					count: { $sum: 1 },
-					totalAmount: { $sum: '$totalAmount' },
-					avgAmount: { $avg: '$totalAmount' }
+					totalAmount: { $sum: '$installments.amount' },
+					avgAmount: { $avg: '$installments.amount' }
 				}
 			}
 		]);
@@ -180,12 +174,12 @@ export async function GET({ locals, url }) {
 				F7: { count: gradeCount.F7, ratio: 2, amount: gradePayments.F7 },
 				F8: { count: gradeCount.F8, ratio: 1, amount: gradePayments.F8 }
 			},
-			// 이번 주 지급액 정보 추가
+			// v5.0: 이번 주 지급액 정보 추가 (WeeklyPaymentSummary에서)
 			weeklyPayment: {
-				totalAmount: weeklyPaymentData[0]?.totalAmount || 0,
-				totalTax: weeklyPaymentData[0]?.totalTax || 0,
-				totalNet: weeklyPaymentData[0]?.totalNet || 0,
-				userCount: weeklyPaymentData[0]?.userCount || 0,
+				totalAmount: weeklyPaymentData?.totalAmount || 0,
+				totalTax: weeklyPaymentData?.totalTax || 0,
+				totalNet: weeklyPaymentData?.totalNetAmount || 0,
+				userCount: weeklyPaymentData?.userCount || 0,
 				period: `${year}년 ${month}월 ${weekOfMonth}주차`
 			},
 			currentMonth: month,

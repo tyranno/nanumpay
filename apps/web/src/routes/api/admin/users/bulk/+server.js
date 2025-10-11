@@ -5,7 +5,6 @@ import bcrypt from 'bcryptjs';
 import { recalculateAllGrades, updateParentGrade } from '$lib/server/services/gradeCalculation.js';
 import { excelLogger } from '$lib/server/logger.js';
 import { smartTreeRestructure } from '$lib/server/services/treeRestructure.js';
-import RevenueRecalculation from '$lib/server/services/revenueRecalculation.js';
 import ValidationService from '$lib/server/services/validationService.js';
 
 // 트리 구조 요약 생성 함수
@@ -511,33 +510,8 @@ export async function POST({ request, locals }) {
 				// 결과에 배치 처리 정보 추가
 				results.batchProcessing = batchResult.results;
 
-				// 과거 날짜 데이터가 포함된 경우 놓친 지급 처리
-				excelLogger.info('놓친 지급 확인 및 처리 중...');
-				try {
-					// 과거 날짜 사용자가 있는지 확인
-					const now = new Date();
-					const hasPastData = Array.from(registeredUsers.values()).some(info => {
-						const userDate = info.user.createdAt;
-						return userDate < now && (
-							userDate.getFullYear() < now.getFullYear() ||
-							(userDate.getFullYear() === now.getFullYear() && userDate.getMonth() < now.getMonth())
-						);
-					});
-
-					if (hasPastData) {
-						excelLogger.info('과거 날짜 데이터 감지 - 매출 재계산 및 놓친 지급 처리');
-						const recalcResult = await RevenueRecalculation.processAfterBulkUpload();
-
-						if (recalcResult.success) {
-							excelLogger.info('매출 재계산 완료:', recalcResult.results);
-							results.revenueRecalculation = recalcResult.results;
-						} else {
-							excelLogger.warn('매출 재계산 실패:', recalcResult.error);
-						}
-					}
-				} catch (recalcError) {
-					excelLogger.error('놓친 지급 처리 오류:', recalcError);
-				}
+				// v5.0: 과거 날짜 지급 처리는 paymentScheduler의 checkAndProcessMissedPayments에서 자동 처리됨
+				excelLogger.info('v5.0: 놓친 지급은 스케줄러가 자동 처리합니다.');
 			} catch (err) {
 				excelLogger.error('배치 처리 실패:', err);
 				results.batchError = err.message;

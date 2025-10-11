@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db.js';
 import User from '$lib/server/models/User.js';
-import MonthlyRevenue from '$lib/server/models/MonthlyRevenue.js';
+import MonthlyRegistrations from '$lib/server/models/MonthlyRegistrations.js';
 
 export async function GET({ locals, url }) {
 	if (!locals.user || locals.user.type !== 'admin') {
@@ -45,10 +45,9 @@ async function handleSingleQuery(url) {
 			} 
 		}),
 
-		// 해당 월 매출 데이터
-		MonthlyRevenue.findOne({
-			year: year,
-			month: month
+		// v5.0: 해당 월 매출 데이터
+		MonthlyRegistrations.findOne({
+			monthKey: `${year}-${String(month).padStart(2, '0')}`
 		}),
 
 		// 등급별 전체 용역자 수 (Admin 제외)
@@ -223,7 +222,7 @@ async function getSingleMonthData(year, month) {
 				$lte: lastDayOfMonth
 			} 
 		}),
-		MonthlyRevenue.findOne({ year, month }),
+		MonthlyRegistrations.findOne({ monthKey: `${year}-${String(month).padStart(2, '0')}` }),
 		User.aggregate([
 			{ $match: { type: 'user' } },
 			{ $group: { _id: '$grade', count: { $sum: 1 } } }

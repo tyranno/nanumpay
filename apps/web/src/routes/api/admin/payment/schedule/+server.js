@@ -1,9 +1,12 @@
 import { json } from '@sveltejs/kit';
-import PaymentService from '$lib/server/services/paymentService.js';
-import PaymentSchedule from '$lib/server/models/PaymentSchedule.js';
 import { connectDB } from '$lib/server/db.js';
+import WeeklyPaymentSummary from '$lib/server/models/WeeklyPaymentSummary.js';
+import WeeklyPaymentPlans from '$lib/server/models/WeeklyPaymentPlans.js';
 
-/** @type {import('./$types').RequestHandler} */
+/**
+ * v5.0: 주차별 지급 스케줄 조회
+ * (이전 v2 PaymentSchedule 대체)
+ */
 export async function GET({ url }) {
 	await connectDB();
 
@@ -18,70 +21,80 @@ export async function GET({ url }) {
 			console.log(`[API] 파라미터 오류: year=${year}, month=${month}, week=${week}`);
 			return json({
 				success: false,
-				error: 'year, month, week 파라미터가 필요합니다.'
+				error: '년도, 월, 주차 정보가 필요합니다.'
 			}, { status: 400 });
 		}
 
-		// 해당 주차의 지급액 계산
-		console.log(`[API] PaymentService.calculateWeeklyPayments 호출 시작`);
-		const weeklyPayment = await PaymentService.calculateWeeklyPayments(year, month, week);
-		console.log(`[API] PaymentService.calculateWeeklyPayments 호출 완료:`, !!weeklyPayment);
+		// v5.0: ISO 주차 계산
+		const date = new Date(year, month - 1, 1 + (week - 1) * 7);
+		const startOfYear = new Date(year, 0, 1);
+		const dayOfYear = Math.floor((date - startOfYear) / (1000 * 60 * 60 * 24));
+		const weekNumber = Math.ceil((dayOfYear + startOfYear.getDay() + 1) / 7);
 
-		if (!weeklyPayment) {
-			console.log(`[API] 결과가 null - 해당 주차에 지급될 데이터가 없음`);
-			return json({
-				success: false,
-				error: '해당 주차에 지급될 데이터가 없습니다.'
-			});
-		}
+		console.log(`[API] 계산된 weekNumber: ${weekNumber}`);
 
-		console.log(`[API] 성공적으로 데이터 반환`, {
-			payments: weeklyPayment.payments?.length || 0,
-			totalPayment: weeklyPayment.totalPayment || 0
-		});
+		// v5.0: 주간 지급 요약 조회
+		const summary = await WeeklyPaymentSummary.findOne({ weekNumber });
+
+		// v5.0: 해당 주차의 분할금 조회
+		const installments = await WeeklyPaymentPlans.aggregate([
+			{
+				$unwind: '$installments'
+			},
+			{
+				$match: {
+					'installments.weekNumber': weekNumber
+				}
+			},
+			{
+				$lookup: {
+					from: 'users',
+					localField: 'userId',
+					foreignField: '_id',
+					as: 'user'
+				}
+			},
+			{
+				$unwind: '$user'
+			},
+			{
+				$project: {
+					userId: '$user._id',
+					userName: '$user.name',
+					userGrade: '$user.grade',
+					amount: '$installments.amount',
+					status: '$installments.status',
+					scheduledDate: '$installments.scheduledDate',
+					paidDate: '$installments.paidDate',
+					planType: '$planType',
+					installmentNumber: '$installments.installmentNumber'
+				}
+			}
+		]);
+
+		console.log(`[API] 조회된 분할금 수: ${installments.length}`);
 
 		return json({
 			success: true,
-			data: weeklyPayment
+			year,
+			month,
+			week,
+			weekNumber,
+			summary: summary ? {
+				totalAmount: summary.totalAmount,
+				totalTax: summary.totalTax,
+				totalNetAmount: summary.totalNetAmount,
+				userCount: summary.userCount,
+				status: summary.status,
+				processedAt: summary.processedAt
+			} : null,
+			installments
 		});
-
 	} catch (error) {
-		console.error('Error in GET /api/admin/payment/schedule:', error);
+		console.error('[API] 스케줄 조회 오류:', error);
 		return json({
 			success: false,
-			error: error.message
-		}, { status: 500 });
-	}
-}
-
-/** @type {import('./$types').RequestHandler} */
-export async function POST({ request }) {
-	await connectDB();
-
-	try {
-		const { year, month } = await request.json();
-
-		if (!year || !month) {
-			return json({
-				success: false,
-				error: 'year, month 파라미터가 필요합니다.'
-			}, { status: 400 });
-		}
-
-		// 매출 생성 및 10주 분할 스케줄 생성
-		const schedules = await PaymentService.createPaymentSchedule(year, month);
-
-		return json({
-			success: true,
-			data: schedules,
-			message: `${year}년 ${month}월 매출의 10주 분할 스케줄이 생성되었습니다.`
-		});
-
-	} catch (error) {
-		console.error('Error in POST /api/admin/payment/schedule:', error);
-		return json({
-			success: false,
-			error: error.message
+			error: '스케줄 조회 중 오류가 발생했습니다.'
 		}, { status: 500 });
 	}
 }
