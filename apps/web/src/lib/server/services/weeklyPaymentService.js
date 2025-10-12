@@ -49,15 +49,15 @@ export async function processWeeklyPayments(date = new Date()) {
     let summary = await WeeklyPaymentSummary.findOne({ weekNumber });
 
     if (!summary) {
-      summary = await WeeklyPaymentSummary.create([{
+      summary = await WeeklyPaymentSummary.create({
         weekDate: paymentDate,
         weekNumber,
         monthKey: WeeklyPaymentSummary.generateMonthKey(paymentDate),
         status: 'processing'
-      }], { session })[0];
+      });
     } else {
       summary.status = 'processing';
-      await summary.save({ session });
+      await summary.save();
     }
 
     // 3. 각 계획별 지급 처리
@@ -80,7 +80,7 @@ export async function processWeeklyPayments(date = new Date()) {
         installment.status = 'skipped';
         installment.skipReason = 'insurance_not_maintained';
         plan.completedInstallments += 1;  // 회차는 증가하지만 지급 안함
-        await plan.save({ session });
+        await plan.save();
         console.log(`${user.name} 지급 건너뜀 (보험 미유지): 회차 ${plan.completedInstallments}`);
         continue;
       }
@@ -92,7 +92,7 @@ export async function processWeeklyPayments(date = new Date()) {
         installment.skipReason = skipPayment.reason;
         installment.insuranceSkipped = true;  // 플래그 설정
         plan.completedInstallments += 1;  // 회차는 증가
-        await plan.save({ session });
+        await plan.save();
         console.log(`${user.name} 지급 건너뜀: ${skipPayment.reason}`);
         continue;
       }
@@ -130,7 +130,7 @@ export async function processWeeklyPayments(date = new Date()) {
         plan.planStatus = 'completed';
       }
 
-      await plan.save({ session });
+      await plan.save();
 
       // 통계 업데이트
       summary.incrementPayment(
@@ -163,10 +163,9 @@ export async function processWeeklyPayments(date = new Date()) {
     // 5. 총계 문서 저장
     summary.status = 'completed';
     summary.processedAt = new Date();
-    await summary.save({ session });
+    await summary.save();
 
     // 6. 처리 완료
-
     console.log(`=== 지급 처리 완료: ${processedPayments.length}건 ===`);
 
     // 7. 10회 완료된 계획들에 대해 additional 계획 생성 (트랜잭션 밖에서)
