@@ -16,6 +16,11 @@ const weeklyPaymentPlansSchema = new mongoose.Schema(
       required: true,
       enum: ['initial', 'promotion', 'additional']  // 등록/승급/추가
     },
+    generation: {
+      type: Number,
+      required: true,
+      default: 1  // 몇 번째 10회인지 (1, 2, 3, ...)
+    },
     baseGrade: {
       type: String,
       required: true,
@@ -102,6 +107,17 @@ const weeklyPaymentPlansSchema = new mongoose.Schema(
       enum: ['promotion', 'max_reached', 'manual']
     },
 
+    // v6.0 추가 필드
+    parentPlanId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'WeeklyPaymentPlans'  // 이전 10회 계획 ID (연결 추적)
+    },
+    createdBy: {
+      type: String,
+      enum: ['registration', 'promotion', 'auto_generation'],  // 생성 출처
+      default: 'registration'
+    },
+
     // 메타데이터
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now }
@@ -117,6 +133,9 @@ weeklyPaymentPlansSchema.index({ 'installments.scheduledDate': 1, 'installments.
 weeklyPaymentPlansSchema.index({ planType: 1, baseGrade: 1 });
 weeklyPaymentPlansSchema.index({ revenueMonth: 1 });
 weeklyPaymentPlansSchema.index({ 'installments.weekNumber': 1 });
+weeklyPaymentPlansSchema.index({ generation: 1 });  // v6.0 추가
+weeklyPaymentPlansSchema.index({ parentPlanId: 1 });  // v6.0 추가
+weeklyPaymentPlansSchema.index({ createdBy: 1 });  // v6.0 추가
 
 // 헬퍼 메소드: ISO 주차 계산
 weeklyPaymentPlansSchema.statics.getISOWeek = function(date) {

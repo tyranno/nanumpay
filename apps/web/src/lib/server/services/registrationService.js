@@ -8,7 +8,7 @@ import MonthlyRegistrations from '../models/MonthlyRegistrations.js';
 import MonthlyTreeSnapshots from '../models/MonthlyTreeSnapshots.js';
 import WeeklyPaymentPlans from '../models/WeeklyPaymentPlans.js';
 import { recalculateAllGrades } from './gradeCalculation.js';
-import { createInitialPaymentPlan, createPromotionPaymentPlan } from './paymentPlanService.js';
+import { createInitialPaymentPlan, createPromotionPaymentPlan, checkAndCreateAdditionalPlan } from './paymentPlanService.js';
 import { excelLogger as logger } from '../logger.js';
 
 /**
@@ -107,13 +107,44 @@ export async function processUserRegistration(userIds) {
       }
     }
 
-    // 7. 처리 완료
+    // 7. v6.0: 10회 완료된 계획 확인 및 추가 계획 생성
+    console.log('[등록처리 7단계] 10회 완료 계획 확인 시작');
+
+    // 모든 완료된 계획 조회
+    const completedPlans = await WeeklyPaymentPlans.find({
+      completedInstallments: 10,
+      planStatus: 'completed'
+    });
+
+    console.log(`  발견된 10회 완료 계획: ${completedPlans.length}건`);
+
+    let additionalPlanCount = 0;
+    for (const plan of completedPlans) {
+      // 이미 추가 계획이 생성되었는지 확인 (중복 방지)
+      const hasAdditionalPlan = await WeeklyPaymentPlans.findOne({
+        parentPlanId: plan._id
+      });
+
+      if (!hasAdditionalPlan) {
+        console.log(`  ${plan.userName}의 완료된 계획 발견: generation ${plan.generation}`);
+        const additionalPlan = await checkAndCreateAdditionalPlan(plan);
+        if (additionalPlan) {
+          additionalPlanCount++;
+          console.log(`  추가 계획 생성 완료: generation ${additionalPlan.generation}`);
+        }
+      }
+    }
+
+    console.log(`[등록처리 7단계] 추가 계획 생성 완료: ${additionalPlanCount}건`);
+
+    // 8. 처리 완료
 
     logger.info(`=== 용역자 등록 처리 완료 ===`, {
       신규등록: updatedUsers.length,
       등급변경: affectedUsers.length,
       승급자: promotedUsers.length,
-      지급계획: paymentPlanResults.length
+      지급계획: paymentPlanResults.length,
+      추가계획: additionalPlanCount
     });
 
     return {
@@ -121,7 +152,8 @@ export async function processUserRegistration(userIds) {
       registeredUsers: updatedUsers.length,
       affectedUsers: affectedUsers.length,
       promotedUsers: promotedUsers.length,
-      paymentPlans: paymentPlanResults
+      paymentPlans: paymentPlanResults,
+      additionalPlans: additionalPlanCount
     };
 
   } catch (error) {
