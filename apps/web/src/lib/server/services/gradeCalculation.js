@@ -167,6 +167,7 @@ export async function recalculateAllGrades() {
   const sortedLevels = Array.from(levelGroups.keys()).sort((a, b) => b - a);
 
   let updatedCount = 0;
+  const changedUsers = []; // 승급자 정보 저장
 
   // 리프 노드부터 상향식으로 등급 계산
   for (const level of sortedLevels) {
@@ -185,6 +186,15 @@ export async function recalculateAllGrades() {
         user.grade = newGrade; // 맵에서도 업데이트
         updatedCount++;
         console.log(`  등급 변경: ${user.name} (${user.loginId}): ${oldGrade} → ${newGrade}`);
+
+        // 승급자 정보 저장
+        changedUsers.push({
+          userId: user.loginId,
+          userName: user.name,
+          changeType: 'grade_change',
+          oldGrade: oldGrade,
+          newGrade: newGrade
+        });
       }
     }
   }
@@ -204,7 +214,11 @@ export async function recalculateAllGrades() {
     console.log(`${g._id}: ${g.count}명`);
   }
 
-  return updatedCount;
+  // 승급자 정보 포함하여 반환
+  return {
+    updatedCount,
+    changedUsers
+  };
 }
 
 /**

@@ -699,28 +699,56 @@ export async function terminateAdditionalPlansOnPromotion(userId) {
 export async function createMonthlyAdditionalPayments(currentMonth) {
   try {
     console.log(`\n[v7.0 매월추가지급] ${currentMonth} 처리 시작`);
+    console.log(`  ⭐ 핵심: 전체 과거 등록자 중 ${currentMonth} 미승급자 확인!`);
 
-    // 이전 월 계산
-    const [year, month] = currentMonth.split('-').map(Number);
-    const prevDate = new Date(year, month - 2, 1);  // month는 1-based
-    const previousMonth = MonthlyRegistrations.generateMonthKey(prevDate);
+    // 1. ⭐ 전체 과거 월 MonthlyRegistrations 조회
+    const allPastRegs = await MonthlyRegistrations.find({
+      monthKey: { $lt: currentMonth }  // 현재 월보다 이전 모든 월
+    }).sort({ monthKey: 1 });
 
-    console.log(`  이전 월: ${previousMonth}`);
-
-    // 1. 이전 월 등록 정보 조회
-    const prevMonthReg = await MonthlyRegistrations.findOne({ monthKey: previousMonth });
-    if (!prevMonthReg || !prevMonthReg.paymentTargets) {
-      console.log(`  이전 월 등록 정보 없음 - 종료`);
-      return;
+    if (!allPastRegs || allPastRegs.length === 0) {
+      console.log(`  과거 등록 정보 없음 - 종료`);
+      return { count: 0, targets: [] };
     }
 
-    // 2. 이전 월 등록자 + 승급자 목록
-    const prevMonthUsers = [
-      ...(prevMonthReg.paymentTargets.registrants || []),
-      ...(prevMonthReg.paymentTargets.promoted || [])
-    ];
+    console.log(`  과거 등록 월 수: ${allPastRegs.length}개`);
+    allPastRegs.forEach(reg => {
+      console.log(`    - ${reg.monthKey}: 등록자 ${reg.registrationCount}명`);
+    });
 
-    console.log(`  이전 월 대상자: ${prevMonthUsers.length}명`);
+    // 2. ⭐ 전체 과거 등록자 수집 (모든 월의 등록자 + 승급자)
+    const allPastUsers = [];
+    const userMonthMap = new Map();  // userId -> 원래 등록월 매핑
+
+    for (const reg of allPastRegs) {
+      // 등록자 추가
+      for (const registrant of (reg.registrations || [])) {
+        allPastUsers.push({
+          userId: registrant.userId,
+          userName: registrant.userName,
+          grade: registrant.grade,
+          fromMonth: reg.monthKey
+        });
+        if (!userMonthMap.has(registrant.userId)) {
+          userMonthMap.set(registrant.userId, reg.monthKey);
+        }
+      }
+
+      // 승급자 추가 (이전 월에 승급한 사람들도 포함)
+      for (const promoted of (reg.paymentTargets?.promoted || [])) {
+        allPastUsers.push({
+          userId: promoted.userId,
+          userName: promoted.userName,
+          grade: promoted.newGrade,
+          fromMonth: reg.monthKey
+        });
+        if (!userMonthMap.has(promoted.userId)) {
+          userMonthMap.set(promoted.userId, reg.monthKey);
+        }
+      }
+    }
+
+    console.log(`  전체 과거 대상자: ${allPastUsers.length}명`);
 
     // 3. 현재 월 승급자 목록 조회
     const currentMonthReg = await MonthlyRegistrations.findOne({ monthKey: currentMonth });
@@ -728,13 +756,22 @@ export async function createMonthlyAdditionalPayments(currentMonth) {
       (currentMonthReg?.paymentTargets?.promoted || []).map(p => p.userId)
     );
 
-    console.log(`  현재 월 승급자: ${currentPromotedUsers.size}명`);
+    console.log(`  현재 월(${currentMonth}) 승급자: ${currentPromotedUsers.size}명`);
 
-    // 4. 각 사용자에 대해 승급 여부 확인 및 추가지급 생성
+    // 4. ⭐ 중복 제거 (userId 기준, 가장 최근 정보 유지)
+    const uniqueUsers = new Map();
+    for (const user of allPastUsers) {
+      uniqueUsers.set(user.userId, user);
+    }
+    const uniquePastUsers = Array.from(uniqueUsers.values());
+    console.log(`  중복 제거 후: ${uniquePastUsers.length}명`);
+
+    // 5. 각 사용자에 대해 승급 여부 확인 및 추가지급 생성
     const User = mongoose.model('User');
     let createdCount = 0;
+    const createdTargets = [];  // ⭐ v7.0: 생성된 추가지급 대상자 정보 저장
 
-    for (const target of prevMonthUsers) {
+    for (const target of uniquePastUsers) {
       const userId = target.userId;
 
       // 현재 월에 승급했으면 SKIP
@@ -743,7 +780,7 @@ export async function createMonthlyAdditionalPayments(currentMonth) {
         continue;
       }
 
-      // User 정보 조회
+      // User 정보 조회 (최신 등급 정보)
       const user = await User.findOne({ loginId: userId });
       if (!user) {
         console.log(`  ${userId}: 사용자 없음 → SKIP`);
@@ -765,22 +802,40 @@ export async function createMonthlyAdditionalPayments(currentMonth) {
         continue;
       }
 
-      // 이전 월 매출 기준으로 추가지급 생성
+      // ⭐ 핵심: revenueMonth = 원래 등록월, currentMonth = 현재 월 (금액 계산 기준)
+      // 예: 7월 등록자 → revenueMonth=7월, currentMonth=8월 (8월 등급 분포 기준 금액)
+      const originalMonth = userMonthMap.get(userId);
+
       const result = await createAdditionalPaymentForUser(
         userId,
         user.name,
         user.grade,
-        previousMonth
+        originalMonth,  // revenueMonth = 원래 등록월 (매출 귀속)
+        currentMonth    // currentMonth = 현재 월 (금액 계산 기준)
       );
 
       if (result) {
         createdCount++;
-        console.log(`  ${userId}: 추가지급 생성 완료 (추가지급단계: ${result.추가지급단계})`);
+        // ⭐ v7.0: 생성된 대상자 정보 저장
+        createdTargets.push({
+          userId,
+          userName: user.name,
+          grade: user.grade,
+          추가지급단계: result.추가지급단계,
+          revenueMonth: originalMonth
+        });
+        console.log(`  ${userId}: 추가지급 생성 완료 (원래 등록월: ${originalMonth}, 추가지급단계: ${result.추가지급단계})`);
       }
     }
 
-    console.log(`[v7.0 매월추가지급] 완료: ${createdCount}개 생성\n`);
-    return createdCount;
+    console.log(`[v7.0 매월추가지급] 완료: ${createdCount}개 생성
+`);
+    
+    // ⭐ v7.0: 생성된 대상자 정보 반환
+    return {
+      count: createdCount,
+      targets: createdTargets
+    };
   } catch (error) {
     console.error('[v7.0 매월추가지급] 실패:', error);
     throw error;
@@ -789,8 +844,13 @@ export async function createMonthlyAdditionalPayments(currentMonth) {
 
 /**
  * v7.0: 특정 사용자의 추가지급 계획 생성
+ * @param {string} userId - 사용자 ID
+ * @param {string} userName - 사용자 이름
+ * @param {string} grade - 사용자 등급
+ * @param {string} revenueMonth - 매출 귀속 월 (이전 월, 7월)
+ * @param {string} currentMonth - 현재 월, 금액 계산 기준 (8월)
  */
-async function createAdditionalPaymentForUser(userId, userName, grade, revenueMonth) {
+async function createAdditionalPaymentForUser(userId, userName, grade, revenueMonth, currentMonth) {
   try {
     // 1. 기존 계획 중 가장 최근 것 조회
     const lastPlan = await WeeklyPaymentPlans.findOne({
@@ -807,16 +867,20 @@ async function createAdditionalPaymentForUser(userId, userName, grade, revenueMo
     // 2. 다음 추가지급단계 계산
     const next추가지급단계 = (lastPlan.추가지급단계 || 0) + 1;
 
-    // 3. 매출 정보 조회
-    const monthlyReg = await MonthlyRegistrations.findOne({ monthKey: revenueMonth });
-    if (!monthlyReg) {
-      console.log(`    ${userId}: ${revenueMonth} 매출 정보 없음 → SKIP`);
+    // 3. ⭐ 핵심: 현재 월(currentMonth)의 등급 분포 기준으로 금액 계산!
+    // revenueMonth = 이전 월 (매출 귀속, 7월)
+    // currentMonth = 현재 월 (금액 계산 기준, 8월)
+    const currentMonthReg = await MonthlyRegistrations.findOne({ monthKey: currentMonth });
+    if (!currentMonthReg) {
+      console.log(`    ${userId}: ${currentMonth} 등급 분포 없음 → SKIP`);
       return null;
     }
 
-    // 4. 지급액 계산
-    const revenue = monthlyReg.getEffectiveRevenue();
-    const gradePayments = calculateGradePayments(revenue, monthlyReg.gradeDistribution);
+    console.log(`    💡 금액 계산: ${currentMonth} 등급 분포 기준 (${currentMonthReg.gradeDistribution.F1}명 F1, ${currentMonthReg.gradeDistribution.F2}명 F2)`);
+
+    // 4. 지급액 계산 (현재 월 등급 분포 기준!)
+    const revenue = currentMonthReg.getEffectiveRevenue();
+    const gradePayments = calculateGradePayments(revenue, currentMonthReg.gradeDistribution);
     const baseAmount = gradePayments[grade] || 0;
 
     if (baseAmount === 0) {
@@ -855,6 +919,12 @@ async function createAdditionalPaymentForUser(userId, userName, grade, revenueMo
     }
 
     // 7. 계획 생성
+    console.log(`    📝 추가지급 계획 생성 중...`);
+    console.log(`       - 추가지급단계: ${next추가지급단계}`);
+    console.log(`       - installmentType: additional`);
+    console.log(`       - revenueMonth: ${revenueMonth}`);
+    console.log(`       - createdBy: monthly_check`);
+    
     const newPlan = await WeeklyPaymentPlans.create({
       userId,
       userName,
@@ -872,11 +942,17 @@ async function createAdditionalPaymentForUser(userId, userName, grade, revenueMo
       parentPlanId: lastPlan._id,
       createdBy: 'monthly_check'  // v7.0: 매월 확인으로 생성
     });
+    
+    console.log(`    ✅ 추가지급 계획 생성 완료: ${newPlan._id}`);
 
-    // 8. 주차별 총계 업데이트
+    // ⭐ v7.0 핵심: 이전 월 데이터는 건드리지 않음!
+    // 현재 월(8월) 등급 분포 업데이트는 registrationService.js 8단계에서 처리!
+    console.log(`    💡 ${currentMonth} 등급 분포 업데이트는 registrationService.js에서 처리됩니다.`);
+
+    // 주차별 총계 업데이트
     await updateWeeklyProjections(newPlan, 'add');
 
-    return newPlan;
+    return { 추가지급단계: next추가지급단계 };
   } catch (error) {
     console.error(`    ${userId}: 추가지급 생성 실패`, error);
     return null;

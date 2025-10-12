@@ -45,6 +45,10 @@
 	let itemsPerPage = 20;
 	let totalPages = 1;
 
+	// 컬럼 표시 토글
+	let showTaxColumn = true; // 원천징수 컬럼 표시 여부
+	let showNetColumn = true; // 실지급액 컬럼 표시 여부
+
 	// 전체 총액 (API에서 받은 grandTotal)
 	let apiGrandTotal = null;
 	// 전체 지급 대상 인원수 (API에서 받은 totalItems)
@@ -1183,6 +1187,18 @@
 			</select>
 		</label>
 
+		<!-- 컬럼 표시 토글 -->
+		<div class="column-toggle">
+			<label class="toggle-label">
+				<input type="checkbox" bind:checked={showTaxColumn} class="toggle-checkbox" />
+				<span>원천징수</span>
+			</label>
+			<label class="toggle-label">
+				<input type="checkbox" bind:checked={showNetColumn} class="toggle-checkbox" />
+				<span>실지급액</span>
+			</label>
+		</div>
+
 		{#if filteredPaymentList.length > 0}
 			<button onclick={exportToExcel} class="export-button">
 				<img src="/icons/download.svg" alt="다운로드" width="16" height="16" />
@@ -1216,14 +1232,19 @@
 							<th rowspan="2">은행</th>
 							<th rowspan="2">계좌번호</th>
 							{#each weeklyColumns as week}
-								<th colspan="3" class="week-header">{week.label}</th>
+								{@const colCount = 1 + (showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0)}
+								<th colspan={colCount} class="week-header">{week.label}</th>
 							{/each}
 						</tr>
 						<tr class="header-row-2">
 							{#each weeklyColumns as week}
 								<th class="sub-header">지급액</th>
-								<th class="sub-header tax-header">원천징수(3.3%)</th>
-								<th class="sub-header">실지급액</th>
+								{#if showTaxColumn}
+									<th class="sub-header tax-header">원천징수(3.3%)</th>
+								{/if}
+								{#if showNetColumn}
+									<th class="sub-header">실지급액</th>
+								{/if}
 							{/each}
 						</tr>
 					</thead>
@@ -1258,8 +1279,12 @@
 										>
 											{formatAmount(payment?.amount)}
 										</td>
-										<td class="tax-cell">{formatAmount(payment?.tax)}</td>
-										<td class="net-cell">{formatAmount(payment?.net)}</td>
+										{#if showTaxColumn}
+											<td class="tax-cell">{formatAmount(payment?.tax)}</td>
+										{/if}
+										{#if showNetColumn}
+											<td class="net-cell">{formatAmount(payment?.net)}</td>
+										{/if}
 									{/each}
 								</tr>
 							{/each}
@@ -2106,6 +2131,41 @@
 		cursor: not-allowed;
 		background: #ccc;
 		box-shadow: none;
+	}
+
+	/* 컬럼 표시 토글 */
+	.column-toggle {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		padding: 4px 12px;
+		background: white;
+		border: 2px solid #e0e0e0;
+		border-radius: 5px;
+		flex-shrink: 0;
+	}
+
+	.toggle-label {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		font-size: 13px;
+		font-weight: 500;
+		cursor: pointer;
+		white-space: nowrap;
+		color: #495057;
+		user-select: none;
+	}
+
+	.toggle-checkbox {
+		width: 16px;
+		height: 16px;
+		cursor: pointer;
+		accent-color: #007bff;
+	}
+
+	.toggle-label:hover {
+		color: #007bff;
 	}
 
 </style>

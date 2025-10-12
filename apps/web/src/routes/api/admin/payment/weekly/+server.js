@@ -338,9 +338,9 @@ async function getRangePaymentsV5(startYear, startMonth, endYear, endMonth, page
 					_id: '$userId',
 					userName: { $first: '$userName' },
 					baseGrade: { $first: '$baseGrade' },
-					installmentAmount: { $first: '$installments.installmentAmount' },
-					withholdingTax: { $first: '$installments.withholdingTax' },
-					netAmount: { $first: '$installments.netAmount' }
+					installmentAmount: { $sum: '$installments.installmentAmount' },
+				withholdingTax: { $sum: '$installments.withholdingTax' },
+				netAmount: { $sum: '$installments.netAmount' }
 				}
 			}
 		];

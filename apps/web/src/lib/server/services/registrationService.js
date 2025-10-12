@@ -171,6 +171,8 @@ export async function processUserRegistration(userIds) {
             newGrade: promoted.newGrade,
             promotionDate: promotionDate
           });
+          
+          console.log(`  [v7.0] ✓ ${promoted.userName} 승급자로 추가: ${promoted.oldGrade} → ${promoted.newGrade}`);
         }
 
         monthlyReg.gradeDistribution = gradeDistribution;
@@ -234,15 +236,89 @@ export async function processUserRegistration(userIds) {
 
     // 7. v7.0: 매월 추가지급 확인 (이전 월 대상자 중 승급 없는 자)
     console.log('[등록처리 7단계] v7.0 매월 추가지급 확인 시작');
+    console.log('='.repeat(80));
+    console.log('📋 v7.0 핵심 로직: 매월 승급 없는 대상자에게 추가지급 생성');
+    console.log('='.repeat(80));
 
-    // 현재 월 계산
-    const currentMonth = MonthlyRegistrations.generateMonthKey(new Date());
-    console.log(`  현재 월: ${currentMonth}`);
+    // ⭐ 핵심: 등록 월을 기준으로 이전 월 확인 (시스템 날짜 X)
+    // 8월 등록 시 → 7월 대상자 확인
+    const registrationMonth = MonthlyRegistrations.generateMonthKey(
+      updatedUsers[0]?.registrationDate || updatedUsers[0]?.createdAt || new Date()
+    );
+    console.log(`  등록 월: ${registrationMonth}`);
 
     // 매월 추가지급 생성 (이전 월 대상자 확인)
-    const additionalPlanCount = await createMonthlyAdditionalPayments(currentMonth);
+    const additionalPaymentsInfo = await createMonthlyAdditionalPayments(registrationMonth);
+    
+    console.log('='.repeat(80));
 
-    console.log(`[등록처리 7단계] v7.0 매월 추가지급 생성 완료: ${additionalPlanCount || 0}건`);
+    console.log(`[등록처리 7단계] v7.0 매월 추가지급 생성 완료: ${additionalPaymentsInfo?.count || 0}건`);
+
+    // ⭐ 8단계: 현재 월(registrationMonth) MonthlyRegistrations에 추가지급 대상자 추가 및 등급 분포 재계산
+    if (additionalPaymentsInfo && additionalPaymentsInfo.targets && additionalPaymentsInfo.targets.length > 0) {
+      console.log(`[등록처리 8단계] ${registrationMonth} 등급 분포에 추가지급 대상자 반영 시작`);
+      console.log(`  ⚠️ 중요: 6-3단계에서 이미 승급자 반영되었으므로, 현재 등급 분포에 추가지급 대상자만 추가!`);
+
+      const currentMonthReg = await MonthlyRegistrations.findOne({ monthKey: registrationMonth });
+      if (currentMonthReg) {
+        console.log(`  [현재 상태] 등급 분포: ${JSON.stringify(currentMonthReg.gradeDistribution)}`);
+
+        // paymentTargets.additionalPayments 추가
+        if (!currentMonthReg.paymentTargets) {
+          currentMonthReg.paymentTargets = {
+            registrants: [],
+            promoted: [],
+            additionalPayments: []
+          };
+        }
+        if (!currentMonthReg.paymentTargets.additionalPayments) {
+          currentMonthReg.paymentTargets.additionalPayments = [];
+        }
+
+        // 추가지급 대상자 추가
+        for (const target of additionalPaymentsInfo.targets) {
+          currentMonthReg.paymentTargets.additionalPayments.push({
+            userId: target.userId,
+            userName: target.userName,
+            grade: target.grade,
+            추가지급단계: target.추가지급단계,
+            fromMonth: target.revenueMonth  // 어느 월 매출 기준인지
+          });
+          console.log(`  ✓ ${target.userName} (${target.grade}, 추가지급단계:${target.추가지급단계}, 매출월:${target.revenueMonth})`);
+        }
+
+        // ⭐ 핵심: 기존 등급 분포에 추가지급 대상자만 추가!
+        // 승급자는 이미 6-3단계에서 반영되었음!
+        const gradeDistribution = { ...currentMonthReg.gradeDistribution };  // 기존 분포 복사
+
+        console.log(`  [1단계] 기존 등급 분포 (등록자+승급자): ${JSON.stringify(gradeDistribution)}`);
+
+        // 추가지급 대상자만 카운트
+        for (const additional of currentMonthReg.paymentTargets.additionalPayments) {
+          if (gradeDistribution[additional.grade] !== undefined) {
+            gradeDistribution[additional.grade]++;
+            console.log(`    ➕ ${additional.userName} (${additional.grade}) 추가`);
+          }
+        }
+
+        console.log(`  [2단계] 추가지급 대상자 추가 후: ${JSON.stringify(gradeDistribution)}`);
+
+        // 등급 분포 및 지급액 업데이트
+        currentMonthReg.gradeDistribution = gradeDistribution;
+        const revenue = currentMonthReg.getEffectiveRevenue();
+        currentMonthReg.gradePayments = calculateGradePayments(revenue, gradeDistribution);
+
+        console.log(`  [최종] 매출: ${revenue.toLocaleString()}원`);
+        console.log(`  [최종] 등급 분포: ${JSON.stringify(gradeDistribution)}`);
+        console.log(`  [최종] F1 지급액: ${(currentMonthReg.gradePayments?.F1 || 0).toLocaleString()}원`);
+        console.log(`  [최종] F2 지급액: ${(currentMonthReg.gradePayments?.F2 || 0).toLocaleString()}원`);
+
+        await currentMonthReg.save();
+        console.log(`  ✅ ${registrationMonth} 등급 분포 업데이트 완료`);
+      } else {
+        console.log(`  ⚠️ ${registrationMonth} MonthlyRegistrations 없음 - 건너뜀`);
+      }
+    }
 
     // 8. 처리 완료
 
@@ -251,7 +327,7 @@ export async function processUserRegistration(userIds) {
       등급변경: changedUsers.length,
       승급자: promotedUsers.length,
       지급계획: paymentPlanResults.length,
-      추가계획: additionalPlanCount
+      추가계획: additionalPaymentsInfo?.count || 0
     });
 
     return {
@@ -260,7 +336,7 @@ export async function processUserRegistration(userIds) {
       affectedUsers: changedUsers.length,
       promotedUsers: promotedUsers.length,
       paymentPlans: paymentPlanResults,
-      additionalPlans: additionalPlanCount
+      additionalPlans: additionalPaymentsInfo?.count || 0
     };
 
   } catch (error) {
@@ -273,6 +349,9 @@ export async function processUserRegistration(userIds) {
  * 월별 등록 정보 업데이트 (v7.0: paymentTargets 구조 추가)
  */
 async function updateMonthlyRegistrations(users) {
+  console.log(`\n[updateMonthlyRegistrations] 함수 호출됨! 사용자 수: ${users.length}`);
+  users.forEach(u => console.log(`  - ${u.name} (${u.loginId}), 등록일: ${(u.registrationDate || u.createdAt)?.toISOString().split('T')[0]}`));
+
   // 월별로 그룹화
   const monthGroups = {};
 
@@ -333,26 +412,52 @@ async function updateMonthlyRegistrations(users) {
     monthlyReg.totalRevenue = monthlyReg.registrationCount * 1000000; // 100만원
 
     // v7.0: paymentTargets.registrants 업데이트 (등록자 정보)
+    console.log(`  [v7.0] paymentTargets.registrants 업데이트 중... (${registrations.length}명)`);
     for (const reg of registrations) {
       monthlyReg.paymentTargets.registrants.push({
         userId: reg.userId,
         userName: reg.userName,
         grade: reg.grade
       });
+      console.log(`    ✓ ${reg.userName} (${reg.userId}) - ${reg.grade} 등록자로 추가`);
     }
 
     // 등급 분포 계산 (v7.0: 지급 대상자 전체 기준)
+    // ⭐ v7.0 핵심: 지급 대상자 = 등록자 + 승급자 + 추가지급 대상자
     const gradeDistribution = {
       F1: 0, F2: 0, F3: 0, F4: 0,
       F5: 0, F6: 0, F7: 0, F8: 0
     };
 
-    // 등록자만 카운트 (승급자/추가지급은 별도 처리)
+    // 1) 등록자 카운트
     for (const reg of monthlyReg.registrations) {
       if (gradeDistribution[reg.grade] !== undefined) {
         gradeDistribution[reg.grade]++;
       }
     }
+    console.log(`  [등급 분포 1단계] 등록자만: ${JSON.stringify(gradeDistribution)}`);
+
+    // 2) 승급자 카운트 (v7.0: paymentTargets.promoted)
+    if (monthlyReg.paymentTargets?.promoted) {
+      for (const promoted of monthlyReg.paymentTargets.promoted) {
+        if (gradeDistribution[promoted.newGrade] !== undefined) {
+          gradeDistribution[promoted.newGrade]++;
+        }
+      }
+      console.log(`  [등급 분포 2단계] 승급자 추가: ${JSON.stringify(gradeDistribution)}`);
+    }
+
+    // 3) 추가지급 대상자 카운트 (v7.0: paymentTargets.additionalPayments)
+    if (monthlyReg.paymentTargets?.additionalPayments) {
+      for (const additional of monthlyReg.paymentTargets.additionalPayments) {
+        if (gradeDistribution[additional.grade] !== undefined) {
+          gradeDistribution[additional.grade]++;
+        }
+      }
+      console.log(`  [등급 분포 3단계] 추가지급 대상자 추가: ${JSON.stringify(gradeDistribution)}`);
+    }
+
+    console.log(`  [등급 분포 최종] ${JSON.stringify(gradeDistribution)}`)
 
     monthlyReg.gradeDistribution = gradeDistribution;
 
@@ -360,7 +465,19 @@ async function updateMonthlyRegistrations(users) {
     const revenue = monthlyReg.getEffectiveRevenue();
     monthlyReg.gradePayments = calculateGradePayments(revenue, gradeDistribution);
 
-    await monthlyReg.save();
+    console.log(`  [updateMonthlyRegistrations] ${monthKey} 저장 시작`);
+    console.log(`    - registrationCount: ${monthlyReg.registrationCount}`);
+    console.log(`    - totalRevenue: ${monthlyReg.totalRevenue}`);
+    console.log(`    - gradeDistribution: ${JSON.stringify(monthlyReg.gradeDistribution)}`);
+    console.log(`    - isNew: ${monthlyReg.isNew}`);
+
+    try {
+      const savedDoc = await monthlyReg.save();
+      console.log(`  [updateMonthlyRegistrations] ${monthKey} 저장 성공! ID: ${savedDoc._id}`);
+    } catch (saveError) {
+      console.error(`  [updateMonthlyRegistrations] ${monthKey} 저장 실패:`, saveError);
+      throw saveError;
+    }
   }
 }
 
