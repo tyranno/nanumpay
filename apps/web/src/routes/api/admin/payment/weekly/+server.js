@@ -76,15 +76,57 @@ async function getSingleWeekPaymentsV5(year, month, week, page, limit, search, s
 	// 2. 주차별 총계 조회 (전체 총액 - 페이지 무관)
 	const summary = await WeeklyPaymentSummary.findOne({ weekNumber });
 
-	const grandTotal = summary ? {
-		totalAmount: summary.totalAmount || 0,
-		totalTax: summary.totalTax || 0,
-		totalNet: summary.totalNet || 0
-	} : {
-		totalAmount: 0,
-		totalTax: 0,
-		totalNet: 0
-	};
+	let grandTotal;
+	if (summary) {
+		// Summary가 있으면 사용 (지급 처리 완료된 경우)
+		grandTotal = {
+			totalAmount: summary.totalAmount || 0,
+			totalTax: summary.totalTax || 0,
+			totalNet: summary.totalNet || 0
+		};
+	} else {
+		// Summary가 없으면 WeeklyPaymentPlans에서 직접 계산 (pending 포함)
+		const totalPipeline = [
+			{
+				$match: {
+					'installments': {
+						$elemMatch: {
+							weekNumber: weekNumber,
+							status: { $in: ['paid', 'pending'] }
+						}
+					}
+				}
+			},
+			{
+				$unwind: '$installments'
+			},
+			{
+				$match: {
+					'installments.weekNumber': weekNumber,
+					'installments.status': { $in: ['paid', 'pending'] }
+				}
+			},
+			{
+				$group: {
+					_id: null,
+					totalAmount: { $sum: '$installments.installmentAmount' },
+					totalTax: { $sum: '$installments.withholdingTax' },
+					totalNet: { $sum: '$installments.netAmount' }
+				}
+			}
+		];
+
+		const totalResult = await WeeklyPaymentPlans.aggregate(totalPipeline);
+		grandTotal = totalResult[0] ? {
+			totalAmount: totalResult[0].totalAmount || 0,
+			totalTax: totalResult[0].totalTax || 0,
+			totalNet: totalResult[0].totalNet || 0
+		} : {
+			totalAmount: 0,
+			totalTax: 0,
+			totalNet: 0
+		};
+	}
 
 	// 3. 검색 조건 구성
 	const searchFilter = buildSearchFilter(search, searchCategory);

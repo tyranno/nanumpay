@@ -8,6 +8,21 @@
 
 ## 📌 빠른 시작 (새 세션 시작 시)
 
+### 개발 환경 구동 (Quick Start)
+```bash
+# 1. DB 초기화 (주의: 모든 데이터 삭제!)
+DB_DIR=/home/tyranno/project/bill/nanumpay/apps/web/install/linux/db \
+bash /home/tyranno/project/bill/nanumpay/apps/web/install/linux/db_init.sh --force
+
+# 2. 개발 서버 실행
+pnpm dev:web --host
+
+# 3. 브라우저에서 접속
+# http://localhost:5173/admin
+# 아이디: 관리자
+# 비밀번호: admin1234!!
+```
+
 ### 핵심 문서 위치
 1. **요구사항**: [docs/시스템_요구사항_검토문서_v4.0.md](docs/시스템_요구사항_검토문서_v4.0.md) (또는 최신 버전)
 2. **설계문서**: [docs/시스템_설계_문서_v6.md](docs/시스템_설계_문서_v6.md)
@@ -260,9 +275,66 @@
 
 ---
 
-## 🧪 개발 도구
+## 🧪 개발 환경 설정
 
-### 1. 과거 지급 일괄 처리
+### 1. DB 초기화
+**스크립트 실행**:
+```bash
+DB_DIR=/home/tyranno/project/bill/nanumpay/apps/web/install/linux/db \
+bash /home/tyranno/project/bill/nanumpay/apps/web/install/linux/db_init.sh --force
+```
+
+**초기 관리자 계정**:
+- **아이디**: `관리자`
+- **비밀번호**: `admin1234!!` (느낌표 2개 주의!)
+
+**동작**:
+- MongoDB 초기화 (nanumpay 데이터베이스)
+- 기본 관리자 계정 생성
+- 모든 컬렉션 삭제 및 재생성
+
+**주의**:
+- `--force` 플래그는 기존 데이터를 모두 삭제합니다
+- 프로덕션 환경에서는 절대 사용 금지!
+
+### 2. 개발 서버 실행
+```bash
+pnpm dev:web --host
+```
+
+**접속 정보**:
+- **로컬**: http://localhost:5173
+- **네트워크**: http://[IP주소]:5173
+- **관리자 페이지**: http://localhost:5173/admin
+
+**서버 종료**:
+- `Ctrl + C` 또는 포트 강제 종료:
+```bash
+lsof -ti:5173 | xargs -r kill -9
+```
+
+### 3. MongoDB 상태 확인
+**MongoDB 연결 확인**:
+```bash
+mongosh mongodb://localhost:27017/nanumpay
+```
+
+**주요 컬렉션 조회**:
+```javascript
+// 사용자 수 확인
+db.users.countDocuments()
+
+// 지급 계획 확인
+db.weeklypaymentplans.find().limit(5)
+
+// 주차별 총계 확인
+db.weeklypaymentsummary.find().sort({ weekNumber: -1 }).limit(5)
+
+// 월별 등록 확인
+db.monthlyregistrations.find()
+```
+
+### 4. 과거 지급 일괄 처리
 **목적**: 개발 중 7월부터 데이터 입력 시 매주 지급 수동 처리 부담 해소
 
 **사용 방법**:
@@ -275,17 +347,6 @@
 - 오래된 주차부터 처리하여 정확성 보장
 
 **주의**: 프로덕션 환경에서는 환경변수 false로 설정!
-
-### 2. DB 초기화
-```bash
-DB_DIR=/home/tyranno/project/bill/nanumpay/apps/web/install/linux/db \
-bash /home/tyranno/project/bill/nanumpay/apps/web/install/linux/db_init.sh --force
-```
-
-### 3. 개발 서버 실행
-```bash
-pnpm dev:web --host
-```
 
 ---
 
@@ -471,9 +532,65 @@ apps/web/src/routes/
 4. **로그 확인**: console.log로 처리 단계 추적
 
 ### 디버깅 시
-1. **MongoDB 직접 확인**: 데이터 상태 확인
-2. **WeeklyPaymentSummary 확인**: 통계가 맞는지 검증
-3. **generation 추적**: 1, 2, 3 순차 증가 확인
+1. **MongoDB 직접 확인**:
+   ```bash
+   # MongoDB 접속
+   mongosh mongodb://localhost:27017/nanumpay
+
+   # 특정 사용자 확인
+   db.users.findOne({ userId: "user001" })
+
+   # 지급 계획 확인 (특정 사용자)
+   db.weeklypaymentplans.find({ userId: "user001" }).sort({ generation: 1 })
+
+   # 완료된 10회 계획 확인
+   db.weeklypaymentplans.find({
+     completedInstallments: 10,
+     planStatus: "completed"
+   })
+
+   # parentPlanId 중복 확인
+   db.weeklypaymentplans.find({
+     parentPlanId: { $exists: true, $ne: null }
+   })
+   ```
+
+2. **WeeklyPaymentSummary 확인**:
+   ```javascript
+   // 최근 주차별 총계 확인
+   db.weeklypaymentsummary.find().sort({ weekNumber: -1 }).limit(5)
+
+   // 특정 주차 상세 확인
+   db.weeklypaymentsummary.findOne({ weekNumber: 202542 })
+
+   // 등급별 통계 확인
+   db.weeklypaymentsummary.aggregate([
+     { $group: {
+       _id: "$monthKey",
+       totalAmount: { $sum: "$totalAmount" }
+     }}
+   ])
+   ```
+
+3. **generation 추적**:
+   ```javascript
+   // 특정 사용자의 generation 순서 확인
+   db.weeklypaymentplans.find({ userId: "user001" })
+     .sort({ baseGrade: 1, generation: 1 })
+     .forEach(plan => {
+       print(`${plan.baseGrade} - Gen ${plan.generation} - Status: ${plan.planStatus}`)
+     })
+   ```
+
+4. **서버 로그 확인**:
+   - 개발 서버 콘솔에서 `console.log` 출력 확인
+   - 처리 단계별 로그 추적
+   - 에러 스택 트레이스 확인
+
+5. **브라우저 개발자 도구**:
+   - Network 탭: API 요청/응답 확인
+   - Console 탭: 프론트엔드 에러 확인
+   - Application 탭: 세션/쿠키 확인
 
 ### 새 기능 추가 시
 1. **요구사항 문서 업데이트**
@@ -495,6 +612,6 @@ apps/web/src/routes/
 
 ---
 
-**마지막 업데이트**: 2025-10-12
+**마지막 업데이트**: 2025-10-12 (개발 환경 설정 및 디버깅 가이드 추가)
 **작성자**: Claude (AI Assistant)
 **버전**: v6.0

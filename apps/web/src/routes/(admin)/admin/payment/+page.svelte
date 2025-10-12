@@ -969,35 +969,15 @@
 		currentWeekOffset = 0; // 오프셋 초기화
 		displayStartIndex = 0; // 표시 인덱스 초기화
 
-		// 연도나 월이 변경된 경우 데이터를 새로 로드
-		// 표시 단위만 변경된 경우에는 기존 데이터로 업데이트
-		const prevStartYear = lastLoadedStartYear;
-		const prevStartMonth = lastLoadedStartMonth;
-		const prevEndYear = lastLoadedEndYear;
-		const prevEndMonth = lastLoadedEndMonth;
-
-		if (
-			startYear !== prevStartYear ||
-			startMonth !== prevStartMonth ||
-			endYear !== prevEndYear ||
-			endMonth !== prevEndMonth
-		) {
-			// 기간이 변경되면 새로 로드
-			allWeeklyData = [];
-			lastLoadedStartYear = startYear;
-			lastLoadedStartMonth = startMonth;
-			lastLoadedEndYear = endYear;
-			lastLoadedEndMonth = endMonth;
-		}
+		// 기간이 변경되면 항상 새로 로드 (총액 계산을 위해 필수)
+		allWeeklyData = [];
+		lastLoadedStartYear = startYear;
+		lastLoadedStartMonth = startMonth;
+		lastLoadedEndYear = endYear;
+		lastLoadedEndMonth = endMonth;
 
 		if (filterType === 'period') {
-			if (allWeeklyData.length > 0) {
-				// 데이터가 있으면 표시만 업데이트
-				updateDisplayData();
-			} else {
-				// 데이터가 없으면 새로 로드
-				loadPaymentData(1);
-			}
+			loadPaymentData(1);
 		}
 	}
 
@@ -1143,7 +1123,13 @@
 
 	<!-- 총합계 요약 섹션 -->
 	{#if filteredPaymentList.length > 0}
-		{@const grandTotal = calculateGrandTotal()}
+		{@const grandTotal = apiGrandTotal && apiGrandTotal.totalAmount !== undefined
+			? {
+				amount: apiGrandTotal.totalAmount || 0,
+				tax: apiGrandTotal.totalTax || 0,
+				net: apiGrandTotal.totalNet || 0
+			}
+			: calculateGrandTotal()}
 		<div class="summary-section">
 			<div class="summary-cards">
 				<div class="summary-card">
