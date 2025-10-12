@@ -2,7 +2,7 @@
 
 **프로젝트**: Nanumpay MLM 시스템
 **마지막 업데이트**: 2025-10-12
-**현재 버전**: v6.0
+**현재 버전**: v7.0
 
 ---
 
@@ -24,14 +24,14 @@ pnpm dev:web --host
 ```
 
 ### 핵심 문서 위치
-1. **요구사항**: [docs/시스템_요구사항_검토문서_v4.0.md](docs/시스템_요구사항_검토문서_v4.0.md) (또는 최신 버전)
-2. **설계문서**: [docs/시스템_설계_문서_v6.md](docs/시스템_설계_문서_v6.md)
+1. **요구사항**: [docs/시스템_요구사항_검토문서_v5.0.md](docs/시스템_요구사항_검토문서_v5.0.md) ⭐ 최신
+2. **설계문서**: [docs/시스템_설계_문서_v7.md](docs/시스템_설계_문서_v7.md) ⭐ 최신
 3. **이 문서**: [CLAUDE.md](CLAUDE.md)
 
 ### 현재 작업 상태
-- ✅ v6.0 설계 완료
-- ✅ v6.0 핵심 구현 완료
-- ✅ 과거 지급 일괄 처리 기능 완료
+- ✅ v5.0 요구사항 정리 완료
+- ✅ v7.0 설계 완료
+- 🔄 v7.0 구현 필요 (v6.0 → v7.0 마이그레이션)
 - 🔄 테스트 및 검증 필요
 
 ---
@@ -45,38 +45,47 @@ pnpm dev:web --host
 - **8단계 등급**: F1 ~ F8
 - **이진 트리 구조**: 각 노드는 최대 2명의 자식 (left/right)
 - **주간 지급**: 매주 금요일 자동 지급
-- **병행 지급**: 승급 시 기존 지급 유지 + 새 지급 추가
-- **동적 계획 생성**: 10회씩 끊어서 생성 (v6.0)
+- **병행 지급**: 승급 시 기존 기본지급 유지 + 새 지급 추가, 추가지급 중단 ⭐ v7.0
+- **동적 계획 생성**: 10회씩 끊어서 생성
+- **매월 추가지급 확인**: 매월 등록/승급 처리 시 이전 월 대상자 중 승급 없는 자 확인 ⭐ v7.0
 
 ---
 
 ## 📋 버전 히스토리
 
-### v6.0 (현재 버전)
-**핵심 변경**: 동적 지급 계획 생성 (10회 단위)
+### v7.0 (현재 버전) ⭐ 최신
+**핵심 변경**: 추가지급 시기 변경 및 매출 계산 개선
 
 #### 주요 개선사항
-1. **동적 계획 생성**: 등록/승급 시 10회만 생성 (기존: 전체 미리 생성)
-2. **10회 완료 시점 처리**: 등록/승급 시점에 10회 완료 확인 및 추가 생성
-3. **매출월 기준 변경**: 각 10회 완료 시점의 매출월로 금액 재계산
-4. **조건 재확인**: 매 10회마다 등급/보험 확인
+1. **추가지급 시기 변경**: 10회 완료 즉시 → 매월 등록/승급 처리 시 확인
+2. **지급 대상자 명확화**: 등록자(매출 기여) + 승급자 + 추가지급 대상자
+3. **매출 계산 변경**: 등록자 수만 매출 기여 (승급자/추가지급 대상자 제외)
+4. **승급 시 추가지급 중단**: 기본지급 유지, 추가지급 즉시 중단
+5. **매출월 병행 지급**: 7월분+8월분+9월분 동시 지급 가능
 
-#### v6.0 설계 원칙
+#### v7.0 설계 원칙
 ```
-✅ 금요일 자동처리 = 순수 지급만
-✅ 등록/승급 시점 = 10회 완료 확인 + 추가 계획 생성
-✅ 중복 방지 = parentPlanId 존재 여부 체크
+✅ 금요일 자동처리 = 순수 지급만 (추가지급 확인 안 함)
+✅ 매월 등록/승급 처리 = 이전 월 대상자 중 승급 없는 자 확인 → 추가지급 생성
+✅ 승급 시 = 기본지급 유지, 추가지급 중단, 새 등급 시작
+✅ 매출 계산 = 등록자 수만 × 1,000,000원
+✅ 등급별 배분 = 지급 대상자 전체(등록자+승급자+추가지급 대상자) 기준
 ✅ WeeklyPaymentSummary = 주차별 지급대장
 ```
 
-### v5.0 (이전 버전)
-- 전체 지급 계획 미리 생성 (성능 문제)
-- 등급 자동계산 순서 버그 (사장님이 F1로 표시)
-- 정렬 기준 오류 (이름 → 등록일 순으로 수정 필요)
+### v6.0 (이전 버전)
+**핵심 변경**: 동적 지급 계획 생성 (10회 단위)
+- 등록/승급 시 10회만 생성
+- 10회 완료 즉시 추가 생성 (v7.0에서 변경됨)
+- 매출월 기준 금액 재계산
 
-### v4.0 (요구사항 정리)
+### v5.0 (요구사항 정리)
 - 병행 지급 명확화
-- 지급 규칙 상세화
+- 추가지급 시기 재정의
+- 지급 대상자 3유형 정의
+
+### v4.0 (초기 요구사항)
+- 병행 지급 도입
 - 등급별 최대 지급 횟수 정의
 
 ---
@@ -85,14 +94,20 @@ pnpm dev:web --host
 
 ### 핵심 컬렉션 (4개)
 
-#### 1. monthlyRegistrations (월별 등록 관리)
+#### 1. monthlyRegistrations (월별 등록 관리) ⭐ v7.0 변경
 ```javascript
 {
   monthKey: "2025-10",
-  registrationCount: 5,
-  totalRevenue: 5000000,
+  registrationCount: 5,  // 신규 등록자만 ⭐
+  totalRevenue: 5000000,  // 등록자 수만 × 1,000,000원 ⭐
   adjustedRevenue: null,  // 관리자 수동 조정
-  registrations: [...]
+  registrations: [...],  // 신규 등록자만 ⭐
+  paymentTargets: {  // ⭐ v7.0 신규
+    registrants: [...],  // 등록자
+    promoted: [...],  // 승급자
+    additionalPayments: [...]  // 추가지급 대상자
+  },
+  gradeDistribution: { F1: 10, F2: 5, ... }  // 지급 대상자 전체 기준 ⭐
 }
 ```
 
@@ -106,20 +121,23 @@ pnpm dev:web --host
 }
 ```
 
-#### 3. weeklyPaymentPlans (개별 지급 계획) ⭐ v6.0
+#### 3. weeklyPaymentPlans (개별 지급 계획) ⭐ v7.0 변경
 ```javascript
 {
   userId: "user001",
   planType: "initial" | "promotion",
-  generation: 1,  // ⭐ v6.0: 1, 2, 3, ...
+  추가지급단계: 0,  // ⭐ v7.0: 0(기본), 1(추가1차), 2(추가2차), ...
+  installmentType: "basic" | "additional",  // ⭐ v7.0 신규
   baseGrade: "F2",
-  revenueMonth: "2025-10",
-  totalInstallments: 10,  // ⭐ v6.0: 항상 10
+  revenueMonth: "2025-10",  // 매출 귀속 월 ⭐
+  totalInstallments: 10,  // 항상 10
   completedInstallments: 0,
-  planStatus: "active" | "completed",
-  installments: [10개],  // ⭐ v6.0: 10회만
-  parentPlanId: ObjectId,  // ⭐ v6.0: 이전 계획 ID
-  createdBy: "registration" | "promotion" | "auto_generation"  // ⭐ v6.0
+  planStatus: "active" | "completed" | "terminated",  // ⭐ v7.0: terminated 추가
+  installments: [10개],  // 10회만
+  parentPlanId: ObjectId,  // 이전 계획 ID
+  createdBy: "registration" | "promotion" | "monthly_check",  // ⭐ v7.0: monthly_check 추가
+  terminatedBy: "promotion",  // ⭐ v7.0: 승급으로 중단
+  terminatedAt: Date  // ⭐ v7.0: 중단 시점
 }
 ```
 
@@ -147,38 +165,44 @@ pnpm dev:web --host
 ### 1. registrationService.js
 **역할**: 용역자 등록 및 트리/등급 재계산
 
-**처리 흐름**:
+**처리 흐름** ⭐ v7.0:
 ```
 1. 용역자 등록 (User 생성/업데이트)
 2. 트리 재계산 (영향받는 사용자만)
 3. 등급 재계산 (상향식 bottom-up)
 4. 월별 스냅샷 업데이트
-5. 월별 등록 정보 업데이트
+5. 월별 등록 정보 업데이트 (등록자만)
 6. 지급 계획 생성 (신규/승급자)
-7. ⭐ v6.0: 10회 완료 확인 및 추가 생성
+   - 신규: 등록월 매출분 10회 (기본지급)
+   - 승급: 승급월 매출분 10회 (기본지급) + 기존 추가지급 중단 ⭐ v7.0
+7. ⭐ v7.0: 매월 추가지급 확인
+   - 이전 월 등록자/승급자 조회
+   - 현재 월 승급 여부 확인
+   - 승급 없으면 추가지급 계획 생성
 8. 처리 완료
 ```
 
 **주요 함수**:
 - `registerUsers()`: 메인 등록 처리
-- Step 7에서 `checkAndCreateAdditionalPlan()` 호출
+- `checkAndCreateMonthlyAdditionalPayments()`: ⭐ v7.0 매월 추가지급 확인
+- `terminateAdditionalPaymentPlans()`: ⭐ v7.0 승급 시 추가지급 중단
 
 **파일 위치**: [apps/web/src/lib/server/services/registrationService.js](apps/web/src/lib/server/services/registrationService.js)
 
 ### 2. weeklyPaymentService.js
 **역할**: 매주 금요일 자동 지급 처리
 
-**처리 흐름** (v6.0):
+**처리 흐름** ⭐ v7.0:
 ```
-1. 오늘 지급 대상 조회 (pending 상태)
+1. 오늘 지급 대상 조회 (pending 상태, active 계획만)
 2. 보험 조건 확인 (F3+ 필수)
 3. 지급 처리 (paid 상태 변경)
 4. WeeklyPaymentSummary 업데이트
 5. 완료
-=== 끝! 10회 완료 확인은 등록/승급 시점에 ===
+=== 끝! 추가지급 확인은 매월 등록/승급 시점에 ===
 ```
 
-**⚠️ 중요**: 금요일 처리는 **순수 지급만** 수행. 추가 계획 생성 안 함!
+**⚠️ v7.0 중요**: 금요일 처리는 **순수 지급만** 수행. 추가지급 확인/생성 안 함!
 
 **주요 함수**:
 - `processWeeklyPayments(date)`: 금요일 자동 지급
@@ -187,26 +211,29 @@ pnpm dev:web --host
 
 **파일 위치**: [apps/web/src/lib/server/services/weeklyPaymentService.js](apps/web/src/lib/server/services/weeklyPaymentService.js)
 
-### 3. paymentPlanService.js
+### 3. paymentPlanService.js ⭐ v7.0 변경
 **역할**: 지급 계획 생성 및 관리
 
 **주요 함수**:
-- `createInitialPlan()`: 신규 용역자 초기 10회 생성
-- `createPromotionPlan()`: 승급자 추가 10회 생성
-- `checkAndCreateAdditionalPlan()`: ⭐ v6.0 10회 완료 시 추가 생성
+- `createInitialPlan()`: 신규 용역자 기본 10회 생성 (추가지급단계:0)
+- `createPromotionPlan()`: 승급자 기본 10회 생성 (추가지급단계:0)
+- `createAdditionalPaymentPlan()`: ⭐ v7.0 추가지급 10회 생성 (추가지급단계:1+)
+- `terminateAdditionalPaymentPlans()`: ⭐ v7.0 승급 시 추가지급 중단
 
-**checkAndCreateAdditionalPlan 로직**:
+**createAdditionalPaymentPlan 로직** ⭐ v7.0:
 ```javascript
 1. User 모델에서 최신 등급/보험 조회
 2. 최대 횟수 확인 (F1:20, F2:30, ...)
 3. 등급 확인 (하락 시 생성 안 함)
 4. 보험 확인 (F3+ 필수)
-5. 완료 매출월 계산 (10회차 날짜 기준)
-6. 매출 조회 및 금액 계산
+5. 이전 월 매출 조회 (완료 매출월 X, 이전 월 O) ⭐
+6. 추가지급단계 계산 (기존 max + 1)
 7. 추가 10회 계획 생성
-   - generation++
+   - 추가지급단계++
+   - installmentType = 'additional' ⭐
+   - revenueMonth = 이전 월 ⭐
    - parentPlanId 설정
-   - createdBy = 'auto_generation'
+   - createdBy = 'monthly_check' ⭐
 8. WeeklyPaymentSummary 업데이트
 ```
 
@@ -248,29 +275,42 @@ pnpm dev:web --host
 [완료 - 추가 계획 생성 안 함!]
 ```
 
-### 10회 완료 추가 생성 흐름 ⭐ v6.0
+### 매월 추가지급 확인 흐름 ⭐ v7.0
 ```
 [등록/승급 시점]
     ↓
-[completedInstallments === 10 조회]
+[현재 월 = YYYY-MM]
     ↓
-[parentPlanId 존재 여부 확인]
-    ├─ 있으면 → SKIP (중복 방지)
-    └─ 없으면 → 계속
+[이전 월 등록자/승급자 조회]
+    ├─ MonthlyRegistrations(이전 월).registrations
+    └─ MonthlyRegistrations(이전 월).paymentTargets.promoted
+    ↓
+[FOR EACH candidate:]
+    ↓
+[현재 월 승급 여부 확인]
+    ├─ 승급 있음 → SKIP (새 등급 기본지급 이미 생성됨)
+    └─ 승급 없음 → 계속
     ↓
 [조건 확인]
-    ├─ 최대 횟수 체크
+    ├─ 최대 횟수 체크 (F1:20, F2:30, ...)
     ├─ 등급 유지 확인
     └─ 보험 확인 (F3+)
     ↓
-[완료 매출월 기준 금액 계산]
+[이전 월 매출 기준 금액 계산] ⭐
+    ├─ revenueMonth = 이전 월
+    ├─ 지급 대상자 전체 등급 분포 기준
+    └─ installmentAmount = baseAmount ÷ 10
     ↓
-[추가 10회 계획 생성]
-    ├─ generation++
+[추가지급 계획 생성]
+    ├─ 추가지급단계++ ⭐
+    ├─ installmentType = 'additional' ⭐
+    ├─ revenueMonth = 이전 월 ⭐
     ├─ parentPlanId 설정
-    └─ createdBy = 'auto_generation'
+    └─ createdBy = 'monthly_check' ⭐
     ↓
 [WeeklyPaymentSummary 업데이트]
+    ↓
+[MonthlyRegistrations.paymentTargets.additionalPayments 기록] ⭐
 ```
 
 ---
@@ -393,11 +433,11 @@ F1 사용자가 5회 지급 후 F2 승급
 
 ## ⚠️ 자주 발생하는 이슈
 
-### 1. "금요일 자동처리에서 추가 계획 생성하면 안 돼!"
-**원인**: v6.0 설계 원칙 위반
+### 1. "금요일 자동처리에서 추가지급 확인하면 안 돼!" ⭐ v7.0
+**원인**: v7.0 설계 원칙 위반
 **해결**:
-- weeklyPaymentService.js에는 `checkAndCreateAdditionalPlan` 호출 금지
-- 등록/승급 시점(registrationService.js)에서만 호출
+- weeklyPaymentService.js에는 추가지급 확인/생성 금지
+- 매월 등록/승급 시점(registrationService.js)에서만 `checkAndCreateMonthlyAdditionalPayments()` 호출
 
 ### 2. "등급이 F1로 잘못 표시됨"
 **원인**: 등급 계산 순서 (이름순 → 등록일순)
@@ -452,18 +492,20 @@ if (!hasAdditionalPlan) {
 ## 📚 참고 문서
 
 ### 주요 문서
-1. **요구사항 v4.0**: [docs/시스템_요구사항_검토문서_v4.0.md](docs/시스템_요구사항_검토문서_v4.0.md)
-   - 병행 지급 명확화
-   - 지급 규칙 상세화
+1. **요구사항 v5.0** ⭐ 최신: [docs/시스템_요구사항_검토문서_v5.0.md](docs/시스템_요구사항_검토문서_v5.0.md)
+   - 지급 대상자 3유형 명확화
+   - 추가지급 시기 재정의
+   - 매출 계산 변경
 
-2. **설계문서 v6.0**: [docs/시스템_설계_문서_v6.md](docs/시스템_설계_문서_v6.md)
-   - 동적 계획 생성 설계
-   - 데이터베이스 구조
-   - 자동화 프로세스
+2. **설계문서 v7.0** ⭐ 최신: [docs/시스템_설계_문서_v7.md](docs/시스템_설계_문서_v7.md)
+   - 매월 추가지급 확인 설계
+   - 승급 시 추가지급 중단 처리
+   - 데이터베이스 구조 (v7.0)
+   - 자동화 프로세스 (v7.0)
 
-3. **이전 설계 (참고용)**:
-   - v5.0 설계 (전체 미리 생성 방식)
-   - v3.0 설계 (초기 버전)
+3. **이전 문서 (참고용)**:
+   - 요구사항 v4.0: 병행 지급 명확화
+   - 설계문서 v6.0: 10회 완료 즉시 추가 생성 방식
 
 ### 핵심 소스 코드
 ```
@@ -499,15 +541,26 @@ apps/web/src/routes/
 
 ## 🚀 다음 작업 (TODO)
 
+### 우선순위 최고 ⭐ v7.0 구현
+- [ ] v6.0 → v7.0 마이그레이션
+  - [ ] WeeklyPaymentPlans 스키마 수정 (generation → 추가지급단계, installmentType 추가)
+  - [ ] MonthlyRegistrations 스키마 수정 (paymentTargets 추가)
+  - [ ] `checkAndCreateMonthlyAdditionalPayments()` 구현
+  - [ ] `createAdditionalPaymentPlan()` 구현
+  - [ ] `terminateAdditionalPaymentPlans()` 구현
+  - [ ] registrationService.js 수정 (Step 7 변경)
+  - [ ] weeklyPaymentService.js 수정 (추가지급 확인 제거)
+
 ### 우선순위 높음
-- [ ] v6.0 전체 테스트
-  - [ ] 등록 → 10회 완료 → 추가 생성 플로우
-  - [ ] 승급 → 병행 지급 확인
-  - [ ] 금요일 자동 지급 확인
-- [ ] 과거 지급 일괄 처리 테스트
+- [ ] v7.0 전체 테스트
+  - [ ] 등록 → 다음 달 추가지급 플로우
+  - [ ] 승급 → 기본지급 유지 + 추가지급 중단 확인
+  - [ ] 금요일 자동 지급 확인 (순수 지급만)
+  - [ ] 매출월 병행 지급 확인 (7월+8월+9월)
 - [ ] 프론트엔드 UI 개선
-  - [ ] generation 표시
-  - [ ] parentPlanId 연결 표시
+  - [ ] 추가지급단계 표시
+  - [ ] installmentType 표시 (basic/additional)
+  - [ ] terminated 상태 표시
 
 ### 우선순위 중간
 - [ ] 성능 최적화
@@ -527,7 +580,10 @@ apps/web/src/routes/
 
 ### 코드 수정 시
 1. **설계문서 먼저 확인**: 무작정 코드 수정하지 말고 설계 원칙 확인
-2. **v6.0 원칙 준수**: 금요일 = 지급만, 등록/승급 = 10회 완료 확인
+2. **v7.0 원칙 준수**:
+   - 금요일 = 지급만 (추가지급 확인 안 함)
+   - 매월 등록/승급 = 이전 월 대상자 확인 → 추가지급 생성
+   - 승급 시 = 기본지급 유지, 추가지급 중단
 3. **중복 방지**: parentPlanId 항상 확인
 4. **로그 확인**: console.log로 처리 단계 추적
 
@@ -606,12 +662,12 @@ apps/web/src/routes/
 
 버그, 개선사항, 질문이 있으면:
 1. 이 문서 확인
-2. 설계문서 v6.0 확인
-3. 요구사항 문서 v4.0 확인
+2. 설계문서 v7.0 확인
+3. 요구사항 문서 v5.0 확인
 4. 그래도 불분명하면 사용자에게 문의
 
 ---
 
-**마지막 업데이트**: 2025-10-12 (개발 환경 설정 및 디버깅 가이드 추가)
+**마지막 업데이트**: 2025-10-12 (v7.0 업데이트: 추가지급 시기 변경 및 매출 계산 개선)
 **작성자**: Claude (AI Assistant)
-**버전**: v6.0
+**버전**: v7.0
