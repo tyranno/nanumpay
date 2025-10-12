@@ -930,6 +930,35 @@
 		saveAs(blob, fileName);
 	}
 
+	// 과거 지급 일괄 처리
+	let isProcessingPast = false;
+	async function processPastPayments() {
+		if (!confirm('오늘 이전의 모든 pending 지급을 자동으로 처리합니다. 계속하시겠습니까?')) {
+			return;
+		}
+
+		isProcessingPast = true;
+		try {
+			const response = await fetch('/api/admin/payment/process-past', {
+				method: 'POST'
+			});
+			const result = await response.json();
+
+			if (result.success) {
+				alert(`과거 지급 일괄 처리 완료!\n\n처리된 주차: ${result.data.processedWeeks}개\n총 지급 건수: ${result.data.totalPayments}건`);
+				// 현재 페이지 새로고침
+				loadPaymentData(currentPage);
+			} else {
+				alert(`오류: ${result.message}`);
+			}
+		} catch (error) {
+			console.error('과거 지급 처리 실패:', error);
+			alert(`오류: ${error.message}`);
+		} finally {
+			isProcessingPast = false;
+		}
+	}
+
 	// 필터 타입 변경
 	function handleFilterTypeChange() {
 		loadPaymentData();
@@ -1173,6 +1202,14 @@
 				<img src="/icons/download.svg" alt="다운로드" width="16" height="16" />
 			</button>
 		{/if}
+
+		<button onclick={processPastPayments} disabled={isProcessingPast} class="process-past-button" title="오늘 이전의 pending 지급을 자동 처리">
+			{#if isProcessingPast}
+				처리중...
+			{:else}
+				과거 지급 처리
+			{/if}
+		</button>
 	</div>
 
 	<!-- 테이블 영역 -->
@@ -2047,6 +2084,42 @@
 		height: 16px;
 	}
 
+	.process-past-button {
+		padding: 7px 14px;
+		background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
+		color: #333;
+		border: none;
+		border-radius: 5px;
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		transition: all 0.2s ease;
+		min-width: 100px;
+		height: 36px;
+		flex-shrink: 0;
+		box-shadow: 0 1px 4px rgba(255, 152, 0, 0.3);
+		font-weight: 500;
+		font-size: 13px;
+		white-space: nowrap;
+	}
 
+	.process-past-button:hover:not(:disabled) {
+		background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+		box-shadow: 0 2px 8px rgba(255, 152, 0, 0.4);
+		transform: translateY(-1px);
+	}
+
+	.process-past-button:active:not(:disabled) {
+		transform: translateY(0);
+		box-shadow: 0 1px 3px rgba(255, 152, 0, 0.3);
+	}
+
+	.process-past-button:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
+		background: #ccc;
+		box-shadow: none;
+	}
 
 </style>

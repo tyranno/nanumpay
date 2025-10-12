@@ -8,7 +8,6 @@ import WeeklyPaymentSummary from '../models/WeeklyPaymentSummary.js';
 import MonthlyRegistrations from '../models/MonthlyRegistrations.js';
 import MonthlyTreeSnapshots from '../models/MonthlyTreeSnapshots.js';
 import User from '../models/User.js';
-import { checkAndCreateAdditionalPlan } from './paymentPlanService.js';
 
 /**
  * 매주 금요일 지급 처리 메인 함수
@@ -62,7 +61,6 @@ export async function processWeeklyPayments(date = new Date()) {
 
     // 3. 각 계획별 지급 처리
     const processedPayments = [];
-    const completedPlans = [];  // 10회 완료된 계획들
 
     for (const plan of pendingPlans) {
       const installment = plan.getInstallmentByDate(paymentDate);
@@ -149,11 +147,6 @@ export async function processWeeklyPayments(date = new Date()) {
         tax: paymentAmounts.withholdingTax,
         net: paymentAmounts.netAmount
       });
-
-      // 10회 완료 체크 (additional 계획 생성용)
-      if (plan.completedInstallments === 10 && plan.planType !== 'additional') {
-        completedPlans.push(plan);
-      }
     }
 
     // 4. 사용자 카운트는 증분 업데이트된 상태 (incrementPayment에서 처리)
@@ -167,11 +160,6 @@ export async function processWeeklyPayments(date = new Date()) {
 
     // 6. 처리 완료
     console.log(`=== 지급 처리 완료: ${processedPayments.length}건 ===`);
-
-    // 7. 10회 완료된 계획들에 대해 additional 계획 생성 (트랜잭션 밖에서)
-    for (const plan of completedPlans) {
-      await checkAndCreateAdditionalPlan(plan);
-    }
 
     return {
       success: true,
@@ -338,6 +326,114 @@ async function getConfirmedGradeForPayment(userId, revenueMonth) {
     console.error('확정 등급 조회 실패:', error);
     return null;
   }
+}
+
+/**
+ * v6.0: 과거 지급 일괄 처리 (개발용)
+ * 오늘 이전의 모든 pending 지급을 자동으로 처리
+ */
+export async function processAllPastPayments() {
+  try {
+    console.log('\n=== 과거 지급 일괄 처리 시작 ===');
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // 1. 오늘보다 이전의 pending 지급 모두 찾기
+    const pastPayments = await WeeklyPaymentPlans.aggregate([
+      {
+        $match: {
+          'installments.status': 'pending',
+          'installments.scheduledDate': { $lt: today },
+          planStatus: 'active'
+        }
+      },
+      { $unwind: '$installments' },
+      {
+        $match: {
+          'installments.status': 'pending',
+          'installments.scheduledDate': { $lt: today }
+        }
+      },
+      {
+        $group: {
+          _id: '$installments.weekNumber',
+          scheduledDate: { $first: '$installments.scheduledDate' }
+        }
+      },
+      { $sort: { scheduledDate: 1 } }  // 오래된 것부터
+    ]);
+
+    console.log(`  처리할 과거 주차: ${pastPayments.length}개`);
+
+    if (pastPayments.length === 0) {
+      console.log('  과거 미처리 지급이 없습니다.');
+      return {
+        success: true,
+        message: '과거 미처리 지급이 없습니다',
+        processedWeeks: 0
+      };
+    }
+
+    // 2. 주차별로 순차 처리
+    const results = [];
+    for (const week of pastPayments) {
+      console.log(`\n  [${week._id}] 주차 지급 처리 중...`);
+
+      // 해당 주차의 금요일 날짜로 processWeeklyPayments 호출
+      // 금요일 체크를 우회하기 위해 날짜를 해당 주의 금요일로 조정
+      const friday = getFridayOfWeek(week.scheduledDate);
+
+      try {
+        const result = await processWeeklyPayments(friday);
+        results.push({
+          weekNumber: week._id,
+          success: true,
+          processedCount: result.processedCount,
+          totalAmount: result.totalAmount
+        });
+        console.log(`  [${week._id}] 처리 완료: ${result.processedCount}건`);
+      } catch (error) {
+        console.error(`  [${week._id}] 처리 실패:`, error);
+        results.push({
+          weekNumber: week._id,
+          success: false,
+          error: error.message
+        });
+      }
+    }
+
+    // 3. 처리 요약
+    const successCount = results.filter(r => r.success).length;
+    const totalProcessed = results.filter(r => r.success).reduce((sum, r) => sum + r.processedCount, 0);
+
+    console.log('\n=== 과거 지급 일괄 처리 완료 ===');
+    console.log(`  성공: ${successCount}/${pastPayments.length} 주차`);
+    console.log(`  총 처리 건수: ${totalProcessed}건`);
+
+    return {
+      success: true,
+      processedWeeks: successCount,
+      totalPayments: totalProcessed,
+      details: results
+    };
+
+  } catch (error) {
+    console.error('과거 지급 일괄 처리 실패:', error);
+    throw error;
+  }
+}
+
+/**
+ * 해당 날짜가 속한 주의 금요일 찾기
+ */
+function getFridayOfWeek(date) {
+  const d = new Date(date);
+  const dayOfWeek = d.getDay();  // 0(일) ~ 6(토)
+  const diff = 5 - dayOfWeek;  // 금요일(5)까지의 차이
+  d.setDate(d.getDate() + diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
 }
 
 /**
