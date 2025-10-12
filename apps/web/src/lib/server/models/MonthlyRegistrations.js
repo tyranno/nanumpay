@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 
 /**
  * 월별 등록/매출 관리 컬렉션
- * v5.0: 매월 용역자 등록 및 매출 관리
+ * v7.0: 매월 용역자 등록 및 매출 관리 (지급 대상자 3가지 유형 구분)
  */
 const monthlyRegistrationsSchema = new mongoose.Schema(
   {
@@ -37,7 +37,7 @@ const monthlyRegistrationsSchema = new mongoose.Schema(
       default: null
     },
 
-    // 등록자 목록
+    // 등록자 목록 (v7.0: 신규 등록자만)
     registrations: [{
       userId: { type: String, required: true },
       userName: { type: String, required: true },
@@ -50,7 +50,34 @@ const monthlyRegistrationsSchema = new mongoose.Schema(
       }
     }],
 
-    // 등급별 분포 (월말 기준)
+    // v7.0: 지급 대상자 정보 (3가지 유형)
+    paymentTargets: {
+      // 신규 등록자 (매출 기여)
+      registrants: [{
+        userId: { type: String, required: true },
+        userName: { type: String, required: true },
+        grade: { type: String, required: true }
+      }],
+
+      // 승급자 (매출 기여 없음)
+      promoted: [{
+        userId: { type: String, required: true },
+        userName: { type: String, required: true },
+        oldGrade: { type: String, required: true },
+        newGrade: { type: String, required: true },
+        promotionDate: { type: Date }
+      }],
+
+      // 추가지급 대상자 (매출 기여 없음)
+      additionalPayments: [{
+        userId: { type: String, required: true },
+        userName: { type: String, required: true },
+        grade: { type: String, required: true },
+        추가지급단계: { type: Number, required: true }
+      }]
+    },
+
+    // 등급별 분포 (v7.0: 지급 대상자 전체 기준)
     gradeDistribution: {
       F1: { type: Number, default: 0 },
       F2: { type: Number, default: 0 },
@@ -87,6 +114,10 @@ const monthlyRegistrationsSchema = new mongoose.Schema(
 monthlyRegistrationsSchema.index({ monthKey: 1 }, { unique: true });
 monthlyRegistrationsSchema.index({ 'registrations.userId': 1 });
 monthlyRegistrationsSchema.index({ 'registrations.registrationDate': 1 });
+// v7.0: paymentTargets 인덱스
+monthlyRegistrationsSchema.index({ 'paymentTargets.registrants.userId': 1 });
+monthlyRegistrationsSchema.index({ 'paymentTargets.promoted.userId': 1 });
+monthlyRegistrationsSchema.index({ 'paymentTargets.additionalPayments.userId': 1 });
 
 // 헬퍼 메소드: 실제 사용할 매출 가져오기
 monthlyRegistrationsSchema.methods.getEffectiveRevenue = function() {

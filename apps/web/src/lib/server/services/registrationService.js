@@ -1,6 +1,6 @@
 /**
- * 용역자 등록 서비스 v5.0
- * 등록, 등급 계산, 스냅샷 업데이트, 지급 계획 생성 통합 처리
+ * 용역자 등록 서비스 v7.0
+ * 등록, 등급 계산, 스냅샷 업데이트, 지급 계획 생성, 매월 추가지급 확인 통합 처리
  */
 
 import User from '../models/User.js';
@@ -8,7 +8,11 @@ import MonthlyRegistrations from '../models/MonthlyRegistrations.js';
 import MonthlyTreeSnapshots from '../models/MonthlyTreeSnapshots.js';
 import WeeklyPaymentPlans from '../models/WeeklyPaymentPlans.js';
 import { recalculateAllGrades } from './gradeCalculation.js';
-import { createInitialPaymentPlan, createPromotionPaymentPlan, checkAndCreateAdditionalPlan } from './paymentPlanService.js';
+import {
+  createInitialPaymentPlan,
+  createPromotionPaymentPlan,
+  createMonthlyAdditionalPayments
+} from './paymentPlanService.js';
 import { excelLogger as logger } from '../logger.js';
 
 /**
@@ -16,7 +20,7 @@ import { excelLogger as logger } from '../logger.js';
  */
 export async function processUserRegistration(userIds) {
   try {
-    logger.info(`=== 용역자 등록 처리 시작 (v5.0) ===`, {
+    logger.info(`=== 용역자 등록 처리 시작 (v7.0) ===`, {
       userCount: userIds.length,
       timestamp: new Date().toISOString()
     });
@@ -35,9 +39,9 @@ export async function processUserRegistration(userIds) {
     // 2. 트리 구조 변경 및 등급 재계산 (먼저 실행!)
     logger.info('등급 재계산 시작...');
     const gradeChangeResult = await recalculateAllGrades();
-    const affectedUsers = gradeChangeResult.changedUsers || [];
+    const changedUsers = gradeChangeResult.changedUsers || [];
 
-    logger.info(`등급 재계산 완료: ${affectedUsers.length}명 변경`);
+    logger.info(`등급 재계산 완료: ${changedUsers.length}명 변경`);
 
     // 3. 등급 재계산 후 users 정보 다시 조회 (최신 등급 반영)
     const updatedUsers = await User.find({ _id: { $in: userIds } });
@@ -50,26 +54,30 @@ export async function processUserRegistration(userIds) {
     await updateMonthlyRegistrations(updatedUsers);
 
     // 5. 월별 트리 스냅샷 업데이트
-    await updateMonthlyTreeSnapshots(updatedUsers, affectedUsers);
+    await updateMonthlyTreeSnapshots(updatedUsers, changedUsers);
 
     // 6. 지급 계획 처리
     console.log('[등록처리 6단계] 지급 계획 생성 시작');
     const paymentPlanResults = [];
 
-    // 6-1. 신규 등록자 Initial 계획 생성
+    // 6-1. 신규 등록자 Initial 계획 생성 (원래 등록 등급으로)
     for (const user of updatedUsers) {
-      console.log(`[등록처리 5-1] ${user.name}의 Initial 지급 계획 생성 시작`);
+      // ⭐ 중요: Initial은 원래 등록 등급으로 생성
+      const changedUser = changedUsers.find(c => c.userId === user.loginId);
+      const originalGrade = changedUser?.oldGrade || user.grade;
+
+      console.log(`[등록처리 6-1] ${user.name}의 Initial 지급 계획 생성 시작`);
       console.log(`  - 등록일: ${user.registrationDate?.toISOString().split('T')[0]}`);
-      console.log(`  - 등급: ${user.grade}`);
+      console.log(`  - 원래 등급: ${originalGrade}`);
 
       const plan = await createInitialPaymentPlan(
         user.loginId,
         user.name,
-        user.grade,
+        originalGrade,  // 원래 등급 사용
         user.registrationDate || user.createdAt
       );
 
-      console.log(`[등록처리 5-1] 지급 계획 생성 완료: ${plan.installments.length}개 할부`);
+      console.log(`[등록처리 6-1] 지급 계획 생성 완료: ${plan.installments.length}개 할부`);
       if (plan.installments.length > 0) {
         const first = plan.installments[0];
         console.log(`  - 첫 지급: ${first.weekNumber} (${first.paymentDate?.toISOString().split('T')[0]})`);
@@ -82,66 +90,165 @@ export async function processUserRegistration(userIds) {
       });
     }
 
-    // 5-2. 승급자 Promotion 계획 생성
-    const promotedUsers = affectedUsers.filter(u =>
+    // 6-2. 승급자 필터링
+    const promotedUsers = changedUsers.filter(u =>
       u.changeType === 'grade_change' &&
       u.oldGrade &&
       u.newGrade &&
       u.oldGrade < u.newGrade
     );
 
+    // 현재 등록 배치의 가장 최근 등록일을 승급일로 사용
+    const promotionDate = updatedUsers.reduce((latest, user) => {
+      const userDate = user.registrationDate || user.createdAt;
+      return userDate > latest ? userDate : latest;
+    }, updatedUsers[0]?.registrationDate || updatedUsers[0]?.createdAt || new Date());
+
+    // 6-3. 승급자의 등급 분포만 업데이트 (매출은 등록자 수 기준!)
+    // ⭐ 핵심: 승급자는 registrations에 추가하지 않음! (매출 기여 안 함)
+    // ⭐ 단, gradeDistribution에는 반영하여 지급액 계산에 포함!
+    let updatedMonthlyReg = null;  // ⭐ 6-4에서 사용할 변수
+    if (promotedUsers.length > 0) {
+      console.log(`[등록처리 6-3] 승급자 ${promotedUsers.length}명의 등급 분포 업데이트`);
+      const promotionMonthKey = MonthlyRegistrations.generateMonthKey(promotionDate);
+
+      let monthlyReg = await MonthlyRegistrations.findOne({ monthKey: promotionMonthKey });
+
+      if (!monthlyReg) {
+        console.log(`  [ERROR] ${promotionMonthKey} MonthlyRegistrations가 없습니다!`);
+      } else {
+        console.log(`  [확인] ${promotionMonthKey} 현재 등록자 수: ${monthlyReg.registrationCount}명`);
+        console.log(`  [확인] 현재 매출: ${monthlyReg.totalRevenue.toLocaleString()}원`);
+
+        // ⭐ 중요: registrations는 건드리지 않음! (등록자 수/매출 유지)
+        // 등급 분포만 재계산 (등록자 + 승급자 포함)
+        const gradeDistribution = {
+          F1: 0, F2: 0, F3: 0, F4: 0,
+          F5: 0, F6: 0, F7: 0, F8: 0
+        };
+
+        // 1) 현재 등록자들의 등급 카운트
+        for (const reg of monthlyReg.registrations) {
+          if (gradeDistribution[reg.grade] !== undefined) {
+            gradeDistribution[reg.grade]++;
+          }
+        }
+
+        console.log(`  [1단계] 등록자 기준 등급 분포: ${JSON.stringify(gradeDistribution)}`);
+
+        // v7.0: paymentTargets 초기화 (없으면 생성)
+        if (!monthlyReg.paymentTargets) {
+          monthlyReg.paymentTargets = {
+            registrants: [],
+            promoted: [],
+            additionalPayments: []
+          };
+        }
+
+        // 2) 승급자 추가 카운트 (이번 배치 제외!)
+        for (const promoted of promotedUsers) {
+          const isInCurrentBatch = updatedUsers.some(u => u.loginId === promoted.userId);
+          if (isInCurrentBatch) {
+            console.log(`  [SKIP] ${promoted.userName}는 현재 등록 배치에 포함 (이미 등급 분포에 포함됨)`);
+            continue;
+          }
+
+          // ⭐ 핵심: 승급 전 등급 감소, 승급 후 등급 증가
+          if (gradeDistribution[promoted.oldGrade] !== undefined && gradeDistribution[promoted.oldGrade] > 0) {
+            gradeDistribution[promoted.oldGrade]--;
+          }
+          if (gradeDistribution[promoted.newGrade] !== undefined) {
+            gradeDistribution[promoted.newGrade]++;
+          }
+
+          console.log(`  [승급 반영] ${promoted.userName}: ${promoted.oldGrade}(-1) → ${promoted.newGrade}(+1)`);
+
+          // v7.0: paymentTargets.promoted에 추가
+          monthlyReg.paymentTargets.promoted.push({
+            userId: promoted.userId,
+            userName: promoted.userName,
+            oldGrade: promoted.oldGrade,
+            newGrade: promoted.newGrade,
+            promotionDate: promotionDate
+          });
+        }
+
+        monthlyReg.gradeDistribution = gradeDistribution;
+        console.log(`  [2단계] 승급 반영 후 등급 분포: ${JSON.stringify(gradeDistribution)}`);
+
+        // 등급별 지급액 재계산 (매출은 그대로, 등급 분포만 변경!)
+        const revenue = monthlyReg.getEffectiveRevenue();
+        monthlyReg.gradePayments = calculateGradePayments(revenue, gradeDistribution);
+
+        await monthlyReg.save();
+        updatedMonthlyReg = monthlyReg;  // ⭐ 저장 후 변수에 저장!
+
+        console.log(`  [최종] ${promotionMonthKey} 등록자 수: ${monthlyReg.registrationCount}명 (변경 없음)`);
+        console.log(`  [최종] 매출: ${revenue.toLocaleString()}원 (변경 없음)`);
+        console.log(`  [최종] 등급 분포: ${JSON.stringify(gradeDistribution)}`);
+        console.log(`  [최종] F1 지급액: ${(monthlyReg.gradePayments?.F1 || 0).toLocaleString()}원`);
+        console.log(`  [최종] F2 지급액: ${(monthlyReg.gradePayments?.F2 || 0).toLocaleString()}원`);
+      }
+    }
+
+    // 6-4. Promotion 계획 생성 (6-3 이후 실행되므로 올바른 금액 계산됨!)
+    console.log(`[등록처리 6-4] 승급자 ${promotedUsers.length}명 Promotion 계획 생성 시작`);
     for (const promoted of promotedUsers) {
+      console.log(`  - ${promoted.userName}: ${promoted.oldGrade} → ${promoted.newGrade}`);
       const user = await User.findOne({ loginId: promoted.userId });
       if (user) {
-        const plan = await createPromotionPaymentPlan(
+        // ⭐ 중요: 업데이트된 monthlyReg 객체를 직접 전달!
+        const promotionPlan = await createPromotionPaymentPlan(
           user.loginId,
           user.name,
           promoted.newGrade,
-          new Date()
+          promotionDate,  // 현재 배치의 등록일 사용
+          updatedMonthlyReg  // ⭐ 업데이트된 매출 데이터 전달
         );
+        console.log(`  - Promotion 계획 생성 완료: ${promotionPlan._id} (매출월: ${promotionPlan.revenueMonth}, 금액: ${promotionPlan.installments[0]?.installmentAmount || 0}원)`);
+
+        // ⭐ 중요: 같은 달에 등록+승급이 일어난 경우, Initial 계획 삭제!
+        const initialPlan = await WeeklyPaymentPlans.findOne({
+          userId: user.loginId,
+          planType: 'initial',
+          revenueMonth: promotionPlan.revenueMonth  // 같은 매출월
+        });
+
+        if (initialPlan) {
+          console.log(`  [삭제] ${user.name}의 Initial 계획 삭제 (같은 달 등록+승급) - ID: ${initialPlan._id}`);
+          await WeeklyPaymentPlans.deleteOne({ _id: initialPlan._id });
+          // paymentPlanResults에서도 제거
+          const index = paymentPlanResults.findIndex(p => p.plan.equals(initialPlan._id));
+          if (index > -1) {
+            paymentPlanResults.splice(index, 1);
+          }
+        }
+
         paymentPlanResults.push({
           userId: user.loginId,
           type: 'promotion',
-          plan: plan._id
+          plan: promotionPlan._id
         });
       }
     }
 
-    // 7. v6.0: 10회 완료된 계획 확인 및 추가 계획 생성
-    console.log('[등록처리 7단계] 10회 완료 계획 확인 시작');
+    // 7. v7.0: 매월 추가지급 확인 (이전 월 대상자 중 승급 없는 자)
+    console.log('[등록처리 7단계] v7.0 매월 추가지급 확인 시작');
 
-    // 모든 완료된 계획 조회
-    const completedPlans = await WeeklyPaymentPlans.find({
-      completedInstallments: 10,
-      planStatus: 'completed'
-    });
+    // 현재 월 계산
+    const currentMonth = MonthlyRegistrations.generateMonthKey(new Date());
+    console.log(`  현재 월: ${currentMonth}`);
 
-    console.log(`  발견된 10회 완료 계획: ${completedPlans.length}건`);
+    // 매월 추가지급 생성 (이전 월 대상자 확인)
+    const additionalPlanCount = await createMonthlyAdditionalPayments(currentMonth);
 
-    let additionalPlanCount = 0;
-    for (const plan of completedPlans) {
-      // 이미 추가 계획이 생성되었는지 확인 (중복 방지)
-      const hasAdditionalPlan = await WeeklyPaymentPlans.findOne({
-        parentPlanId: plan._id
-      });
-
-      if (!hasAdditionalPlan) {
-        console.log(`  ${plan.userName}의 완료된 계획 발견: generation ${plan.generation}`);
-        const additionalPlan = await checkAndCreateAdditionalPlan(plan);
-        if (additionalPlan) {
-          additionalPlanCount++;
-          console.log(`  추가 계획 생성 완료: generation ${additionalPlan.generation}`);
-        }
-      }
-    }
-
-    console.log(`[등록처리 7단계] 추가 계획 생성 완료: ${additionalPlanCount}건`);
+    console.log(`[등록처리 7단계] v7.0 매월 추가지급 생성 완료: ${additionalPlanCount || 0}건`);
 
     // 8. 처리 완료
 
     logger.info(`=== 용역자 등록 처리 완료 ===`, {
       신규등록: updatedUsers.length,
-      등급변경: affectedUsers.length,
+      등급변경: changedUsers.length,
       승급자: promotedUsers.length,
       지급계획: paymentPlanResults.length,
       추가계획: additionalPlanCount
@@ -150,7 +257,7 @@ export async function processUserRegistration(userIds) {
     return {
       success: true,
       registeredUsers: updatedUsers.length,
-      affectedUsers: affectedUsers.length,
+      affectedUsers: changedUsers.length,
       promotedUsers: promotedUsers.length,
       paymentPlans: paymentPlanResults,
       additionalPlans: additionalPlanCount
@@ -163,7 +270,7 @@ export async function processUserRegistration(userIds) {
 }
 
 /**
- * 월별 등록 정보 업데이트
+ * 월별 등록 정보 업데이트 (v7.0: paymentTargets 구조 추가)
  */
 async function updateMonthlyRegistrations(users) {
   // 월별로 그룹화
@@ -197,13 +304,27 @@ async function updateMonthlyRegistrations(users) {
     let monthlyReg = await MonthlyRegistrations.findOne({ monthKey });
 
     if (!monthlyReg) {
-      // 새로운 문서 생성
+      // 새로운 문서 생성 (v7.0: paymentTargets 구조 포함)
       monthlyReg = new MonthlyRegistrations({
         monthKey,
         registrationCount: 0,
         totalRevenue: 0,
-        registrations: []
+        registrations: [],
+        paymentTargets: {
+          registrants: [],
+          promoted: [],
+          additionalPayments: []
+        }
       });
+    }
+
+    // v7.0: paymentTargets 초기화 (없으면 생성)
+    if (!monthlyReg.paymentTargets) {
+      monthlyReg.paymentTargets = {
+        registrants: [],
+        promoted: [],
+        additionalPayments: []
+      };
     }
 
     // 등록자 추가
@@ -211,20 +332,30 @@ async function updateMonthlyRegistrations(users) {
     monthlyReg.registrationCount = monthlyReg.registrations.length;
     monthlyReg.totalRevenue = monthlyReg.registrationCount * 1000000; // 100만원
 
-    // 등급 분포 계산 (해당 월의 모든 사용자 기준)
+    // v7.0: paymentTargets.registrants 업데이트 (등록자 정보)
+    for (const reg of registrations) {
+      monthlyReg.paymentTargets.registrants.push({
+        userId: reg.userId,
+        userName: reg.userName,
+        grade: reg.grade
+      });
+    }
+
+    // 등급 분포 계산 (v7.0: 지급 대상자 전체 기준)
     const gradeDistribution = {
       F1: 0, F2: 0, F3: 0, F4: 0,
       F5: 0, F6: 0, F7: 0, F8: 0
     };
-    
+
+    // 등록자만 카운트 (승급자/추가지급은 별도 처리)
     for (const reg of monthlyReg.registrations) {
       if (gradeDistribution[reg.grade] !== undefined) {
         gradeDistribution[reg.grade]++;
       }
     }
-    
+
     monthlyReg.gradeDistribution = gradeDistribution;
-    
+
     // 등급별 지급액 계산
     const revenue = monthlyReg.getEffectiveRevenue();
     monthlyReg.gradePayments = calculateGradePayments(revenue, gradeDistribution);

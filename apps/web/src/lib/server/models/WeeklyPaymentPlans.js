@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 
 /**
  * 개별 지급 계획
- * v5.0: 용역자별 주차별 지급 계획 상세 (병행 지급 지원)
+ * v7.0: 용역자별 주차별 지급 계획 상세 (매월 기준 병행 지급 지원)
  */
 const weeklyPaymentPlansSchema = new mongoose.Schema(
   {
@@ -20,6 +20,19 @@ const weeklyPaymentPlansSchema = new mongoose.Schema(
       type: Number,
       required: true,
       default: 1  // 몇 번째 10회인지 (1, 2, 3, ...)
+    },
+    // v7.0: 추가지급단계 (0=기본, 1=추가1차, 2=추가2차, ...)
+    추가지급단계: {
+      type: Number,
+      required: true,
+      default: 0
+    },
+    // v7.0: 지급 타입 (기본/추가 구분)
+    installmentType: {
+      type: String,
+      enum: ['basic', 'additional'],
+      required: true,
+      default: 'basic'  // 추가지급단계:0이면 'basic', 1+이면 'additional'
     },
     baseGrade: {
       type: String,
@@ -83,14 +96,7 @@ const weeklyPaymentPlansSchema = new mongoose.Schema(
       skipReason: { type: String },  // 'insurance_not_maintained', etc.
 
       // 보험 관련
-      insuranceSkipped: { type: Boolean, default: false },  // 보험 미유지로 건너뜀
-
-      // 지급 타입
-      installmentType: {
-        type: String,
-        enum: ['initial', 'additional'],  // 기본(1~10) / 추가(11~)
-        required: true
-      }
+      insuranceSkipped: { type: Boolean, default: false }  // 보험 미유지로 건너뜀
     }],
 
     // 계획 상태
@@ -100,11 +106,16 @@ const weeklyPaymentPlansSchema = new mongoose.Schema(
       default: 'active'
     },
 
-    // 종료 정보
+    // v7.0: 종료 정보 (추가지급 중단)
     terminatedAt: { type: Date },
     terminationReason: {
       type: String,
       enum: ['promotion', 'max_reached', 'manual']
+    },
+    terminatedBy: {
+      type: String,
+      enum: ['promotion_additional_stop', 'max_reached', 'manual'],  // v7.0: 추가지급 중단 이유
+      default: null
     },
 
     // v6.0 추가 필드
@@ -114,7 +125,7 @@ const weeklyPaymentPlansSchema = new mongoose.Schema(
     },
     createdBy: {
       type: String,
-      enum: ['registration', 'promotion', 'auto_generation'],  // 생성 출처
+      enum: ['registration', 'promotion', 'monthly_check'],  // v7.0: monthly_check 추가
       default: 'registration'
     },
 
@@ -136,6 +147,8 @@ weeklyPaymentPlansSchema.index({ 'installments.weekNumber': 1 });
 weeklyPaymentPlansSchema.index({ generation: 1 });  // v6.0 추가
 weeklyPaymentPlansSchema.index({ parentPlanId: 1 });  // v6.0 추가
 weeklyPaymentPlansSchema.index({ createdBy: 1 });  // v6.0 추가
+weeklyPaymentPlansSchema.index({ 추가지급단계: 1 });  // v7.0 추가
+weeklyPaymentPlansSchema.index({ userId: 1, 추가지급단계: 1 });  // v7.0 추가
 
 // 헬퍼 메소드: ISO 주차 계산
 weeklyPaymentPlansSchema.statics.getISOWeek = function(date) {

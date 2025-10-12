@@ -1,6 +1,6 @@
 /**
- * 주간 지급 처리 서비스 v5.0
- * 매주 금요일 자동 지급 처리
+ * 주간 지급 처리 서비스 v7.0
+ * 매주 금요일 자동 지급 처리 (순수 지급만, 추가 계획 생성 안 함)
  */
 
 import WeeklyPaymentPlans from '../models/WeeklyPaymentPlans.js';

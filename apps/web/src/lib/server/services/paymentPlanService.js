@@ -1,8 +1,9 @@
 /**
- * 지급 계획 서비스 v6.0
- * 동적 지급 계획 생성 (10회 단위)
+ * 지급 계획 서비스 v7.0
+ * 매월 기준 동적 지급 계획 생성 (10회 단위)
  */
 
+import mongoose from 'mongoose';
 import WeeklyPaymentPlans from '../models/WeeklyPaymentPlans.js';
 import WeeklyPaymentSummary from '../models/WeeklyPaymentSummary.js';
 import MonthlyRegistrations from '../models/MonthlyRegistrations.js';
@@ -86,24 +87,25 @@ export async function createInitialPaymentPlan(userId, userName, grade, registra
         withholdingTax,
         netAmount,
 
-        status: 'pending',
-        installmentType: 'initial'  // v6.0: 항상 initial
+        status: 'pending'
       });
     }
 
     if (installments.length > 0) {
       console.log(`  첫 3개 할부 정보:`);
       installments.slice(0, 3).forEach((inst, idx) => {
-        console.log(`    ${idx + 1}회차: ${inst.weekNumber} (${inst.scheduledDate.toISOString().split('T')[0]}) - ${inst.installmentAmount.toLocaleString()}원 (${inst.installmentType})`);
+        console.log(`    ${idx + 1}회차: ${inst.weekNumber} (${inst.scheduledDate.toISOString().split('T')[0]}) - ${inst.installmentAmount.toLocaleString()}원`);
       });
     }
 
-    // 계획 생성 (v6.0: generation, createdBy 추가)
+    // 계획 생성 (v7.0: 추가지급단계 추가)
     const plan = await WeeklyPaymentPlans.create({
       userId,
       userName,
       planType: 'initial',
       generation: 1,  // v6.0: 첫 번째 10회
+      추가지급단계: 0,  // v7.0: 기본 지급
+      installmentType: 'basic',  // v7.0: 기본 10회
       baseGrade: grade,
       revenueMonth,
       startDate,
@@ -129,7 +131,7 @@ export async function createInitialPaymentPlan(userId, userName, grade, registra
 /**
  * Promotion 지급 계획 생성 (승급 시)
  */
-export async function createPromotionPaymentPlan(userId, userName, newGrade, promotionDate) {
+export async function createPromotionPaymentPlan(userId, userName, newGrade, promotionDate, monthlyRegData = null) {
   try {
     // 지급 시작일 계산 (승급일+1개월 후 첫 금요일)
     const startDate = WeeklyPaymentPlans.getPaymentStartDate(promotionDate);
@@ -140,8 +142,13 @@ export async function createPromotionPaymentPlan(userId, userName, newGrade, pro
     // Promotion 계획은 항상 10회 (initial 10회만)
     const totalInstallments = 10;
 
-    // 등급별 지급액 계산 (미리 계산)
-    const monthlyReg = await MonthlyRegistrations.findOne({ monthKey: revenueMonth });
+    // 등급별 지급액 계산
+    // ⭐ 중요: monthlyRegData가 전달되면 사용, 없으면 DB 조회
+    let monthlyReg = monthlyRegData;
+    if (!monthlyReg) {
+      monthlyReg = await MonthlyRegistrations.findOne({ monthKey: revenueMonth });
+    }
+    
     let baseAmount = 0;
     let installmentAmount = 0;
     let withholdingTax = 0;
@@ -152,10 +159,17 @@ export async function createPromotionPaymentPlan(userId, userName, newGrade, pro
       const gradePayments = calculateGradePayments(revenue, monthlyReg.gradeDistribution);
       baseAmount = gradePayments[newGrade] || 0;
       
+      console.log(`[createPromotionPaymentPlan] ${userName} (${newGrade})`);
+      console.log(`  - 매출월: ${revenueMonth}`);
+      console.log(`  - 매출: ${revenue.toLocaleString()}원`);
+      console.log(`  - 등급 분포: ${JSON.stringify(monthlyReg.gradeDistribution)}`);
+      console.log(`  - ${newGrade} 지급액: ${baseAmount.toLocaleString()}원`);
+      
       if (baseAmount > 0) {
         installmentAmount = Math.floor(baseAmount / 10 / 100) * 100;
         withholdingTax = Math.round(installmentAmount * 0.033);
         netAmount = installmentAmount - withholdingTax;
+        console.log(`  - 회당 지급액: ${installmentAmount.toLocaleString()}원`);
       }
     }
 
@@ -177,17 +191,21 @@ export async function createPromotionPaymentPlan(userId, userName, newGrade, pro
         withholdingTax,
         netAmount,
 
-        status: 'pending',
-        installmentType: 'initial' // Promotion도 1~10회는 initial
+        status: 'pending'
       });
     }
 
-    // 계획 생성 (v6.0: generation, createdBy 추가)
+    // v7.0: 승급 시 기존 추가지급 중단
+    await terminateAdditionalPlansOnPromotion(userId);
+
+    // 계획 생성 (v7.0: 추가지급단계 추가)
     const plan = await WeeklyPaymentPlans.create({
       userId,
       userName,
       planType: 'promotion',
       generation: 1,  // v6.0: 첫 번째 10회
+      추가지급단계: 0,  // v7.0: 기본 지급
+      installmentType: 'basic',  // v7.0: 기본 10회
       baseGrade: newGrade,
       revenueMonth,
       startDate,
@@ -263,8 +281,7 @@ export async function createAdditionalPaymentPlan(userId, userName, grade, baseR
         withholdingTax,
         netAmount,
 
-        status: 'pending',
-        installmentType: 'additional'
+        status: 'pending'
       });
     }
 
@@ -304,10 +321,10 @@ export async function terminateAdditionalPlans(userId) {
     });
 
     for (const plan of additionalPlans) {
-      // pending 상태의 additional 할부 종료
+      // pending 상태의 할부 종료
       let hasTerminated = false;
       for (const inst of plan.installments) {
-        if (inst.installmentType === 'additional' && inst.status === 'pending') {
+        if (inst.status === 'pending') {
           inst.status = 'terminated';
           hasTerminated = true;
         }
@@ -579,8 +596,7 @@ export async function checkAndCreateAdditionalPlan(completedPlan) {
         withholdingTax,
         netAmount,
         status: 'pending',
-        insuranceSkipped: false,
-        installmentType: 'initial' // v6.0: 매 10회는 항상 initial
+        insuranceSkipped: false
       });
     }
 
@@ -620,6 +636,260 @@ async function calculateTotalCompletedInstallments(userId, planType) {
   const plans = await WeeklyPaymentPlans.find({
     userId,
     planType,
+    planStatus: { $in: ['active', 'completed'] }
+  });
+
+  return plans.reduce((sum, p) => sum + p.completedInstallments, 0);
+}
+
+/**
+ * v7.0: 승급 시 추가지급 중단
+ * 추가지급단계가 1 이상인 active 계획들을 terminated로 변경
+ */
+export async function terminateAdditionalPlansOnPromotion(userId) {
+  try {
+    console.log(`\n[v7.0 추가지급중단] ${userId} 승급으로 인한 추가지급 중단 시작`);
+
+    // 추가지급단계가 1 이상인 active 계획 조회
+    const additionalPlans = await WeeklyPaymentPlans.find({
+      userId,
+      추가지급단계: { $gte: 1 },
+      planStatus: 'active'
+    });
+
+    console.log(`  대상 계획: ${additionalPlans.length}개`);
+
+    for (const plan of additionalPlans) {
+      console.log(`  - ${plan._id}: ${plan.planType}, 추가지급단계=${plan.추가지급단계}`);
+
+      // pending 상태의 할부들을 terminated로 변경
+      let terminatedCount = 0;
+      for (const inst of plan.installments) {
+        if (inst.status === 'pending') {
+          inst.status = 'terminated';
+          terminatedCount++;
+        }
+      }
+
+      if (terminatedCount > 0) {
+        plan.planStatus = 'terminated';
+        plan.terminatedAt = new Date();
+        plan.terminationReason = 'promotion';
+        plan.terminatedBy = 'promotion_additional_stop';  // v7.0 신규
+
+        await plan.save();
+        console.log(`    → ${terminatedCount}개 할부 중단 완료`);
+
+        // 주차별 총계에서 제거
+        await updateWeeklyProjections(plan, 'remove');
+      }
+    }
+
+    console.log(`[v7.0 추가지급중단] 완료\n`);
+  } catch (error) {
+    console.error('[v7.0 추가지급중단] 실패:', error);
+    throw error;
+  }
+}
+
+/**
+ * v7.0: 매월 등록/승급 처리 시 이전 월 대상자 확인 및 추가지급 생성
+ * registrationService에서 호출
+ */
+export async function createMonthlyAdditionalPayments(currentMonth) {
+  try {
+    console.log(`\n[v7.0 매월추가지급] ${currentMonth} 처리 시작`);
+
+    // 이전 월 계산
+    const [year, month] = currentMonth.split('-').map(Number);
+    const prevDate = new Date(year, month - 2, 1);  // month는 1-based
+    const previousMonth = MonthlyRegistrations.generateMonthKey(prevDate);
+
+    console.log(`  이전 월: ${previousMonth}`);
+
+    // 1. 이전 월 등록 정보 조회
+    const prevMonthReg = await MonthlyRegistrations.findOne({ monthKey: previousMonth });
+    if (!prevMonthReg || !prevMonthReg.paymentTargets) {
+      console.log(`  이전 월 등록 정보 없음 - 종료`);
+      return;
+    }
+
+    // 2. 이전 월 등록자 + 승급자 목록
+    const prevMonthUsers = [
+      ...(prevMonthReg.paymentTargets.registrants || []),
+      ...(prevMonthReg.paymentTargets.promoted || [])
+    ];
+
+    console.log(`  이전 월 대상자: ${prevMonthUsers.length}명`);
+
+    // 3. 현재 월 승급자 목록 조회
+    const currentMonthReg = await MonthlyRegistrations.findOne({ monthKey: currentMonth });
+    const currentPromotedUsers = new Set(
+      (currentMonthReg?.paymentTargets?.promoted || []).map(p => p.userId)
+    );
+
+    console.log(`  현재 월 승급자: ${currentPromotedUsers.size}명`);
+
+    // 4. 각 사용자에 대해 승급 여부 확인 및 추가지급 생성
+    const User = mongoose.model('User');
+    let createdCount = 0;
+
+    for (const target of prevMonthUsers) {
+      const userId = target.userId;
+
+      // 현재 월에 승급했으면 SKIP
+      if (currentPromotedUsers.has(userId)) {
+        console.log(`  ${userId}: 현재 월 승급 → SKIP`);
+        continue;
+      }
+
+      // User 정보 조회
+      const user = await User.findOne({ loginId: userId });
+      if (!user) {
+        console.log(`  ${userId}: 사용자 없음 → SKIP`);
+        continue;
+      }
+
+      // 최대 횟수 확인
+      const maxInstallments = MAX_INSTALLMENTS[user.grade];
+      const completedCount = await calculateCompletedInstallmentsForGrade(userId, user.grade);
+
+      if (completedCount >= maxInstallments) {
+        console.log(`  ${userId}: 최대 횟수 도달 (${completedCount}/${maxInstallments}) → SKIP`);
+        continue;
+      }
+
+      // 보험 확인 (F3 이상)
+      if (user.grade >= 'F3' && !user.insuranceActive) {
+        console.log(`  ${userId}: 보험 미가입 (F3+) → SKIP`);
+        continue;
+      }
+
+      // 이전 월 매출 기준으로 추가지급 생성
+      const result = await createAdditionalPaymentForUser(
+        userId,
+        user.name,
+        user.grade,
+        previousMonth
+      );
+
+      if (result) {
+        createdCount++;
+        console.log(`  ${userId}: 추가지급 생성 완료 (추가지급단계: ${result.추가지급단계})`);
+      }
+    }
+
+    console.log(`[v7.0 매월추가지급] 완료: ${createdCount}개 생성\n`);
+    return createdCount;
+  } catch (error) {
+    console.error('[v7.0 매월추가지급] 실패:', error);
+    throw error;
+  }
+}
+
+/**
+ * v7.0: 특정 사용자의 추가지급 계획 생성
+ */
+async function createAdditionalPaymentForUser(userId, userName, grade, revenueMonth) {
+  try {
+    // 1. 기존 계획 중 가장 최근 것 조회
+    const lastPlan = await WeeklyPaymentPlans.findOne({
+      userId,
+      baseGrade: grade,
+      planStatus: { $in: ['active', 'completed'] }
+    }).sort({ 추가지급단계: -1, createdAt: -1 });
+
+    if (!lastPlan) {
+      console.log(`    ${userId}: 기존 계획 없음 → SKIP`);
+      return null;
+    }
+
+    // 2. 다음 추가지급단계 계산
+    const next추가지급단계 = (lastPlan.추가지급단계 || 0) + 1;
+
+    // 3. 매출 정보 조회
+    const monthlyReg = await MonthlyRegistrations.findOne({ monthKey: revenueMonth });
+    if (!monthlyReg) {
+      console.log(`    ${userId}: ${revenueMonth} 매출 정보 없음 → SKIP`);
+      return null;
+    }
+
+    // 4. 지급액 계산
+    const revenue = monthlyReg.getEffectiveRevenue();
+    const gradePayments = calculateGradePayments(revenue, monthlyReg.gradeDistribution);
+    const baseAmount = gradePayments[grade] || 0;
+
+    if (baseAmount === 0) {
+      console.log(`    ${userId}: 지급액 0원 → SKIP`);
+      return null;
+    }
+
+    const installmentAmount = Math.floor(baseAmount / 10 / 100) * 100;
+    const withholdingTax = Math.round(installmentAmount * 0.033);
+    const netAmount = installmentAmount - withholdingTax;
+
+    // 5. 시작일 계산 (이전 계획 종료 다음 금요일)
+    const lastInstallment = lastPlan.installments[lastPlan.installments.length - 1];
+    const lastDate = lastInstallment.scheduledDate;
+    const startDate = new Date(lastDate);
+    startDate.setDate(startDate.getDate() + 7);  // 다음 금요일
+
+    // 6. 할부 생성
+    const installments = [];
+    for (let i = 1; i <= 10; i++) {
+      const scheduledDate = new Date(startDate);
+      scheduledDate.setDate(scheduledDate.getDate() + (i - 1) * 7);
+
+      installments.push({
+        week: i,
+        weekNumber: WeeklyPaymentPlans.getISOWeek(scheduledDate),
+        scheduledDate,
+        revenueMonth,  // 이전 월 매출 기준
+        gradeAtPayment: null,
+        baseAmount,
+        installmentAmount,
+        withholdingTax,
+        netAmount,
+        status: 'pending'
+      });
+    }
+
+    // 7. 계획 생성
+    const newPlan = await WeeklyPaymentPlans.create({
+      userId,
+      userName,
+      planType: lastPlan.planType,  // initial 또는 promotion 유지
+      generation: lastPlan.generation + 1,
+      추가지급단계: next추가지급단계,  // v7.0: 1, 2, 3, ...
+      installmentType: 'additional',  // v7.0: 추가지급
+      baseGrade: grade,
+      revenueMonth,
+      startDate,
+      totalInstallments: 10,
+      completedInstallments: 0,
+      installments,
+      planStatus: 'active',
+      parentPlanId: lastPlan._id,
+      createdBy: 'monthly_check'  // v7.0: 매월 확인으로 생성
+    });
+
+    // 8. 주차별 총계 업데이트
+    await updateWeeklyProjections(newPlan, 'add');
+
+    return newPlan;
+  } catch (error) {
+    console.error(`    ${userId}: 추가지급 생성 실패`, error);
+    return null;
+  }
+}
+
+/**
+ * v7.0: 특정 등급의 완료된 횟수 계산
+ */
+async function calculateCompletedInstallmentsForGrade(userId, grade) {
+  const plans = await WeeklyPaymentPlans.find({
+    userId,
+    baseGrade: grade,
     planStatus: { $in: ['active', 'completed'] }
   });
 
