@@ -45,9 +45,21 @@
 	let itemsPerPage = 20;
 	let totalPages = 1;
 
-	// 컬럼 표시 토글
-	let showTaxColumn = true; // 원천징수 컬럼 표시 여부
-	let showNetColumn = true; // 실지급액 컬럼 표시 여부
+	// 컬럼 표시 토글 (localStorage에서 불러오기)
+	let showTaxColumn = typeof localStorage !== 'undefined'
+		? localStorage.getItem('paymentTable.showTaxColumn') !== 'false'
+		: true;
+	let showNetColumn = typeof localStorage !== 'undefined'
+		? localStorage.getItem('paymentTable.showNetColumn') !== 'false'
+		: true;
+
+	// localStorage에 저장하는 반응형 상태
+	$: if (typeof localStorage !== 'undefined') {
+		localStorage.setItem('paymentTable.showTaxColumn', String(showTaxColumn));
+	}
+	$: if (typeof localStorage !== 'undefined') {
+		localStorage.setItem('paymentTable.showNetColumn', String(showNetColumn));
+	}
 
 	// 전체 총액 (API에서 받은 grandTotal)
 	let apiGrandTotal = null;
