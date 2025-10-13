@@ -48,9 +48,6 @@ export async function POST({ request, locals }) {
 			errors: results.errors
 		});
 
-		// v5.0: 과거 날짜 지급 처리는 paymentScheduler의 checkAndProcessMissedPayments에서 자동 처리됨
-		excelLogger.info('v5.0: 놓친 지급은 스케줄러가 자동 처리합니다.');
-
 		return json({
 			success: true,
 			created: results.created,

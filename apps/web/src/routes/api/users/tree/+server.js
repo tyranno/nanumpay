@@ -2,7 +2,6 @@ import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db.js';
 import User from '$lib/server/models/User.js';
 import { TreeStats } from '$lib/server/models/TreeStats.js';
-import { treeService } from '$lib/server/services/treeService.js';
 
 // GET: 사용자 트리 구조 조회
 export async function GET({ url, locals }) {
@@ -194,8 +193,7 @@ export async function POST({ request, locals }) {
 
 // 상위 노드들의 등급 재계산 (TreeStats 사용 - 성능 최적화)
 async function updateAncestorsGrade(userId) {
-	// treeService의 최적화된 배치 처리 시스템 사용
-	// - isDirty 플래그로 변경된 노드만 표시
-	// - 비동기 배치 처리로 성능 최적화
-	await treeService.onUserAdded(userId);
+	// TODO: 등급 재계산 로직 필요 시 registrationService 사용
+	// 현재는 registrationService에서 전체 트리 재계산 수행
+	console.log(`[Tree API] updateAncestorsGrade called for ${userId}`);
 }
