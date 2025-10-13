@@ -693,153 +693,152 @@ export async function terminateAdditionalPlansOnPromotion(userId) {
 }
 
 /**
- * v7.0: 매월 등록/승급 처리 시 이전 월 대상자 확인 및 추가지급 생성
- * registrationService에서 호출
+ * v7.0: 스냅샷 기반 추가지급 확인 및 생성
+ *
+ * 동작 방식:
+ * - 8월 등록 처리 시 → 7월 스냅샷과 8월 스냅샷 비교
+ * - 7월에 있었고, 8월에 승급 없는 사용자 = 추가지급 대상자
+ * - 추가지급 생성 시 금액 계산: 현재 월(8월) 등급 분포 기준
+ * - 추가지급 매출 귀속: 원래 등록/승급 월(7월)
+ *
+ * registrationService.js에서 호출됨
  */
 export async function createMonthlyAdditionalPayments(currentMonth) {
   try {
-    console.log(`\n[v7.0 매월추가지급] ${currentMonth} 처리 시작`);
-    console.log(`  ⭐ 핵심: 전체 과거 등록자 중 ${currentMonth} 미승급자 확인!`);
+    console.log(`\n[v7.0 스냅샷기반 추가지급] ${currentMonth} 처리 시작`);
+    console.log(`  ⭐ 핵심: 이전 월 스냅샷과 현재 월 스냅샷 비교 → 미승급자 추가지급!`);
 
-    // 1. ⭐ 전체 과거 월 MonthlyRegistrations 조회
-    const allPastRegs = await MonthlyRegistrations.find({
-      monthKey: { $lt: currentMonth }  // 현재 월보다 이전 모든 월
-    }).sort({ monthKey: 1 });
+    // 1. 이전 월 계산
+    const previousMonth = getPreviousMonth(currentMonth);
+    console.log(`  이전 월: ${previousMonth}, 현재 월: ${currentMonth}`);
 
-    if (!allPastRegs || allPastRegs.length === 0) {
-      console.log(`  과거 등록 정보 없음 - 종료`);
+    // 2. 이전 월 스냅샷 조회
+    const prevSnapshot = await MonthlyTreeSnapshots.findOne({ monthKey: previousMonth });
+    if (!prevSnapshot) {
+      console.log(`  ${previousMonth} 스냅샷 없음 - 종료`);
       return { count: 0, targets: [] };
     }
 
-    console.log(`  과거 등록 월 수: ${allPastRegs.length}개`);
-    allPastRegs.forEach(reg => {
-      console.log(`    - ${reg.monthKey}: 등록자 ${reg.registrationCount}명`);
-    });
+    console.log(`  ${previousMonth} 스냅샷 사용자: ${prevSnapshot.users.length}명`);
 
-    // 2. ⭐ 전체 과거 등록자 수집 (모든 월의 등록자 + 승급자)
-    const allPastUsers = [];
-    const userMonthMap = new Map();  // userId -> 원래 등록월 매핑
+    // 3. 현재 월 스냅샷 조회
+    const currentSnapshot = await MonthlyTreeSnapshots.findOne({ monthKey: currentMonth });
+    if (!currentSnapshot) {
+      console.log(`  ${currentMonth} 스냅샷 없음 - 종료`);
+      return { count: 0, targets: [] };
+    }
 
-    for (const reg of allPastRegs) {
-      // 등록자 추가
-      for (const registrant of (reg.registrations || [])) {
-        allPastUsers.push({
-          userId: registrant.userId,
-          userName: registrant.userName,
-          grade: registrant.grade,
-          fromMonth: reg.monthKey
-        });
-        if (!userMonthMap.has(registrant.userId)) {
-          userMonthMap.set(registrant.userId, reg.monthKey);
-        }
+    console.log(`  ${currentMonth} 스냅샷 사용자: ${currentSnapshot.users.length}명`);
+
+    // 4. 승급자 파악 (이전 월 대비 등급 상승)
+    const promotedUsers = new Set();
+    for (const prevUser of prevSnapshot.users) {
+      const currentUser = currentSnapshot.users.find(u => u.userId === prevUser.userId);
+
+      if (currentUser && currentUser.grade > prevUser.grade) {
+        promotedUsers.add(prevUser.userId);
+        console.log(`  승급: ${prevUser.userId} (${prevUser.grade} → ${currentUser.grade})`);
       }
+    }
 
-      // 승급자 추가 (이전 월에 승급한 사람들도 포함)
-      for (const promoted of (reg.paymentTargets?.promoted || [])) {
-        allPastUsers.push({
-          userId: promoted.userId,
-          userName: promoted.userName,
-          grade: promoted.newGrade,
-          fromMonth: reg.monthKey
-        });
-        if (!userMonthMap.has(promoted.userId)) {
-          userMonthMap.set(promoted.userId, reg.monthKey);
+    console.log(`  현재 월 승급자: ${promotedUsers.size}명`);
+
+    // 5. 미승급자 파악 (이전 월에 있었고, 현재 월에 승급 없는 사용자)
+    const notPromotedUsers = [];
+    for (const prevUser of prevSnapshot.users) {
+      if (!promotedUsers.has(prevUser.userId)) {
+        // 현재 스냅샷에서 최신 등급 조회
+        const currentUser = currentSnapshot.users.find(u => u.userId === prevUser.userId);
+
+        if (currentUser) {
+          notPromotedUsers.push({
+            userId: currentUser.userId,
+            userName: currentUser.userName,
+            grade: currentUser.grade,  // 현재 등급
+            fromMonth: previousMonth  // 원래 등록/승급 월
+          });
         }
       }
     }
 
-    console.log(`  전체 과거 대상자: ${allPastUsers.length}명`);
+    console.log(`  미승급자 (추가지급 후보): ${notPromotedUsers.length}명`);
 
-    // 3. 현재 월 승급자 목록 조회
-    const currentMonthReg = await MonthlyRegistrations.findOne({ monthKey: currentMonth });
-    const currentPromotedUsers = new Set(
-      (currentMonthReg?.paymentTargets?.promoted || []).map(p => p.userId)
-    );
-
-    console.log(`  현재 월(${currentMonth}) 승급자: ${currentPromotedUsers.size}명`);
-
-    // 4. ⭐ 중복 제거 (userId 기준, 가장 최근 정보 유지)
-    const uniqueUsers = new Map();
-    for (const user of allPastUsers) {
-      uniqueUsers.set(user.userId, user);
-    }
-    const uniquePastUsers = Array.from(uniqueUsers.values());
-    console.log(`  중복 제거 후: ${uniquePastUsers.length}명`);
-
-    // 5. 각 사용자에 대해 승급 여부 확인 및 추가지급 생성
+    // 6. 추가지급 생성
     const User = mongoose.model('User');
     let createdCount = 0;
-    const createdTargets = [];  // ⭐ v7.0: 생성된 추가지급 대상자 정보 저장
+    const createdTargets = [];
 
-    for (const target of uniquePastUsers) {
-      const userId = target.userId;
-
-      // 현재 월에 승급했으면 SKIP
-      if (currentPromotedUsers.has(userId)) {
-        console.log(`  ${userId}: 현재 월 승급 → SKIP`);
-        continue;
-      }
-
-      // User 정보 조회 (최신 등급 정보)
-      const user = await User.findOne({ loginId: userId });
+    for (const candidate of notPromotedUsers) {
+      // User 정보 조회 (보험 확인용)
+      const user = await User.findOne({ loginId: candidate.userId });
       if (!user) {
-        console.log(`  ${userId}: 사용자 없음 → SKIP`);
+        console.log(`  ${candidate.userId}: User 없음 → SKIP`);
         continue;
       }
 
       // 최대 횟수 확인
       const maxInstallments = MAX_INSTALLMENTS[user.grade];
-      const completedCount = await calculateCompletedInstallmentsForGrade(userId, user.grade);
+      const completedCount = await calculateCompletedInstallmentsForGrade(candidate.userId, user.grade);
 
       if (completedCount >= maxInstallments) {
-        console.log(`  ${userId}: 최대 횟수 도달 (${completedCount}/${maxInstallments}) → SKIP`);
+        console.log(`  ${candidate.userId}: 최대 횟수 도달 (${completedCount}/${maxInstallments}) → SKIP`);
         continue;
       }
 
       // 보험 확인 (F3 이상)
       if (user.grade >= 'F3' && !user.insuranceActive) {
-        console.log(`  ${userId}: 보험 미가입 (F3+) → SKIP`);
+        console.log(`  ${candidate.userId}: 보험 미가입 (F3+) → SKIP`);
         continue;
       }
 
-      // ⭐ 핵심: revenueMonth = 원래 등록월, currentMonth = 현재 월 (금액 계산 기준)
-      // 예: 7월 등록자 → revenueMonth=7월, currentMonth=8월 (8월 등급 분포 기준 금액)
-      const originalMonth = userMonthMap.get(userId);
-
+      // 추가지급 생성
       const result = await createAdditionalPaymentForUser(
-        userId,
-        user.name,
-        user.grade,
-        originalMonth,  // revenueMonth = 원래 등록월 (매출 귀속)
-        currentMonth    // currentMonth = 현재 월 (금액 계산 기준)
+        candidate.userId,
+        candidate.userName,
+        candidate.grade,
+        candidate.fromMonth,  // revenueMonth = 이전 월 (매출 귀속)
+        currentMonth          // currentMonth = 현재 월 (금액 계산 기준)
       );
 
       if (result) {
         createdCount++;
-        // ⭐ v7.0: 생성된 대상자 정보 저장
         createdTargets.push({
-          userId,
-          userName: user.name,
-          grade: user.grade,
+          userId: candidate.userId,
+          userName: candidate.userName,
+          grade: candidate.grade,
           추가지급단계: result.추가지급단계,
-          revenueMonth: originalMonth
+          revenueMonth: candidate.fromMonth
         });
-        console.log(`  ${userId}: 추가지급 생성 완료 (원래 등록월: ${originalMonth}, 추가지급단계: ${result.추가지급단계})`);
+        console.log(`  ✅ ${candidate.userId}: 추가지급 생성 완료 (매출월: ${candidate.fromMonth}, 추가지급단계: ${result.추가지급단계})`);
       }
     }
 
-    console.log(`[v7.0 매월추가지급] 완료: ${createdCount}개 생성
-`);
-    
-    // ⭐ v7.0: 생성된 대상자 정보 반환
+    console.log(`[v7.0 스냅샷기반 추가지급] 완료: ${createdCount}개 생성\n`);
+
     return {
       count: createdCount,
       targets: createdTargets
     };
   } catch (error) {
-    console.error('[v7.0 매월추가지급] 실패:', error);
+    console.error('[v7.0 스냅샷기반 추가지급] 실패:', error);
     throw error;
   }
+}
+
+/**
+ * 이전 월 계산 헬퍼 함수
+ */
+function getPreviousMonth(monthKey) {
+  const [year, month] = monthKey.split('-').map(Number);
+  let prevYear = year;
+  let prevMonth = month - 1;
+
+  if (prevMonth === 0) {
+    prevMonth = 12;
+    prevYear -= 1;
+  }
+
+  return `${prevYear}-${String(prevMonth).padStart(2, '0')}`;
 }
 
 /**
@@ -867,20 +866,29 @@ async function createAdditionalPaymentForUser(userId, userName, grade, revenueMo
     // 2. 다음 추가지급단계 계산
     const next추가지급단계 = (lastPlan.추가지급단계 || 0) + 1;
 
-    // 3. ⭐ 핵심: 현재 월(currentMonth)의 등급 분포 기준으로 금액 계산!
+    // 3. ⭐ 핵심: 현재 월(currentMonth) 스냅샷의 등급 분포 기준으로 금액 계산!
     // revenueMonth = 이전 월 (매출 귀속, 7월)
     // currentMonth = 현재 월 (금액 계산 기준, 8월)
-    const currentMonthReg = await MonthlyRegistrations.findOne({ monthKey: currentMonth });
-    if (!currentMonthReg) {
-      console.log(`    ${userId}: ${currentMonth} 등급 분포 없음 → SKIP`);
+
+    // ⭐ MonthlyTreeSnapshots에서 현재 월 등급 분포 조회 (정확한 분포!)
+    const currentSnapshot = await MonthlyTreeSnapshots.findOne({ monthKey: currentMonth });
+    if (!currentSnapshot) {
+      console.log(`    ${userId}: ${currentMonth} 스냅샷 없음 → SKIP`);
       return null;
     }
 
-    console.log(`    💡 금액 계산: ${currentMonth} 등급 분포 기준 (${currentMonthReg.gradeDistribution.F1}명 F1, ${currentMonthReg.gradeDistribution.F2}명 F2)`);
+    // MonthlyRegistrations에서 매출 정보 조회
+    const currentMonthReg = await MonthlyRegistrations.findOne({ monthKey: currentMonth });
+    if (!currentMonthReg) {
+      console.log(`    ${userId}: ${currentMonth} 매출 정보 없음 → SKIP`);
+      return null;
+    }
 
-    // 4. 지급액 계산 (현재 월 등급 분포 기준!)
+    console.log(`    💡 금액 계산: ${currentMonth} 스냅샷 등급 분포 기준 (${currentSnapshot.gradeDistribution.F1}명 F1, ${currentSnapshot.gradeDistribution.F2}명 F2)`);
+
+    // 4. 지급액 계산 (현재 월 스냅샷 등급 분포 기준!)
     const revenue = currentMonthReg.getEffectiveRevenue();
-    const gradePayments = calculateGradePayments(revenue, currentMonthReg.gradeDistribution);
+    const gradePayments = calculateGradePayments(revenue, currentSnapshot.gradeDistribution);
     const baseAmount = gradePayments[grade] || 0;
 
     if (baseAmount === 0) {
@@ -892,11 +900,12 @@ async function createAdditionalPaymentForUser(userId, userName, grade, revenueMo
     const withholdingTax = Math.round(installmentAmount * 0.033);
     const netAmount = installmentAmount - withholdingTax;
 
-    // 5. 시작일 계산 (이전 계획 종료 다음 금요일)
-    const lastInstallment = lastPlan.installments[lastPlan.installments.length - 1];
-    const lastDate = lastInstallment.scheduledDate;
-    const startDate = new Date(lastDate);
-    startDate.setDate(startDate.getDate() + 7);  // 다음 금요일
+    // 5. ⭐ v7.0: 시작일 계산 (현재 월+1 첫 금요일)
+    // 8월 등록 시 → 9월 첫 금요일부터 시작
+    const nextMonth = getNextMonth(currentMonth);
+    const startDate = getFirstFridayOfMonth(nextMonth);
+
+    console.log(`    📅 시작일 계산: ${nextMonth} 첫 금요일 = ${startDate.toISOString().split('T')[0]}`);
 
     // 6. 할부 생성
     const installments = [];

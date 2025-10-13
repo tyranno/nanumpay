@@ -520,7 +520,11 @@ async function finalizePreviousMonthSnapshots(currentMonth) {
 }
 
 async function updateMonthlyTreeSnapshots(newUsers, affectedUsers) {
-  const currentMonth = MonthlyRegistrations.generateMonthKey(new Date());
+  // ⭐ 수정: 등록자의 registrationDate 기준으로 월 키 생성
+  const registrationDate = newUsers[0]?.registrationDate || newUsers[0]?.createdAt || new Date();
+  const currentMonth = MonthlyRegistrations.generateMonthKey(registrationDate);
+
+  console.log(`[updateMonthlyTreeSnapshots] 등록 월 키: ${currentMonth} (등록일: ${registrationDate.toISOString().split('T')[0]})`);
 
   // 이전 월 스냅샷 자동 확정
   await finalizePreviousMonthSnapshots(currentMonth);
