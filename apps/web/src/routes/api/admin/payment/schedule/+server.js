@@ -37,13 +37,15 @@ export async function GET({ url }) {
 		const summary = await WeeklyPaymentSummary.findOne({ weekNumber });
 
 		// v5.0: 해당 주차의 분할금 조회
+		// ⭐ v7.0: terminated 상태 제외 (승급으로 중단된 추가지급 제외)
 		const installments = await WeeklyPaymentPlans.aggregate([
 			{
 				$unwind: '$installments'
 			},
 			{
 				$match: {
-					'installments.weekNumber': weekNumber
+					'installments.weekNumber': weekNumber,
+					'installments.status': { $ne: 'terminated' }  // ⭐ v7.0: 중단된 할부 제외
 				}
 			},
 			{
