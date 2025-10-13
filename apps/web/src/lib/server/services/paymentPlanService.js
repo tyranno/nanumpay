@@ -644,16 +644,17 @@ async function calculateTotalCompletedInstallments(userId, planType) {
 
 /**
  * v7.0: 승급 시 추가지급 중단
- * 추가지급단계가 1 이상인 active 계획들을 terminated로 변경
+ * ⭐ 핵심: installmentType='additional'만 중단! (기본지급은 끝까지 지급)
  */
 export async function terminateAdditionalPlansOnPromotion(userId) {
   try {
     console.log(`\n[v7.0 추가지급중단] ${userId} 승급으로 인한 추가지급 중단 시작`);
+    console.log(`  ⚠️ 중요: installmentType='additional'만 중단! (기본지급은 계속)`);
 
-    // 추가지급단계가 1 이상인 active 계획 조회
+    // ⭐ installmentType='additional'인 active 계획만 조회
     const additionalPlans = await WeeklyPaymentPlans.find({
       userId,
-      추가지급단계: { $gte: 1 },
+      installmentType: 'additional',  // 추가지급만 중단!
       planStatus: 'active'
     });
 
