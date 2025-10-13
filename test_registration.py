@@ -19,12 +19,12 @@ ADMIN_PASSWORD = "admin1234!!"
 # 엑셀 파일 경로
 EXCEL_FILES = [
     {
-        "path": "test-data/간단테스트/7월_용역자명단_root.xlsx",
+        "path": "test-data/7월_용역자명단_root.xlsx",
         "month": "2025-07",
         "description": "7월 등록 (3명)"
     },
     {
-        "path": "test-data/간단테스트/8월_용역자명단_간단.xlsx",
+        "path": "test-data/8월_용역자명단_간단.xlsx",
         "month": "2025-08",
         "description": "8월 등록 (3명 + 승급 1명)"
     }

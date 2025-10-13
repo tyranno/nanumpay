@@ -1,11 +1,11 @@
 {
   "mcpServers": {
     "serena": {
-      "command": "/home/doowon/.local/bin/uv",
+      "command": "/home/tyranno/.local/bin/uv",
       "args": [
         "run",
         "--directory",
-        "/home/doowon/project/serena",
+        "/home/tyranno/project/serena",
         "serena-mcp-server"
       ]
     }
