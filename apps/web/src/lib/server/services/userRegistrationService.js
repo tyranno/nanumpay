@@ -9,6 +9,8 @@ import { processUserRegistration } from './registrationService.js';
  * 사용자 등록 공통 서비스
  * - bulk (일괄 등록)와 register (개별 등록) 공통 로직
  * - register는 1명짜리 bulk로 처리
+ *
+ * ⚠️ 동시성 문제 해결: 각 요청마다 새 인스턴스 생성 (stateful)
  */
 export class UserRegistrationService {
 	constructor() {
@@ -35,7 +37,8 @@ export class UserRegistrationService {
 			created: 0,
 			failed: 0,
 			errors: [],
-			alerts: []
+			alerts: [],
+			users: [] // ⭐ 등록된 사용자 반환 (캡슐화)
 		};
 
 		try {
@@ -84,6 +87,9 @@ export class UserRegistrationService {
 				const batchResult = await this.processBatch();
 				results.batchProcessing = batchResult;
 			}
+
+			// ⭐ 등록된 사용자 정보 반환 (내부 상태 직접 노출하지 않음)
+			results.users = Array.from(this.registeredUsers.values()).map(info => info.user);
 
 			excelLogger.info('=== 사용자 등록 완료 ===', {
 				source,
@@ -516,5 +522,16 @@ export class UserRegistrationService {
 	}
 }
 
-// 싱글톤 인스턴스
-export const userRegistrationService = new UserRegistrationService();
+/**
+ * ⭐ 사용자 등록 함수 (싱글톤 대신 함수 방식)
+ * - 동시성 문제 해결: 매 호출마다 새 인스턴스 생성
+ * - 캡슐화 보장: 결과로 사용자 정보 반환
+ *
+ * @param {Array} users - 등록할 사용자 배열
+ * @param {Object} options - { source: 'bulk'|'register', admin }
+ * @returns {Promise<Object>} results - { created, failed, errors, alerts, users, ... }
+ */
+export async function registerUsers(users, options = {}) {
+	const service = new UserRegistrationService();
+	return await service.registerUsers(users, options);
+}

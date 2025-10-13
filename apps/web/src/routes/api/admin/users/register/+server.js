@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db.js';
-import { userRegistrationService } from '$lib/server/services/userRegistrationService.js';
+import { registerUsers } from '$lib/server/services/userRegistrationService.js';
 
 /**
  * 개별 사용자 등록 (v7.0)
@@ -61,8 +61,8 @@ export async function POST({ request, locals }) {
 			...otherFields
 		}];
 
-		// 공통 등록 서비스 호출 (1명짜리 bulk)
-		const results = await userRegistrationService.registerUsers(singleUserArray, {
+		// 공통 등록 함수 호출 (1명짜리 bulk, 매번 새 인스턴스)
+		const results = await registerUsers(singleUserArray, {
 			source: 'register',
 			admin: locals.user
 		});
@@ -79,9 +79,8 @@ export async function POST({ request, locals }) {
 			}, { status: 400 });
 		}
 
-		// 등록된 사용자 정보 추출
-		const registeredUser = Array.from(userRegistrationService.registeredUsers.values())[0];
-		const savedUser = registeredUser.user;
+		// ⭐ 등록된 사용자 정보 추출 (결과에서 직접 가져오기)
+		const savedUser = results.users[0];
 
 		return json({
 			success: true,
