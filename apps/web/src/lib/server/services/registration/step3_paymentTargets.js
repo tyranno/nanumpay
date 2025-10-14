@@ -333,17 +333,6 @@ async function checkAdditionalPaymentConditions(userId, grade, revenueMonth, 추
     }
   }
 
-  // 조건 4: 이번 달 추가지급 미생성 확인
-  const hasAdditionalThisMonth = await WeeklyPaymentPlans.findOne({
-    userId: userId,
-    revenueMonth: revenueMonth,
-    installmentType: 'additional'
-  });
-
-  if (hasAdditionalThisMonth) {
-    console.log(`        [SKIP] ${userName} (${grade}): 이번 달 추가지급 이미 생성`);
-    return null;
-  }
 
   // ⭐ 모든 조건 통과
   console.log(`        ✓ ${userName} (${grade}): 추가지급 대상 (${totalInstallments}/${maxInstallments}) - ${추가지급단계}차`);

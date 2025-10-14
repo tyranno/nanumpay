@@ -31,6 +31,13 @@ export async function executeStep4(promoted, targets, gradePayments, monthlyReg,
   console.log('\n[Step 4] 지급 계획 생성 (3가지 유형)');
   console.log('='.repeat(80));
 
+  // ⭐ 0. 기존 계획 삭제 (revenueMonth 기준 - 기본+추가 모두!)
+  console.log('\n  [4-0. 기존 계획 삭제]');
+  const deleteResult = await WeeklyPaymentPlans.deleteMany({
+    revenueMonth: registrationMonth
+  });
+  console.log(`  ✓ ${registrationMonth} 계획 ${deleteResult.deletedCount}건 삭제 (기본+추가 모두)`);
+
   const { promotedTargets, registrantF1Targets, additionalTargets } = targets;
 
   const registrantPlans = [];
@@ -50,25 +57,11 @@ export async function executeStep4(promoted, targets, gradePayments, monthlyReg,
     const promotion = promoted.find(p => p.userId === userId);
 
     if (promotion) {
-      // 승급한 경우: oldGrade Initial + newGrade Promotion
-      console.log(`  ${userName}: 승급 (${promotion.oldGrade} → ${promotion.newGrade})`);
+      // ⭐ 승급한 경우: newGrade Promotion만 생성 (oldGrade Initial 생성 안 함!)
+      console.log(`  ${userName}: 등록과 동시 승급 (${promotion.oldGrade} → ${promotion.newGrade})`);
+      console.log(`    → ${promotion.oldGrade} Initial 생성 안 함, ${promotion.newGrade} Promotion만 생성`);
 
-      // oldGrade Initial 계획
-      const initialPlan = await createInitialPaymentPlan(
-        userId,
-        userName,
-        promotion.oldGrade,
-        registrationDate
-      );
-      registrantPlans.push({
-        userId,
-        type: 'initial',
-        grade: promotion.oldGrade,
-        plan: initialPlan._id
-      });
-      console.log(`    ✓ Initial 계획 생성 (${promotion.oldGrade}): ${initialPlan._id}`);
-
-      // newGrade Promotion 계획
+      // newGrade Promotion 계획만 생성
       const promotionPlan = await createPromotionPaymentPlan(
         userId,
         userName,
