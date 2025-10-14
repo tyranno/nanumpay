@@ -12,7 +12,7 @@ import time
 import sys
 
 # 설정
-API_BASE_URL = "http://localhost:3100"
+API_BASE_URL = "http://localhost:3102"
 ADMIN_LOGIN_ID = "관리자"
 ADMIN_PASSWORD = "admin1234!!"
 
@@ -266,19 +266,25 @@ class NanumpayTester:
 
 def main():
     """메인 함수"""
-    print(f"\n⚠️ 주의: 이 스크립트를 실행하기 전에 DB를 초기화하세요!")
-    print(f"DB_DIR=/home/tyranno/project/bill/nanumpay/apps/web/install/linux/db \\")
-    print(f"bash /home/tyranno/project/bill/nanumpay/apps/web/install/linux/db_init.sh --force\n")
+    # 인자로 --auto 전달 시 대화형 건너뛰기
+    auto_mode = len(sys.argv) > 1 and sys.argv[1] == '--auto'
 
-    response = input("DB를 초기화했습니까? (y/n): ")
-    if response.lower() != 'y':
-        print("테스트를 취소합니다.")
-        return
+    if not auto_mode:
+        print(f"\n⚠️ 주의: 이 스크립트를 실행하기 전에 DB를 초기화하세요!")
+        print(f"DB_DIR=/home/tyranno/project/bill/nanumpay/apps/web/install/linux/db \\")
+        print(f"bash /home/tyranno/project/bill/nanumpay/apps/web/install/linux/db_init.sh --force\n")
 
-    response = input("개발 서버가 실행 중입니까? (y/n): ")
-    if response.lower() != 'y':
-        print("먼저 개발 서버를 실행하세요: pnpm dev:web --host")
-        return
+        response = input("DB를 초기화했습니까? (y/n): ")
+        if response.lower() != 'y':
+            print("테스트를 취소합니다.")
+            return
+
+        response = input("개발 서버가 실행 중입니까? (y/n): ")
+        if response.lower() != 'y':
+            print("먼저 개발 서버를 실행하세요: pnpm dev:web --host")
+            return
+    else:
+        print("\n🤖 자동 모드로 실행합니다 (--auto)")
 
     tester = NanumpayTester()
     success = tester.run()
