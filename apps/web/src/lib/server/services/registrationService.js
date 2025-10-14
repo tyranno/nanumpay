@@ -2,7 +2,7 @@
  * 용역자 등록 서비스 v7.0 (모듈화 버전)
  *
  * 변경사항:
- * - 복잡한 processUserRegistration을 6단계로 간소화
+ * - 복잡한 processUserRegistration을 5단계로 간소화
  * - 각 단계를 별도 모듈로 분리
  * - 명확한 책임 분리 및 유지보수 용이성 향상
  *
@@ -11,8 +11,7 @@
  * Step 2: 등급 재계산 및 월별 인원 관리 ⭐ 핵심
  * Step 3: 지급 대상자 확정 및 등급별 인원 구성
  * Step 4: 지급 계획 생성 (3가지 유형)
- * Step 5: WeeklyPaymentSummary 업데이트
- * Step 6: 처리 완료 및 결과 반환
+ * Step 5: 주별/월별 총계 업데이트
  */
 
 import User from '../models/User.js';
@@ -23,8 +22,7 @@ import {
   executeStep2,
   executeStep3,
   executeStep4,
-  executeStep5,
-  executeStep6
+  executeStep5
 } from './registration/index.js';
 
 /**
@@ -42,7 +40,7 @@ export async function processUserRegistration(userIds) {
 
     console.log('\n');
     console.log('='.repeat(80));
-    console.log('📋 용역자 등록 처리 v7.0 (6단계)');
+    console.log('📋 용역자 등록 처리 v7.0 (5단계)');
     console.log('='.repeat(80));
 
     // ========================================
@@ -73,7 +71,7 @@ export async function processUserRegistration(userIds) {
     // ========================================
     // Step 3: 지급 대상자 확정 및 등급별 인원 구성
     // ========================================
-    const step3Result = await executeStep3(users, promoted, monthlyReg, registrationMonth);
+    const step3Result = await executeStep3(promoted, monthlyReg, registrationMonth);
     const {
       promotedTargets,
       registrantF1Targets,
@@ -83,10 +81,9 @@ export async function processUserRegistration(userIds) {
     } = step3Result;
 
     // ========================================
-    // Step 4: 지급 계획 생성 (3가지 유형)
+    // Step 4: 지급 계획 생성 (3가지 유형) + paymentTargets 저장
     // ========================================
     const step4Result = await executeStep4(
-      users,
       promoted,
       { promotedTargets, registrantF1Targets, additionalTargets },
       gradePayments,
@@ -96,22 +93,70 @@ export async function processUserRegistration(userIds) {
     const { registrantPlans, promotionPlans, additionalPlans } = step4Result;
 
     // ========================================
-    // Step 5: WeeklyPaymentSummary 업데이트
+    // Step 5: 주별/월별 총계 업데이트
     // ========================================
-    await executeStep5({ registrantPlans, promotionPlans, additionalPlans });
+    const step5Result = await executeStep5(
+      { registrantPlans, promotionPlans, additionalPlans },
+      registrationMonth
+    );
+    const { updatedWeeks, updatedMonths } = step5Result;
 
     // ========================================
-    // Step 6: 처리 완료 및 결과 반환
+    // 처리 완료 및 결과 반환
     // ========================================
-    const finalResult = executeStep6({
-      users,
-      promoted,
-      additionalTargets,
-      plans: { registrantPlans, promotionPlans, additionalPlans },
-      monthlyReg
+    const allPlans = [
+      ...registrantPlans,
+      ...promotionPlans,
+      ...additionalPlans
+    ];
+
+    logger.info(`=== 용역자 등록 처리 완료 (v7.0 모듈화) ===`, {
+      신규등록: users.length,
+      승급자: promoted.length,
+      지급계획: allPlans.length,
+      추가지급: additionalTargets.length,
+      주별총계: updatedWeeks,
+      월별총계: updatedMonths
     });
 
-    return finalResult;
+    console.log('\n');
+    console.log('='.repeat(80));
+    console.log(`✅ 등록 처리 완료`);
+    console.log('='.repeat(80));
+    console.log(`  - 신규 등록: ${users.length}명`);
+    console.log(`  - 승급자: ${promoted.length}명`);
+    console.log(`  - 추가지급: ${additionalTargets.length}명`);
+    console.log(`\n  - 지급 계획: ${allPlans.length}건`);
+    console.log(`    · Initial: ${registrantPlans.length}건`);
+    console.log(`    · Promotion: ${promotionPlans.length}건`);
+    console.log(`    · Additional: ${additionalPlans.length}건`);
+    console.log(`\n  - 총계 업데이트:`);
+    console.log(`    · 주별 총계: ${updatedWeeks}건`);
+    console.log(`    · 월별 총계: ${updatedMonths}건`);
+    console.log(`\n  - 월별 정보:`);
+    console.log(`    · 귀속월: ${monthlyReg.monthKey}`);
+    console.log(`    · 등록자: ${monthlyReg.registrationCount}명 (승급 ${monthlyReg.promotedCount}명, 미승급 ${monthlyReg.nonPromotedCount}명)`);
+    console.log(`    · 매출: ${monthlyReg.totalRevenue.toLocaleString()}원`);
+    console.log(`    · 총 지급액: ${monthlyReg.totalPayment?.toLocaleString() || 0}원`);
+    console.log('='.repeat(80));
+
+    return {
+      success: true,
+      registeredUsers: users.length,
+      promotedUsers: promoted.length,
+      additionalPaymentUsers: additionalTargets.length,
+      paymentPlans: allPlans.length,
+      updatedWeeks,
+      updatedMonths,
+      monthlyReg: {
+        monthKey: monthlyReg.monthKey,
+        registrationCount: monthlyReg.registrationCount,
+        totalRevenue: monthlyReg.totalRevenue,
+        totalPayment: monthlyReg.totalPayment || 0,
+        promotedCount: monthlyReg.promotedCount,
+        nonPromotedCount: monthlyReg.nonPromotedCount
+      }
+    };
 
   } catch (error) {
     logger.error('용역자 등록 처리 실패:', error);

@@ -20,7 +20,6 @@ import { calculateNextFriday } from '../../utils/dateUtils.js';
 /**
  * Step 4 실행
  *
- * @param {Array} users - 이번 배치 등록자 배열
  * @param {Array} promoted - Step 2에서 추출한 승급자 배열
  * @param {Object} targets - Step 3 결과 (promotedTargets, registrantF1Targets, additionalTargets)
  * @param {Object} gradePayments - Step 3에서 계산한 등급별 지급액
@@ -28,7 +27,7 @@ import { calculateNextFriday } from '../../utils/dateUtils.js';
  * @param {string} registrationMonth - 귀속월
  * @returns {Promise<Object>}
  */
-export async function executeStep4(users, promoted, targets, gradePayments, monthlyReg, registrationMonth) {
+export async function executeStep4(promoted, targets, gradePayments, monthlyReg, registrationMonth) {
   console.log('\n[Step 4] 지급 계획 생성 (3가지 유형)');
   console.log('='.repeat(80));
 
@@ -41,10 +40,11 @@ export async function executeStep4(users, promoted, targets, gradePayments, mont
   // 4-1. 이번 배치 등록자 계획 생성
   console.log('\n  [4-1. 이번 배치 등록자 계획 생성]');
 
-  for (const user of users) {
-    const userId = user.loginId;
-    const userName = user.name;
-    const registrationDate = user.registrationDate || user.createdAt;
+  // ⭐ monthlyReg.registrations 사용 (users 파라미터 제거)
+  for (const registration of monthlyReg.registrations) {
+    const userId = registration.userId;
+    const userName = registration.userName;
+    const registrationDate = registration.registrationDate;
 
     // 승급 여부 확인
     const promotion = promoted.find(p => p.userId === userId);
@@ -84,6 +84,12 @@ export async function executeStep4(users, promoted, targets, gradePayments, mont
       });
       console.log(`    ✓ Promotion 계획 생성 (${promotion.newGrade}): ${promotionPlan._id}`);
 
+      // ⭐ 기존 추가지급 계획 중단 (승급 시)
+      const terminatedCount = await terminateAdditionalPaymentPlans(userId);
+      if (terminatedCount > 0) {
+        console.log(`    ✓ 기존 추가지급 계획 중단: ${terminatedCount}건`);
+      }
+
     } else {
       // 미승급 경우: F1 Initial 계획만
       console.log(`  ${userName}: 미승급 (F1)`);
@@ -107,7 +113,7 @@ export async function executeStep4(users, promoted, targets, gradePayments, mont
   // 4-2. 기존 사용자 중 승급자 계획 생성
   console.log('\n  [4-2. 기존 사용자 중 승급자 계획 생성]');
 
-  const currentBatchIds = users.map(u => u.loginId);
+  const currentBatchIds = monthlyReg.registrations.map(r => r.userId);
   const existingPromoted = promotedTargets.filter(p => !currentBatchIds.includes(p.userId));
 
   if (existingPromoted.length > 0) {
@@ -155,12 +161,13 @@ export async function executeStep4(users, promoted, targets, gradePayments, mont
     console.log(`  추가지급 대상자: ${additionalTargets.length}명`);
 
     for (const target of additionalTargets) {
-      console.log(`  ${target.userName} (${target.grade})`);
+      console.log(`  ${target.userName} (${target.grade}) - ${target.추가지급단계}차`);
 
       const additionalPlan = await createAdditionalPaymentPlan(
         target.userId,
         target.userName,
         target.grade,
+        target.추가지급단계,  // ⭐ Step 3에서 계산된 값
         registrationMonth,
         gradePayments
       );
@@ -170,6 +177,7 @@ export async function executeStep4(users, promoted, targets, gradePayments, mont
           userId: target.userId,
           type: 'additional',
           grade: target.grade,
+          추가지급단계: target.추가지급단계,
           plan: additionalPlan._id
         });
         console.log(`    ✓ Additional 계획 생성: ${additionalPlan._id}`);
@@ -196,59 +204,72 @@ export async function executeStep4(users, promoted, targets, gradePayments, mont
  * @param {string} userId
  * @param {string} userName
  * @param {string} grade
- * @param {string} revenueMonth - 매출 귀속 월 (YYYY-MM)
- * @param {Object} gradePayments - 등급별 지급액
+ * @param {number} 추가지급단계 - Step 3에서 계산된 값 (1, 2, 3, ...)
+ * @param {string} revenueMonth - 매출 귀속 월 (YYYY-MM) - 현재 월!
+ * @param {Object} gradePayments - 등급별 지급액 (현재 월 기준)
  * @returns {Promise<Object|null>}
  */
-async function createAdditionalPaymentPlan(userId, userName, grade, revenueMonth, gradePayments) {
+async function createAdditionalPaymentPlan(userId, userName, grade, 추가지급단계, revenueMonth, gradePayments) {
   try {
-    // 이전 계획 조회 (추가지급단계 계산)
-    const previousPlans = await WeeklyPaymentPlans.find({
-      userId: userId,
-      baseGrade: grade
-    }).sort({ 추가지급단계: -1 });
-
-    const latestPlan = previousPlans[0];
-    const 추가지급단계 = latestPlan ? (latestPlan.추가지급단계 || 0) + 1 : 1;
-
-    console.log(`    추가지급단계: ${추가지급단계}`);
-
-    // 지급액 계산
-    const installmentAmount = gradePayments[grade] || 0;
-    if (installmentAmount === 0) {
+    // 1. 지급액 계산 (10분할)
+    const baseAmount = gradePayments[grade] || 0;
+    if (baseAmount === 0) {
       console.log(`    ⚠️ 지급액이 0원 - 계획 생성 건너뜀`);
       return null;
     }
 
-    // 지급 시작일 = 다음 달 첫 금요일
-    const nextMonthStart = new Date();
-    nextMonthStart.setMonth(nextMonthStart.getMonth() + 1);
-    nextMonthStart.setDate(1);
+    const installmentAmount = Math.floor(baseAmount / 10 / 100) * 100;  // 100원 단위 절삭
+    const withholdingTax = Math.round(installmentAmount * 0.033);
+    const netAmount = installmentAmount - withholdingTax;
+
+    console.log(`    지급액: ${installmentAmount.toLocaleString()}원/회`);
+
+    // 2. 지급 시작일 = 다음 달 첫 금요일
+    const [year, month] = revenueMonth.split('-').map(Number);
+    const nextMonthStart = new Date(year, month, 1);  // 다음 달 1일
     const firstPaymentDate = calculateNextFriday(nextMonthStart);
 
-    // 10회 installments 생성
+    console.log(`    시작일: ${firstPaymentDate.toISOString().split('T')[0]}`);
+
+    // 3. 10회 installments 생성
     const installments = [];
     for (let i = 0; i < 10; i++) {
       const paymentDate = new Date(firstPaymentDate);
       paymentDate.setDate(paymentDate.getDate() + (i * 7));  // 매주 금요일
 
       installments.push({
-        installmentNumber: i + 1,
+        week: i + 1,
+        weekNumber: WeeklyPaymentPlans.getISOWeek(paymentDate),
         scheduledDate: paymentDate,
+        revenueMonth: revenueMonth,
+        gradeAtPayment: null,
+        baseAmount: baseAmount,
         installmentAmount: installmentAmount,
+        withholdingTax: withholdingTax,
+        netAmount: netAmount,
         status: 'pending'
       });
     }
 
-    // 계획 생성
+    // 4. 이전 계획 조회 (parentPlanId용)
+    const previousPlans = await WeeklyPaymentPlans.find({
+      userId: userId,
+      baseGrade: grade
+    }).sort({ 추가지급단계: -1 });
+
+    const latestPlan = previousPlans[0];
+
+    // 5. 계획 생성
     const newPlan = new WeeklyPaymentPlans({
       userId: userId,
       userName: userName,
-      planType: 'initial',  // ⭐ TODO: 'additional' 타입 추가 필요
-      installmentType: 'additional',
-      추가지급단계: 추가지급단계,
+      planType: latestPlan?.planType || 'initial',  // 이전 계획 타입 유지
+      generation: (latestPlan?.generation || 0) + 1,
+      installmentType: 'additional',  // ⭐ 추가지급
+      추가지급단계: 추가지급단계,  // ⭐ Step 3에서 계산된 값 사용
       baseGrade: grade,
       revenueMonth: revenueMonth,
+      startDate: firstPaymentDate,
       totalInstallments: 10,
       completedInstallments: 0,
       planStatus: 'active',

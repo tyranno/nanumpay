@@ -132,6 +132,61 @@ const monthlyRegistrationsSchema = new mongoose.Schema(
       F8: { type: Number, default: 0 }
     },
 
+    // ⭐ Step 5: 월별 총계 (해당 월 귀속 계획 전체 합계)
+    monthlyTotals: {
+      type: {
+        F1: {
+          userCount: { type: Number, default: 0 },
+          totalAmount: { type: Number, default: 0 }
+        },
+        F2: {
+          userCount: { type: Number, default: 0 },
+          totalAmount: { type: Number, default: 0 }
+        },
+        F3: {
+          userCount: { type: Number, default: 0 },
+          totalAmount: { type: Number, default: 0 }
+        },
+        F4: {
+          userCount: { type: Number, default: 0 },
+          totalAmount: { type: Number, default: 0 }
+        },
+        F5: {
+          userCount: { type: Number, default: 0 },
+          totalAmount: { type: Number, default: 0 }
+        },
+        F6: {
+          userCount: { type: Number, default: 0 },
+          totalAmount: { type: Number, default: 0 }
+        },
+        F7: {
+          userCount: { type: Number, default: 0 },
+          totalAmount: { type: Number, default: 0 }
+        },
+        F8: {
+          userCount: { type: Number, default: 0 },
+          totalAmount: { type: Number, default: 0 }
+        }
+      },
+      default: () => ({
+        F1: { userCount: 0, totalAmount: 0 },
+        F2: { userCount: 0, totalAmount: 0 },
+        F3: { userCount: 0, totalAmount: 0 },
+        F4: { userCount: 0, totalAmount: 0 },
+        F5: { userCount: 0, totalAmount: 0 },
+        F6: { userCount: 0, totalAmount: 0 },
+        F7: { userCount: 0, totalAmount: 0 },
+        F8: { userCount: 0, totalAmount: 0 }
+      })
+    },
+
+    // ⭐ Step 5: 해당 월 총 지급액
+    totalPayment: {
+      type: Number,
+      default: 0,
+      comment: '해당 월 귀속 전체 지급 계획의 총액'
+    },
+
     // 메타 정보
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now }
