@@ -58,19 +58,27 @@ export async function executeStep2(users) {
   // 2-4. 이번 배치 등록자 추가
   console.log(`\n  [이번 배치 등록자 추가]`);
   for (const user of users) {
-    // 중복 체크
-    const exists = monthlyReg.registrations.find(r => r.userId === user.loginId);
-    if (!exists) {
-      // 승급 여부 확인
-      const promotion = promoted.find(p => p.userId === user.loginId);
-      const currentGrade = promotion ? promotion.newGrade : 'F1';
+    // 승급 여부 확인
+    const promotion = promoted.find(p => p.userId === user.loginId);
+    const currentGrade = promotion ? promotion.newGrade : 'F1';
 
-      // position 값 변환 (L/R/ROOT → left/right/root)
-      let positionValue = user.position;
-      if (positionValue === 'L') positionValue = 'left';
-      else if (positionValue === 'R') positionValue = 'right';
-      else if (positionValue === 'ROOT') positionValue = 'root';
+    // position 값 변환 (L/R/ROOT → left/right/root)
+    let positionValue = user.position;
+    if (positionValue === 'L') positionValue = 'left';
+    else if (positionValue === 'R') positionValue = 'right';
+    else if (positionValue === 'ROOT') positionValue = 'root';
 
+    // 기존 등록자 확인
+    const existingIdx = monthlyReg.registrations.findIndex(r => r.userId === user.loginId);
+
+    if (existingIdx >= 0) {
+      // ⭐ 이미 등록되어 있으면 등급만 업데이트 (승급 시)
+      if (promotion) {
+        monthlyReg.registrations[existingIdx].grade = currentGrade;
+        console.log(`    ↻ ${user.name} 등급 업데이트: ${promotion.oldGrade} → ${currentGrade}`);
+      }
+    } else {
+      // 신규 등록
       monthlyReg.registrations.push({
         userId: user.loginId,
         userName: user.name,
@@ -80,6 +88,19 @@ export async function executeStep2(users) {
       });
       monthlyReg.registrationCount++;
       console.log(`    + ${user.name} (${currentGrade}${promotion ? ' - 승급' : ''})`);
+    }
+  }
+
+  // ⭐ 2-4-2. 기존 등록자 중 승급자 등급 업데이트 (users 배열에 없는 경우)
+  for (const prom of promoted) {
+    const existingIdx = monthlyReg.registrations.findIndex(r => r.userId === prom.userId);
+    if (existingIdx >= 0) {
+      // users 배열에 있는 경우는 위에서 이미 처리됨
+      const isInUsers = users.find(u => u.loginId === prom.userId);
+      if (!isInUsers) {
+        monthlyReg.registrations[existingIdx].grade = prom.newGrade;
+        console.log(`    ↻ ${prom.userName} 등급 업데이트: ${prom.oldGrade} → ${prom.newGrade} (기존 등록자)`);
+      }
     }
   }
 
