@@ -26,6 +26,18 @@ const monthlyRegistrationsSchema = new mongoose.Schema(
       default: 0
     },
 
+    // ⭐ 리팩토링: 등록자 중 승급/미승급 수
+    promotedCount: {
+      type: Number,
+      default: 0,
+      comment: '이번 달 등록자 중 승급한 사람 수'
+    },
+    nonPromotedCount: {
+      type: Number,
+      default: 0,
+      comment: '이번 달 등록자 중 승급 안 한 사람 수 (F1)'
+    },
+
     // 매출 정보
     totalRevenue: {
       type: Number,

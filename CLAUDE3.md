@@ -292,7 +292,54 @@ db.weeklypaymentplans.find({installmentType: 'additional'}).forEach(p => {
 
 ---
 
-**작성일**: 2025-10-14
+## 🔄 전면 리팩토링 계획 (2025-10-14 오후)
+
+### 핵심 변경 사항
+
+#### 문제 인식:
+1. **MonthlyTreeSnapshots**: 과도한 스냅샷 (전체 사용자 트리 저장)
+2. **복잡한 Step 구조**: 12단계로 과도하게 세분화
+3. **중복 데이터**: MonthlyRegistrations와 Snapshots에 중복 정보
+4. **불명확한 책임**: 각 Step의 목적이 모호
+
+#### 해결 방안:
+- **12 Steps → 6 Steps** 단순화
+- **MonthlyTreeSnapshots 제거**
+- **MonthlyRegistrations 강화** (promotedCount, nonPromotedCount 추가)
+- **명확한 책임 분리**
+
+### 새로운 6단계 구조
+
+```
+Step 1: 사용자 정보 조회 및 계층 구조 구성
+Step 2: 등급 재계산 및 월별 인원 관리 ⭐ 핵심
+Step 3: 지급 대상자 확정 및 등급별 인원 구성
+Step 4: 지급 계획 생성 (3가지 유형)
+Step 5: WeeklyPaymentSummary 업데이트
+Step 6: 처리 완료 및 결과 반환
+```
+
+### Step 2의 핵심 목표
+
+```javascript
+console.log(`[${registrationMonth} 월별 인원 현황]`);
+console.log(`  - 전체 등록자: ${monthlyReg.registrationCount}명`);
+console.log(`  - 승급자: ${monthlyReg.promotedCount}명`);
+console.log(`  - 미승급자 (F1): ${monthlyReg.nonPromotedCount}명`);
+console.log(`  - 매출: ${monthlyReg.totalRevenue.toLocaleString()}원`);
+```
+
+### 상세 계획
+
+📄 **[REFACTORING_PLAN.md](REFACTORING_PLAN.md)** 참고
+- 전체 Step 구조
+- MonthlyRegistrations 스키마 수정
+- 작업 순서
+- 주의사항
+
+---
+
+**작성일**: 2025-10-14 (오후 업데이트)
 **작성자**: Claude (AI Assistant)
-**상태**: ✅ 모듈화 완료, 버그 수정 완료, 테스트 성공, 데이터 일관성 확보
-**다음 작업**: 9월 등록 시나리오 테스트 (선택사항)
+**상태**: 🔄 전면 리팩토링 계획 수립 (12 Steps → 6 Steps)
+**다음 작업**: REFACTORING_PLAN.md 참고하여 새 구조 구현
