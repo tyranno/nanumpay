@@ -50,43 +50,62 @@ const monthlyRegistrationsSchema = new mongoose.Schema(
     },
 
     // 등록자 목록 (v7.0: 신규 등록자만)
-    registrations: [{
-      userId: { type: String, required: true },
-      userName: { type: String, required: true },
-      registrationDate: { type: Date, required: true },
-      sponsorId: { type: String },
-      grade: { type: String },  // 등록 시점 등급
-      position: {
-        type: String,
-        enum: ['left', 'right', 'root']
-      }
-    }],
+    registrations: {
+      type: [{
+        userId: { type: String, required: true },
+        userName: { type: String, required: true },
+        registrationDate: { type: Date, required: true },
+        sponsorId: { type: String },
+        grade: { type: String },  // 등록 시점 등급
+        position: {
+          type: String,
+          enum: ['left', 'right', 'root']
+        }
+      }],
+      default: []
+    },
 
     // v7.0: 지급 대상자 정보 (3가지 유형)
     paymentTargets: {
-      // 신규 등록자 (매출 기여)
-      registrants: [{
-        userId: { type: String, required: true },
-        userName: { type: String, required: true },
-        grade: { type: String, required: true }
-      }],
+      type: {
+        // 신규 등록자 (매출 기여)
+        registrants: {
+          type: [{
+            userId: { type: String, required: true },
+            userName: { type: String, required: true },
+            grade: { type: String, required: true }
+          }],
+          default: []
+        },
 
-      // 승급자 (매출 기여 없음)
-      promoted: [{
-        userId: { type: String, required: true },
-        userName: { type: String, required: true },
-        oldGrade: { type: String, required: true },
-        newGrade: { type: String, required: true },
-        promotionDate: { type: Date }
-      }],
+        // 승급자 (매출 기여 없음)
+        promoted: {
+          type: [{
+            userId: { type: String, required: true },
+            userName: { type: String, required: true },
+            oldGrade: { type: String, required: true },
+            newGrade: { type: String, required: true },
+            promotionDate: { type: Date }
+          }],
+          default: []
+        },
 
-      // 추가지급 대상자 (매출 기여 없음)
-      additionalPayments: [{
-        userId: { type: String, required: true },
-        userName: { type: String, required: true },
-        grade: { type: String, required: true },
-        추가지급단계: { type: Number, required: true }
-      }]
+        // 추가지급 대상자 (매출 기여 없음)
+        additionalPayments: {
+          type: [{
+            userId: { type: String, required: true },
+            userName: { type: String, required: true },
+            grade: { type: String, required: true },
+            추가지급단계: { type: Number, required: true }
+          }],
+          default: []
+        }
+      },
+      default: () => ({
+        registrants: [],
+        promoted: [],
+        additionalPayments: []
+      })
     },
 
     // 등급별 분포 (v7.0: 지급 대상자 전체 기준)

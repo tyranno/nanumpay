@@ -50,20 +50,8 @@ export async function executeStep2(users) {
   let monthlyReg = await MonthlyRegistrations.findOne({ monthKey: registrationMonth });
 
   if (!monthlyReg) {
-    // 해당 월 최초 등록
-    monthlyReg = new MonthlyRegistrations({
-      monthKey: registrationMonth,
-      registrationCount: 0,
-      totalRevenue: 0,
-      promotedCount: 0,
-      nonPromotedCount: 0,
-      registrations: [],
-      paymentTargets: {
-        registrants: [],
-        promoted: [],
-        additionalPayments: []
-      }
-    });
+    // 해당 월 최초 등록 (스키마 default 값 사용)
+    monthlyReg = new MonthlyRegistrations({ monthKey: registrationMonth });
     console.log(`  ${registrationMonth} MonthlyRegistrations 생성`);
   }
 
