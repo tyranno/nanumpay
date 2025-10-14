@@ -78,7 +78,7 @@ export async function executeStep4(promoted, targets, gradePayments, monthlyReg,
       console.log(`    ✓ Promotion 계획 생성 (${promotion.newGrade}): ${promotionPlan._id}`);
 
       // ⭐ 기존 추가지급 계획 중단 (승급 시)
-      const terminatedCount = await terminateAdditionalPaymentPlans(userId);
+      const terminatedCount = await terminateAdditionalPaymentPlans(userId, registrationMonth);
       if (terminatedCount > 0) {
         console.log(`    ✓ 기존 추가지급 계획 중단: ${terminatedCount}건`);
       }
@@ -142,7 +142,7 @@ export async function executeStep4(promoted, targets, gradePayments, monthlyReg,
       console.log(`    ✓ Promotion 계획 생성 (${prom.grade}): ${promotionPlan._id}`);
 
       // 기존 추가지급 계획 중단
-      const terminatedCount = await terminateAdditionalPaymentPlans(prom.userId);
+      const terminatedCount = await terminateAdditionalPaymentPlans(prom.userId, registrationMonth);
       if (terminatedCount > 0) {
         console.log(`    ✓ 추가지급 계획 중단: ${terminatedCount}건`);
       }
@@ -289,27 +289,88 @@ async function createAdditionalPaymentPlan(userId, userName, grade, 추가지급
 /**
  * 승급 시 추가지급 계획 중단
  *
- * @param {string} userId
+ * @param {string} userId - 사용자 ID
+ * @param {string} registrationMonth - 승급 월 (YYYY-MM)
  * @returns {Promise<number>} 중단된 계획 수
  */
-async function terminateAdditionalPaymentPlans(userId) {
+async function terminateAdditionalPaymentPlans(userId, registrationMonth) {
   try {
-    const result = await WeeklyPaymentPlans.updateMany(
-      {
-        userId: userId,
-        planStatus: 'active',
-        installmentType: 'additional'
-      },
-      {
-        $set: {
-          planStatus: 'terminated',
-          terminatedBy: 'promotion',
-          terminatedAt: new Date()
+    console.log(`\n[v7.0 추가지급중단] ${userId} 승급으로 인한 추가지급 중단 시작`);
+    console.log(`  승급 월: ${registrationMonth}`);
+
+    // 승급 다음 달 계산 (예: 9월 승급 → 10월부터 중단)
+    const [year, month] = registrationMonth.split('-').map(Number);
+    const stopDate = new Date(Date.UTC(year, month, 1));  // ⭐ UTC 기준 다음 달 1일
+    console.log(`  중단 시작일: ${stopDate.toISOString().split('T')[0]} (${registrationMonth} 다음 달)`);
+
+    // 모든 active 추가지급 계획 조회
+    const plans = await WeeklyPaymentPlans.find({
+      userId: userId,
+      planStatus: 'active',
+      installmentType: 'additional'
+    });
+
+    console.log(`  대상 계획: ${plans.length}개`);
+
+    let terminatedCount = 0;
+
+    for (const plan of plans) {
+      console.log(`\n  [계획 ${plan._id}]`);
+      console.log(`    매출월: ${plan.revenueMonth}`);
+      console.log(`    추가지급단계: ${plan.추가지급단계}`);
+
+      let hasCanceled = false;
+      let hasActive = false;
+
+      // 각 installment 확인
+      for (const inst of plan.installments) {
+        const instDate = new Date(inst.scheduledDate);
+
+        // 승급 다음 달 이후 installments만 canceled로 변경
+        if (instDate >= stopDate && inst.status === 'pending') {
+          inst.status = 'canceled';
+          hasCanceled = true;
+        } else if (inst.status === 'pending') {
+          hasActive = true;
         }
       }
-    );
 
-    return result.modifiedCount || 0;
+      if (hasCanceled) {
+        // 모든 installments가 canceled이거나 paid면 terminated
+        const allDone = plan.installments.every(i =>
+          i.status === 'canceled' || i.status === 'paid'
+        );
+
+        // ⭐ updateOne 사용 (Mongoose validation 우회)
+        const updateFields = {
+          installments: plan.installments
+        };
+
+        if (allDone) {
+          updateFields.planStatus = 'terminated';
+          updateFields.terminatedBy = 'promotion_additional_stop';
+          updateFields.terminatedAt = new Date();
+          console.log(`    ✓ planStatus: terminated (모든 회차 완료)`);
+        } else {
+          console.log(`    ✓ 일부 회차 canceled (계획은 active 유지)`);
+        }
+
+        await WeeklyPaymentPlans.updateOne(
+          { _id: plan._id },
+          { $set: updateFields },
+          { strict: false }  // ⭐ 스키마 validation 우회
+        );
+        terminatedCount++;
+
+        console.log(`    ✓ ${stopDate.toISOString().split('T')[0]} 이후 회차 canceled`);
+      } else {
+        console.log(`    - 중단할 회차 없음 (모두 이전 또는 완료됨)`);
+      }
+    }
+
+    console.log(`\n[v7.0 추가지급중단] 완료: ${terminatedCount}개 계획 수정\n`);
+
+    return terminatedCount;
 
   } catch (error) {
     console.error(`추가지급 계획 중단 실패 (${userId}):`, error);

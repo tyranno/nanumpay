@@ -12,7 +12,7 @@ import time
 import sys
 
 # 설정
-API_BASE_URL = "http://localhost:3102"
+API_BASE_URL = "http://localhost:3100"
 ADMIN_LOGIN_ID = "관리자"
 ADMIN_PASSWORD = "admin1234!!"
 

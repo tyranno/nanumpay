@@ -195,8 +195,8 @@ export async function createPromotionPaymentPlan(userId, userName, newGrade, pro
       });
     }
 
-    // v7.0: 승급 시 기존 추가지급 중단
-    await terminateAdditionalPlansOnPromotion(userId);
+    // ⭐ v7.0: 추가지급 중단은 step4_createPlans.js의 terminateAdditionalPaymentPlans에서 처리
+    // (승급 다음 달부터만 중단하는 로직)
 
     // 계획 생성 (v7.0: 추가지급단계 추가)
     const plan = await WeeklyPaymentPlans.create({
