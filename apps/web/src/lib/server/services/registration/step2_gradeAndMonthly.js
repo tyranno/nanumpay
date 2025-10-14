@@ -10,7 +10,6 @@
 
 import { recalculateAllGrades } from '../gradeCalculation.js';
 import MonthlyRegistrations from '../../models/MonthlyRegistrations.js';
-import { devLog } from '../../utils/devLogger.js';
 
 /**
  * Step 2 실행
@@ -19,7 +18,8 @@ import { devLog } from '../../utils/devLogger.js';
  * @returns {Promise<Object>} { promoted, monthlyReg, registrationMonth }
  */
 export async function executeStep2(users) {
-  devLog.section('[Step 2] 등급 재계산 및 월별 인원 관리');
+  console.log('\n[Step 2] 등급 재계산 및 월별 인원 관리');
+  console.log('='.repeat(80));
 
   // 2-1. 등급 재계산 (전체 사용자)
   const gradeChangeResult = await recalculateAllGrades();
@@ -33,18 +33,18 @@ export async function executeStep2(users) {
            u.oldGrade < u.newGrade;
   });
 
-  devLog.log(`  등급 재계산 완료`);
-  devLog.log(`  - 전체 변경: ${changedUsers.length}명`);
-  devLog.log(`  - 승급자: ${promoted.length}명`);
+  console.log(`  등급 재계산 완료`);
+  console.log(`  - 전체 변경: ${changedUsers.length}명`);
+  console.log(`  - 승급자: ${promoted.length}명`);
   promoted.forEach(p => {
-    devLog.log(`    · ${p.userName}: ${p.oldGrade} → ${p.newGrade}`);
+    console.log(`    · ${p.userName}: ${p.oldGrade} → ${p.newGrade}`);
   });
 
   // 2-2. 귀속월 파악
   const registrationMonth = MonthlyRegistrations.generateMonthKey(
     users[0]?.registrationDate || users[0]?.createdAt || new Date()
   );
-  devLog.log(`\n  귀속월: ${registrationMonth}`);
+  console.log(`\n  귀속월: ${registrationMonth}`);
 
   // 2-3. 월별 등록자 관리 (MonthlyRegistrations)
   let monthlyReg = await MonthlyRegistrations.findOne({ monthKey: registrationMonth });
@@ -52,11 +52,11 @@ export async function executeStep2(users) {
   if (!monthlyReg) {
     // 해당 월 최초 등록 (스키마 default 값 사용)
     monthlyReg = new MonthlyRegistrations({ monthKey: registrationMonth });
-    devLog.log(`  ${registrationMonth} MonthlyRegistrations 생성`);
+    console.log(`  ${registrationMonth} MonthlyRegistrations 생성`);
   }
 
   // 2-4. 이번 배치 등록자 추가
-  devLog.log(`\n  [이번 배치 등록자 추가]`);
+  console.log(`\n  [이번 배치 등록자 추가]`);
   for (const user of users) {
     // 중복 체크
     const exists = monthlyReg.registrations.find(r => r.userId === user.loginId);
@@ -73,7 +73,7 @@ export async function executeStep2(users) {
         position: user.position
       });
       monthlyReg.registrationCount++;
-      devLog.log(`    + ${user.name} (${currentGrade}${promotion ? ' - 승급' : ''})`);
+      console.log(`    + ${user.name} (${currentGrade}${promotion ? ' - 승급' : ''})`);
     }
   }
 
@@ -91,14 +91,13 @@ export async function executeStep2(users) {
   // 2-8. 저장
   await monthlyReg.save();
 
-  // ⭐ 목표 출력 (항상 표시)
   console.log(`\n  [${registrationMonth} 월별 인원 현황] ⭐`);
   console.log(`  - 전체 등록자: ${monthlyReg.registrationCount}명`);
   console.log(`  - 승급자: ${monthlyReg.promotedCount}명`);
   console.log(`  - 미승급자 (F1): ${monthlyReg.nonPromotedCount}명`);
   console.log(`  - 매출: ${monthlyReg.totalRevenue.toLocaleString()}원`);
 
-  devLog.separator();
+  console.log('='.repeat(80));
 
   return {
     promoted,
