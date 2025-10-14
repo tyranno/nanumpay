@@ -65,12 +65,18 @@ export async function executeStep2(users) {
       const promotion = promoted.find(p => p.userId === user.loginId);
       const currentGrade = promotion ? promotion.newGrade : 'F1';
 
+      // position 값 변환 (L/R/ROOT → left/right/root)
+      let positionValue = user.position;
+      if (positionValue === 'L') positionValue = 'left';
+      else if (positionValue === 'R') positionValue = 'right';
+      else if (positionValue === 'ROOT') positionValue = 'root';
+
       monthlyReg.registrations.push({
         userId: user.loginId,
         userName: user.name,
         registrationDate: user.registrationDate || user.createdAt,
         grade: currentGrade,  // 현재 등급 (승급 후)
-        position: user.position
+        position: positionValue
       });
       monthlyReg.registrationCount++;
       console.log(`    + ${user.name} (${currentGrade}${promotion ? ' - 승급' : ''})`);

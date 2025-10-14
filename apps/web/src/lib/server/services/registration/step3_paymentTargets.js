@@ -225,9 +225,12 @@ async function findAdditionalPaymentTargets(promoted, registrationMonth) {
       }
 
       // ⭐ 해당 월 전체 대상자 (3가지 소스)
+      // 승급자 ID 목록 (중복 제거용)
+      const prevPromotedIds = (monthlyReg.paymentTargets?.promoted || []).map(p => p.userId);
+
       const prevTargets = [
-        // 1. 등록자
-        ...monthlyReg.registrations,
+        // 1. 등록자 (단, 승급자 제외!) ⭐
+        ...monthlyReg.registrations.filter(r => !prevPromotedIds.includes(r.userId)),
 
         // 2. 승급자
         ...(monthlyReg.paymentTargets?.promoted || []).map(p => ({
