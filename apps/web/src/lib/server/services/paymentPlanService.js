@@ -853,9 +853,9 @@ function getPreviousMonth(monthKey) {
 async function createAdditionalPaymentForUser(userId, userName, grade, revenueMonth, currentMonth) {
   try {
     // 1. 기존 계획 중 가장 최근 것 조회
+    // ⭐ 수정: baseGrade 조건 제거 (승급한 경우 이전 등급 계획도 찾아야 함)
     const lastPlan = await WeeklyPaymentPlans.findOne({
       userId,
-      baseGrade: grade,
       planStatus: { $in: ['active', 'completed'] }
     }).sort({ 추가지급단계: -1, createdAt: -1 });
 
@@ -863,6 +863,8 @@ async function createAdditionalPaymentForUser(userId, userName, grade, revenueMo
       console.log(`    ${userId}: 기존 계획 없음 → SKIP`);
       return null;
     }
+
+    console.log(`    기존 계획 발견: ${lastPlan.baseGrade}, 추가지급단계=${lastPlan.추가지급단계}`)
 
     // 2. 다음 추가지급단계 계산
     const next추가지급단계 = (lastPlan.추가지급단계 || 0) + 1;
