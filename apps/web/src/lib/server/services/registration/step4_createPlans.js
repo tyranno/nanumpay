@@ -121,12 +121,16 @@ export async function executeStep4(promoted, targets, gradePayments, monthlyReg,
 
       console.log(`  ${prom.userName}: ${prom.oldGrade} → ${prom.grade}`);
 
+      // ⭐ 승급일 = registrationMonth의 첫날 (매출 귀속 월과 동일)
+      const [year, month] = registrationMonth.split('-').map(Number);
+      const promotionDate = new Date(year, month - 1, 1);  // 월은 0-based
+
       // newGrade Promotion 계획 생성
       const promotionPlan = await createPromotionPaymentPlan(
         prom.userId,
         prom.userName,
         prom.grade,
-        new Date(),  // 승급일 = 현재
+        promotionDate,  // ⭐ registrationMonth 첫날
         monthlyReg
       );
       promotionPlans.push({
