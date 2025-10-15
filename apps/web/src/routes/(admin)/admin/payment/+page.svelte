@@ -539,7 +539,21 @@
 					// 기간 조회 데이터 처리
 					const weeks = result.data.weeks || [];
 					const allUsers = new Map();
-					
+
+					// ⭐ API의 payments 배열로부터 사용자 기본 정보 먼저 수집 (planner 포함)
+					if (result.data.payments) {
+						result.data.payments.forEach(p => {
+							allUsers.set(p.userId, {
+								userId: p.userId,
+								name: p.userName || p.name || 'Unknown',
+								planner: p.planner || '',
+								bank: p.bank || '',
+								accountNumber: p.accountNumber || '',
+								payments: {}
+							});
+						});
+					}
+
 					// 전체 주차 정보 생성
 					const allWeeks = weeks.map(weekData => ({
 						year: weekData.year,
@@ -561,6 +575,18 @@
 									accountNumber: payment.accountNumber || '',
 									payments: {}
 								});
+							} else {
+								// ⭐ 이미 존재하는 사용자라도 planner 정보 업데이트 (최신 정보 유지)
+								const user = allUsers.get(userId);
+								if (!user.planner && payment.planner) {
+									user.planner = payment.planner;
+								}
+								if (!user.bank && payment.bank) {
+									user.bank = payment.bank;
+								}
+								if (!user.accountNumber && payment.accountNumber) {
+									user.accountNumber = payment.accountNumber;
+								}
 							}
 							const user = allUsers.get(userId);
 							user.payments[weekKey] = {
@@ -654,7 +680,7 @@
 	async function exportToExcel() {
 		// 전체 데이터 가져오기
 		const { users: allData, weeks: allWeeks } = await getAllPaymentData();
-		
+
 		if (allData.length === 0) {
 			alert('다운로드할 데이터가 없습니다.');
 			return;
@@ -663,7 +689,9 @@
 		const workbook = new ExcelJS.Workbook();
 		const worksheet = workbook.addWorksheet('용역비 지급명부');
 
-		const totalCols = 5 + allWeeks.length * 3;
+		// ⭐ 토글 상태에 따라 컬럼 수 계산
+		const colsPerWeek = 1 + (showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0);
+		const totalCols = 5 + allWeeks.length * colsPerWeek;
 
 		// 조회 조건 정보
 		let periodInfo = '';
@@ -786,44 +814,57 @@
 		// 8. 테이블 헤더 1행 (주차 정보)
 		const headerRow1Data = ['순번', '성명', '설계자', '은행', '계좌번호'];
 		allWeeks.forEach(week => {
-			headerRow1Data.push(week.label, '', '');  // 3칸 차지: 레이블 + 빈칸 2개
+			// ⭐ 토글 상태에 따라 빈칸 개수 조정
+			headerRow1Data.push(week.label);
+			for (let i = 1; i < colsPerWeek; i++) {
+				headerRow1Data.push('');
+			}
 		});
 		const headerRow1 = worksheet.addRow(headerRow1Data);
 		headerRow1.height = 25;
 		// 개별 셀에 스타일 적용
-		for (let i = 1; i <= 5 + allWeeks.length * 3; i++) {
+		for (let i = 1; i <= totalCols; i++) {
 			headerRow1.getCell(i).font = { bold: true };
 			headerRow1.getCell(i).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8E8E8' } };
 			headerRow1.getCell(i).alignment = { vertical: 'middle', horizontal: 'center' };
 		}
 
-		// 고정 컬럼 병합
+		// 9. 테이블 헤더 2행 (세부 항목)
+		// 고정 컬럼 5개는 병합으로 인해 비어있음
+		const headerRow2Data = ['', '', '', '', ''];
+		// 주차별 헤더 추가
+		allWeeks.forEach(() => {
+			headerRow2Data.push('지급액');
+			if (showTaxColumn) {
+				headerRow2Data.push('원천징수(3.3%)');
+			}
+			if (showNetColumn) {
+				headerRow2Data.push('실지급액');
+			}
+		});
+		const headerRow2 = worksheet.addRow(headerRow2Data);
+		// 개별 셀에 스타일 적용 (세부 항목 헤더)
+		for (let i = 6; i <= totalCols; i++) {
+			headerRow2.getCell(i).font = { bold: true };
+			headerRow2.getCell(i).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8E8E8' } };
+			headerRow2.getCell(i).alignment = { vertical: 'middle', horizontal: 'center' };
+		}
+
+		// ⭐ headerRow2 생성 후에 병합 (고정 컬럼 병합)
 		for (let i = 1; i <= 5; i++) {
-			worksheet.mergeCells(headerRow1.number, i, headerRow1.number + 1, i);
+			worksheet.mergeCells(headerRow1.number, i, headerRow2.number, i);
 		}
 
 		// 주차 헤더 병합 및 색상
 		let colStart = 6;
 		allWeeks.forEach(() => {
-			worksheet.mergeCells(headerRow1.number, colStart, headerRow1.number, colStart + 2);
-			[colStart, colStart + 1, colStart + 2].forEach(c => {
+			// ⭐ 토글 상태에 따라 병합 범위 조정
+			worksheet.mergeCells(headerRow1.number, colStart, headerRow1.number, colStart + colsPerWeek - 1);
+			for (let c = colStart; c < colStart + colsPerWeek; c++) {
 				headerRow1.getCell(c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD0E0F0' } };
-			});
-			colStart += 3;
+			}
+			colStart += colsPerWeek;
 		});
-
-		// 9. 테이블 헤더 2행 (세부 항목)
-		const headerRow2Data = ['', '', '', '', ''];
-		allWeeks.forEach(() => {
-			headerRow2Data.push('지급액', '원천징수(3.3%)', '실지급액');
-		});
-		const headerRow2 = worksheet.addRow(headerRow2Data);
-		// 개별 셀에 스타일 적용 (세부 항목 헤더)
-		for (let i = 6; i <= 5 + allWeeks.length * 3; i++) {
-			headerRow2.getCell(i).font = { bold: true };
-			headerRow2.getCell(i).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8E8E8' } };
-			headerRow2.getCell(i).alignment = { vertical: 'middle', horizontal: 'center' };
-		}
 
 		// 10. 데이터 행
 		allData.forEach(user => {
@@ -841,11 +882,14 @@
 					? `${week.year}_${week.month}`
 					: `${week.year}_${week.month}_${week.week}`;
 				const payment = user.payments[key];
-				rowData.push(
-					payment?.amount || 0,
-					payment?.tax || 0,
-					payment?.net || 0
-				);
+				// ⭐ 토글 상태에 따라 데이터 추가
+				rowData.push(payment?.amount || 0);
+				if (showTaxColumn) {
+					rowData.push(payment?.tax || 0);
+				}
+				if (showNetColumn) {
+					rowData.push(payment?.net || 0);
+				}
 			});
 
 			const dataRow = worksheet.addRow(rowData);
@@ -854,24 +898,29 @@
 			// 금액 컬럼 스타일
 			let col = 6;
 			allWeeks.forEach(() => {
-				// 지급액
+				// 지급액 (항상 표시)
 				dataRow.getCell(col).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFCC' } };
 				dataRow.getCell(col).font = { bold: true };
 				dataRow.getCell(col).numFmt = '#,##0';
 				dataRow.getCell(col).alignment = { vertical: 'middle', horizontal: 'right' };
+				col++;
 
-				// 원천징수
-				dataRow.getCell(col + 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEEEE' } };
-				dataRow.getCell(col + 1).font = { color: { argb: 'FFD9534F' } };
-				dataRow.getCell(col + 1).numFmt = '#,##0';
-				dataRow.getCell(col + 1).alignment = { vertical: 'middle', horizontal: 'right' };
+				// ⭐ 원천징수 (토글 상태에 따라)
+				if (showTaxColumn) {
+					dataRow.getCell(col).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEEEE' } };
+					dataRow.getCell(col).font = { color: { argb: 'FFD9534F' } };
+					dataRow.getCell(col).numFmt = '#,##0';
+					dataRow.getCell(col).alignment = { vertical: 'middle', horizontal: 'right' };
+					col++;
+				}
 
-				// 실지급액
-				dataRow.getCell(col + 2).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8F5E9' } };
-				dataRow.getCell(col + 2).numFmt = '#,##0';
-				dataRow.getCell(col + 2).alignment = { vertical: 'middle', horizontal: 'right' };
-
-				col += 3;
+				// ⭐ 실지급액 (토글 상태에 따라)
+				if (showNetColumn) {
+					dataRow.getCell(col).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8F5E9' } };
+					dataRow.getCell(col).numFmt = '#,##0';
+					dataRow.getCell(col).alignment = { vertical: 'middle', horizontal: 'right' };
+					col++;
+				}
 			});
 		});
 
@@ -879,7 +928,14 @@
 		const totalRowData = ['', '', '', '', '합계'];
 		allWeeks.forEach(week => {
 			const total = calculateAllDataTotal(allData, week);
-			totalRowData.push(total.amount, total.tax, total.net);
+			// ⭐ 토글 상태에 따라 데이터 추가
+			totalRowData.push(total.amount);
+			if (showTaxColumn) {
+				totalRowData.push(total.tax);
+			}
+			if (showNetColumn) {
+				totalRowData.push(total.net);
+			}
 		});
 		const totalRow = worksheet.addRow(totalRowData);
 		// 개별 셀에 스타일 적용 (합계 행)
@@ -895,9 +951,19 @@
 
 		// 12. 총합계 행
 		const grandTotalData = ['', '', '', '', '총합계'];
-		grandTotalData.push(totalSummary.amount, totalSummary.tax, totalSummary.net);
+		// ⭐ 토글 상태에 따라 첫 주차 총계 추가
+		grandTotalData.push(totalSummary.amount);
+		if (showTaxColumn) {
+			grandTotalData.push(totalSummary.tax);
+		}
+		if (showNetColumn) {
+			grandTotalData.push(totalSummary.net);
+		}
+		// 나머지 주차는 빈칸
 		allWeeks.slice(1).forEach(() => {
-			grandTotalData.push('', '', '');
+			for (let i = 0; i < colsPerWeek; i++) {
+				grandTotalData.push('');
+			}
 		});
 		const grandTotalRow = worksheet.addRow(grandTotalData);
 		// 개별 셀에 스타일 적용 (총합계 행)
@@ -906,7 +972,9 @@
 			grandTotalRow.getCell(i).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE0B2' } };
 			grandTotalRow.getCell(i).alignment = { vertical: 'middle', horizontal: 'center' };
 		}
-		for (let i = 6; i <= 8; i++) {
+		// ⭐ 토글 상태에 따라 숫자 포맷 적용 범위 조정
+		const grandTotalEndCol = 5 + colsPerWeek;
+		for (let i = 6; i <= grandTotalEndCol; i++) {
 			grandTotalRow.getCell(i).numFmt = '#,##0';
 			grandTotalRow.getCell(i).alignment = { vertical: 'middle', horizontal: 'right' };
 		}
