@@ -1157,9 +1157,8 @@
 						/>
 						<span>기간</span>
 					</label>
-				</div>
-				{#if filterType === 'period'}
-					<div class="period-controls">
+
+					{#if filterType === 'period'}
 						<input
 							type="number"
 							bind:value={startYear}
@@ -1168,7 +1167,7 @@
 							min="2020"
 							max="2030"
 						/>
-						<span>년</span>
+						<span class="year-label">년</span>
 						<select bind:value={startMonth} onchange={handlePeriodChange} class="month-input">
 							{#each Array(12) as _, i}
 								<option value={i + 1}>{i + 1}월</option>
@@ -1183,7 +1182,7 @@
 							min="2020"
 							max="2030"
 						/>
-						<span>년</span>
+						<span class="year-label">년</span>
 						<select bind:value={endMonth} onchange={handlePeriodChange} class="month-input">
 							{#each Array(12) as _, i}
 								<option value={i + 1}>{i + 1}월</option>
@@ -1199,8 +1198,8 @@
 							<option value="weekly">주간</option>
 							<option value="monthly">월간</option>
 						</select>
-					</div>
-				{/if}
+					{/if}
+				</div>
 			</div>
 		</div>
 	</div>
@@ -1435,8 +1434,8 @@
 	.filter-row {
 		display: flex;
 		align-items: center;
-		gap: 8px;
-		flex-wrap: wrap;
+		gap: 6px;
+		flex-wrap: nowrap;
 	}
 
 	.divider {
@@ -1459,6 +1458,8 @@
 		border: 1px solid #ccc;
 		border-radius: 3px;
 		font-size: 13px;
+		height: 28px;
+		line-height: 1.4;
 	}
 
 	.date-input:disabled {
@@ -1468,48 +1469,51 @@
 
 	.year-input,
 	.month-input {
-		padding: 5px;
+		padding: 4px 6px;
 		border: 1px solid #ccc;
 		border-radius: 3px;
-		font-size: 14px;
+		font-size: 13px;
+		height: 28px;
+		line-height: 1.4;
 	}
 
 	.year-input {
-		width: 70px;
+		width: 60px;
 	}
 
 	.month-input {
-		width: 75px;
-		padding: 5px 26px 5px 10px;
+		width: 60px;
+		padding: 4px 20px 4px 6px;
 	}
 
-	/* 기간 선택 컨트롤 */
-	.period-controls {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-		flex-wrap: wrap;
-		margin-top: 4px;
-		padding-left: 0;
+	.year-label {
+		font-size: 13px;
+		white-space: nowrap;
+		line-height: 28px;
 	}
 
 	.range-divider {
-		margin: 0 4px;
+		margin: 0 2px;
 		color: #666;
+		font-size: 13px;
+		line-height: 28px;
 	}
 
 	.period-label {
 		font-weight: bold;
 		font-size: 13px;
 		white-space: nowrap;
+		line-height: 28px;
 	}
 
 	.period-select {
-		padding: 5px 26px 5px 10px;
+		padding: 4px 20px 4px 6px;
 		border: 1px solid #ccc;
 		border-radius: 3px;
-		font-size: 14px;
-		width: 90px;
+		font-size: 13px;
+		height: 28px;
+		line-height: 1.4;
+		width: 70px;
 	}
 
 	/* 테이블 컨테이너 */
@@ -1712,11 +1716,6 @@
 			width: 60px;
 		}
 
-		.period-controls {
-			gap: 4px;
-			margin-left: 6px;
-		}
-
 		.month-input {
 			width: 60px;
 			padding: 4px 20px 4px 6px;
@@ -1766,11 +1765,6 @@
 
 		.month-input {
 			width: 35px;
-		}
-
-		.period-controls {
-			gap: 3px;
-			margin-left: 4px;
 		}
 
 		.period-select {

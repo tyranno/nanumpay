@@ -136,8 +136,9 @@ export async function executeStep3(promoted, monthlyReg, registrationMonth) {
     추가지급단계: t.추가지급단계 || 1  // findAdditionalPaymentTargets에서 계산됨
   }));
 
-  // E. 등급별 구성 저장
+  // E. 등급별 구성 및 등급별 지급액 저장
   monthlyReg.gradeDistribution = gradeDistribution;
+  monthlyReg.gradePayments = gradePayments;  // ⭐ 등급별 지급액 저장
 
   await monthlyReg.save();
 

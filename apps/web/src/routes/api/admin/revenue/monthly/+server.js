@@ -39,6 +39,7 @@ export async function GET({ url, locals }) {
 					monthKey,
 					totalRevenue: 0,
 					adjustedRevenue: null,
+					effectiveRevenue: 0,
 					isManualRevenue: false,
 					registrationCount: 0,
 					paymentTargets: {

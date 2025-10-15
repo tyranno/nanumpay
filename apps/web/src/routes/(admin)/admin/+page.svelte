@@ -1,6 +1,5 @@
 <script>
 	import GradePaymentCard from '$lib/components/admin/GradePaymentCard.svelte';
-	import WeeklyPaymentCard from '$lib/components/admin/WeeklyPaymentCard.svelte';
 </script>
 
 <svelte:head>
@@ -8,14 +7,9 @@
 </svelte:head>
 
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
-	<!-- 등급별 지급 정보 - 전체 폭 -->
+	<!-- 월별 매출 및 등급 통계 - 전체 폭 -->
 	<div class="mb-4 lg:mb-6">
 		<GradePaymentCard />
-	</div>
-
-	<!-- 이번주 용역비 금액 - 전체 폭 -->
-	<div class="mb-4 lg:mb-6">
-		<WeeklyPaymentCard />
 	</div>
 
 	<!-- 빠른 메뉴 섹션 -->
