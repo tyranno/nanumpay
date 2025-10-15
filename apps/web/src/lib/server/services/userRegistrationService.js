@@ -481,6 +481,7 @@ export class UserRegistrationService {
 	/**
 	 * 4단계: 배치 처리
 	 * - 등급 재계산, 매출 계산, 지급 계획 생성
+	 * - ⭐ v7.0: 월별로 순차 처리하여 매출 계산 정확도 보장
 	 */
 	async processBatch() {
 		try {
@@ -499,21 +500,52 @@ export class UserRegistrationService {
 				usersByMonth.get(monthKey).push(user);
 			}
 
-			excelLogger.info('월별 사용자 분포:', Array.from(usersByMonth.keys()).map(m => `${m}: ${usersByMonth.get(m).length}명`).join(', '));
+			// 월별 키를 시간순으로 정렬 (2025-07, 2025-08, 2025-09 ...)
+			const sortedMonths = Array.from(usersByMonth.keys()).sort();
 
-			// 등록된 사용자 ID 수집
-			const userIds = Array.from(this.registeredUsers.values()).map(info => info.user._id);
+			excelLogger.info('월별 사용자 분포:', sortedMonths.map(m => `${m}: ${usersByMonth.get(m).length}명`).join(', '));
 
-			// registrationService로 등급 재계산 및 지급 계획 생성
-			const batchResult = await processUserRegistration(userIds);
+			// ⭐ 각 월별로 순차 처리
+			const allResults = {
+				revenue: { totalRevenue: 0, byMonth: {} },
+				schedules: [],
+				plans: []
+			};
 
-			excelLogger.info('배치 처리 완료:', {
-				revenue: batchResult.revenue?.totalRevenue?.toLocaleString() + '원',
-				schedules: batchResult.schedules?.length + '개',
-				plans: batchResult.plans?.length + '명'
+			for (const monthKey of sortedMonths) {
+				const users = usersByMonth.get(monthKey);
+				const userIds = users.map(u => u._id);
+
+				excelLogger.info(`\n📅 ${monthKey} 처리 시작 (${users.length}명)`);
+
+				// registrationService로 등급 재계산 및 지급 계획 생성
+				const monthResult = await processUserRegistration(userIds);
+
+				// 결과 병합
+				allResults.revenue.totalRevenue += monthResult.revenue?.totalRevenue || 0;
+				allResults.revenue.byMonth[monthKey] = monthResult.revenue;
+				if (monthResult.schedules) {
+					allResults.schedules.push(...monthResult.schedules);
+				}
+				if (monthResult.plans) {
+					allResults.plans.push(...monthResult.plans);
+				}
+
+				excelLogger.info(`✅ ${monthKey} 처리 완료:`, {
+					revenue: monthResult.revenue?.totalRevenue?.toLocaleString() + '원',
+					schedules: monthResult.schedules?.length + '개',
+					plans: monthResult.plans?.length + '명'
+				});
+			}
+
+			excelLogger.info('\n🎉 전체 배치 처리 완료:', {
+				totalRevenue: allResults.revenue.totalRevenue.toLocaleString() + '원',
+				totalSchedules: allResults.schedules.length + '개',
+				totalPlans: allResults.plans.length + '명',
+				processedMonths: sortedMonths.join(', ')
 			});
 
-			return batchResult;
+			return allResults;
 
 		} catch (err) {
 			excelLogger.error('배치 처리 실패:', err);
