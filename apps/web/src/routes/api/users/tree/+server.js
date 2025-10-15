@@ -1,7 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db.js';
 import User from '$lib/server/models/User.js';
-import { TreeStats } from '$lib/server/models/TreeStats.js';
 
 // GET: 사용자 트리 구조 조회
 export async function GET({ url, locals }) {
@@ -41,7 +40,7 @@ export async function GET({ url, locals }) {
 			}
 		}
 
-		// 트리 구조 생성 (TreeStats 데이터 사용)
+		// 트리 구조 생성 (User 모델 직접 사용)
 		const tree = await buildTree(rootUser._id, depth);
 
 		return json({
@@ -82,18 +81,12 @@ async function buildTree(rootUserId, maxDepth) {
 		currentLevel = nextLevel;
 	}
 
-	// 3. 모든 사용자와 TreeStats를 한 번에 조회
-	const [users, statsArray] = await Promise.all([
-		User.find({ _id: { $in: userIds } }).lean(),
-		TreeStats.find({ userId: { $in: userIds } }).lean()
-	]);
+	// 3. 모든 사용자를 한 번에 조회
+	const users = await User.find({ _id: { $in: userIds } }).lean();
 
 	// 4. Map으로 빠른 조회를 위한 인덱싱
 	const userMap = new Map();
-	const statsMap = new Map();
-
 	users.forEach(u => userMap.set(u._id.toString(), u));
-	statsArray.forEach(s => statsMap.set(s.userId.toString(), s));
 
 	// 5. 재귀적으로 트리 구성 (메모리에서 처리)
 	function buildNode(userId, currentDepth = 0) {
@@ -102,13 +95,11 @@ async function buildTree(rootUserId, maxDepth) {
 		const user = userMap.get(userId.toString());
 		if (!user) return null;
 
-		const stats = statsMap.get(userId.toString());
-
 		// BinaryTreeD3 형식으로 변환 (계층 관계 정보만)
 		const node = {
 			id: user._id.toString(),
 			label: user.name,              // 노드에 표시할 이름
-			grade: stats?.grade || user.grade,  // 등급 뱃지 표시
+			grade: user.grade || 'F1',     // 등급 뱃지 표시
 			level: user.level              // 트리 레벨
 		};
 
@@ -191,7 +182,7 @@ export async function POST({ request, locals }) {
 	}
 }
 
-// 상위 노드들의 등급 재계산 (TreeStats 사용 - 성능 최적화)
+// 상위 노드들의 등급 재계산
 async function updateAncestorsGrade(userId) {
 	// TODO: 등급 재계산 로직 필요 시 registrationService 사용
 	// 현재는 registrationService에서 전체 트리 재계산 수행

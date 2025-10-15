@@ -1,7 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db.js';
 import User from '$lib/server/models/User.js';
-import { TreeStats } from '$lib/server/models/TreeStats.js';
 
 export async function GET({ url, locals }) {
 	// 관리자 권한 확인
@@ -50,22 +49,16 @@ export async function GET({ url, locals }) {
 			.limit(limit)
 			.lean();
 
-		// 각 사용자의 등급 정보 추가
-		const usersWithGrade = await Promise.all(
-			users.map(async (user) => {
-				const stats = await TreeStats.findOne({ userId: user._id })
-					.select('grade totalDescendants leftCount rightCount')
-					.lean();
-
-				return {
-					...user,
-					grade: stats?.grade || user.grade || 'F1',
-					totalDescendants: stats?.totalDescendants || 0,
-					leftCount: stats?.leftCount || 0,
-					rightCount: stats?.rightCount || 0
-				};
-			})
-		);
+		// 각 사용자의 등급 정보 추가 (User 모델에서 직접 가져옴)
+		const usersWithGrade = users.map((user) => {
+			return {
+				...user,
+				grade: user.grade || 'F1',
+				totalDescendants: 0,  // 필요 시 계산
+				leftCount: 0,
+				rightCount: 0
+			};
+		});
 
 		return json({
 			users: usersWithGrade,
@@ -155,9 +148,6 @@ export async function DELETE({ request, locals }) {
 		if (!user) {
 			return json({ error: 'User not found' }, { status: 404 });
 		}
-
-		// TreeStats도 삭제
-		await TreeStats.deleteOne({ userId });
 
 		// 부모의 자식 참조 제거
 		if (user.parentId) {

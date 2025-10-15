@@ -16,82 +16,38 @@
 
 	var dbx = db.getSiblingDB(dbName);
 
-	// FORCE 옵션이면 모든 컬렉션 삭제
+	// ⭐ v7.0: 기존 컬렉션 모두 삭제 (--force 옵션 시)
 	if (force) {
-		print('[init] FORCE mode: Dropping all collections...');
-		var existingCollections = dbx.getCollectionNames();
-		existingCollections.forEach(function(colName) {
-			if (colName !== 'system.indexes') {
+		print('[init] --force 옵션: 기존 컬렉션 모두 삭제');
+		var allCollections = dbx.getCollectionNames();
+		allCollections.forEach(function (colName) {
+			if (colName !== 'admins') {  // admins는 나중에 업데이트
 				dbx.getCollection(colName).drop();
 				print('[init] Dropped collection: ' + colName);
 			}
 		});
 	}
 
-	// Nanumpay v5.0 컬렉션 생성
-	var collections = [
-		'admins',
-		'users',
-		'monthlyregistrations',
-		'monthlytreesnapshots',
-		'weeklypaymentplans',
-		'weeklypaymentsummary'
-	];
-	collections.forEach(function(colName) {
-		if (dbx.getCollectionNames().indexOf(colName) < 0) {
-			dbx.createCollection(colName);
-			print('[init] Created collection: ' + colName);
-		}
-	});
+	// admins 컬렉션만 생성 (나머지는 자동 생성됨)
+	if (dbx.getCollectionNames().indexOf('admins') < 0) {
+		dbx.createCollection('admins');
+		print('[init] Created collection: admins');
+	}
 
-	// 인덱스 생성
-	// admins
+	// admins 인덱스
 	dbx.admins.createIndex({ loginId: 1 }, { unique: true });
 	dbx.admins.createIndex({ createdAt: 1 });
-
-	// users
-	dbx.users.createIndex({ loginId: 1 }, { unique: true });
-	dbx.users.createIndex({ parentId: 1 });
-	dbx.users.createIndex({ leftChildId: 1 });
-	dbx.users.createIndex({ rightChildId: 1 });
-	dbx.users.createIndex({ grade: 1 });
-	dbx.users.createIndex({ status: 1 });
-	dbx.users.createIndex({ createdAt: 1 });
-	dbx.users.createIndex({ sequence: 1 }, { unique: true });
-
-	// monthlyregistrations (v5.0)
-	dbx.monthlyregistrations.createIndex({ monthKey: 1 }, { unique: true });
-	dbx.monthlyregistrations.createIndex({ 'registrations.userId': 1 });
-
-	// monthlytreesnapshots (v5.0)
-	dbx.monthlytreesnapshots.createIndex({ monthKey: 1 }, { unique: true });
-	dbx.monthlytreesnapshots.createIndex({ snapshotDate: 1 });
-	dbx.monthlytreesnapshots.createIndex({ 'users.userId': 1 });
-
-	// weeklypaymentplans (v5.0)
-	dbx.weeklypaymentplans.createIndex({ userId: 1 });
-	dbx.weeklypaymentplans.createIndex({ planType: 1 });
-	dbx.weeklypaymentplans.createIndex({ baseGrade: 1 });
-	dbx.weeklypaymentplans.createIndex({ revenueMonth: 1 });
-	dbx.weeklypaymentplans.createIndex({ planStatus: 1 });
-	dbx.weeklypaymentplans.createIndex({ 'installments.weekNumber': 1 });
-	dbx.weeklypaymentplans.createIndex({ 'installments.status': 1 });
-
-	// weeklypaymentsummary (v5.0)
-	dbx.weeklypaymentsummary.createIndex({ weekNumber: 1 }, { unique: true });
-	dbx.weeklypaymentsummary.createIndex({ weekDate: 1 });
-	dbx.weeklypaymentsummary.createIndex({ monthKey: 1 });
-	dbx.weeklypaymentsummary.createIndex({ status: 1 });
-
-	print('[init] Indexes created for all collections');
+	print('[init] Indexes created for admins collection');
 
 	// 관리자 생성 (admins 컬렉션에)
 	if (!hash) {
 		print('[init] SKIP admin creation: ADMIN_HASH is empty (provide via wrapper)');
 		return;
 	}
+
 	var col = dbx.getCollection('admins');
 	var exists = col.findOne({ loginId: loginId });
+
 	if (!exists) {
 		col.insertOne({
 			name: name,

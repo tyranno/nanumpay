@@ -6,7 +6,6 @@
 import WeeklyPaymentPlans from '../models/WeeklyPaymentPlans.js';
 import WeeklyPaymentSummary from '../models/WeeklyPaymentSummary.js';
 import MonthlyRegistrations from '../models/MonthlyRegistrations.js';
-import MonthlyTreeSnapshots from '../models/MonthlyTreeSnapshots.js';
 import User from '../models/User.js';
 
 /**
@@ -302,30 +301,13 @@ function calculateGradePayments(totalRevenue, gradeDistribution) {
 
 /**
  * 매출월의 확정 등급 조회
+ * ⚠️ v7.0: MonthlyTreeSnapshots 제거로 인해 간소화
+ * plan.baseGrade를 사용하도록 변경됨
  */
 async function getConfirmedGradeForPayment(userId, revenueMonth) {
-  try {
-    const snapshot = await MonthlyTreeSnapshots.findOne({
-      monthKey: revenueMonth,
-      'users.userId': userId
-    });
-
-    if (!snapshot) {
-      console.warn(`매출월 ${revenueMonth}의 스냅샷이 없음 - userId: ${userId}`);
-      return null;
-    }
-
-    const userSnapshot = snapshot.users.find(u => u.userId === userId);
-    if (!userSnapshot) {
-      console.warn(`스냅샷에서 사용자 ${userId}를 찾을 수 없음`);
-      return null;
-    }
-
-    return userSnapshot.grade;
-  } catch (error) {
-    console.error('확정 등급 조회 실패:', error);
-    return null;
-  }
+  // MonthlyTreeSnapshots 제거로 인해 null 반환
+  // 호출부에서 plan.baseGrade를 fallback으로 사용
+  return null;
 }
 
 /**

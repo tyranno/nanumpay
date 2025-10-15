@@ -11,8 +11,7 @@ import User from '../../models/User.js';
 import WeeklyPaymentPlans from '../../models/WeeklyPaymentPlans.js';
 import {
   createInitialPaymentPlan,
-  createPromotionPaymentPlan,
-  createMonthlyAdditionalPayments
+  createPromotionPaymentPlan
 } from '../paymentPlanService.js';
 
 /**
@@ -120,23 +119,3 @@ export async function createPromotionPlans(promoted, promotionDate, updatedMonth
 }
 
 /**
- * 매월 추가지급 확인 및 생성 (v7.0)
- *
- * @param {string} registrationMonth - 등록 월 (YYYY-MM)
- * @returns {Promise<Object>} 추가지급 정보 { count, targets }
- */
-export async function checkAndCreateAdditionalPayments(registrationMonth) {
-  console.log('\n[paymentPlanGenerator] v7.0 매월 추가지급 확인 시작');
-  console.log('='.repeat(80));
-  console.log('📋 v7.0 핵심 로직: 매월 승급 없는 대상자에게 추가지급 생성');
-  console.log('='.repeat(80));
-  console.log(`  등록 월: ${registrationMonth}`);
-
-  // 매월 추가지급 생성 (이전 월 대상자 확인)
-  const additionalPaymentsInfo = await createMonthlyAdditionalPayments(registrationMonth);
-
-  console.log('='.repeat(80));
-  console.log(`[paymentPlanGenerator] v7.0 매월 추가지급 생성 완료: ${additionalPaymentsInfo?.count || 0}건`);
-
-  return additionalPaymentsInfo;
-}
