@@ -49,6 +49,43 @@ const monthlyRegistrationsSchema = new mongoose.Schema(
       default: null
     },
 
+    // v7.1: 수동 매출 설정 관련 필드
+    isManualRevenue: {
+      type: Boolean,
+      default: false,
+      comment: '수동으로 매출을 설정했는지 여부'
+    },
+    revenueModifiedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+      comment: '매출을 수정한 관리자 ID'
+    },
+    revenueModifiedAt: {
+      type: Date,
+      default: null,
+      comment: '매출 수정 시각'
+    },
+    revenueChangeReason: {
+      type: String,
+      default: null,
+      comment: '매출 변경 사유'
+    },
+    revenueChangeHistory: {
+      type: [{
+        previousRevenue: { type: Number, required: true },
+        newRevenue: { type: Number, required: true },
+        modifiedBy: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'User',
+          required: true
+        },
+        modifiedAt: { type: Date, default: Date.now },
+        reason: { type: String }
+      }],
+      default: []
+    },
+
     // 등록자 목록 (v7.0: 신규 등록자만)
     registrations: {
       type: [{

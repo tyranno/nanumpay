@@ -2,75 +2,52 @@
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
 	import GradeBadge from '$lib/components/GradeBadge.svelte';
+	import RevenueAdjustModal from './RevenueAdjustModal.svelte';
 
-	let selectionMode = 'single'; // 'single' | 'range'
-	let selectedYear = new Date().getFullYear();
-	let selectedMonth = new Date().getMonth() + 1;
-	let startYear = new Date().getFullYear();
-	let startMonth = new Date().getMonth() + 1;
-	let endYear = new Date().getFullYear();
-	let endMonth = new Date().getMonth() + 1;
-	
-	// 년도 목록 (올해부터)
-	const currentYear = new Date().getFullYear();
-	const years = [currentYear];
-	
-	let monthlyData = []; // 기간 선택 시 여러 월 데이터
-	let currentMonth = '';
-	let totalRevenue = 0;
-	let monthlyNewUsers = 0;
-	let isLoading = true;
-	let activeTooltip = null;
+	let viewMode = 'single'; // 'single' | 'range'
 
-	let gradeRatios = {
-		F1: { ratio: 24, totalCount: 0, eligibleCount: 0, amount: 0, formula: '' },
-		F2: { ratio: 19, totalCount: 0, eligibleCount: 0, amount: 0, formula: '' },
-		F3: { ratio: 14, totalCount: 0, eligibleCount: 0, amount: 0, formula: '' },
-		F4: { ratio: 9, totalCount: 0, eligibleCount: 0, amount: 0, formula: '' },
-		F5: { ratio: 5, totalCount: 0, eligibleCount: 0, amount: 0, formula: '' },
-		F6: { ratio: 3, totalCount: 0, eligibleCount: 0, amount: 0, formula: '' },
-		F7: { ratio: 2, totalCount: 0, eligibleCount: 0, amount: 0, formula: '' },
-		F8: { ratio: 1, totalCount: 0, eligibleCount: 0, amount: 0, formula: '' }
-	};
+	// 단일 월 선택
+	let currentDate = new Date();
+	let selectedMonthKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
 
-	onMount(async () => {
-		await loadGradeInfo();
+	// 기간 선택
+	let startMonthKey = selectedMonthKey;
+	let endMonthKey = selectedMonthKey;
+
+	// 데이터
+	let monthlyData = null; // 단일 월 데이터
+	let rangeData = null; // 기간 데이터
+	let isLoading = false;
+
+	// 모달 상태
+	let showRevenueModal = false;
+	let modalMonthKey = null;
+
+	onMount(() => {
+		loadData();
 	});
 
-	$: if (browser && selectionMode === 'single' && selectedYear && selectedMonth) {
-		loadGradeInfo();
+	$: if (browser && viewMode === 'single' && selectedMonthKey) {
+		loadData();
 	}
 
-	$: if (browser && selectionMode === 'range' && startYear && startMonth && endYear && endMonth) {
+	$: if (browser && viewMode === 'range' && startMonthKey && endMonthKey) {
 		loadRangeData();
 	}
 
-	async function loadGradeInfo() {
+	async function loadData() {
 		try {
 			isLoading = true;
-			const response = await fetch(`/api/admin/grade-info?year=${selectedYear}&month=${selectedMonth}`);
+			const response = await fetch(`/api/admin/revenue/monthly?monthKey=${selectedMonthKey}`);
 			if (response.ok) {
-				const data = await response.json();
-
-				currentMonth = data.currentMonth || selectedMonth;
-				monthlyNewUsers = data.monthlyNewUsers || 0;
-				totalRevenue = data.monthlyRevenue || 0;
-
-				// 등급별 정보 업데이트
-				if (data.gradeInfo) {
-					Object.keys(gradeRatios).forEach(grade => {
-						if (data.gradeInfo[grade]) {
-							gradeRatios[grade].totalCount = data.gradeInfo[grade].totalCount || 0;
-							gradeRatios[grade].eligibleCount = data.gradeInfo[grade].eligibleCount || 0;
-							gradeRatios[grade].amount = data.gradeInfo[grade].amount || 0;
-							gradeRatios[grade].ratio = data.gradeInfo[grade].ratio || 0;
-							gradeRatios[grade].formula = data.gradeInfo[grade].formula || '';
-						}
-					});
-				}
+				monthlyData = await response.json();
+			} else {
+				console.error('Failed to load monthly data');
+				monthlyData = null;
 			}
 		} catch (error) {
-			console.error('Error loading grade info:', error);
+			console.error('Error loading monthly data:', error);
+			monthlyData = null;
 		} finally {
 			isLoading = false;
 		}
@@ -79,215 +56,343 @@
 	async function loadRangeData() {
 		try {
 			isLoading = true;
-			const response = await fetch(
-				`/api/admin/grade-info?mode=range&startYear=${startYear}&startMonth=${startMonth}&endYear=${endYear}&endMonth=${endMonth}`
-			);
+			const response = await fetch(`/api/admin/revenue/range?start=${startMonthKey}&end=${endMonthKey}`);
 			if (response.ok) {
-				const data = await response.json();
-				monthlyData = data.months || [];
+				rangeData = await response.json();
+			} else {
+				console.error('Failed to load range data');
+				rangeData = null;
 			}
 		} catch (error) {
 			console.error('Error loading range data:', error);
+			rangeData = null;
 		} finally {
 			isLoading = false;
 		}
 	}
 
-
-	function toggleTooltip(grade) {
-		if (activeTooltip === grade) {
-			activeTooltip = null;
-		} else {
-			activeTooltip = grade;
-		}
+	function openRevenueModal() {
+		modalMonthKey = selectedMonthKey;
+		showRevenueModal = true;
 	}
 
-	function closeTooltip() {
-		activeTooltip = null;
+	function closeRevenueModal() {
+		showRevenueModal = false;
+		modalMonthKey = null;
+	}
+
+	async function handleRevenueAdjusted() {
+		closeRevenueModal();
+		await loadData();
+	}
+
+	// 월 선택 옵션 생성 (최근 12개월)
+	function generateMonthOptions() {
+		const options = [];
+		const now = new Date();
+		for (let i = 0; i < 12; i++) {
+			const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+			const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+			options.push({
+				value: monthKey,
+				label: `${date.getFullYear()}년 ${date.getMonth() + 1}월`
+			});
+		}
+		return options;
+	}
+
+	$: monthOptions = generateMonthOptions();
+
+	// 지급 대상자 총계 계산
+	function getTotalTargets(data) {
+		if (!data || !data.paymentTargets) return 0;
+		return (
+			(data.paymentTargets.registrants?.length || 0) +
+			(data.paymentTargets.promoted?.length || 0) +
+			(data.paymentTargets.additionalPayments?.length || 0)
+		);
+	}
+
+	// 등급별 총 지급 예정액 계산 (10회분)
+	function getTotalPaymentForGrade(grade, count, monthlyData) {
+		if (!monthlyData || !monthlyData.gradePayments) return 0;
+		const perInstallment = monthlyData.gradePayments[grade] || 0;
+		return perInstallment * 10 * count;
 	}
 </script>
 
-{#if isLoading}
-	<div class="bg-white shadow-sm rounded-lg p-6">
-		<div class="flex justify-center items-center h-64">
-			<div class="text-gray-500">로딩 중...</div>
+<div class="bg-white shadow-sm rounded-lg overflow-hidden">
+	<!-- 헤더 -->
+	<div class="px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-blue-100">
+		<div class="flex flex-col gap-3">
+			<h3 class="text-lg font-semibold text-gray-900">📊 월별 매출 및 등급 통계</h3>
+
+			<!-- 조회 옵션 -->
+			<div class="flex flex-wrap items-center gap-3">
+				<div class="flex items-center gap-2">
+					<label class="text-sm text-gray-700">조회 기간:</label>
+					<label class="flex items-center gap-1 cursor-pointer">
+						<input type="radio" bind:group={viewMode} value="single" class="form-radio" />
+						<span class="text-sm">단일 월</span>
+					</label>
+					<label class="flex items-center gap-1 cursor-pointer">
+						<input type="radio" bind:group={viewMode} value="range" class="form-radio" />
+						<span class="text-sm">기간</span>
+					</label>
+				</div>
+
+				{#if viewMode === 'single'}
+					<select bind:value={selectedMonthKey} class="text-sm border-gray-300 rounded-md">
+						{#each monthOptions as option}
+							<option value={option.value}>{option.label}</option>
+						{/each}
+					</select>
+				{:else}
+					<div class="flex items-center gap-2">
+						<select bind:value={startMonthKey} class="text-sm border-gray-300 rounded-md">
+							{#each monthOptions as option}
+								<option value={option.value}>{option.label}</option>
+							{/each}
+						</select>
+						<span class="text-gray-500">~</span>
+						<select bind:value={endMonthKey} class="text-sm border-gray-300 rounded-md">
+							{#each monthOptions as option}
+								<option value={option.value}>{option.label}</option>
+							{/each}
+						</select>
+					</div>
+				{/if}
+			</div>
 		</div>
 	</div>
-{:else}
-	<div class="bg-white shadow-sm rounded-lg overflow-hidden h-full">
-		<div class="px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100">
-			<div class="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3">
-				<div class="flex-1">
-					<h3 class="text-base sm:text-lg font-medium text-gray-900">등급별 지급 정보</h3>
-					<p class="mt-1 text-xs sm:text-sm text-gray-500">
-						{currentMonth}월 매출 (익월부터 10주간 매주 금요일 지급) | 총매출: {totalRevenue.toLocaleString()}원 | 신규: {monthlyNewUsers}명
-					</p>
-				</div>
-				<div class="flex flex-wrap items-center gap-2">
-					<!-- 선택 모드 드롭다운 -->
-					<select bind:value={selectionMode} class="text-xs border-gray-300 rounded-md">
-						<option value="single">월 선택</option>
-						<option value="range">기간 선택</option>
-					</select>
 
-					{#if selectionMode === 'single'}
-						<!-- 단일 년/월 선택 -->
-						<select bind:value={selectedYear} class="text-xs border-gray-300 rounded-md">
-							{#each years as year}
-								<option value={year}>{year}년</option>
-							{/each}
-						</select>
-						<select bind:value={selectedMonth} class="text-xs border-gray-300 rounded-md">
-							{#each Array.from({length: 12}, (_, i) => i + 1) as month}
-								<option value={month}>{month}월</option>
-							{/each}
-						</select>
-					{:else}
-						<!-- 기간 선택 -->
-						<div class="flex items-center gap-1">
-							<select bind:value={startYear} class="text-xs border-gray-300 rounded-md">
-								{#each Array.from({length: 5}, (_, i) => new Date().getFullYear() - i) as year}
-									<option value={year}>{year}</option>
-								{/each}
-							</select>
-							<select bind:value={startMonth} class="text-xs border-gray-300 rounded-md">
-								{#each Array.from({length: 12}, (_, i) => i + 1) as month}
-									<option value={month}>{month}</option>
-								{/each}
-							</select>
-							<span class="text-gray-500">~</span>
-							<select bind:value={endYear} class="text-xs border-gray-300 rounded-md">
-								{#each Array.from({length: 5}, (_, i) => new Date().getFullYear() - i) as year}
-									<option value={year}>{year}</option>
-								{/each}
-							</select>
-							<select bind:value={endMonth} class="text-xs border-gray-300 rounded-md">
-								{#each Array.from({length: 12}, (_, i) => i + 1) as month}
-									<option value={month}>{month}</option>
-								{/each}
-							</select>
-						</div>
-					{/if}
+	<!-- 본문 -->
+	<div class="p-4">
+		{#if isLoading}
+			<div class="flex justify-center items-center h-64">
+				<div class="text-gray-500">로딩 중...</div>
+			</div>
+		{:else if viewMode === 'single' && monthlyData}
+			<!-- 단일 월 뷰 -->
+			<div class="space-y-4">
+				<div class="border-b border-gray-300 pb-2">
+					<h4 class="text-base font-semibold text-gray-900">
+						{selectedMonthKey.replace('-', '년 ')}월 현황
+					</h4>
 				</div>
-			</div>		</div>
-		<div class="px-2 sm:px-4 py-3 overflow-x-auto">
-			{#if selectionMode === 'single'}
-				<table class="w-full text-sm">
-					<thead>
-						<tr class="border-b border-gray-200">
-							<th class="px-2 sm:px-3 py-2 text-left text-xs font-medium text-gray-700">등급</th>
-						<th class="px-2 sm:px-3 py-2 text-center text-xs font-medium text-gray-700">전체인원</th>
-						<th class="px-2 sm:px-3 py-2 text-center text-xs font-medium text-gray-700">
-							<span class="cursor-help border-b border-dotted border-gray-400" title="매주 금요일마다 등급 기준일이 다름 (지급일 -1개월 -1일)">현재등급기준</span>
-						</th>
-						<th class="px-2 sm:px-3 py-2 text-right text-xs font-medium text-gray-700">
-							<span class="hidden sm:inline">1인당/회</span>
-							<span class="sm:hidden">1인당</span>
-						</th>
-						<th class="px-2 sm:px-3 py-2 text-right text-xs font-medium text-gray-700">
-							<span class="hidden sm:inline">지급총액/회</span>
-							<span class="sm:hidden">총액</span>
-						</th>
-						</tr>
-					</thead>
-					<tbody>
-						{#each Object.entries(gradeRatios) as [grade, data]}
-							<tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-								<td class="px-2 sm:px-3 py-2">
-									<GradeBadge {grade} size="sm" />
-								</td>
-								<td class="px-2 sm:px-3 py-2 text-xs sm:text-sm text-center text-gray-900">{data.totalCount}명</td>
-								<td class="px-2 sm:px-3 py-2 text-xs sm:text-sm text-center text-gray-900">{data.eligibleCount}명</td>
-								<td class="px-2 sm:px-3 py-2 text-xs sm:text-sm text-right text-gray-900 group relative">
-									<div class="relative inline-block">
-										<button
-											type="button"
-											class="cursor-help border-b border-dotted border-gray-400 text-left"
-											title={data.formula}
-											onclick={() => toggleTooltip(grade)}
-											onblur={closeTooltip}
-										>
-											{data.amount.toLocaleString()}
-										</button>
-										{#if data.formula}
-											<!-- 모바일용 클릭 툴팁 -->
-											{#if activeTooltip === grade}
-												<div class="sm:hidden absolute bottom-full right-0 mb-1 px-2 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap z-20">
-													{data.formula}
-													<div class="absolute top-full right-4 -mt-1">
-														<div class="border-4 border-transparent border-t-gray-800"></div>
-													</div>
-												</div>
-											{/if}
-											<!-- 데스크탑용 호버 툴팁 -->
-											<div class="hidden sm:block absolute top-full right-0 mt-1 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-10">
-												{data.formula}
-												<div class="absolute bottom-full right-4 -mb-1">
-													<div class="border-4 border-transparent border-b-gray-800"></div>
-												</div>
-											</div>
-										{/if}
-									</div>
-								</td>
-								<td class="px-2 sm:px-3 py-2 text-xs sm:text-sm text-right font-semibold text-blue-600">
-									{data.eligibleCount > 0 ? (data.amount * data.eligibleCount).toLocaleString() : '0'}원
-								</td>
-							</tr>
-						{/each}
-						<tr class="border-t-2 border-gray-300 bg-gray-50">
-							<td class="px-2 sm:px-3 py-2 text-xs sm:text-sm font-semibold text-gray-900">합계</td>
-							<td class="px-2 sm:px-3 py-2 text-xs sm:text-sm text-center font-semibold text-gray-900">
-								{Object.values(gradeRatios).reduce((sum, data) => sum + data.totalCount, 0)}명
-							</td>
-							<td class="px-2 sm:px-3 py-2 text-xs sm:text-sm text-center font-semibold text-gray-900">
-								{Object.values(gradeRatios).reduce((sum, data) => sum + data.eligibleCount, 0)}명
-							</td>
-							<td class="px-2 sm:px-3 py-2"></td>
-							<td class="px-2 sm:px-3 py-2 text-xs sm:text-sm text-right font-bold text-blue-900">
-								{Object.values(gradeRatios).reduce((sum, data) => sum + (data.eligibleCount > 0 ? data.amount * data.eligibleCount : 0), 0).toLocaleString()}원
-							</td>
-						</tr>
-					</tbody>
-				</table>
-			{:else}
-				<!-- 기간 선택 모드: 월별 스크롤 -->
-				<div class="space-y-4 max-h-96 overflow-y-auto">
-					{#each monthlyData as monthData}
-						<div class="border-b pb-4">
-							<h4 class="text-sm font-semibold text-gray-900 mb-2">
-								{monthData.year}년 {monthData.month}월 
-								<span class="text-gray-500 font-normal">
-									(총매출: {monthData.totalRevenue.toLocaleString()}원 | 신규: {monthData.newUsers}명)
+
+				<!-- 매출 정보 -->
+				<div class="bg-gray-50 p-4 rounded-lg">
+					<h5 class="text-sm font-semibold text-gray-700 mb-2">📈 매출 정보</h5>
+					<div class="space-y-1 text-sm">
+						<div>
+							<span class="text-gray-600">자동 매출:</span>
+							<span class="font-semibold">{monthlyData.totalRevenue.toLocaleString()}원</span>
+							<span class="text-gray-500 text-xs">(등록자 {monthlyData.registrationCount}명)</span>
+						</div>
+						<div>
+							<span class="text-gray-600">수동 매출:</span>
+							{#if monthlyData.isManualRevenue}
+								<span class="font-semibold text-orange-600">
+									{monthlyData.adjustedRevenue.toLocaleString()}원
 								</span>
-							</h4>
-							<table class="w-full text-sm">
-								<thead>
-									<tr class="border-b border-gray-200">
-										<th class="px-2 py-1 text-left text-xs font-medium text-gray-700">등급</th>
-										<th class="px-2 py-1 text-center text-xs font-medium text-gray-700">인원</th>
-										<th class="px-2 py-1 text-center text-xs font-medium text-gray-700">지급인원</th>
-										<th class="px-2 py-1 text-right text-xs font-medium text-gray-700">1인당/회</th>
-										<th class="px-2 py-1 text-right text-xs font-medium text-gray-700">전체/회</th>
-									</tr>
-								</thead>
-								<tbody>
-									{#each Object.entries(monthData.gradeInfo) as [grade, data]}
-										<tr class="border-b border-gray-100">
-											<td class="px-2 py-1"><GradeBadge {grade} size="sm" /></td>
-											<td class="px-2 py-1 text-xs text-center">{data.totalCount}명</td>
-											<td class="px-2 py-1 text-xs text-center text-blue-600">{data.eligibleCount}명</td>
-											<td class="px-2 py-1 text-xs text-right">{data.amount.toLocaleString()}</td>
-											<td class="px-2 py-1 text-xs text-right font-semibold text-blue-600">
-												{(data.amount * data.eligibleCount).toLocaleString()}원
+								<span class="text-xs text-gray-500">
+									({new Date(monthlyData.revenueModifiedAt).toLocaleDateString()})
+								</span>
+							{:else}
+								<span class="text-gray-400">설정 안 됨</span>
+							{/if}
+						</div>
+						<div class="mt-2">
+							<button
+								onclick={openRevenueModal}
+								class="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition"
+							>
+								수동 설정
+							</button>
+						</div>
+					</div>
+				</div>
+
+				<!-- 지급 대상자 -->
+				<div class="bg-gray-50 p-4 rounded-lg">
+					<h5 class="text-sm font-semibold text-gray-700 mb-2">👥 지급 대상자</h5>
+					<div class="grid grid-cols-2 gap-2 text-sm">
+						<div>
+							<span class="text-gray-600">등록자:</span>
+							<span class="font-semibold">{monthlyData.paymentTargets?.registrants?.length || 0}명</span>
+						</div>
+						<div>
+							<span class="text-gray-600">승급자:</span>
+							<span class="font-semibold">{monthlyData.paymentTargets?.promoted?.length || 0}명</span>
+						</div>
+						<div>
+							<span class="text-gray-600">추가지급:</span>
+							<span class="font-semibold">{monthlyData.paymentTargets?.additionalPayments?.length || 0}명</span>
+						</div>
+						<div class="col-span-2 border-t border-gray-300 pt-1 mt-1">
+							<span class="text-gray-600">총 대상자:</span>
+							<span class="font-bold">{getTotalTargets(monthlyData)}명</span>
+						</div>
+					</div>
+				</div>
+
+				<!-- 등급별 분포 및 지급액 -->
+				<div>
+					<h5 class="text-sm font-semibold text-gray-700 mb-2">
+						📊 등급별 분포 및 지급액 ({getTotalTargets(monthlyData)}명 기준)
+					</h5>
+					<div class="overflow-x-auto">
+						<table class="w-full text-sm border-collapse">
+							<thead>
+								<tr class="bg-gray-100">
+									<th class="border border-gray-300 px-3 py-2 text-left">등급</th>
+									<th class="border border-gray-300 px-3 py-2 text-center">인원</th>
+									<th class="border border-gray-300 px-3 py-2 text-right">1회 지급액</th>
+									<th class="border border-gray-300 px-3 py-2 text-right">총 지급 예정액<br/><span class="text-xs text-gray-500">(10회분)</span></th>
+								</tr>
+							</thead>
+							<tbody>
+								{#each ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'] as grade}
+									{@const count = monthlyData.gradeDistribution?.[grade] || 0}
+									{@const perInstallment = monthlyData.gradePayments?.[grade] || 0}
+									{@const totalPayment = getTotalPaymentForGrade(grade, count, monthlyData)}
+									{#if count > 0}
+										<tr class="hover:bg-gray-50">
+											<td class="border border-gray-300 px-3 py-2">
+												<GradeBadge {grade} size="sm" />
+											</td>
+											<td class="border border-gray-300 px-3 py-2 text-center">{count}명</td>
+											<td class="border border-gray-300 px-3 py-2 text-right">
+												{perInstallment.toLocaleString()}원
+											</td>
+											<td class="border border-gray-300 px-3 py-2 text-right font-semibold text-blue-600">
+												{totalPayment.toLocaleString()}원
 											</td>
 										</tr>
-									{/each}
-								</tbody>
-							</table>
-						</div>
-					{/each}
+									{/if}
+								{/each}
+								<tr class="bg-gray-100 font-bold">
+									<td class="border border-gray-300 px-3 py-2">합계</td>
+									<td class="border border-gray-300 px-3 py-2 text-center">
+										{getTotalTargets(monthlyData)}명
+									</td>
+									<td class="border border-gray-300 px-3 py-2"></td>
+									<td class="border border-gray-300 px-3 py-2 text-right text-blue-900">
+										{monthlyData.effectiveRevenue.toLocaleString()}원
+									</td>
+								</tr>
+							</tbody>
+						</table>
+					</div>
 				</div>
-			{/if}
-		</div>
+
+				<!-- 지급 상태 -->
+				<div class="bg-gray-50 p-4 rounded-lg">
+					<h5 class="text-sm font-semibold text-gray-700 mb-2">⚙️ 지급 상태</h5>
+					<div class="space-y-1 text-sm">
+						{#if monthlyData.paymentStatus}
+							{#if monthlyData.paymentStatus.hasPaid}
+								<div class="flex items-center gap-2">
+									<span class="text-yellow-600">⚠️ 진행 중 (변경 주의)</span>
+								</div>
+							{:else}
+								<div class="flex items-center gap-2">
+									<span class="text-green-600">✅ 대기 중 (변경 가능)</span>
+								</div>
+							{/if}
+							<div class="text-xs text-gray-600">
+								• 총 계획: {monthlyData.paymentStatus.totalCount}개
+								({getTotalTargets(monthlyData)}명 × 10회)
+							</div>
+							<div class="text-xs text-gray-600">
+								• 완료: {monthlyData.paymentStatus.paidCount}개
+							</div>
+							<div class="text-xs text-gray-600">
+								• 대기: {monthlyData.paymentStatus.totalCount - monthlyData.paymentStatus.paidCount}개
+							</div>
+						{/if}
+					</div>
+				</div>
+			</div>
+		{:else if viewMode === 'range' && rangeData}
+			<!-- 기간 뷰 -->
+			<div class="space-y-4">
+				<div class="border-b border-gray-300 pb-2">
+					<h4 class="text-base font-semibold text-gray-900">
+						조회 기간: {startMonthKey.replace('-', '년 ')}월 ~ {endMonthKey.replace('-', '년 ')}월
+					</h4>
+				</div>
+
+				<!-- 월별 누적 테이블 -->
+				<div class="overflow-x-auto">
+					<table class="w-full text-sm border-collapse">
+						<thead>
+							<tr class="bg-gray-100">
+								<th class="border border-gray-300 px-3 py-2 text-left">월</th>
+								<th class="border border-gray-300 px-3 py-2 text-right">매출액</th>
+								<th class="border border-gray-300 px-3 py-2 text-center">등록자</th>
+								<th class="border border-gray-300 px-3 py-2 text-center">대상자</th>
+								<th class="border border-gray-300 px-3 py-2 text-center">지급 완료</th>
+							</tr>
+						</thead>
+						<tbody>
+							{#each rangeData.monthlyData as monthData}
+								{@const [year, month] = monthData.monthKey.split('-')}
+								{@const totalTargets = getTotalTargets(monthData)}
+								<tr class="hover:bg-gray-50">
+									<td class="border border-gray-300 px-3 py-2">
+										{parseInt(month)}월
+									</td>
+									<td class="border border-gray-300 px-3 py-2 text-right">
+										{monthData.effectiveRevenue.toLocaleString()}원
+										{#if monthData.isManualRevenue}
+											<span class="text-xs text-orange-600">(수동)</span>
+										{/if}
+									</td>
+									<td class="border border-gray-300 px-3 py-2 text-center">
+										{monthData.registrationCount}명
+									</td>
+									<td class="border border-gray-300 px-3 py-2 text-center">
+										{totalTargets}명
+									</td>
+									<td class="border border-gray-300 px-3 py-2 text-center">
+										{monthData.paymentStatus.paidCount}/{monthData.paymentStatus.totalCount}
+									</td>
+								</tr>
+							{/each}
+							{#if rangeData.summary}
+								<tr class="bg-gray-100 font-bold">
+									<td class="border border-gray-300 px-3 py-2">합계</td>
+									<td class="border border-gray-300 px-3 py-2 text-right">
+										{rangeData.summary.totalRevenue.toLocaleString()}원
+									</td>
+									<td class="border border-gray-300 px-3 py-2 text-center">
+										{rangeData.summary.totalRegistrants}명
+									</td>
+									<td class="border border-gray-300 px-3 py-2 text-center" colspan="2">
+										평균 월 매출: {rangeData.summary.avgRevenue.toLocaleString()}원
+									</td>
+								</tr>
+							{/if}
+						</tbody>
+					</table>
+				</div>
+			</div>
+		{:else}
+			<div class="text-center text-gray-500 py-8">
+				데이터가 없습니다
+			</div>
+		{/if}
 	</div>
+</div>
+
+<!-- 매출 수동 설정 모달 -->
+{#if showRevenueModal && modalMonthKey}
+	<RevenueAdjustModal
+		monthKey={modalMonthKey}
+		currentData={monthlyData}
+		on:close={closeRevenueModal}
+		on:adjusted={handleRevenueAdjusted}
+	/>
 {/if}
