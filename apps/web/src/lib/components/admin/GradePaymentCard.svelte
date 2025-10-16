@@ -43,20 +43,41 @@
 		loadRangeData();
 	}
 
+	// ⭐ 단일 월에서도 paymentViewMode 변경 시 데이터 다시 로드
+	$: if (browser && viewMode === 'single' && paymentViewMode) {
+		loadData();
+	}
+
 	async function loadData() {
 		try {
 			isLoading = true;
 			const monthKey = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
-			const response = await fetch(`/api/admin/revenue/monthly?monthKey=${monthKey}`);
-			if (response.ok) {
-				monthlyData = await response.json();
+
+			// ⭐ 주간 뷰 선택 시 range API 호출
+			if (paymentViewMode === 'weekly') {
+				const response = await fetch(`/api/admin/revenue/range?start=${monthKey}&end=${monthKey}&viewMode=weekly`);
+				if (response.ok) {
+					rangeData = await response.json();
+					monthlyData = null; // 월간 데이터는 초기화
+				} else {
+					console.error('Failed to load weekly data');
+					rangeData = null;
+				}
 			} else {
-				console.error('Failed to load monthly data');
-				monthlyData = null;
+				// 월간 뷰는 기존대로
+				const response = await fetch(`/api/admin/revenue/monthly?monthKey=${monthKey}`);
+				if (response.ok) {
+					monthlyData = await response.json();
+					rangeData = null; // 기간 데이터는 초기화
+				} else {
+					console.error('Failed to load monthly data');
+					monthlyData = null;
+				}
 			}
 		} catch (error) {
-			console.error('Error loading monthly data:', error);
+			console.error('Error loading data:', error);
 			monthlyData = null;
+			rangeData = null;
 		} finally {
 			isLoading = false;
 		}
@@ -142,13 +163,18 @@
 
 	// 반응형 컬럼 생성 (명시적 의존성)
 	$: {
-		periodColumns = generatePeriodColumns(viewMode, paymentViewMode, startYear, startMonth, endYear, endMonth, rangeData);
+		// ⭐ 단일 월 + 주간 뷰도 컬럼 생성
+		if (viewMode === 'single' && paymentViewMode === 'weekly') {
+			periodColumns = generatePeriodColumns('range', paymentViewMode, selectedYear, selectedMonth, selectedYear, selectedMonth, rangeData);
+		} else {
+			periodColumns = generatePeriodColumns(viewMode, paymentViewMode, startYear, startMonth, endYear, endMonth, rangeData);
+		}
 		console.log('[GradePaymentCard] periodColumns 생성:', periodColumns.length, '개', periodColumns);
 	}
 
 	// 기간 선택 시 주차/월별 컬럼 생성
 	function generatePeriodColumns(_viewMode, _paymentViewMode, _startYear, _startMonth, _endYear, _endMonth, _rangeData) {
-		if (_viewMode !== 'range') return [];
+		if (_viewMode !== 'range' && !(_paymentViewMode === 'weekly')) return [];
 
 		const columns = [];
 
@@ -315,7 +341,7 @@
 			<div class="flex justify-center items-center h-64">
 				<div class="text-gray-500">로딩 중...</div>
 			</div>
-		{:else if monthlyData}
+		{:else if monthlyData || rangeData}
 			<div class="space-y-4">
 				<!-- 기간 표시 -->
 				<div class="border-b border-gray-300 pb-2">
@@ -332,7 +358,7 @@
 				<div class="border border-gray-300 rounded-lg bg-blue-50 px-4 py-3">
 					<div class="flex items-center justify-between">
 						<h5 class="text-sm font-semibold text-gray-900">📈 매출 정보</h5>
-						{#if viewMode === 'single'}
+						{#if viewMode === 'single' && paymentViewMode === 'monthly' && monthlyData}
 							<div class="flex items-center gap-4">
 								<div class="flex items-center gap-2">
 									<span class="text-xs text-gray-600">자동 매출:</span>
@@ -367,8 +393,14 @@
 									수동 설정
 								</button>
 							</div>
-						{:else}
-							<!-- 기간 선택 시: 총합만 표시 -->
+						{:else if viewMode === 'single' && paymentViewMode === 'weekly' && rangeData}
+							<!-- 단일 월 + 주간 뷰: 주차 정보만 표시 -->
+							<div class="flex items-center gap-2">
+								<span class="text-xs text-gray-900 font-semibold">주간 지급 통계</span>
+								<span class="text-gray-500 text-xs">(총 {periodColumns.length}주차)</span>
+							</div>
+						{:else if rangeData}
+							<!-- 기간 선택 시: 총합 표시 -->
 							<div class="flex items-center gap-2">
 								<span class="text-xs text-gray-900 font-semibold">기간 매출 총합:</span>
 								<span class="font-bold text-blue-900 text-base">
@@ -401,17 +433,15 @@
 					<div class="grade-table-wrapper">
 						<table class="grade-table">
 							<thead>
-								{#if viewMode === 'single'}
-									<!-- 단일 월 선택 시 -->
+								{#if viewMode === 'single' && paymentViewMode === 'monthly'}
+									<!-- 단일 월 + 월간 뷰 -->
 									<tr class="header-row">
 										<th class="sticky-col">등급</th>
 										<th class="data-col">인원</th>
-										<th class="data-col">
-											{paymentViewMode === 'monthly' ? '월 총액' : '주 지급액'}
-										</th>
+										<th class="data-col">월 총액</th>
 									</tr>
 								{:else}
-									<!-- 기간 선택 시 -->
+									<!-- 주간 뷰 또는 기간 선택 시 -->
 									<tr class="header-row-1">
 										<th rowspan="2" class="sticky-col">등급</th>
 										{#each periodColumns as column}
@@ -427,14 +457,12 @@
 								{/if}
 							</thead>
 							<tbody>
-								{#if viewMode === 'single'}
-									<!-- 단일 월 선택 시 -->
+								{#if viewMode === 'single' && paymentViewMode === 'monthly' && monthlyData}
+									<!-- 단일 월 + 월간 뷰 -->
 									{#each ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'] as grade}
 										{@const breakdown = getGradeBreakdown(grade, monthlyData)}
 										{@const perInstallment = monthlyData.gradePayments?.[grade] || 0}
-										{@const amount = paymentViewMode === 'monthly'
-											? perInstallment * 10 * breakdown.total
-											: perInstallment * breakdown.total}
+										{@const amount = perInstallment * 10 * breakdown.total}
 										<tr class="data-row">
 											<td class="sticky-col">
 												<GradeBadge {grade} size="sm" />
@@ -453,13 +481,11 @@
 											{getTotalTargets(monthlyData)}
 										</td>
 										<td class="data-col text-right text-blue-900">
-											{paymentViewMode === 'monthly'
-												? monthlyData.effectiveRevenue.toLocaleString()
-												: (monthlyData.effectiveRevenue / 10).toLocaleString()}
+											{monthlyData.effectiveRevenue.toLocaleString()}
 										</td>
 									</tr>
 								{:else}
-									<!-- 기간 선택 시 -->
+									<!-- 주간 뷰 또는 기간 선택 시 -->
 									{#each ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'] as grade}
 										<tr class="data-row">
 											<td class="sticky-col">

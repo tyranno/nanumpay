@@ -58,7 +58,7 @@ async function getMonthlyData(start, end) {
     }
   }).sort({ monthKey: 1 }).lean();
 
-  console.log(`=== Found ${registrations.length} months`);
+  console.log(`📊 [getMonthlyData] Found ${registrations.length} months between ${start} and ${end}`);
 
   const monthlyData = [];
   let totalRevenue = 0;
@@ -73,22 +73,53 @@ async function getMonthlyData(start, end) {
       (reg.paymentTargets?.promoted?.length || 0) +
       (reg.paymentTargets?.additionalPayments?.length || 0);
 
+    // 컴포넌트가 필요로 하는 모든 필드 포함
     monthlyData.push({
       monthKey: reg.monthKey,
-      totalRevenue: reg.totalRevenue,
+
+      // 매출 정보
+      totalRevenue: reg.totalRevenue || 0,
       adjustedRevenue: reg.adjustedRevenue,
       effectiveRevenue,
       isManualRevenue: reg.isManualRevenue || false,
-      registrationCount: reg.registrationCount,
+
+      // 등록자 정보
+      registrationCount: reg.registrationCount || 0,
       paymentTargetsCount,
-      gradeDistribution: reg.gradeDistribution || {},
-      gradePayments: reg.gradePayments || {},
+
+      // 등급별 통계 (반드시 모든 등급 포함)
+      gradeDistribution: {
+        F1: reg.gradeDistribution?.F1 || 0,
+        F2: reg.gradeDistribution?.F2 || 0,
+        F3: reg.gradeDistribution?.F3 || 0,
+        F4: reg.gradeDistribution?.F4 || 0,
+        F5: reg.gradeDistribution?.F5 || 0,
+        F6: reg.gradeDistribution?.F6 || 0,
+        F7: reg.gradeDistribution?.F7 || 0,
+        F8: reg.gradeDistribution?.F8 || 0
+      },
+
+      // 등급별 1회 지급액
+      gradePayments: {
+        F1: reg.gradePayments?.F1 || 0,
+        F2: reg.gradePayments?.F2 || 0,
+        F3: reg.gradePayments?.F3 || 0,
+        F4: reg.gradePayments?.F4 || 0,
+        F5: reg.gradePayments?.F5 || 0,
+        F6: reg.gradePayments?.F6 || 0,
+        F7: reg.gradePayments?.F7 || 0,
+        F8: reg.gradePayments?.F8 || 0
+      },
+
+      // 지급 상태
       paymentStatus,
+
+      // 매출 변경 이력
       revenueChangeHistory: reg.revenueChangeHistory || []
     });
 
     totalRevenue += effectiveRevenue;
-    totalRegistrants += reg.registrationCount;
+    totalRegistrants += reg.registrationCount || 0;
   }
 
   const avgRevenue = registrations.length > 0 ? Math.floor(totalRevenue / registrations.length) : 0;
@@ -98,6 +129,10 @@ async function getMonthlyData(start, end) {
     start,
     end,
     monthlyData,
+    // 컴포넌트가 기대하는 최상위 필드 (하위 호환성)
+    totalRevenue,
+    totalRegistrants,
+    // 상세 요약 정보
     summary: {
       totalMonths: registrations.length,
       totalRevenue,
@@ -119,64 +154,96 @@ async function getWeeklyData(start, end) {
   const [startYear, startMonth] = start.split('-').map(Number);
   const [endYear, endMonth] = end.split('-').map(Number);
 
-  console.log(`=== Weekly range: ${startYear}-${startMonth} ~ ${endYear}-${endMonth}`);
+  console.log(`📅 [getWeeklyData] Range: ${startYear}-${startMonth} ~ ${endYear}-${endMonth}`);
 
-  // 2. 금요일 기준 실제 주차 정보 생성
-  const allWeeks = getAllWeeksInPeriod(startYear, startMonth, endYear, endMonth);
-  console.log(`=== Generated ${allWeeks.length} weeks`);
+  // 2. monthKey 생성
+  const monthKeys = [];
+  for (let y = startYear; y <= endYear; y++) {
+    const sm = (y === startYear) ? startMonth : 1;
+    const em = (y === endYear) ? endMonth : 12;
+    for (let m = sm; m <= em; m++) {
+      monthKeys.push(`${y}-${String(m).padStart(2, '0')}`);
+    }
+  }
 
-  // 3. WeeklyPaymentSummary에서 주차별 데이터 조회
+  // 3. WeeklyPaymentSummary에서 실제 데이터 조회 (DB에 있는 것만)
+  const allSummaries = await WeeklyPaymentSummary.find({
+    monthKey: { $in: monthKeys }
+  }).sort({ monthKey: 1, weekNumber: 1 }).lean();
+
+  console.log(`📊 [getWeeklyData] Found ${allSummaries.length} summaries for monthKeys:`, monthKeys);
+
+  // 4. DB에 있는 summary를 기준으로 weeklyData 생성
   const weeklyData = [];
   let totalAmount = 0;
   let totalUserCount = 0;
 
-  for (const weekInfo of allWeeks) {
-    const monthKey = `${weekInfo.year}-${String(weekInfo.month).padStart(2, '0')}`;
-
-    // WeeklyPaymentSummary에서 해당 주차 데이터 찾기
-    // monthKey와 week로 조회 (weekNumber는 금요일 날짜로 계산됨)
-    const summary = await WeeklyPaymentSummary.findOne({
-      monthKey: monthKey,
-      $expr: {
-        $and: [
-          { $eq: [{ $year: '$weekDate' }, weekInfo.year] },
-          { $eq: [{ $month: '$weekDate' }, weekInfo.month] }
-        ]
-      }
-    }).lean();
-
-    // 해당 주차의 등급별 통계
-    const gradeDistribution = {};
-    const gradePayments = {};
-    let weekTotalAmount = 0;
-    let weekUserCount = 0;
-
-    if (summary && summary.byGrade) {
-      Object.entries(summary.byGrade).forEach(([grade, data]) => {
-        gradeDistribution[grade] = data.userCount || 0;
-        gradePayments[grade] = data.amountPerUser || 0;
-        weekTotalAmount += data.totalAmount || 0;
-        weekUserCount += data.userCount || 0;
-      });
+  // monthKey별로 그룹화하여 주차 순번 부여
+  const summaryByMonth = {};
+  allSummaries.forEach(s => {
+    if (!summaryByMonth[s.monthKey]) {
+      summaryByMonth[s.monthKey] = [];
     }
+    summaryByMonth[s.monthKey].push(s);
+  });
 
-    weeklyData.push({
-      year: weekInfo.year,
-      month: weekInfo.month,
-      week: weekInfo.week,
-      weekCount: weekInfo.weekCount,
-      monthKey: monthKey,
-      weekLabel: `${weekInfo.year}년 ${weekInfo.month}월 ${weekInfo.week}주`,
-      gradeDistribution,
-      gradePayments,
-      totalAmount: weekTotalAmount,
-      userCount: weekUserCount,
-      weekDate: summary?.weekDate || null,
-      status: summary?.status || 'pending'
+  // 각 monthKey별로 주차 처리
+  for (const monthKey of monthKeys) {
+    const monthSummaries = summaryByMonth[monthKey] || [];
+
+    monthSummaries.forEach((summary, index) => {
+      const [year, month] = monthKey.split('-').map(Number);
+      const weekNumber = index + 1;  // 1부터 시작하는 주차 번호
+
+      // 해당 주차의 등급별 통계 (반드시 모든 등급 포함)
+      const gradeDistribution = {
+        F1: 0, F2: 0, F3: 0, F4: 0, F5: 0, F6: 0, F7: 0, F8: 0
+      };
+      const gradePayments = {
+        F1: 0, F2: 0, F3: 0, F4: 0, F5: 0, F6: 0, F7: 0, F8: 0
+      };
+      let weekTotalAmount = 0;
+      let weekUserCount = 0;
+
+      if (summary && summary.byGrade) {
+        Object.entries(summary.byGrade).forEach(([grade, data]) => {
+          const userCount = data.userCount || 0;
+          const totalAmount = data.amount || 0;  // ⭐ 스키마에 맞게 수정
+          const amountPerUser = userCount > 0 ? Math.floor(totalAmount / userCount) : 0;
+
+          gradeDistribution[grade] = userCount;
+          gradePayments[grade] = amountPerUser;  // 1인당 평균 지급액
+          weekTotalAmount += totalAmount;
+          weekUserCount += userCount;
+        });
+      }
+
+      // 컴포넌트가 필요로 하는 형식으로 데이터 구성
+      weeklyData.push({
+        year: year,
+        month: month,
+        week: weekNumber,
+        weekCount: monthSummaries.length,  // 해당 월의 총 주차 수
+        monthKey: monthKey,
+        weekLabel: `${year}년 ${month}월 ${weekNumber}주`,
+
+        // 등급별 통계
+        gradeDistribution,
+        gradePayments,
+
+        // 주차별 합계
+        totalAmount: weekTotalAmount,
+        userCount: weekUserCount,
+
+        // 메타 정보
+        weekDate: summary?.weekDate || null,
+        weekNumber: summary?.weekNumber || null,
+        status: summary?.status || 'pending'
+      });
+
+      totalAmount += weekTotalAmount;
+      totalUserCount += weekUserCount;
     });
-
-    totalAmount += weekTotalAmount;
-    totalUserCount += weekUserCount;
   }
 
   const response = {
@@ -184,11 +251,15 @@ async function getWeeklyData(start, end) {
     start,
     end,
     weeklyData,
+    // 컴포넌트가 기대하는 최상위 필드 (하위 호환성)
+    totalRevenue: totalAmount,  // 주간은 totalAmount를 totalRevenue로 매핑
+    totalRegistrants: totalUserCount,
+    // 상세 요약 정보
     summary: {
-      totalWeeks: allWeeks.length,
+      totalWeeks: weeklyData.length,  // DB에 실제 있는 주차 수
       totalAmount,
       totalUserCount,
-      avgAmount: allWeeks.length > 0 ? Math.floor(totalAmount / allWeeks.length) : 0
+      avgAmount: weeklyData.length > 0 ? Math.floor(totalAmount / weeklyData.length) : 0
     }
   };
 

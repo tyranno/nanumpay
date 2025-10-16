@@ -35,6 +35,7 @@ export async function GET({ url, locals }) {
 			const monthlyReg = await MonthlyRegistrations.findOne({ monthKey });
 
 			if (!monthlyReg) {
+				// 데이터가 없을 때 기본 구조 반환
 				return json({
 					monthKey,
 					totalRevenue: 0,
@@ -58,38 +59,82 @@ export async function GET({ url, locals }) {
 						paidCount: 0,
 						totalCount: 0
 					},
-					revenueChangeHistory: []
+					revenueChangeHistory: [],
+					revenueModifiedBy: null,
+					revenueModifiedAt: null,
+					revenueChangeReason: null
 				});
 			}
 
 			// 지급 상태 확인
 			const paymentStatus = await checkPaymentStatus(monthKey);
 
-			// 응답 데이터 구성
+			// 응답 데이터 구성 (웹 컴포넌트가 필요로 하는 모든 필드 포함)
 			const response = {
+				// 기본 정보
 				monthKey: monthlyReg.monthKey,
-				totalRevenue: monthlyReg.totalRevenue,
+
+				// 매출 정보
+				totalRevenue: monthlyReg.totalRevenue || 0,
 				adjustedRevenue: monthlyReg.adjustedRevenue,
 				effectiveRevenue: monthlyReg.getEffectiveRevenue(),
 				isManualRevenue: monthlyReg.isManualRevenue || false,
-				registrationCount: monthlyReg.registrationCount,
-				paymentTargets: monthlyReg.paymentTargets || {
-					registrants: [],
-					promoted: [],
-					additionalPayments: []
+
+				// 등록자 정보
+				registrationCount: monthlyReg.registrationCount || 0,
+
+				// 지급 대상자 (v7.0)
+				paymentTargets: {
+					registrants: monthlyReg.paymentTargets?.registrants || [],
+					promoted: monthlyReg.paymentTargets?.promoted || [],
+					additionalPayments: monthlyReg.paymentTargets?.additionalPayments || []
 				},
-				gradeDistribution: monthlyReg.gradeDistribution || {},
-				gradePayments: monthlyReg.gradePayments || {},
+
+				// 등급별 통계
+				gradeDistribution: {
+					F1: monthlyReg.gradeDistribution?.F1 || 0,
+					F2: monthlyReg.gradeDistribution?.F2 || 0,
+					F3: monthlyReg.gradeDistribution?.F3 || 0,
+					F4: monthlyReg.gradeDistribution?.F4 || 0,
+					F5: monthlyReg.gradeDistribution?.F5 || 0,
+					F6: monthlyReg.gradeDistribution?.F6 || 0,
+					F7: monthlyReg.gradeDistribution?.F7 || 0,
+					F8: monthlyReg.gradeDistribution?.F8 || 0
+				},
+
+				// 등급별 1회 지급액
+				gradePayments: {
+					F1: monthlyReg.gradePayments?.F1 || 0,
+					F2: monthlyReg.gradePayments?.F2 || 0,
+					F3: monthlyReg.gradePayments?.F3 || 0,
+					F4: monthlyReg.gradePayments?.F4 || 0,
+					F5: monthlyReg.gradePayments?.F5 || 0,
+					F6: monthlyReg.gradePayments?.F6 || 0,
+					F7: monthlyReg.gradePayments?.F7 || 0,
+					F8: monthlyReg.gradePayments?.F8 || 0
+				},
+
+				// 지급 상태
 				paymentStatus,
+
+				// 매출 변경 이력
 				revenueChangeHistory: monthlyReg.revenueChangeHistory || [],
-				revenueModifiedBy: monthlyReg.revenueModifiedBy,
-				revenueModifiedAt: monthlyReg.revenueModifiedAt,
-				revenueChangeReason: monthlyReg.revenueChangeReason,
-				monthlyTotals: monthlyReg.monthlyTotals || {},
-				totalPayment: monthlyReg.totalPayment || 0
+				revenueModifiedBy: monthlyReg.revenueModifiedBy || null,
+				revenueModifiedAt: monthlyReg.revenueModifiedAt || null,
+				revenueChangeReason: monthlyReg.revenueChangeReason || null
 			};
 
-			console.log(`✅ [GET /api/admin/revenue/monthly] Found data for ${monthKey}`);
+			console.log(`✅ [GET /api/admin/revenue/monthly] Response:`, {
+				monthKey: response.monthKey,
+				totalRevenue: response.totalRevenue,
+				effectiveRevenue: response.effectiveRevenue,
+				registrationCount: response.registrationCount,
+				paymentTargetsCount: {
+					registrants: response.paymentTargets.registrants.length,
+					promoted: response.paymentTargets.promoted.length,
+					additionalPayments: response.paymentTargets.additionalPayments.length
+				}
+			});
 
 			return json(response);
 		}

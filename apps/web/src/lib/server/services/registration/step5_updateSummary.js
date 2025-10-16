@@ -92,43 +92,58 @@ export async function executeStep5(plans, registrationMonth) {
   let updatedWeeks = 0;
 
   for (const [weekNumber, data] of Object.entries(weeklyData)) {
-    // 등급별 userCount 계산 (Set 크기)
+    // ISO 주차 포맷으로 변환 (예: "202530" -> "2025-W30")
+    const isoWeekNumber = weekNumber.toString().replace(/^(\d{4})(\d{2})$/, '$1-W$2');
+
+    // 등급별 userCount 계산 (Set 크기) 및 스키마에 맞게 구성
     const byGrade = {};
+    let totalAmount = 0;
+    let totalTax = 0;
+    let totalNet = 0;
+    let totalUserCount = 0;
+    let totalPaymentCount = 0;
+
     for (const [grade, gradeData] of Object.entries(data.byGrade)) {
+      const userCount = gradeData.userIds.size;
+      const amount = gradeData.totalAmount;
+      const tax = Math.round(amount * 0.033);
+      const net = amount - tax;
+      const paymentCount = userCount; // 1인당 1건
+
       byGrade[grade] = {
-        userCount: gradeData.userIds.size,
-        totalAmount: gradeData.totalAmount
+        amount,
+        tax,
+        net,
+        userCount,
+        paymentCount
       };
+
+      totalAmount += amount;
+      totalTax += tax;
+      totalNet += net;
+      totalUserCount += userCount;
+      totalPaymentCount += paymentCount;
     }
 
-    // totalAmount 계산
-    const totalAmount = Object.values(byGrade).reduce(
-      (sum, g) => sum + g.totalAmount,
-      0
-    );
-
-    // 세금 계산 (3.3%)
-    const totalTax = Math.round(totalAmount * 0.033);
-    const totalNet = totalAmount - totalTax;
-
-    // WeeklyPaymentSummary 생성/업데이트
+    // WeeklyPaymentSummary 생성/업데이트 (스키마에 맞게)
     await WeeklyPaymentSummary.findOneAndUpdate(
-      { weekNumber: parseInt(weekNumber) },
+      { weekNumber: isoWeekNumber },
       {
-        weekNumber: parseInt(weekNumber),
+        weekNumber: isoWeekNumber,  // ⭐ String 타입, ISO 형식
         weekDate: data.weekDate,
         monthKey: data.monthKey,
-        byGrade,
         totalAmount,
         totalTax,
         totalNet,
-        status: 'pending'
+        totalUserCount,
+        totalPaymentCount,
+        byGrade,
+        status: 'scheduled'  // ⭐ enum 값 수정
       },
       { upsert: true, new: true }
     );
 
-    const totalUsers = Object.values(byGrade).reduce((sum, g) => sum + g.userCount, 0);
-    console.log(`    ✓ 주차 ${weekNumber}: ${totalAmount.toLocaleString()}원 (${totalUsers}명)`);
+    console.log(`    ✓ 주차 ${isoWeekNumber}: ${totalAmount.toLocaleString()}원 (${totalUserCount}명)`);
     updatedWeeks++;
   }
 
