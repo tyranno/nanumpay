@@ -28,15 +28,11 @@ import { calculateNextFriday } from '../../utils/dateUtils.js';
  * @returns {Promise<Object>}
  */
 export async function executeStep4(promoted, targets, gradePayments, monthlyReg, registrationMonth) {
-  console.log('\n[Step 4] 지급 계획 생성 (3가지 유형)');
-  console.log('='.repeat(80));
 
   // ⭐ 0. 기존 계획 삭제 (revenueMonth 기준 - 기본+추가 모두!)
-  console.log('\n  [4-0. 기존 계획 삭제]');
   const deleteResult = await WeeklyPaymentPlans.deleteMany({
     revenueMonth: registrationMonth
   });
-  console.log(`  ✓ ${registrationMonth} 계획 ${deleteResult.deletedCount}건 삭제 (기본+추가 모두)`);
 
   const { promotedTargets, registrantF1Targets, additionalTargets } = targets;
 
@@ -45,7 +41,6 @@ export async function executeStep4(promoted, targets, gradePayments, monthlyReg,
   const additionalPlans = [];
 
   // 4-1. 이번 배치 등록자 계획 생성
-  console.log('\n  [4-1. 이번 배치 등록자 계획 생성]');
 
   // ⭐ monthlyReg.registrations 사용 (users 파라미터 제거)
   for (const registration of monthlyReg.registrations) {
@@ -58,8 +53,6 @@ export async function executeStep4(promoted, targets, gradePayments, monthlyReg,
 
     if (promotion) {
       // ⭐ 승급한 경우: newGrade Promotion만 생성 (oldGrade Initial 생성 안 함!)
-      console.log(`  ${userName}: 등록과 동시 승급 (${promotion.oldGrade} → ${promotion.newGrade})`);
-      console.log(`    → ${promotion.oldGrade} Initial 생성 안 함, ${promotion.newGrade} Promotion만 생성`);
 
       // newGrade Promotion 계획만 생성
       const promotionPlan = await createPromotionPaymentPlan(
@@ -75,17 +68,14 @@ export async function executeStep4(promoted, targets, gradePayments, monthlyReg,
         grade: promotion.newGrade,
         plan: promotionPlan._id
       });
-      console.log(`    ✓ Promotion 계획 생성 (${promotion.newGrade}): ${promotionPlan._id}`);
 
       // ⭐ 기존 추가지급 계획 중단 (승급 시)
       const terminatedCount = await terminateAdditionalPaymentPlans(userId, registrationMonth);
       if (terminatedCount > 0) {
-        console.log(`    ✓ 기존 추가지급 계획 중단: ${terminatedCount}건`);
       }
 
     } else {
       // 미승급 경우: F1 Initial 계획만
-      console.log(`  ${userName}: 미승급 (F1)`);
 
       const initialPlan = await createInitialPaymentPlan(
         userId,
@@ -99,27 +89,22 @@ export async function executeStep4(promoted, targets, gradePayments, monthlyReg,
         grade: 'F1',
         plan: initialPlan._id
       });
-      console.log(`    ✓ Initial 계획 생성 (F1): ${initialPlan._id}`);
     }
   }
 
   // 4-2. 기존 사용자 중 승급자 계획 생성
-  console.log('\n  [4-2. 기존 사용자 중 승급자 계획 생성]');
 
   const currentBatchIds = monthlyReg.registrations.map(r => r.userId);
   const existingPromoted = promotedTargets.filter(p => !currentBatchIds.includes(p.userId));
 
   if (existingPromoted.length > 0) {
-    console.log(`  기존 사용자 승급: ${existingPromoted.length}명`);
 
     for (const prom of existingPromoted) {
       const user = await User.findOne({ loginId: prom.userId });
       if (!user) {
-        console.log(`    ⚠️ 사용자를 찾을 수 없음: ${prom.userId}`);
         continue;
       }
 
-      console.log(`  ${prom.userName}: ${prom.oldGrade} → ${prom.grade}`);
 
       // ⭐ 승급일 = registrationMonth의 첫날 (매출 귀속 월과 동일)
       const [year, month] = registrationMonth.split('-').map(Number);
@@ -139,26 +124,20 @@ export async function executeStep4(promoted, targets, gradePayments, monthlyReg,
         grade: prom.grade,
         plan: promotionPlan._id
       });
-      console.log(`    ✓ Promotion 계획 생성 (${prom.grade}): ${promotionPlan._id}`);
 
       // 기존 추가지급 계획 중단
       const terminatedCount = await terminateAdditionalPaymentPlans(prom.userId, registrationMonth);
       if (terminatedCount > 0) {
-        console.log(`    ✓ 추가지급 계획 중단: ${terminatedCount}건`);
       }
     }
   } else {
-    console.log(`  기존 사용자 승급 없음`);
   }
 
   // 4-3. 추가지급 대상자 계획 생성
-  console.log('\n  [4-3. 추가지급 대상자 계획 생성]');
 
   if (additionalTargets.length > 0) {
-    console.log(`  추가지급 대상자: ${additionalTargets.length}명`);
 
     for (const target of additionalTargets) {
-      console.log(`  ${target.userName} (${target.grade}) - ${target.추가지급단계}차`);
 
       const additionalPlan = await createAdditionalPaymentPlan(
         target.userId,
@@ -177,16 +156,12 @@ export async function executeStep4(promoted, targets, gradePayments, monthlyReg,
           추가지급단계: target.추가지급단계,
           plan: additionalPlan._id
         });
-        console.log(`    ✓ Additional 계획 생성: ${additionalPlan._id}`);
       } else {
-        console.log(`    ⚠️ Additional 계획 생성 실패`);
       }
     }
   } else {
-    console.log(`  추가지급 대상자 없음`);
   }
 
-  console.log('='.repeat(80));
 
   return {
     registrantPlans,
@@ -211,7 +186,6 @@ async function createAdditionalPaymentPlan(userId, userName, grade, 추가지급
     // 1. 지급액 계산 (10분할)
     const baseAmount = gradePayments[grade] || 0;
     if (baseAmount === 0) {
-      console.log(`    ⚠️ 지급액이 0원 - 계획 생성 건너뜀`);
       return null;
     }
 
@@ -219,14 +193,12 @@ async function createAdditionalPaymentPlan(userId, userName, grade, 추가지급
     const withholdingTax = Math.round(installmentAmount * 0.033);
     const netAmount = installmentAmount - withholdingTax;
 
-    console.log(`    지급액: ${installmentAmount.toLocaleString()}원/회`);
 
     // 2. 지급 시작일 = 다음 달 첫 금요일
     const [year, month] = revenueMonth.split('-').map(Number);
     const nextMonthStart = new Date(year, month, 1);  // 다음 달 1일
     const firstPaymentDate = calculateNextFriday(nextMonthStart);
 
-    console.log(`    시작일: ${firstPaymentDate.toISOString().split('T')[0]}`);
 
     // 3. 10회 installments 생성
     const installments = [];
@@ -281,7 +253,6 @@ async function createAdditionalPaymentPlan(userId, userName, grade, 추가지급
     return newPlan;
 
   } catch (error) {
-    console.error(`추가지급 계획 생성 실패 (${userId}):`, error);
     return null;
   }
 }
@@ -295,13 +266,10 @@ async function createAdditionalPaymentPlan(userId, userName, grade, 추가지급
  */
 async function terminateAdditionalPaymentPlans(userId, registrationMonth) {
   try {
-    console.log(`\n[v7.0 추가지급중단] ${userId} 승급으로 인한 추가지급 중단 시작`);
-    console.log(`  승급 월: ${registrationMonth}`);
 
     // 승급 다음 달 계산 (예: 9월 승급 → 10월부터 중단)
     const [year, month] = registrationMonth.split('-').map(Number);
     const stopDate = new Date(Date.UTC(year, month, 1));  // ⭐ UTC 기준 다음 달 1일
-    console.log(`  중단 시작일: ${stopDate.toISOString().split('T')[0]} (${registrationMonth} 다음 달)`);
 
     // 모든 active 추가지급 계획 조회
     const plans = await WeeklyPaymentPlans.find({
@@ -310,14 +278,10 @@ async function terminateAdditionalPaymentPlans(userId, registrationMonth) {
       installmentType: 'additional'
     });
 
-    console.log(`  대상 계획: ${plans.length}개`);
 
     let terminatedCount = 0;
 
     for (const plan of plans) {
-      console.log(`\n  [계획 ${plan._id}]`);
-      console.log(`    매출월: ${plan.revenueMonth}`);
-      console.log(`    추가지급단계: ${plan.추가지급단계}`);
 
       let hasCanceled = false;
       let hasActive = false;
@@ -350,9 +314,7 @@ async function terminateAdditionalPaymentPlans(userId, registrationMonth) {
           updateFields.planStatus = 'terminated';
           updateFields.terminatedBy = 'promotion_additional_stop';
           updateFields.terminatedAt = new Date();
-          console.log(`    ✓ planStatus: terminated (모든 회차 완료)`);
         } else {
-          console.log(`    ✓ 일부 회차 canceled (계획은 active 유지)`);
         }
 
         await WeeklyPaymentPlans.updateOne(
@@ -362,18 +324,14 @@ async function terminateAdditionalPaymentPlans(userId, registrationMonth) {
         );
         terminatedCount++;
 
-        console.log(`    ✓ ${stopDate.toISOString().split('T')[0]} 이후 회차 canceled`);
       } else {
-        console.log(`    - 중단할 회차 없음 (모두 이전 또는 완료됨)`);
       }
     }
 
-    console.log(`\n[v7.0 추가지급중단] 완료: ${terminatedCount}개 계획 수정\n`);
 
     return terminatedCount;
 
   } catch (error) {
-    console.error(`추가지급 계획 중단 실패 (${userId}):`, error);
     return 0;
   }
 }

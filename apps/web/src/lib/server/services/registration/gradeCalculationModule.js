@@ -16,29 +16,20 @@ import { excelLogger as logger } from '../../logger.js';
  * @returns {Object} { changedUsers: Array, ... }
  */
 export async function recalculateGrades() {
-  console.log('\n[gradeCalculationModule] 등급 재계산 시작');
-  console.log('='.repeat(80));
 
-  logger.info('등급 재계산 시작...');
 
   const gradeChangeResult = await recalculateAllGrades();
   const changedUsers = gradeChangeResult.changedUsers || [];
 
-  logger.info(`등급 재계산 완료: ${changedUsers.length}명 변경`);
 
-  console.log('='.repeat(80));
-  console.log(`[gradeCalculationModule] 등급 재계산 완료: ${changedUsers.length}명 변경`);
 
   if (changedUsers.length > 0) {
-    console.log('  변경된 사용자:');
     changedUsers.forEach(u => {
       if (u.changeType === 'grade_change' && u.oldGrade && u.newGrade) {
-        console.log(`    - ${u.userName}: ${u.oldGrade} → ${u.newGrade}`);
       }
     });
   }
 
-  console.log('='.repeat(80));
 
   return gradeChangeResult;
 }

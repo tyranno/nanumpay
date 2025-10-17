@@ -20,8 +20,6 @@ import { getWeekNumber } from '../../utils/dateUtils.js';
  * @returns {Promise<Object>}
  */
 export async function executeStep5(plans, registrationMonth) {
-  console.log('\n[Step 5] 주별/월별 총계 업데이트');
-  console.log('='.repeat(80));
 
   const { registrantPlans, promotionPlans, additionalPlans } = plans;
   const allPlanIds = [
@@ -30,11 +28,8 @@ export async function executeStep5(plans, registrationMonth) {
     ...additionalPlans.map(p => p.plan)
   ];
 
-  console.log(`  총 계획 수: ${allPlanIds.length}건`);
 
   if (allPlanIds.length === 0) {
-    console.log(`  업데이트할 계획 없음`);
-    console.log('='.repeat(80));
     return { updatedWeeks: 0, updatedMonths: 0 };
   }
 
@@ -43,12 +38,10 @@ export async function executeStep5(plans, registrationMonth) {
     _id: { $in: allPlanIds }
   });
 
-  console.log(`  조회된 계획: ${allPlans.length}건\n`);
 
   // ========================================
   // 5-1. 주별 총계 생성/업데이트
   // ========================================
-  console.log('  [5-1. 주별 총계 (WeeklyPaymentSummary)]');
 
   const weeklyData = {};
 
@@ -143,16 +136,13 @@ export async function executeStep5(plans, registrationMonth) {
       { upsert: true, new: true }
     );
 
-    console.log(`    ✓ 주차 ${isoWeekNumber}: ${totalAmount.toLocaleString()}원 (${totalUserCount}명)`);
     updatedWeeks++;
   }
 
-  console.log(`\n    총 ${updatedWeeks}개 주차 업데이트 완료`);
 
   // ========================================
   // 5-2. 월별 총계 생성/업데이트
   // ========================================
-  console.log('\n  [5-2. 월별 총계 (MonthlyRegistrations)]');
 
   // 모든 활성 계획 조회 (해당 월 귀속)
   const allActivePlans = await WeeklyPaymentPlans.find({
@@ -160,7 +150,6 @@ export async function executeStep5(plans, registrationMonth) {
     planStatus: { $in: ['active', 'completed'] }
   });
 
-  console.log(`    ${registrationMonth} 귀속 계획: ${allActivePlans.length}건`);
 
   // 월별 총계 계산
   const monthlyData = {
@@ -218,12 +207,9 @@ export async function executeStep5(plans, registrationMonth) {
 
     await monthlyReg.save();
 
-    console.log(`    ✓ ${registrationMonth} 월별 총계: ${totalPayment.toLocaleString()}원 (${totalUsers}명)`);
   } else {
-    console.log(`    ⚠️ ${registrationMonth} MonthlyRegistrations 없음`);
   }
 
-  console.log('='.repeat(80));
 
   return {
     updatedWeeks,

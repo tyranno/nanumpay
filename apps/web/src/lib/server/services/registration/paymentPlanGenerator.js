@@ -21,13 +21,10 @@ import {
  * @returns {Promise<Array>} 생성된 계획 정보
  */
 export async function createRegistrantPlans(registrants) {
-  console.log('\n[paymentPlanGenerator] 등록자 지급 계획 생성 시작');
-  console.log(`  대상자: ${registrants.length}명`);
 
   const plans = [];
 
   for (const registrant of registrants) {
-    console.log(`  - ${registrant.userName} (${registrant.grade})`);
 
     const plan = await createInitialPaymentPlan(
       registrant.userId,
@@ -43,14 +40,11 @@ export async function createRegistrantPlans(registrants) {
       planObject: plan
     });
 
-    console.log(`    ✓ Initial 계획 생성 완료: ${plan.installments.length}개 할부`);
     if (plan.installments.length > 0) {
       const first = plan.installments[0];
-      console.log(`      첫 지급: ${first.weekNumber} (${first.paymentDate?.toISOString().split('T')[0]})`);
     }
   }
 
-  console.log(`  ✅ 등록자 ${plans.length}건 계획 생성 완료`);
 
   return plans;
 }
@@ -64,18 +58,13 @@ export async function createRegistrantPlans(registrants) {
  * @returns {Promise<Array>} 생성된 계획 정보
  */
 export async function createPromotionPlans(promoted, promotionDate, updatedMonthlyReg) {
-  console.log('\n[paymentPlanGenerator] 승급자 지급 계획 생성 시작');
-  console.log(`  대상자: ${promoted.length}명`);
-  console.log(`  승급일: ${promotionDate.toISOString().split('T')[0]}`);
 
   const plans = [];
 
   for (const prom of promoted) {
-    console.log(`  - ${prom.userName}: ${prom.oldGrade} → ${prom.newGrade}`);
 
     const user = await User.findOne({ loginId: prom.userId });
     if (!user) {
-      console.log(`    ⚠️ 사용자를 찾을 수 없음: ${prom.userId}`);
       continue;
     }
 
@@ -88,9 +77,6 @@ export async function createPromotionPlans(promoted, promotionDate, updatedMonth
       updatedMonthlyReg
     );
 
-    console.log(`    ✓ Promotion 계획 생성 완료: ${promotionPlan._id}`);
-    console.log(`      매출월: ${promotionPlan.revenueMonth}`);
-    console.log(`      금액: ${promotionPlan.installments[0]?.installmentAmount || 0}원`);
 
     // ⭐ 중요: 같은 달에 등록+승급이 일어난 경우, Initial 계획 삭제!
     const initialPlan = await WeeklyPaymentPlans.findOne({
@@ -100,7 +86,6 @@ export async function createPromotionPlans(promoted, promotionDate, updatedMonth
     });
 
     if (initialPlan) {
-      console.log(`    [삭제] ${user.name}의 Initial 계획 삭제 (같은 달 등록+승급) - ID: ${initialPlan._id}`);
       await WeeklyPaymentPlans.deleteOne({ _id: initialPlan._id });
     }
 
@@ -113,7 +98,6 @@ export async function createPromotionPlans(promoted, promotionDate, updatedMonth
     });
   }
 
-  console.log(`  ✅ 승급자 ${plans.length}건 계획 생성 완료`);
 
   return plans;
 }

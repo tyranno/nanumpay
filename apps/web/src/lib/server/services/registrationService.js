@@ -33,34 +33,14 @@ import {
  */
 export async function processUserRegistration(userIds) {
   try {
-    logger.info(`=== 용역자 등록 처리 시작 (v7.0 모듈화) ===`, {
-      userCount: userIds.length,
-      timestamp: new Date().toISOString()
-    });
-
-    console.log('\n');
-    console.log('='.repeat(80));
-    console.log('📋 용역자 등록 처리 v7.0 (5단계)');
-    console.log('='.repeat(80));
-
     // ========================================
     // Step 1: 사용자 정보 조회
     // ========================================
-    console.log('\n[Step 1] 사용자 정보 조회');
-    console.log('='.repeat(80));
-
     const users = await User.find({ _id: { $in: userIds } });
     if (!users || users.length === 0) {
       throw new Error('등록된 사용자를 찾을 수 없습니다.');
     }
 
-    console.log(`  등록 대상: ${users.length}명`);
-    users.forEach(u => {
-      const regDate = u.registrationDate || u.createdAt;
-      console.log(`    - ${u.name} (${u.loginId}), 등록일: ${regDate?.toISOString().split('T')[0]}, 등급: ${u.grade}`);
-    });
-
-    console.log('='.repeat(80));
 
     // ========================================
     // Step 2: 등급 재계산 및 월별 인원 관리 ⭐ 핵심
@@ -110,35 +90,6 @@ export async function processUserRegistration(userIds) {
       ...additionalPlans
     ];
 
-    logger.info(`=== 용역자 등록 처리 완료 (v7.0 모듈화) ===`, {
-      신규등록: users.length,
-      승급자: promoted.length,
-      지급계획: allPlans.length,
-      추가지급: additionalTargets.length,
-      주별총계: updatedWeeks,
-      월별총계: updatedMonths
-    });
-
-    console.log('\n');
-    console.log('='.repeat(80));
-    console.log(`✅ 등록 처리 완료`);
-    console.log('='.repeat(80));
-    console.log(`  - 신규 등록: ${users.length}명`);
-    console.log(`  - 승급자: ${promoted.length}명`);
-    console.log(`  - 추가지급: ${additionalTargets.length}명`);
-    console.log(`\n  - 지급 계획: ${allPlans.length}건`);
-    console.log(`    · Initial: ${registrantPlans.length}건`);
-    console.log(`    · Promotion: ${promotionPlans.length}건`);
-    console.log(`    · Additional: ${additionalPlans.length}건`);
-    console.log(`\n  - 총계 업데이트:`);
-    console.log(`    · 주별 총계: ${updatedWeeks}건`);
-    console.log(`    · 월별 총계: ${updatedMonths}건`);
-    console.log(`\n  - 월별 정보:`);
-    console.log(`    · 귀속월: ${monthlyReg.monthKey}`);
-    console.log(`    · 등록자: ${monthlyReg.registrationCount}명 (승급 ${monthlyReg.promotedCount}명, 미승급 ${monthlyReg.nonPromotedCount}명)`);
-    console.log(`    · 매출: ${monthlyReg.totalRevenue.toLocaleString()}원`);
-    console.log(`    · 총 지급액: ${monthlyReg.totalPayment?.toLocaleString() || 0}원`);
-    console.log('='.repeat(80));
 
     return {
       success: true,
@@ -160,7 +111,6 @@ export async function processUserRegistration(userIds) {
 
   } catch (error) {
     logger.error('용역자 등록 처리 실패:', error);
-    console.error('❌ 등록 처리 실패:', error);
     throw error;
   }
 }

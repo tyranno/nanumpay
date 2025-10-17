@@ -164,40 +164,29 @@ weeklyPaymentPlansSchema.statics.getISOWeek = function(date) {
 // UTC 기준으로 계산하여 타임존 문제 방지
 weeklyPaymentPlansSchema.statics.getNextFriday = function(date) {
   const d = new Date(date);
-  console.log(`[getNextFriday-v2] === 시작 ===`);
-  console.log(`[getNextFriday-v2] 입력 date: ${date}`);
-  console.log(`[getNextFriday-v2] Date 객체: ${d.toISOString()}`);
   
   const dayOfWeek = d.getUTCDay();  // UTC 기준 요일
-  console.log(`[getNextFriday-v2] UTC 요일: ${dayOfWeek} (0=일, 5=금)`);
-  console.log(`[getNextFriday-v2] UTC 날짜 부분: ${d.toISOString().split('T')[0]}`);
 
   // 이미 금요일이면 그대로 반환
   if (dayOfWeek === 5) {
     d.setUTCHours(0, 0, 0, 0);
-    console.log(`[getNextFriday-v2] 이미 금요일! UTC 시간 설정 후: ${d.toISOString()}`);
-    console.log(`[getNextFriday-v2] 최종 반환: ${d.toISOString().split('T')[0]}`);
     return d;
   }
 
   // 다음 금요일까지 일수 계산
   const daysUntilFriday = (5 - dayOfWeek + 7) % 7;
-  console.log(`[getNextFriday-v2] 금요일까지 ${daysUntilFriday}일 후`);
   
   // UTC 기준으로 날짜 더하기
   const beforeAdd = d.getUTCDate();
   d.setUTCDate(d.getUTCDate() + daysUntilFriday);
-  console.log(`[getNextFriday-v2] UTC 날짜 변경: ${beforeAdd} → ${d.getUTCDate()}`);
   
   d.setUTCHours(0, 0, 0, 0);
-  console.log(`[getNextFriday-v2] 최종 결과: ${d.toISOString().split('T')[0]}`);
   return d;
 };
 
 // 헬퍼 메소드: 등록일+1개월 후 첫 금요일
 weeklyPaymentPlansSchema.statics.getPaymentStartDate = function(registrationDate) {
   const d = new Date(registrationDate);
-  console.log(`[getPaymentStartDate] 입력 등록일: ${d.toISOString().split('T')[0]}`);
 
   // 1개월 후의 1일로 이동 (타임존 문제 해결)
   const year = d.getFullYear();
@@ -214,11 +203,9 @@ weeklyPaymentPlansSchema.statics.getPaymentStartDate = function(registrationDate
   const nextMonthStr = String(nextMonth + 1).padStart(2, '0');  // 월을 1-based로 변환
   const dateStr = `${nextYear}-${nextMonthStr}-01`;
   const firstDayOfNextMonth = new Date(dateStr);
-  console.log(`[getPaymentStartDate] 1개월 후 1일: ${firstDayOfNextMonth.toISOString().split('T')[0]}`);
 
   // 해당 월의 첫 금요일
   const result = this.getNextFriday(firstDayOfNextMonth);
-  console.log(`[getPaymentStartDate] 계산된 지급 시작일: ${result.toISOString().split('T')[0]} (${this.getISOWeek(result)})`);
   return result;
 };
 

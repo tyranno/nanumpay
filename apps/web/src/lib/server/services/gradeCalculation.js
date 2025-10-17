@@ -109,7 +109,6 @@ export async function calculateGradeForUser(userId) {
  * 모든 사용자의 등급 재계산 (리프 노드부터 상향식)
  */
 export async function recalculateAllGrades() {
-  console.log('등급 재계산 시작...');
 
   // 모든 용역자(User) 가져오기 - Admin은 별도 컬렉션이므로 제외
   const users = await User.find({ type: 'user' }).sort({ createdAt: 1 });
@@ -172,7 +171,6 @@ export async function recalculateAllGrades() {
   // 리프 노드부터 상향식으로 등급 계산
   for (const level of sortedLevels) {
     const userIds = levelGroups.get(level);
-    console.log(`레벨 ${level}: ${userIds.length}명 처리 중...`);
 
     for (const userId of userIds) {
       const user = userMap.get(userId);
@@ -185,7 +183,6 @@ export async function recalculateAllGrades() {
         await User.findByIdAndUpdate(user._id, { grade: newGrade });
         user.grade = newGrade; // 맵에서도 업데이트
         updatedCount++;
-        console.log(`  등급 변경: ${user.name} (${user.loginId}): ${oldGrade} → ${newGrade}`);
 
         // 승급자 정보 저장
         changedUsers.push({
@@ -201,7 +198,6 @@ export async function recalculateAllGrades() {
 
   // 관리자는 이미 위에서 처리됨
 
-  console.log(`총 ${updatedCount}명의 등급이 업데이트되었습니다.`);
 
   // 최종 등급 분포 출력
   const finalGrades = await User.aggregate([
@@ -209,10 +205,6 @@ export async function recalculateAllGrades() {
     { $sort: { _id: 1 } }
   ]);
 
-  console.log('\n최종 등급 분포:');
-  for (const g of finalGrades) {
-    console.log(`${g._id}: ${g.count}명`);
-  }
 
   // 승급자 정보 포함하여 반환
   return {
@@ -238,7 +230,6 @@ export async function updateParentGrade(parentId) {
   if (oldGrade !== newGrade) {
     parent.grade = newGrade;
     await parent.save();
-    console.log(`부모 등급 업데이트: ${parent.name}: ${oldGrade} → ${newGrade}`);
 
     // 부모의 부모도 확인 (연쇄 작용)
     if (parent.parentId && parent.parentId !== '관리자') {

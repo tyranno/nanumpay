@@ -1,6 +1,5 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db.js';
-import { excelLogger } from '$lib/server/logger.js';
 import { registerUsers } from '$lib/server/services/userRegistrationService.js';
 
 /**
@@ -18,34 +17,15 @@ export async function POST({ request, locals }) {
 	try {
 		const { users } = await request.json();
 
-		// 엑셀 업로드 시작 로그
-		excelLogger.info('=== 엑셀 업로드 시작 ===', {
-			admin: locals.user.name || locals.user.id,
-			timestamp: new Date().toISOString(),
-			dataCount: users ? users.length : 0,
-			sampleData: users ? users.slice(0, 2) : null
-		});
-
 		// 데이터 형식 확인
 		if (!users || !Array.isArray(users)) {
-			const error = '데이터 형식 오류';
-			excelLogger.error(error, { users, type: typeof users });
 			return json({ error: '올바른 데이터 형식이 아닙니다.' }, { status: 400 });
 		}
 
-		// 공통 등록 함수 호출 (매번 새 인스턴스)
+		// 공통 등록 함수 호출
 		const results = await registerUsers(users, {
 			source: 'bulk',
 			admin: locals.user
-		});
-
-		// 결과 로그 기록
-		excelLogger.info('=== 엑셀 업로드 완료 ===', {
-			admin: locals.user.name || locals.user.id,
-			timestamp: new Date().toISOString(),
-			success: results.created,
-			failed: results.failed,
-			errors: results.errors
 		});
 
 		return json({
@@ -58,16 +38,16 @@ export async function POST({ request, locals }) {
 			batchProcessing: results.batchProcessing,
 			message: `${results.created}명 등록 완료, ${results.failed}명 실패`
 		});
-
 	} catch (error) {
-		excelLogger.error('Bulk user registration error:', error);
-
 		// 검증 오류인 경우 상세 정보 전달
 		if (error.message.includes('엑셀 업로드 실패')) {
-			return json({
-				error: error.message,
-				details: error.details || '사전 검증 실패'
-			}, { status: 400 });
+			return json(
+				{
+					error: error.message,
+					details: error.details || '사전 검증 실패'
+				},
+				{ status: 400 }
+			);
 		}
 
 		return json({ error: '일괄 등록 중 오류가 발생했습니다.' }, { status: 500 });

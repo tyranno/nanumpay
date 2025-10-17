@@ -19,7 +19,6 @@
  * @returns {Array} 등록자 목록
  */
 export function extractRegistrants(users) {
-  console.log('[paymentTargetExtractor] 등록자 추출 시작');
 
   const registrants = users.map(user => ({
     userId: user.loginId,
@@ -29,9 +28,7 @@ export function extractRegistrants(users) {
     type: 'registrant'
   }));
 
-  console.log(`  ✓ 등록자 ${registrants.length}명 추출 완료`);
   registrants.forEach(r => {
-    console.log(`    - ${r.userName} (${r.grade})`);
   });
 
   return registrants;
@@ -45,7 +42,6 @@ export function extractRegistrants(users) {
  * @returns {Array} 승급자 목록
  */
 export function extractPromoted(changedUsers, currentBatchUserIds = []) {
-  console.log('[paymentTargetExtractor] 승급자 추출 시작');
 
   const promoted = changedUsers
     .filter(u => {
@@ -56,7 +52,6 @@ export function extractPromoted(changedUsers, currentBatchUserIds = []) {
 
       // 현재 등록 배치에 포함된 경우 제외 (이미 등록자로 카운트됨)
       if (currentBatchUserIds.includes(u.userId)) {
-        console.log(`    [SKIP] ${u.userName}는 현재 등록 배치에 포함 (등록자로 처리)`);
         return false;
       }
 
@@ -70,9 +65,7 @@ export function extractPromoted(changedUsers, currentBatchUserIds = []) {
       type: 'promoted'
     }));
 
-  console.log(`  ✓ 승급자 ${promoted.length}명 추출 완료`);
   promoted.forEach(p => {
-    console.log(`    - ${p.userName} (${p.oldGrade} → ${p.newGrade})`);
   });
 
   return promoted;
@@ -86,8 +79,6 @@ export function extractPromoted(changedUsers, currentBatchUserIds = []) {
  * @returns {Object} { registrants, promoted, all }
  */
 export function extractPaymentTargets(users, gradeChangeResult) {
-  console.log('\n[paymentTargetExtractor] 지급 대상자 전체 추출 시작');
-  console.log('='.repeat(80));
 
   // 1. 등록자 추출
   const registrants = extractRegistrants(users);
@@ -102,12 +93,6 @@ export function extractPaymentTargets(users, gradeChangeResult) {
   // 3. 전체 대상자 (등록자 + 승급자)
   const all = [...registrants, ...promoted];
 
-  console.log('='.repeat(80));
-  console.log('[paymentTargetExtractor] 추출 완료:');
-  console.log(`  - 등록자: ${registrants.length}명`);
-  console.log(`  - 승급자: ${promoted.length}명`);
-  console.log(`  - 전체 대상자: ${all.length}명`);
-  console.log('='.repeat(80));
 
   return {
     registrants,
@@ -127,7 +112,6 @@ export function extractAdditionalPaymentTargets(additionalPaymentsInfo) {
     return [];
   }
 
-  console.log('[paymentTargetExtractor] 추가지급 대상자 정보 구성');
 
   const targets = additionalPaymentsInfo.targets.map(t => ({
     userId: t.userId,
@@ -138,9 +122,7 @@ export function extractAdditionalPaymentTargets(additionalPaymentsInfo) {
     type: 'additional'
   }));
 
-  console.log(`  ✓ 추가지급 대상자 ${targets.length}명`);
   targets.forEach(t => {
-    console.log(`    - ${t.userName} (${t.grade}, 단계:${t.추가지급단계}, 매출월:${t.revenueMonth})`);
   });
 
   return targets;

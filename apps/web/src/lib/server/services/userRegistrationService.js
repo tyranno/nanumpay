@@ -1,6 +1,5 @@
 import User from '../models/User.js';
 import bcrypt from 'bcryptjs';
-import { excelLogger } from '../logger.js';
 import { smartTreeRestructure } from './treeRestructure.js';
 import ValidationService from './validationService.js';
 import { processUserRegistration } from './registrationService.js';
@@ -26,13 +25,6 @@ export class UserRegistrationService {
 	async registerUsers(users, options = {}) {
 		const { source = 'bulk', admin } = options;
 
-		excelLogger.info('=== 사용자 등록 시작 ===', {
-			source,
-			admin: admin?.name || admin?.id,
-			timestamp: new Date().toISOString(),
-			dataCount: users.length
-		});
-
 		const results = {
 			created: 0,
 			failed: 0,
@@ -43,25 +35,22 @@ export class UserRegistrationService {
 
 		try {
 			// 1단계: 사전 검증
-			excelLogger.info('=== 1단계: 사전 검증 ===');
 			const validation = await this.validateUsers(users);
 			if (!validation.isValid) {
-				excelLogger.error('검증 실패:', validation.error);
+				console.error('검증 실패:', validation.error);
 				throw new Error(validation.error);
 			}
 
 			// 2단계: 사용자 생성
-			excelLogger.info('=== 2단계: 사용자 생성 ===');
 			const createResults = await this.createUsers(users);
 			results.created = createResults.created;
 			results.failed = createResults.failed;
 			results.errors = createResults.errors;
 
 			// 3단계: 트리 재구성
-			excelLogger.info('=== 3단계: 트리 재구성 ===');
 			const treeResults = await this.restructureTree();
 			if (treeResults.warnings && treeResults.warnings.length > 0) {
-				treeResults.warnings.forEach(warning => {
+				treeResults.warnings.forEach((warning) => {
 					results.alerts.push({
 						type: 'info',
 						message: warning
@@ -70,37 +59,33 @@ export class UserRegistrationService {
 			}
 			if (treeResults.failed > 0) {
 				results.failed += treeResults.failed;
-				treeResults.errors?.forEach(error => {
+				treeResults.errors?.forEach((error) => {
 					results.errors.push(`⚠️ 자동 배치 실패: ${error}`);
 				});
 			}
 			results.treeStructure = {
 				totalNodes: treeResults.structure?.length || 0,
-				directPlacements: treeResults.structure?.filter(s => s.relationship === 'direct').length || 0,
-				indirectPlacements: treeResults.structure?.filter(s => s.relationship === 'indirect').length || 0,
-				autoPlaced: treeResults.structure?.filter(s => s.note === '자동 배치 (판매인 관계 없음)').length || 0
+				directPlacements:
+					treeResults.structure?.filter((s) => s.relationship === 'direct').length || 0,
+				indirectPlacements:
+					treeResults.structure?.filter((s) => s.relationship === 'indirect').length || 0,
+				autoPlaced:
+					treeResults.structure?.filter((s) => s.note === '자동 배치 (판매인 관계 없음)').length ||
+					0
 			};
 
 			// 4단계: 배치 처리 (등급, 매출, 지급계획)
 			if (results.created > 0) {
-				excelLogger.info('=== 4단계: 배치 처리 ===');
 				const batchResult = await this.processBatch();
 				results.batchProcessing = batchResult;
 			}
 
 			// ⭐ 등록된 사용자 정보 반환 (내부 상태 직접 노출하지 않음)
-			results.users = Array.from(this.registeredUsers.values()).map(info => info.user);
-
-			excelLogger.info('=== 사용자 등록 완료 ===', {
-				source,
-				created: results.created,
-				failed: results.failed
-			});
+			results.users = Array.from(this.registeredUsers.values()).map((info) => info.user);
 
 			return results;
-
 		} catch (error) {
-			excelLogger.error('사용자 등록 오류:', error);
+			console.error('사용자 등록 오류:', error);
 			throw error;
 		}
 	}
@@ -174,10 +159,7 @@ export class UserRegistrationService {
 
 				// 2) 이미 DB에 등록된 사용자인지 확인
 				const existingSeller = await User.findOne({
-					$or: [
-						{ name: salesperson },
-						{ loginId: salesperson }
-					]
+					$or: [{ name: salesperson }, { loginId: salesperson }]
 				});
 
 				// 엑셀에도 없고 DB에도 없으면 에러
@@ -185,7 +167,8 @@ export class UserRegistrationService {
 					return {
 						isValid: false,
 						error: `엑셀 업로드 실패: 행 ${i + 1} (${name})의 판매인 "${salesperson}"이(가) 시스템에 등록되어 있지 않으며, 엑셀 파일에도 없습니다.`,
-						details: '판매인은 이미 시스템에 등록된 용역자이거나, 같은 엑셀 파일 내에서 앞쪽에 위치한 사용자여야 합니다.'
+						details:
+							'판매인은 이미 시스템에 등록된 용역자이거나, 같은 엑셀 파일 내에서 앞쪽에 위치한 사용자여야 합니다.'
 					};
 				}
 
@@ -219,12 +202,6 @@ export class UserRegistrationService {
 
 			parsedUsers.push({ userData, row: i + 1 });
 		}
-
-		excelLogger.info('사전 검증 완료:', {
-			totalRows: parsedUsers.length,
-			rootCount,
-			excelUsers: this.excelUserNames.size
-		});
 
 		return {
 			isValid: true,
@@ -290,7 +267,6 @@ export class UserRegistrationService {
 					// 날짜가 유효하지 않으면 오늘 날짜
 					if (isNaN(createdAt.getTime())) {
 						createdAt = new Date();
-						excelLogger.debug(`행 ${row}: 날짜 형식 오류, 오늘 날짜로 설정`);
 					}
 				} else {
 					createdAt = new Date();
@@ -301,19 +277,39 @@ export class UserRegistrationService {
 				const phone = getValue(userData, ['연락처', '전화번호', 'phone', '__EMPTY_2']);
 				const idNumber = getValue(userData, ['주민번호', '__EMPTY_3']);
 				const bank = getValue(userData, ['은행', 'bank', '__EMPTY_4']);
-				const accountNumber = getValue(userData, ['계좌번호', '계좌', 'accountNumber', '__EMPTY_5']);
+				const accountNumber = getValue(userData, [
+					'계좌번호',
+					'계좌',
+					'accountNumber',
+					'__EMPTY_5'
+				]);
 				const salesperson = getValue(userData, ['판매인', '추천인', 'salesperson', '__EMPTY_6']);
-				const salespersonPhone = getValue(userData, ['판매인 연락처', '연락처.1', 'salespersonPhone', '__EMPTY_7']);
+				const salespersonPhone = getValue(userData, [
+					'판매인 연락처',
+					'연락처.1',
+					'salespersonPhone',
+					'__EMPTY_7'
+				]);
 				const planner = getValue(userData, ['설계사', 'planner', '__EMPTY_8']);
-				const plannerPhone = getValue(userData, ['설계사 연락처', '연락처.2', 'plannerPhone', '__EMPTY_9']);
-				const insuranceProduct = getValue(userData, ['보험상품명', '보험상품', 'insuranceProduct', '__EMPTY_10']);
+				const plannerPhone = getValue(userData, [
+					'설계사 연락처',
+					'연락처.2',
+					'plannerPhone',
+					'__EMPTY_9'
+				]);
+				const insuranceProduct = getValue(userData, [
+					'보험상품명',
+					'보험상품',
+					'insuranceProduct',
+					'__EMPTY_10'
+				]);
 				const insuranceCompany = getValue(userData, ['보험회사', 'insuranceCompany', '__EMPTY_11']);
 				const branch = getValue(userData, ['지사', '소속/지사', 'branch', '__EMPTY_12']);
 
 				if (!name) {
 					results.failed++;
 					results.errors.push(`행 ${row}: 이름이 없습니다.`);
-					excelLogger.warn(`행 ${row} 실패: 이름 없음`);
+					console.warn(`행 ${row} 실패: 이름 없음`);
 					continue;
 				}
 
@@ -328,9 +324,9 @@ export class UserRegistrationService {
 
 				if (!validation.isValid) {
 					results.failed++;
-					const errorMessages = validation.errors.map(e => `${e.field}: ${e.message}`).join(', ');
+					const errorMessages = validation.errors.map((e) => `${e.field}: ${e.message}`).join(', ');
 					results.errors.push(`행 ${row} (${name}): ${errorMessages}`);
-					excelLogger.warn(`행 ${row} 검증 실패: ${errorMessages}`);
+					console.warn(`행 ${row} 검증 실패: ${errorMessages}`);
 					continue;
 				}
 
@@ -345,9 +341,10 @@ export class UserRegistrationService {
 
 				while (await User.exists({ loginId })) {
 					counter++;
-					const suffix = counter <= 26
-						? String.fromCharCode(64 + counter)  // A, B, C, ...
-						: counter.toString();  // 27, 28, ...
+					const suffix =
+						counter <= 26
+							? String.fromCharCode(64 + counter) // A, B, C, ...
+							: counter.toString(); // 27, 28, ...
 					loginId = baseLoginId + suffix;
 				}
 
@@ -393,13 +390,6 @@ export class UserRegistrationService {
 				usersByOrder.push({ loginId, salesperson, name, row });
 
 				results.created++;
-				excelLogger.info('사용자 등록 성공', {
-					row,
-					name,
-					loginId,
-					grade
-				});
-
 			} catch (error) {
 				results.failed++;
 
@@ -417,7 +407,7 @@ export class UserRegistrationService {
 
 				results.errors.push(userFriendlyMsg);
 
-				excelLogger.error('사용자 등록 실패', {
+				console.error('사용자 등록 실패', {
 					row,
 					name: name || 'unknown',
 					error: error.message,
@@ -425,11 +415,6 @@ export class UserRegistrationService {
 				});
 			}
 		}
-
-		excelLogger.info('사용자 생성 완료:', {
-			created: results.created,
-			failed: results.failed
-		});
 
 		return results;
 	}
@@ -439,10 +424,10 @@ export class UserRegistrationService {
 	 * - smartTreeRestructure 호출
 	 */
 	async restructureTree() {
-		const allRegisteredUsers = Array.from(this.registeredUsers.values()).map(info => info.user);
+		const allRegisteredUsers = Array.from(this.registeredUsers.values()).map((info) => info.user);
 
 		if (allRegisteredUsers.length === 0) {
-			excelLogger.warn('등록된 사용자가 없어 트리 재구성을 건너뜁니다.');
+			console.warn('등록된 사용자가 없어 트리 재구성을 건너뜁니다.');
 			return {
 				successful: 0,
 				failed: 0,
@@ -458,16 +443,9 @@ export class UserRegistrationService {
 				autoPlaceUnmatched: true
 			});
 
-			excelLogger.info('🌳 트리 재구성 결과:', {
-				successful: treeResults.successful,
-				failed: treeResults.failed,
-				warnings: treeResults.warnings?.length || 0
-			});
-
 			return treeResults;
-
 		} catch (treeError) {
-			excelLogger.error('트리 재구성 오류:', treeError);
+			console.error('트리 재구성 오류:', treeError);
 			return {
 				successful: 0,
 				failed: allRegisteredUsers.length,
@@ -503,8 +481,6 @@ export class UserRegistrationService {
 			// 월별 키를 시간순으로 정렬 (2025-07, 2025-08, 2025-09 ...)
 			const sortedMonths = Array.from(usersByMonth.keys()).sort();
 
-			excelLogger.info('월별 사용자 분포:', sortedMonths.map(m => `${m}: ${usersByMonth.get(m).length}명`).join(', '));
-
 			// ⭐ 각 월별로 순차 처리
 			const allResults = {
 				revenue: { totalRevenue: 0, byMonth: {} },
@@ -514,9 +490,7 @@ export class UserRegistrationService {
 
 			for (const monthKey of sortedMonths) {
 				const users = usersByMonth.get(monthKey);
-				const userIds = users.map(u => u._id);
-
-				excelLogger.info(`\n📅 ${monthKey} 처리 시작 (${users.length}명)`);
+				const userIds = users.map((u) => u._id);
 
 				// registrationService로 등급 재계산 및 지급 계획 생성
 				const monthResult = await processUserRegistration(userIds);
@@ -530,25 +504,11 @@ export class UserRegistrationService {
 				if (monthResult.plans) {
 					allResults.plans.push(...monthResult.plans);
 				}
-
-				excelLogger.info(`✅ ${monthKey} 처리 완료:`, {
-					revenue: monthResult.revenue?.totalRevenue?.toLocaleString() + '원',
-					schedules: monthResult.schedules?.length + '개',
-					plans: monthResult.plans?.length + '명'
-				});
 			}
 
-			excelLogger.info('\n🎉 전체 배치 처리 완료:', {
-				totalRevenue: allResults.revenue.totalRevenue.toLocaleString() + '원',
-				totalSchedules: allResults.schedules.length + '개',
-				totalPlans: allResults.plans.length + '명',
-				processedMonths: sortedMonths.join(', ')
-			});
-
 			return allResults;
-
 		} catch (err) {
-			excelLogger.error('배치 처리 실패:', err);
+			console.error('배치 처리 실패:', err);
 			throw err;
 		}
 	}

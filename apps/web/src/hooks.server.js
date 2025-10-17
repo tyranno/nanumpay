@@ -1,26 +1,9 @@
 import jwt from 'jsonwebtoken';
 import { JWT_SECRET, JWT_EXPIRES } from '$env/static/private';
 import { redirect } from '@sveltejs/kit';
-import PaymentScheduler from '$lib/server/services/paymentScheduler.js';
-import { connectDB } from '$lib/server/db.js';
-
-// 서버 시작 시 한 번만 실행
-let schedulerStarted = false;
 
 /** @type {import('@sveltejs/kit').Handle} */
 export async function handle({ event, resolve }) {
-	// 스케줄러 초기화 (서버 시작 시 한 번만)
-	if (!schedulerStarted) {
-		try {
-			await connectDB();
-			await PaymentScheduler.start();
-			schedulerStarted = true;
-			console.log('[hooks.server] 금요일 자동 지급 스케줄러가 시작되었습니다.');
-		} catch (error) {
-			console.error('[hooks.server] 스케줄러 시작 실패:', error);
-		}
-	}
-
 	// JWT 인증 처리
 	const token = event.cookies.get('token');
 	const refreshToken = event.cookies.get('refreshToken');
