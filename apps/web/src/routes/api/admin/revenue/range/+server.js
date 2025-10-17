@@ -38,7 +38,7 @@ export async function GET({ url, locals }) {
       // 주간 조회: WeeklyPaymentSummary에서 실제 주차별 데이터 가져오기
       return await getWeeklyData(start, end);
     } else {
-      // 월간 조회: MonthlyRegistrations에서 월별 데이터 가져오기
+      // 월간 조회: MonthlyRegistrations에서 월별 데이터 가져오기 (매출 통계용)
       return await getMonthlyData(start, end);
     }
   } catch (error) {
@@ -48,7 +48,7 @@ export async function GET({ url, locals }) {
 }
 
 /**
- * 월간 데이터 조회
+ * 월간 데이터 조회 (매출 통계용)
  */
 async function getMonthlyData(start, end) {
   const registrations = await MonthlyRegistrations.find({
