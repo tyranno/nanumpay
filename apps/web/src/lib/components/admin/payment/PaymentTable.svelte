@@ -40,33 +40,36 @@
 
 <!-- 테이블 영역 -->
 {#if isLoading}
-	<div class="loading">데이터를 불러오는 중...</div>
+	<div class="loading-state">데이터를 불러오는 중...</div>
 {:else if error}
-	<div class="error">{error}</div>
+	<div class="error-state">{error}</div>
 {:else}
-	<div class="table-container">
+	<div class="relative">
+		<!-- 테이블 래퍼 -->
 		<div class="table-wrapper">
 			<table class="payment-table">
 				<thead>
-					<tr class="header-row-1">
-						<th rowspan="2" class="sticky-col sticky-col-0">순번</th>
-						<th rowspan="2" class="sticky-col sticky-col-1">성명</th>
-						<th rowspan="2">설계자</th>
-						<th rowspan="2">은행</th>
-						<th rowspan="2">계좌번호</th>
+					<!-- 첫 번째 헤더 행 -->
+					<tr>
+						<th rowspan="2" class="th-base th-sticky-0">순번</th>
+						<th rowspan="2" class="th-base th-sticky-1">성명</th>
+						<th rowspan="2" class="th-base">설계자</th>
+						<th rowspan="2" class="th-base">은행</th>
+						<th rowspan="2" class="th-base">계좌번호</th>
 						{#each weeklyColumns as week}
 							{@const colCount = 1 + (showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0)}
-							<th colspan={colCount} class="week-header">{week.label}</th>
+							<th colspan={colCount} class="th-week">{week.label}</th>
 						{/each}
 					</tr>
-					<tr class="header-row-2">
+					<!-- 두 번째 헤더 행 -->
+					<tr>
 						{#each weeklyColumns as week}
-							<th class="sub-header">지급액</th>
+							<th class="th-sub">지급액</th>
 							{#if showTaxColumn}
-								<th class="sub-header tax-header">원천징수(3.3%)</th>
+								<th class="th-sub th-tax">원천징수(3.3%)</th>
 							{/if}
 							{#if showNetColumn}
-								<th class="sub-header">실지급액</th>
+								<th class="th-sub">실지급액</th>
 							{/if}
 						{/each}
 					</tr>
@@ -74,26 +77,34 @@
 				<tbody>
 					{#if paymentList.length > 0}
 						{#each getCurrentPageData() as user}
-							<tr>
-								<td class="sticky-col sticky-col-0">{user.no}</td>
-								<td class="sticky-col sticky-col-1">
-									<div style="display: flex; align-items: center; justify-content: center;">
-										<div style="position: relative; display: inline-flex; align-items: baseline;">
+							<tr class="data-row">
+								<td class="td-sticky-0">{user.no}</td>
+								<td class="td-sticky-1">
+									<div class="flex items-center justify-center">
+										<div class="relative inline-flex items-baseline">
 											{user.name}
 											{#if user.grade}
-												<img src="/icons/{user.grade}.svg" alt="{user.grade}" style="width: 20px; height: 20px; position: absolute; top: -6px; right: -20px;" title="{user.grade} 등급" />
+												<img
+													src="/icons/{user.grade}.svg"
+													alt={user.grade}
+													class="grade-icon"
+													title="{user.grade} 등급"
+												/>
 											{/if}
 										</div>
 									</div>
 								</td>
-								<td>{user.planner || ''}</td>
-								<td>{user.bank}</td>
-								<td>{user.accountNumber}</td>
+								<td class="td-base">{user.planner || ''}</td>
+								<td class="td-base">{user.bank}</td>
+								<td class="td-base">{user.accountNumber}</td>
 								{#each weeklyColumns as week}
-									{@const key = periodType === 'monthly' ? `month_${week.month}` : `${week.year}_${week.month}_${week.week}`}
+									{@const key =
+										periodType === 'monthly'
+											? `month_${week.month}`
+											: `${week.year}_${week.month}_${week.week}`}
 									{@const payment = user.payments[key]}
 									<td
-										class="amount-cell"
+										class="td-amount"
 										title={payment?.installmentDetails
 											? payment.installmentDetails
 													.map((d) => `${d.revenueMonth} ${d.installmentNumber}회차`)
@@ -103,17 +114,17 @@
 										{formatAmount(payment?.amount)}
 									</td>
 									{#if showTaxColumn}
-										<td class="tax-cell">{formatAmount(payment?.tax)}</td>
+										<td class="td-tax">{formatAmount(payment?.tax)}</td>
 									{/if}
 									{#if showNetColumn}
-										<td class="net-cell">{formatAmount(payment?.net)}</td>
+										<td class="td-net">{formatAmount(payment?.net)}</td>
 									{/if}
 								{/each}
 							</tr>
 						{/each}
 					{:else}
 						<tr>
-							<td colspan={5 + weeklyColumns.length * 3} class="empty-message">
+							<td colspan={5 + weeklyColumns.length * 3} class="empty-state">
 								데이터가 없습니다
 							</td>
 						</tr>
@@ -136,246 +147,150 @@
 {/if}
 
 <style>
-	/* 테이블 컨테이너 */
-	.table-container {
-		position: relative;
+	@reference "$/app.css";
+
+	/* 상태 메시지 */
+	.loading-state {
+		@apply py-10 text-center text-base;
 	}
 
-	/* 테이블 영역 */
+	.error-state {
+		@apply py-10 text-center text-base text-red-600;
+	}
+
+	.empty-state {
+		@apply border-r border-b border-l border-gray-300 bg-white py-10 text-center text-gray-600 italic;
+	}
+
+	/* 테이블 래퍼 */
 	.table-wrapper {
-		overflow-x: auto;
-		border: 1px solid #ddd;
-		background: white;
-		position: relative;
+		@apply relative overflow-x-auto border border-gray-300 bg-white;
 	}
 
-	.payment-table {
-		border-collapse: separate;
-		border-spacing: 0;
-		width: 100%;
-		min-width: max-content;
-	}
-
-	.payment-table th,
-	.payment-table td {
-		border-right: 1px solid #ddd;
-		border-bottom: 1px solid #ddd;
-		padding: 6px;
-		text-align: center;
-		white-space: nowrap;
-		font-size: 14px;
-	}
-
-	.payment-table th:first-child,
-	.payment-table td:first-child {
-		border-left: 1px solid #ddd;
-	}
-
-	.payment-table thead tr:first-child th {
-		border-top: 1px solid #ddd;
-	}
-
-	/* 고정 컬럼 기본 스타일 */
-	.sticky-col {
-		position: sticky !important;
-		z-index: 10;
-		background: white !important;
-	}
-
-	.sticky-col-0 {
-		left: 0;
-		min-width: 60px;
-		z-index: 12;
-	}
-
-	.sticky-col-1 {
-		left: 60px;
-		min-width: 80px;
-		z-index: 11;
-	}
-
-	/* 헤더 스타일 */
-	.header-row-1 th {
-		background: #e8e8e8;
-		font-weight: bold;
-	}
-
-	.week-header {
-		background: #d0e0f0;
-	}
-
-	.header-row-2 th {
-		background: #e8e8e8;
-		font-weight: normal;
-	}
-
-	.sub-header {
-		min-width: 100px;
-		font-size: 13px;
-	}
-
-	.tax-header {
-		background: #ffe0e0;
-	}
-
-	/* 데이터 셀 스타일 */
-	.amount-cell {
-		background: #ffffcc;
-		font-weight: bold;
-		text-align: right;
-		padding-right: 12px;
-	}
-
-	.tax-cell {
-		background: #ffeeee;
-		color: #d9534f;
-		text-align: right;
-		padding-right: 12px;
-	}
-
-	.net-cell {
-		background: #eeffee;
-		font-weight: bold;
-		text-align: right;
-		padding-right: 12px;
-	}
-
-	/* 고정 컬럼 헤더 */
-	thead .sticky-col {
-		background: #e8e8e8 !important;
-		z-index: 20;
-	}
-
-	/* 고정 컬럼은 항상 흰색 배경 유지 */
-	tbody .sticky-col {
-		background: white !important;
-	}
-
-	.empty-message {
-		text-align: center;
-		padding: 40px;
-		color: #666;
-		font-style: italic;
-		background: white;
-	}
-
-	.loading,
-	.error {
-		text-align: center;
-		padding: 40px;
-		font-size: 16px;
-	}
-
-	.error {
-		color: #d9534f;
-	}
-
-	/* 스크롤바 스타일 */
 	.table-wrapper::-webkit-scrollbar {
-		height: 10px;
+		@apply h-2.5;
 	}
 
 	.table-wrapper::-webkit-scrollbar-track {
-		background: #f1f1f1;
+		@apply bg-gray-100;
 	}
 
 	.table-wrapper::-webkit-scrollbar-thumb {
-		background: #888;
-		border-radius: 4px;
+		@apply rounded bg-gray-400;
 	}
 
 	.table-wrapper::-webkit-scrollbar-thumb:hover {
-		background: #555;
+		@apply bg-gray-600;
 	}
 
-	/* 호버 효과 */
-	tbody tr:hover td {
-		background-color: rgba(0, 0, 0, 0.02);
+	/* 테이블 기본 */
+	.payment-table {
+		@apply w-full min-w-max border-separate border-spacing-0;
 	}
 
-	tbody tr:hover .amount-cell {
-		background: #ffff99;
+	/* 헤더 - 기본 */
+	.th-base {
+		@apply border-t border-r border-b border-gray-300 bg-gray-200;
+		@apply p-1.5 text-center text-sm font-bold whitespace-nowrap;
 	}
 
-	tbody tr:hover .tax-cell {
-		background: #ffdddd;
+	.th-base:first-child {
+		@apply border-l;
 	}
 
-	tbody tr:hover .net-cell {
-		background: #ddffdd;
+	/* 헤더 - 주차 */
+	.th-week {
+		@apply border-t border-r border-b border-gray-300 bg-blue-100;
+		@apply p-1.5 text-center text-sm font-bold whitespace-nowrap;
 	}
 
-	/* 반응형 - 모바일 */
-	@media (max-width: 768px) {
-		.table-wrapper {
-			font-size: 12px;
-		}
-
-		.sticky-col-0 {
-			min-width: 50px;
-		}
-
-		.sticky-col-1 {
-			left: 50px;
-			min-width: 60px;
-		}
-
-		.week-header {
-			font-size: 11px;
-		}
-
-		.sub-header {
-			font-size: 10px;
-		}
+	/* 헤더 - 서브 */
+	.th-sub {
+		@apply border-r border-b border-gray-300 bg-gray-200;
+		@apply min-w-[100px] p-1.5 text-center text-[13px] font-normal whitespace-nowrap;
 	}
 
-	/* 아주 작은 화면 (모바일) */
-	@media (max-width: 480px) {
-		.table-wrapper {
-			font-size: 9px;
-		}
+	.th-tax {
+		@apply bg-red-50;
+	}
 
-		.payment-table th,
-		.payment-table td {
-			padding: 2px;
-			font-size: 9px;
-		}
+	/* 헤더 - 고정 컬럼 */
+	.th-sticky-0 {
+		@apply sticky left-0 z-20 min-w-[60px];
+	}
 
-		.sticky-col-0 {
-			min-width: 30px;
-		}
+	.th-sticky-1 {
+		@apply sticky left-[60px] z-[19] min-w-[120px];
+	}
 
-		.sticky-col-1 {
-			left: 30px;
-			min-width: 45px;
-		}
+	/* 데이터 행 */
+	.data-row:hover td {
+		@apply bg-black/[0.02];
+	}
 
-		.week-header {
-			font-size: 8px;
-			padding: 2px;
-		}
+	/* 데이터 셀 - 기본 */
+	.td-base {
+		@apply border-r border-b border-gray-300;
+		@apply p-1.5 text-center text-sm whitespace-nowrap;
+	}
 
-		.sub-header {
-			font-size: 7px;
-			min-width: 45px;
-		}
+	.td-base:first-child {
+		@apply border-l;
+	}
 
-		.amount-cell,
-		.tax-cell,
-		.net-cell {
-			font-size: 8px;
-			padding-right: 2px;
-		}
+	/* 데이터 셀 - 고정 컬럼 */
+	.td-sticky-0 {
+		@apply sticky left-0 z-10 bg-white;
+		@apply border-r border-b border-l border-gray-300;
+		@apply p-1.5 text-center text-sm whitespace-nowrap;
+	}
 
-		.loading,
-		.error {
-			padding: 20px;
-			font-size: 11px;
-		}
+	.data-row:hover .td-sticky-0 {
+		@apply bg-black/[0.02];
+	}
 
-		.empty-message {
-			padding: 20px;
-			font-size: 10px;
-		}
+	.td-sticky-1 {
+		@apply sticky left-[60px] z-[9] bg-white;
+		@apply border-r border-b border-gray-300;
+		@apply p-1.5 text-center text-sm whitespace-nowrap;
+	}
+
+	.data-row:hover .td-sticky-1 {
+		@apply bg-black/[0.02];
+	}
+
+	/* 데이터 셀 - 지급액 */
+	.td-amount {
+		@apply border-r border-b border-gray-300 bg-yellow-100;
+		@apply p-1.5 pr-3 text-right text-sm font-bold whitespace-nowrap;
+	}
+
+	.data-row:hover .td-amount {
+		@apply bg-yellow-200;
+	}
+
+	/* 데이터 셀 - 원천징수 */
+	.td-tax {
+		@apply border-r border-b border-gray-300 bg-red-50;
+		@apply p-1.5 pr-3 text-right text-sm whitespace-nowrap text-red-600;
+	}
+
+	.data-row:hover .td-tax {
+		@apply bg-red-100;
+	}
+
+	/* 데이터 셀 - 실지급액 */
+	.td-net {
+		@apply border-r border-b border-gray-300 bg-green-50;
+		@apply p-1.5 pr-3 text-right text-sm font-bold whitespace-nowrap;
+	}
+
+	.data-row:hover .td-net {
+		@apply bg-green-100;
+	}
+
+	/* 등급 아이콘 */
+	.grade-icon {
+		@apply absolute -top-1.5 -right-5 h-5 w-5;
 	}
 </style>
