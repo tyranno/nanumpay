@@ -2,6 +2,7 @@
 	import MonthlyRevenueCard from '$lib/components/admin/MonthlyRevenueCard.svelte';
 	import MonthlyRevenueCardMobile from '$lib/components/admin/MonthlyRevenueCardMobile.svelte';
 	import PaymentStatisticsCard from '$lib/components/admin/PaymentStatisticsCard.svelte';
+	import PaymentStatisticsCardMobile from '$lib/components/admin/PaymentStatisticsCardMobile.svelte';
 </script>
 
 <svelte:head>
@@ -20,6 +21,14 @@
 		<MonthlyRevenueCard />
 	</div>
 
-	<!-- 지급 통계 -->
-	<PaymentStatisticsCard />
+	<!-- 지급 통계 (화면 크기에 따라 분기) -->
+	<!-- 모바일: 768px 미만 -->
+	<div class="block md:hidden">
+		<PaymentStatisticsCardMobile />
+	</div>
+
+	<!-- 데스크톱: 768px 이상 -->
+	<div class="hidden md:block">
+		<PaymentStatisticsCard />
+	</div>
 </div>
