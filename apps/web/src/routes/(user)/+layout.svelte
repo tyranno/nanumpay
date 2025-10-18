@@ -21,9 +21,9 @@
 	// 현재 페이지에 따른 서브타이틀
 	let pageTitle = $derived.by(() => {
 		const path = $page.url.pathname;
-		if (path === '/dashboard') return '홈';
 		if (path.includes('/dashboard/income')) return '내용역비정보';
 		if (path.includes('/dashboard/network')) return '나의 산하정보';
+		if (path.includes('/dashboard/profile')) return '내 정보';
 		return '';
 	})
 </script>
@@ -31,6 +31,9 @@
 <style>
 	.filter-gray {
 		filter: invert(40%) sepia(10%) saturate(200%) hue-rotate(180deg) brightness(95%) contrast(90%);
+	}
+	.filter-red-icon {
+		filter: invert(31%) sepia(98%) saturate(4031%) hue-rotate(346deg) brightness(92%) contrast(93%);
 	}
 </style>
 
@@ -64,16 +67,18 @@
 						</div>
 					</button>
 				</div>
-				<div class="flex items-center space-x-4">
+				<div class="flex items-center gap-3">
 					{#if data.user}
-						<span class="text-gray-700">{data.user.name}님</span>
+						<span class="text-sm text-gray-700 hidden sm:inline">{data.user.name}님</span>
 					{/if}
+					<!-- 로그아웃 아이콘 버튼 -->
 					<button
 						onclick={logout}
-						class="text-gray-500 hover:text-gray-700 px-3 py-2 rounded-md text-sm font-medium"
+						class="p-2 rounded-lg bg-gradient-to-r from-red-50 to-pink-50 hover:from-red-100 hover:to-pink-100 transition-all shadow-sm hover:shadow-md"
+						title="로그아웃"
 						type="button"
 					>
-						로그아웃
+						<img src="/icons/logout-red.svg" alt="로그아웃" class="h-5 w-5 filter-red-icon" />
 					</button>
 				</div>
 			</div>
