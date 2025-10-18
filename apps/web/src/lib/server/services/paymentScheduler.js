@@ -1,5 +1,4 @@
 import cron from 'node-cron';
-import cron from 'node-cron';
 import { processWeeklyPayments } from './weeklyPaymentService.js';
 import { connectDB } from '../db.js';
 import { excelLogger as logger } from '../logger.js';
