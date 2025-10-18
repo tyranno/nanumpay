@@ -12,6 +12,7 @@
 	let members = [];
 	let isLoading = true;
 	let searchTerm = '';
+	let searchCategory = 'name'; // 검색 카테고리 추가
 	let currentPage = 1;
 	let totalPages = 1;
 	let totalMembers = 0;
@@ -103,6 +104,19 @@
 			currentPage = 1;
 			loadMembers();
 		}, 300);
+	}
+
+	// 검색 버튼 클릭
+	function handleSearchClick() {
+		currentPage = 1;
+		loadMembers();
+	}
+
+	// 엔터키 처리
+	function handleKeyPress(event) {
+		if (event.key === 'Enter') {
+			handleSearchClick();
+		}
 	}
 
 	// 페이지 변경
@@ -407,11 +421,13 @@
 					title: '처리 오류',
 					message: '엑셀 파일 처리 중 오류가 발생했습니다.',
 					results: null,
-					details: [{
-						type: 'error',
-						title: '오류 내용',
-						content: error.message
-					}]
+					details: [
+						{
+							type: 'error',
+							title: '오류 내용',
+							content: error.message
+						}
+					]
 				};
 				notificationOpen = true;
 			} finally {
@@ -451,68 +467,69 @@
 	}
 </script>
 
-<div class="p-6 space-y-6">
-	<!-- 헤더 -->
-	<div class="flex justify-between items-center">
-		<div>
-			<h2 class="text-2xl font-bold text-gray-800">용역자 관리명부</h2>
-			<p class="text-gray-600 mt-1">총 {totalMembers}명의 용역자가 등록되어 있습니다.</p>
-		</div>
-		<div class="flex gap-2">
-			<button
-				onclick={() => showUploadModal = true}
-				class="px-2 sm:px-3 py-1.5 text-xs sm:text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-1"
-				title="엑셀 파일 업로드"
-			>
-				<img src="/icons/excel.svg" alt="Excel" class="w-4 h-4 filter brightness-0 invert" />
-				<span class="hidden sm:inline">엑셀</span>
-			</button>
-			<button
-				onclick={() => showAddModal = true}
-				class="px-2 sm:px-3 py-1.5 text-xs sm:text-sm bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-1"
-				title="새 회원 등록"
-			>
-				<img src="/icons/user-add.svg" alt="Add User" class="w-4 h-4 filter brightness-0 invert" />
-				<span class="hidden sm:inline">등록</span>
+<div class="container">
+	<!-- 제목 -->
+	<h1 class="title">용역자 관리명부</h1>
+
+	<!-- 검색 및 필터 -->
+	<div class="filter-section">
+		<div class="search-container">
+			<!-- 검색 카테고리 -->
+			<select bind:value={searchCategory} class="select-category">
+				<option value="name">이름</option>
+				<option value="planner">설계사</option>
+			</select>
+
+			<!-- 검색 입력 -->
+			<input
+				type="text"
+				bind:value={searchTerm}
+				onkeypress={handleKeyPress}
+				placeholder={searchCategory === 'name' ? '이름으로 검색...' : '설계사 이름으로 검색...'}
+				class="input-search"
+			/>
+
+			<!-- 검색 버튼 -->
+			<button onclick={handleSearchClick} class="btn-search">
+				<img src="/icons/search.svg" alt="검색" class="btn-icon" />
 			</button>
 		</div>
 	</div>
 
-	<!-- 검색 및 필터 -->
-	<div class="bg-white p-4 rounded-lg shadow">
-		<div class="flex gap-4 items-center">
-			<div class="flex-1">
-				<input
-					type="text"
-					bind:value={searchTerm}
-					oninput={handleSearch}
-					placeholder="이름, 판매인, 설계사로 검색..."
-					class="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-				/>
-			</div>
-			<div class="flex items-center gap-2">
-				<img src="/icons/clipboard.svg" alt="List" class="w-4 h-4 opacity-60" />
-				<select
-					bind:value={itemsPerPage}
-					onchange={changeItemsPerPage}
-					class="appearance-none pl-3 pr-10 py-1.5 text-sm bg-white border border-gray-300 rounded-md shadow-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-pointer bg-no-repeat"
-					style="background-image: url('/icons/chevron-down.svg'); background-position: right 0.5rem center; background-size: 1.5em 1.5em;"
-				>
-					<option value={10}>10개씩 보기</option>
-					<option value={20}>20개씩 보기</option>
-					<option value={50}>50개씩 보기</option>
-					<option value={100}>100개씩 보기</option>
+	<!-- 테이블 상단 정보 -->
+	<div class="table-header">
+		<div class="total-count">총원 {totalMembers}명</div>
+		<div class="flex items-center gap-2">
+			<!-- 페이지당 항목 수 -->
+			<label class="label-page">
+				페이지당
+				<select bind:value={itemsPerPage} onchange={changeItemsPerPage} class="select-page">
+					<option value={10}>10</option>
+					<option value={20}>20</option>
+					<option value={50}>50</option>
+					<option value={100}>100</option>
 				</select>
-			</div>
+			</label>
+
+			<!-- 컬럼 설정 버튼 -->
 			<button
 				onclick={() => {
 					tempVisibleColumns = { ...visibleColumns };
 					showColumnSettings = !showColumnSettings;
 				}}
-				class="p-1.5 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+				class="btn-settings"
 				title="컬럼 설정"
 			>
-				<img src="/icons/settings.svg" alt="Settings" class="w-4 h-4" />
+				<img src="/icons/settings.svg" alt="Settings" class="h-4 w-4" />
+			</button>
+
+			<button onclick={() => (showUploadModal = true)} class="btn-blue" title="엑셀 파일 업로드">
+				<img src="/icons/excel.svg" alt="Excel" class="btn-icon" />
+				<span class="hidden sm:inline">엑셀</span>
+			</button>
+			<button onclick={() => (showAddModal = true)} class="btn-green" title="새 회원 등록">
+				<img src="/icons/user-add.svg" alt="Add User" class="btn-icon" />
+				<span class="hidden sm:inline">등록</span>
 			</button>
 		</div>
 	</div>
@@ -547,7 +564,7 @@
 		bind:this={registrationModal}
 		isOpen={showAddModal}
 		{members}
-		onClose={() => showAddModal = false}
+		onClose={() => (showAddModal = false)}
 		onSubmit={handleAddMember}
 	/>
 
@@ -555,7 +572,7 @@
 	<MemberEditModal
 		isOpen={showEditModal}
 		member={editingMember}
-		onClose={() => showEditModal = false}
+		onClose={() => (showEditModal = false)}
 		onSubmit={handleEditMember}
 	/>
 
@@ -564,7 +581,10 @@
 		isOpen={showUploadModal}
 		{isUploading}
 		bind:uploadFile
-		onClose={() => { showUploadModal = false; uploadFile = null; }}
+		onClose={() => {
+			showUploadModal = false;
+			uploadFile = null;
+		}}
 		onFileSelect={handleFileSelect}
 		onUpload={handleExcelUpload}
 	/>
@@ -573,7 +593,7 @@
 	<ColumnSettingsModal
 		isOpen={showColumnSettings}
 		bind:tempVisibleColumns
-		onClose={() => showColumnSettings = false}
+		onClose={() => (showColumnSettings = false)}
 		onShowAll={handleShowAllColumns}
 		onApply={handleApplyColumnSettings}
 	/>
@@ -582,46 +602,51 @@
 	<WindowsModal
 		isOpen={notificationOpen}
 		title={notificationConfig.title}
-		icon={notificationConfig.type === 'success' ? '/icons/check-circle-blue.svg' :
-		      notificationConfig.type === 'error' ? '/icons/close-blue.svg' :
-		      notificationConfig.type === 'warning' ? '/icons/edit-blue.svg' :
-		      '/icons/settings.svg'}
+		icon={notificationConfig.type === 'success'
+			? '/icons/check-circle-blue.svg'
+			: notificationConfig.type === 'error'
+				? '/icons/close-blue.svg'
+				: notificationConfig.type === 'warning'
+					? '/icons/edit-blue.svg'
+					: '/icons/settings.svg'}
 		size="sm"
-		onClose={() => { notificationOpen = false; }}
+		onClose={() => {
+			notificationOpen = false;
+		}}
 	>
 		<div class="space-y-3">
 			{#if notificationConfig.message}
-				<p class="text-sm text-gray-700 whitespace-pre-wrap">{notificationConfig.message}</p>
+				<p class="whitespace-pre-wrap text-sm text-gray-700">{notificationConfig.message}</p>
 			{/if}
 
 			{#if notificationConfig.results}
 				<div class="flex gap-3 text-sm">
 					{#if notificationConfig.results.created !== undefined}
-						<span class="text-green-600 font-medium">✓ 성공: {notificationConfig.results.created}</span>
+						<span class="alert-success">✓ 성공: {notificationConfig.results.created}</span>
 					{/if}
 					{#if notificationConfig.results.failed !== undefined && notificationConfig.results.failed > 0}
-						<span class="text-red-600 font-medium">✗ 실패: {notificationConfig.results.failed}</span>
+						<span class="alert-fail">✗ 실패: {notificationConfig.results.failed}</span>
 					{/if}
 				</div>
 
 				{#if notificationConfig.results.alerts && notificationConfig.results.alerts.length > 0}
-					<div class="text-sm text-yellow-700 bg-yellow-50 border border-yellow-200 rounded p-2">
+					<div class="alert-box-warning">
 						<p class="font-medium">⚠ {notificationConfig.results.alerts[0].message}</p>
 						{#if notificationConfig.results.alerts.length > 1}
-							<p class="text-xs mt-1">외 {notificationConfig.results.alerts.length - 1}건</p>
+							<p class="mt-1 text-xs">외 {notificationConfig.results.alerts.length - 1}건</p>
 						{/if}
 					</div>
 				{/if}
 
 				{#if notificationConfig.results.errors && notificationConfig.results.errors.length > 0}
-					<div class="text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2">
+					<div class="alert-box-error">
 						{#if notificationConfig.results.errors.length <= 2}
 							{#each notificationConfig.results.errors as error}
 								<p class="mb-1">• {error}</p>
 							{/each}
 						{:else}
 							<p>• {notificationConfig.results.errors[0]}</p>
-							<p class="text-xs mt-1">• 외 {notificationConfig.results.errors.length - 1}개 오류</p>
+							<p class="mt-1 text-xs">• 외 {notificationConfig.results.errors.length - 1}개 오류</p>
 						{/if}
 					</div>
 				{/if}
@@ -630,12 +655,16 @@
 			{#if notificationConfig.details && notificationConfig.details.length > 0}
 				<div class="space-y-2">
 					{#each notificationConfig.details as detail}
-						<div class="p-3 bg-gray-50 rounded border {detail.type === 'error' ? 'border-red-200 bg-red-50' : 'border-gray-200'}">
+						<div class={detail.type === 'error' ? 'detail-box-error' : 'detail-box'}>
 							{#if detail.title}
-								<p class="text-sm font-semibold {detail.type === 'error' ? 'text-red-900' : 'text-gray-900'}">{detail.title}</p>
+								<p class={detail.type === 'error' ? 'detail-title-error' : 'detail-title'}>
+									{detail.title}
+								</p>
 							{/if}
 							{#if detail.content}
-								<p class="text-xs {detail.type === 'error' ? 'text-red-700' : 'text-gray-600'} mt-1 whitespace-pre-wrap">{detail.content}</p>
+								<p class={detail.type === 'error' ? 'detail-content-error' : 'detail-content'}>
+									{detail.content}
+								</p>
 							{/if}
 						</div>
 					{/each}
@@ -645,24 +674,20 @@
 
 		<svelte:fragment slot="footer">
 			{#if notificationConfig.secondaryAction}
-				<button
-					onclick={notificationConfig.secondaryAction.handler}
-					class="px-4 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
-				>
+				<button onclick={notificationConfig.secondaryAction.handler} class="btn-modal-secondary">
 					{notificationConfig.secondaryAction.label}
 				</button>
 			{/if}
 			{#if notificationConfig.primaryAction}
-				<button
-					onclick={notificationConfig.primaryAction.handler}
-					class="px-4 py-1.5 text-sm font-medium text-white bg-red-600 rounded hover:bg-red-700 transition-colors"
-				>
+				<button onclick={notificationConfig.primaryAction.handler} class="btn-modal-danger">
 					{notificationConfig.primaryAction.label}
 				</button>
 			{:else}
 				<button
-					onclick={() => { notificationOpen = false; }}
-					class="px-4 py-1.5 text-sm font-medium text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors"
+					onclick={() => {
+						notificationOpen = false;
+					}}
+					class="btn-modal-primary"
 				>
 					확인
 				</button>
@@ -670,3 +695,164 @@
 		</svelte:fragment>
 	</WindowsModal>
 </div>
+
+<style>
+	@reference "$app.css";
+
+	/* 컨테이너 */
+	.container {
+		padding: 20px;
+		max-width: 100%;
+		background: white;
+	}
+
+	/* 제목 */
+	.title {
+		font-size: 20px;
+		font-weight: 700;
+		text-align: center;
+		margin-bottom: 20px;
+		color: #1f2937;
+	}
+
+	.filter-section {
+		margin-bottom: 20px;
+	}
+
+	/* 검색 컨테이너 */
+	.search-container {
+		@apply flex flex-wrap items-center gap-2.5 rounded-md bg-gradient-to-b from-gray-50 to-white p-3 shadow-sm;
+	}
+
+	.select-category {
+		@apply flex h-7 min-w-[90px] cursor-pointer items-center rounded border-2 border-gray-200 bg-white px-1.5 py-1 text-[13px] leading-[1.4] outline-none transition-all hover:border-blue-500 hover:shadow-[0_0_0_2px_rgba(0,123,255,0.1)];
+	}
+
+	.input-search {
+		@apply h-7 min-w-[200px] flex-1 rounded border-2 border-gray-200 bg-white px-1.5 py-1 text-[13px] leading-[1.4] outline-none transition-all hover:border-gray-400 focus:border-blue-500 focus:shadow-[0_0_0_2px_rgba(0,123,255,0.15)];
+	}
+
+	.btn-search {
+		@apply flex h-7 flex-shrink-0 cursor-pointer items-center justify-center rounded border-none bg-gradient-to-br from-blue-500 to-blue-700 px-2 text-white shadow-[0_1px_4px_rgba(0,123,255,0.3)] transition-all hover:-translate-y-px hover:from-blue-700 hover:to-blue-900 hover:shadow-[0_2px_8px_rgba(0,123,255,0.4)] active:translate-y-0 active:shadow-[0_1px_3px_rgba(0,123,255,0.3)];
+	}
+
+	.label-page {
+		@apply flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap text-[13px] font-medium text-gray-700;
+	}
+
+	.select-page {
+		@apply flex h-7 min-w-[60px] cursor-pointer items-center rounded border-2 border-gray-200 bg-white px-1.5 py-1 pr-5 text-[13px] font-medium leading-[1.4] outline-none transition-all hover:border-blue-500 hover:shadow-[0_0_0_2px_rgba(0,123,255,0.1)] focus:border-blue-500 focus:shadow-[0_0_0_2px_rgba(0,123,255,0.15)];
+	}
+
+	/* 테이블 헤더 */
+	.table-header {
+		@apply mb-3 flex flex-nowrap items-center justify-between;
+	}
+
+	.total-count {
+		@apply whitespace-nowrap text-sm font-semibold text-gray-700;
+	}
+
+	/* 반응형 - 모바일 */
+	@media (max-width: 480px) {
+		.container {
+			padding: 5px;
+		}
+
+		.title {
+			font-size: 20px;
+			margin-bottom: 6px;
+		}
+
+		.filter-section {
+			margin-bottom: 10px;
+		}
+
+		.table-header {
+			@apply mb-2 gap-2;
+		}
+
+		.total-count {
+			@apply flex-shrink-0 text-xs;
+		}
+	}
+
+	/* 버튼 */
+	.btn-icon {
+		@apply h-4 w-4 brightness-0 invert filter;
+	}
+
+	.btn-blue {
+		@apply flex items-center gap-1 rounded-md bg-blue-600 px-2 py-1.5 text-xs text-white transition-colors hover:bg-blue-700 sm:px-3 sm:text-sm;
+	}
+
+	.btn-green {
+		@apply flex items-center gap-1 rounded-md bg-green-600 px-2 py-1.5 text-xs text-white transition-colors hover:bg-green-700 sm:px-3 sm:text-sm;
+	}
+
+	.btn-settings {
+		@apply rounded-md border border-gray-300 p-1.5 transition-colors hover:bg-gray-50;
+	}
+
+	.btn-modal-primary {
+		@apply rounded bg-blue-600 px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-700;
+	}
+
+	.btn-modal-secondary {
+		@apply rounded border border-gray-300 bg-white px-4 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50;
+	}
+
+	.btn-modal-danger {
+		@apply rounded bg-red-600 px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-red-700;
+	}
+
+	/* 입력 필드 */
+	.input-search {
+		@apply w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500;
+	}
+
+	.select-items-per-page {
+		@apply cursor-pointer appearance-none rounded-md border border-gray-300 bg-white bg-no-repeat py-1.5 pl-3 pr-10 text-sm shadow-sm transition-colors hover:border-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500;
+	}
+
+	/* 모달 메시지 박스 */
+	.alert-success {
+		@apply font-medium text-green-600;
+	}
+
+	.alert-fail {
+		@apply font-medium text-red-600;
+	}
+
+	.alert-box-warning {
+		@apply rounded border border-yellow-200 bg-yellow-50 p-2 text-sm text-yellow-700;
+	}
+
+	.alert-box-error {
+		@apply rounded border border-red-200 bg-red-50 p-2 text-sm text-red-700;
+	}
+
+	.detail-box {
+		@apply rounded border border-gray-200 bg-gray-50 p-3;
+	}
+
+	.detail-box-error {
+		@apply rounded border border-red-200 bg-red-50 p-3;
+	}
+
+	.detail-title {
+		@apply text-sm font-semibold text-gray-900;
+	}
+
+	.detail-title-error {
+		@apply text-sm font-semibold text-red-900;
+	}
+
+	.detail-content {
+		@apply mt-1 whitespace-pre-wrap text-xs text-gray-600;
+	}
+
+	.detail-content-error {
+		@apply mt-1 whitespace-pre-wrap text-xs text-red-700;
+	}
+</style>

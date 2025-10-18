@@ -221,11 +221,11 @@
 	}
 
 	.title {
-		font-size: 24px;
-		font-weight: bold;
+		font-size: 20px;
+		font-weight: 700;
 		text-align: center;
 		margin-bottom: 20px;
-		color: #333;
+		color: #1F2937;
 	}
 
 	/* 반응형 - 모바일 */
@@ -235,7 +235,7 @@
 		}
 
 		.title {
-			font-size: 14px;
+			font-size: 20px;
 			margin-bottom: 6px;
 		}
 	}

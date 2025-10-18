@@ -13,179 +13,138 @@
 	export let onDelete = (member) => {};
 </script>
 
-<div class="bg-white rounded-lg shadow overflow-hidden">
-	<!-- 모바일에서 가로 스크롤 가능 -->
-	<div class="overflow-x-auto">
-		<table class="divide-y divide-gray-200" style="min-width: 1000px;">
-			<thead class="bg-gray-50">
+{#if isLoading}
+	<div class="loading-state">데이터를 불러오는 중...</div>
+{:else}
+	<!-- 테이블 래퍼 -->
+	<div class="table-wrapper">
+		<table class="member-table">
+			<thead>
 				<tr>
-					<th class="sticky left-0 z-20 bg-gray-50 px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style="width: 50px; min-width: 50px; max-width: 50px;">
-						순번
-					</th>
+					<th class="th-base th-sticky-0">순번</th>
 					{#if visibleColumns.name}
-						<th onclick={() => onSort('name')} class="sticky left-[50px] z-20 bg-gray-50 px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 whitespace-nowrap" style="width: 90px; min-width: 90px;">
+						<th onclick={() => onSort('name')} class="th-base th-sticky-1 th-sortable">
 							성명 {#if sortBy === 'name'}{sortOrder === 'asc' ? '↑' : '↓'}{/if}
 						</th>
 					{/if}
 					{#if visibleColumns.date}
-						<th onclick={() => onSort('createdAt')} class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 whitespace-nowrap" style="min-width: 100px;">
+						<th onclick={() => onSort('createdAt')} class="th-base th-sortable">
 							등록일 {#if sortBy === 'createdAt'}{sortOrder === 'asc' ? '↑' : '↓'}{/if}
 						</th>
 					{/if}
 					{#if visibleColumns.phone}
-						<th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style="min-width: 120px;">
-							연락처
-						</th>
+						<th class="th-base">연락처</th>
 					{/if}
 					{#if visibleColumns.salesperson}
-						<th onclick={() => onSort('salesperson')} class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 whitespace-nowrap" style="min-width: 80px;">
+						<th onclick={() => onSort('salesperson')} class="th-base th-sortable">
 							판매인 {#if sortBy === 'salesperson'}{sortOrder === 'asc' ? '↑' : '↓'}{/if}
 						</th>
 					{/if}
 					{#if visibleColumns.planner}
-						<th onclick={() => onSort('planner')} class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 whitespace-nowrap" style="min-width: 80px;">
+						<th onclick={() => onSort('planner')} class="th-base th-sortable">
 							설계사 {#if sortBy === 'planner'}{sortOrder === 'asc' ? '↑' : '↓'}{/if}
 						</th>
 					{/if}
 					{#if visibleColumns.branch}
-						<th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style="min-width: 80px;">
-							지사
-						</th>
+						<th class="th-base">지사</th>
 					{/if}
 					{#if visibleColumns.idNumber}
-						<th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style="min-width: 140px;">
-							주민번호
-						</th>
+						<th class="th-base">주민번호</th>
 					{/if}
 					{#if visibleColumns.bank}
-						<th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style="min-width: 80px;">
-							은행
-						</th>
+						<th class="th-base">은행</th>
 					{/if}
 					{#if visibleColumns.accountNumber}
-						<th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style="min-width: 140px;">
-							계좌번호
-						</th>
+						<th class="th-base">계좌번호</th>
 					{/if}
 					{#if visibleColumns.plannerPhone}
-						<th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style="min-width: 110px;">
-							설계사 연락처
-						</th>
+						<th class="th-base">설계사 연락처</th>
 					{/if}
 					{#if visibleColumns.insuranceProduct}
-						<th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style="min-width: 120px;">
-							보험상품
-						</th>
+						<th class="th-base">보험상품</th>
 					{/if}
 					{#if visibleColumns.insuranceCompany}
-						<th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style="min-width: 80px;">
-							보험회사
-						</th>
+						<th class="th-base">보험회사</th>
 					{/if}
-					<th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style="min-width: 60px; width: 60px;">
-						작업
-					</th>
+					<th class="th-base">작업</th>
 				</tr>
 			</thead>
-			<tbody class="bg-white divide-y divide-gray-200">
-				{#if isLoading}
+			<tbody>
+				{#if members.length === 0}
 					<tr>
-						<td colspan="12" class="text-center py-8 text-gray-500">
-							로딩 중...
-						</td>
-					</tr>
-				{:else if members.length === 0}
-					<tr>
-						<td colspan="12" class="text-left px-3 py-8 text-gray-500">
-							등록된 용역자가 없습니다.
-						</td>
+						<td colspan="14" class="empty-state"> 등록된 용역자가 없습니다 </td>
 					</tr>
 				{:else}
 					{#each members as member, index}
-						<tr class="group hover:bg-gray-50">
-							<td class="sticky left-0 z-10 bg-white group-hover:bg-gray-50 px-2 py-2 text-sm text-gray-700 text-center whitespace-nowrap" style="width: 50px; min-width: 50px; max-width: 50px;">
-								{(currentPage - 1) * itemsPerPage + index + 1}
-							</td>
+						<tr class="data-row">
+							<td class="td-sticky-0">{(currentPage - 1) * itemsPerPage + index + 1}</td>
 							{#if visibleColumns.name}
-							<td class="sticky left-[50px] z-10 bg-white group-hover:bg-gray-50 px-3 py-2 text-sm font-medium text-gray-900 whitespace-nowrap" style="width: 90px; min-width: 90px;">
-								<div class="relative inline-flex items-baseline">
-										{member.name}
-										{#if member.grade}
-											<img src="/icons/{member.grade}.svg" alt="{member.grade}" class="w-4 h-4 absolute -top-1 -right-4" title="{member.grade} 등급" />
-										{/if}
+								<td class="td-sticky-1">
+									<div class="flex items-center justify-center">
+										<div class="relative inline-flex items-baseline">
+											{member.name}
+											{#if member.grade}
+												<img
+													src="/icons/{member.grade}.svg"
+													alt={member.grade}
+													class="grade-icon"
+													title="{member.grade} 등급"
+												/>
+											{/if}
+										</div>
 									</div>
-							</td>
-						{/if}
+								</td>
+							{/if}
 							{#if visibleColumns.date}
-								<td class="px-3 py-2 text-sm text-gray-700 whitespace-nowrap">
+								<td class="td-base">
 									{member.createdAt ? new Date(member.createdAt).toLocaleDateString('ko-KR') : '-'}
 								</td>
 							{/if}
 							{#if visibleColumns.phone}
-								<td class="px-3 py-2 text-sm text-gray-700 whitespace-nowrap">
-									{member.phone || '-'}
-								</td>
+								<td class="td-base">{member.phone || '-'}</td>
 							{/if}
 							{#if visibleColumns.salesperson}
-								<td class="px-3 py-2 text-sm text-gray-700 whitespace-nowrap">
-									{member.salesperson || '-'}
-								</td>
+								<td class="td-base">{member.salesperson || '-'}</td>
 							{/if}
 							{#if visibleColumns.planner}
-								<td class="px-3 py-2 text-sm text-gray-700 whitespace-nowrap">
-									{member.planner || '-'}
-								</td>
+								<td class="td-base">{member.planner || '-'}</td>
 							{/if}
 							{#if visibleColumns.branch}
-								<td class="px-3 py-2 text-sm text-gray-700 whitespace-nowrap">
-									{member.branch || '-'}
-								</td>
+								<td class="td-base">{member.branch || '-'}</td>
 							{/if}
 							{#if visibleColumns.idNumber}
-								<td class="px-3 py-2 text-sm text-gray-700 whitespace-nowrap">
-									{member.idNumber || '-'}
-								</td>
+								<td class="td-base">{member.idNumber || '-'}</td>
 							{/if}
 							{#if visibleColumns.bank}
-								<td class="px-3 py-2 text-sm text-gray-700 whitespace-nowrap">
-									{member.bank || '-'}
-								</td>
+								<td class="td-base">{member.bank || '-'}</td>
 							{/if}
 							{#if visibleColumns.accountNumber}
-								<td class="px-3 py-2 text-sm text-gray-700 whitespace-nowrap">
-									{member.accountNumber || '-'}
-								</td>
+								<td class="td-base">{member.accountNumber || '-'}</td>
 							{/if}
 							{#if visibleColumns.plannerPhone}
-								<td class="px-3 py-2 text-sm text-gray-700 whitespace-nowrap">
-									{member.plannerPhone || '-'}
-								</td>
+								<td class="td-base">{member.plannerPhone || '-'}</td>
 							{/if}
 							{#if visibleColumns.insuranceProduct}
-								<td class="px-3 py-2 text-sm text-gray-700 whitespace-nowrap">
-									{member.insuranceProduct || '-'}
-								</td>
+								<td class="td-base">{member.insuranceProduct || '-'}</td>
 							{/if}
 							{#if visibleColumns.insuranceCompany}
-								<td class="px-3 py-2 text-sm text-gray-700 whitespace-nowrap">
-									{member.insuranceCompany || '-'}
-								</td>
+								<td class="td-base">{member.insuranceCompany || '-'}</td>
 							{/if}
-							<td class="px-1 py-2 whitespace-nowrap">
-								<div class="flex gap-0.5">
+							<td class="td-base">
+								<div class="flex justify-center gap-0.5">
 									<button
 										onclick={() => onEdit(member)}
-										class="p-0.5 hover:bg-blue-50 rounded transition-colors"
+										class="rounded p-0.5 transition-colors hover:bg-blue-50"
 										title="수정"
 									>
-										<img src="/icons/edit-blue.svg" alt="Edit" class="w-4 h-4" />
+										<img src="/icons/edit-blue.svg" alt="Edit" class="h-4 w-4" />
 									</button>
 									<button
 										onclick={() => onDelete(member)}
-										class="p-0.5 hover:bg-red-50 rounded transition-colors"
+										class="rounded p-0.5 transition-colors hover:bg-red-50"
 										title="삭제"
 									>
-										<img src="/icons/trash-red.svg" alt="Delete" class="w-4 h-4" />
+										<img src="/icons/trash-red.svg" alt="Delete" class="h-4 w-4" />
 									</button>
 								</div>
 							</td>
@@ -195,4 +154,109 @@
 			</tbody>
 		</table>
 	</div>
-</div>
+{/if}
+
+<style>
+	@reference "$app.css";
+
+	/* 로딩 상태 */
+	.loading-state {
+		@apply py-10 text-center text-base;
+	}
+
+	/* 빈 상태 */
+	.empty-state {
+		@apply border-b border-l border-r border-gray-300 bg-white py-10 text-center italic text-gray-600;
+	}
+
+	/* 테이블 래퍼 */
+	.table-wrapper {
+		@apply relative overflow-x-auto border border-gray-300 bg-white;
+	}
+
+	.table-wrapper::-webkit-scrollbar {
+		@apply h-2.5;
+	}
+
+	.table-wrapper::-webkit-scrollbar-track {
+		@apply bg-gray-100;
+	}
+
+	.table-wrapper::-webkit-scrollbar-thumb {
+		@apply rounded bg-gray-400;
+	}
+
+	.table-wrapper::-webkit-scrollbar-thumb:hover {
+		@apply bg-gray-600;
+	}
+
+	/* 테이블 기본 */
+	.member-table {
+		@apply w-full min-w-max border-separate border-spacing-0;
+	}
+
+	/* 헤더 - 기본 */
+	.th-base {
+		@apply border-b border-r border-t border-gray-300 bg-gray-200;
+		@apply whitespace-nowrap p-1.5 text-center text-sm font-bold;
+	}
+
+	.th-base:first-child {
+		@apply border-l;
+	}
+
+	/* 헤더 - 정렬 가능 */
+	.th-sortable {
+		@apply cursor-pointer transition-colors hover:bg-gray-300;
+	}
+
+	/* 헤더 - 고정 컬럼 */
+	.th-sticky-0 {
+		@apply sticky left-0 z-20 min-w-[60px];
+	}
+
+	.th-sticky-1 {
+		@apply sticky left-[60px] z-[19] min-w-[120px];
+	}
+
+	/* 데이터 행 */
+	.data-row:hover td {
+		@apply bg-black/[0.02];
+	}
+
+	/* 데이터 셀 - 기본 */
+	.td-base {
+		@apply border-b border-r border-gray-300;
+		@apply whitespace-nowrap p-1.5 text-center text-sm;
+	}
+
+	.td-base:first-child {
+		@apply border-l;
+	}
+
+	/* 데이터 셀 - 고정 컬럼 */
+	.td-sticky-0 {
+		@apply sticky left-0 z-10 bg-white;
+		@apply border-b border-l border-r border-gray-300;
+		@apply whitespace-nowrap p-1.5 text-center text-sm;
+	}
+
+	.data-row:hover .td-sticky-0 {
+		@apply bg-black/[0.02];
+	}
+
+	.td-sticky-1 {
+		@apply sticky left-[60px] z-[9] bg-white;
+		@apply border-b border-r border-gray-300;
+		@apply whitespace-nowrap p-1.5 text-center text-sm;
+	}
+
+	.data-row:hover .td-sticky-1 {
+		@apply bg-black/[0.02];
+	}
+
+	/* 등급 아이콘 */
+	.grade-icon {
+		@apply absolute -right-5 -top-1.5 h-5 w-5;
+	}
+</style>
