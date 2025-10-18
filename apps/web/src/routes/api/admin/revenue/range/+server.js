@@ -59,7 +59,6 @@ async function calculateMonthlyGradePaymentsFromSummary(monthKey) {
 
   // 등급별 평균 1회 지급액 계산
   const gradePayments = {};
-  const gradeDistribution = {};
 
   for (const grade of ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8']) {
     const stats = gradeStats[grade];
@@ -69,11 +68,9 @@ async function calculateMonthlyGradePaymentsFromSummary(monthKey) {
     gradePayments[grade] = weekCount > 0
       ? Math.floor(stats.totalAmount / weekCount)
       : 0;
-
-    gradeDistribution[grade] = stats.userCount;
   }
 
-  return { gradePayments, gradeDistribution };
+  return { gradePayments };
 }
 
 export async function GET({ url, locals }) {
@@ -144,8 +141,8 @@ async function getMonthlyData(start, end) {
     const reg = registrations.find(r => r.monthKey === monthKey);
     const paymentStatus = reg ? await checkPaymentStatus(monthKey) : null;
 
-    // ⭐ WeeklyPaymentSummary에서 해당 월 통계 합산
-    const { gradePayments, gradeDistribution } = await calculateMonthlyGradePaymentsFromSummary(monthKey);
+    // ⭐ WeeklyPaymentSummary에서 해당 월 지급액만 합산
+    const { gradePayments } = await calculateMonthlyGradePaymentsFromSummary(monthKey);
 
     monthlyData.push({
       monthKey: monthKey,
@@ -164,8 +161,12 @@ async function getMonthlyData(start, end) {
         (reg.paymentTargets?.additionalPayments?.length || 0)
       ) : 0,
 
-      // ⭐ 등급별 통계 (WeeklyPaymentSummary 기반)
-      gradeDistribution,
+      // ⭐ 등급별 분포 (MonthlyRegistrations에서 - 등록월 기준)
+      gradeDistribution: reg?.gradeDistribution || {
+        F1: 0, F2: 0, F3: 0, F4: 0, F5: 0, F6: 0, F7: 0, F8: 0
+      },
+
+      // ⭐ 등급별 지급액 (WeeklyPaymentSummary 기반 - 지급월 기준)
       gradePayments,
 
       // 지급 상태
