@@ -166,31 +166,24 @@
 	<title>용역자 산하정보 - 나눔페이</title>
 </svelte:head>
 
-<div class="container mx-auto px-4 py-6">
-	<!-- 헤더 -->
-	<div class="mb-6 flex justify-between items-center">
-		<div>
-			<h2 class="text-2xl font-bold text-gray-800">용역자 산하정보</h2>
-			<p class="text-gray-600 mt-1">조직도 및 산하 구조를 확인할 수 있습니다.</p>
-		</div>
+<div class="container">
+	<!-- 제목 -->
+	<h1 class="title">용역자 산하정보</h1>
 
-		<!-- 노드 검색 -->
+	<!-- 검색 영역 -->
+	<div class="search-section">
 		<div class="relative search-container">
-			<div class="flex items-center gap-2">
-				<div class="relative">
-					<input
-						type="text"
-						bind:value={searchQuery}
-						oninput={handleSearchInput}
-						onfocus={() => { if (searchResults.length > 0) showSearchResults = true; }}
-						placeholder="이름 검색..."
-						class="w-64 px-4 py-2 pr-10 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-					/>
-					<svg class="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-					</svg>
-				</div>
-			</div>
+			<input
+				type="text"
+				bind:value={searchQuery}
+				oninput={handleSearchInput}
+				onfocus={() => { if (searchResults.length > 0) showSearchResults = true; }}
+				placeholder="이름 검색..."
+				class="input-search"
+			/>
+			<button class="btn-search" disabled>
+				<img src="/icons/search.svg" alt="검색" class="btn-icon" />
+			</button>
 
 			<!-- 검색 결과 드롭다운 -->
 			{#if showSearchResults && searchResults.length > 0}
@@ -242,6 +235,7 @@
 		</div>
 	</div>
 
+	<!-- 트리 영역 -->
 	{#if isLoading}
 		<div class="flex justify-center items-center h-96 bg-white rounded-lg shadow">
 			<div class="text-gray-500">로딩 중...</div>
@@ -302,3 +296,68 @@
 		</div>
 	{/if}
 </div>
+
+<style>
+	@reference "../../../../app.css";
+
+	/* 컨테이너 */
+	.container {
+		padding: 20px;
+		max-width: 100%;
+		background: white;
+	}
+
+	/* 제목 */
+	.title {
+		font-size: 20px;
+		font-weight: 700;
+		text-align: center;
+		margin-bottom: 20px;
+		color: #1F2937;
+	}
+
+	/* 검색 섹션 */
+	.search-section {
+		margin-bottom: 20px;
+	}
+
+	.search-container {
+		@apply flex items-center gap-2.5 rounded-md bg-gradient-to-b from-gray-50 to-white p-3 shadow-sm;
+	}
+
+	.input-search {
+		@apply h-7 min-w-[300px] flex-1 rounded border-2 border-gray-200 bg-white px-1.5 py-1 text-[13px] leading-[1.4] outline-none transition-all hover:border-gray-400 focus:border-blue-500 focus:shadow-[0_0_0_2px_rgba(0,123,255,0.15)];
+	}
+
+	.btn-search {
+		@apply flex h-7 flex-shrink-0 cursor-pointer items-center justify-center rounded border-none bg-gradient-to-br from-blue-500 to-blue-700 px-2 text-white shadow-[0_1px_4px_rgba(0,123,255,0.3)] transition-all hover:-translate-y-px hover:from-blue-700 hover:to-blue-900 hover:shadow-[0_2px_8px_rgba(0,123,255,0.4)] active:translate-y-0 active:shadow-[0_1px_3px_rgba(0,123,255,0.3)];
+	}
+
+	.btn-search:disabled {
+		@apply cursor-default opacity-50 hover:translate-y-0 hover:from-blue-500 hover:to-blue-700 hover:shadow-[0_1px_4px_rgba(0,123,255,0.3)];
+	}
+
+	.btn-icon {
+		@apply w-4 h-4 filter brightness-0 invert;
+	}
+
+	/* 반응형 - 모바일 */
+	@media (max-width: 480px) {
+		.container {
+			padding: 5px;
+		}
+
+		.title {
+			font-size: 20px;
+			margin-bottom: 6px;
+		}
+
+		.search-section {
+			margin-bottom: 10px;
+		}
+
+		.input-search {
+			min-width: 200px;
+		}
+	}
+</style>
