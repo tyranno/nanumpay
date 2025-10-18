@@ -1,249 +1,454 @@
 <script>
 	import { onMount } from 'svelte';
 
-	let userInfo = {
-		nickname: '',
-		name: '',
-		phone1: '',
-		bank: '',
-		account: '',
-		phone2: '',
-		assistant: '',
-		manager: '',
-		salesOffice: '',
-		manager2: '',
-		phone3: '',
-		manager3: '',
-		phone4: '',
-		supervisor: ''
-	};
+	let userInfo = $state(null);
+	let paymentSummary = $state(null);
+	let allPayments = $state([]); // 전체 데이터
+	let filteredPayments = $state([]); // 필터링된 데이터
+	let displayedPayments = $state([]); // 현재 페이지에 표시할 데이터
+	let isLoading = $state(true);
+	let error = $state(null);
 
-	let editMode = false;
-	let isLoading = true;
+	// 현재 월 계산 (YYYY-MM 형식)
+	const currentMonth = (() => {
+		const now = new Date();
+		return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+	})();
 
-	onMount(async () => {
-		userInfo = {
-			nickname: '이름',
-			name: '전화번호',
-			phone1: '은행',
-			bank: '계좌',
-			account: '주민번호',
-			phone2: '보험',
-			assistant: '보험회사',
-			manager: '',
-			salesOffice: '소속/지사',
-			manager2: '설계사',
-			phone3: '설계사 전화번호',
-			manager3: '',
-			phone4: '판매인',
-			supervisor: '판매인 전화번호'
-		};
-		isLoading = false;
+	// 필터 상태
+	let filters = $state({
+		startMonth: currentMonth,
+		endMonth: currentMonth,
+		grade: ''
 	});
 
-	function toggleEdit() {
-		editMode = !editMode;
+	// 페이지네이션 상태
+	let currentPage = $state(1);
+	let itemsPerPage = $state(10);
+	let totalPages = $state(1);
+	let itemsPerPageOptions = [10, 20, 50, 100];
+
+	onMount(async () => {
+		try {
+			const response = await fetch('/api/user/payments');
+			const data = await response.json();
+
+			console.log('🔥 API 응답:', data);
+
+			if (!response.ok) {
+				throw new Error(data.message || '용역비 정보를 불러오는데 실패했습니다.');
+			}
+
+			if (data.success) {
+				userInfo = data.user;
+				paymentSummary = data.summary;
+				allPayments = data.payments;
+				console.log('✅ allPayments 설정됨:', allPayments.length, '건');
+				console.log('📅 첫 번째 데이터:', allPayments[0]);
+			} else {
+				throw new Error('용역비 정보가 없습니다.');
+			}
+		} catch (err) {
+			console.error('❌ Error loading payments:', err);
+			error = err.message;
+		} finally {
+			isLoading = false;
+		}
+	});
+
+	// 필터가 변경될 때마다 자동으로 적용
+	$effect(() => {
+		// 필터만 추적
+		const startMonth = filters.startMonth;
+		const endMonth = filters.endMonth;
+		const grade = filters.grade;
+
+		// 필터링 (API에서 이미 주별로 그룹화되어 옴)
+		const filtered = allPayments.filter((payment) => {
+			const paymentDate = new Date(payment.weekDate);
+			const paymentMonth = `${paymentDate.getFullYear()}-${String(paymentDate.getMonth() + 1).padStart(2, '0')}`;
+
+			// 시작 월 필터 (YYYY-MM 형식) - 이상(>=)
+			if (startMonth && paymentMonth < startMonth) {
+				return false;
+			}
+
+			// 종료 월 필터 (YYYY-MM 형식) - 이하(<=)
+			if (endMonth && paymentMonth > endMonth) {
+				return false;
+			}
+
+			// 등급 필터 (grades 배열에 포함 여부 확인)
+			if (grade && !payment.grades.includes(grade)) {
+				return false;
+			}
+
+			return true;
+		});
+
+		filteredPayments = filtered;
+		currentPage = 1;
+	});
+
+	// 페이지네이션 업데이트 (필터나 페이지가 변경될 때마다)
+	$effect(() => {
+		const total = Math.ceil(filteredPayments.length / itemsPerPage);
+		const startIndex = (currentPage - 1) * itemsPerPage;
+		const endIndex = startIndex + itemsPerPage;
+		const displayed = filteredPayments.slice(startIndex, endIndex);
+
+		totalPages = total;
+		displayedPayments = displayed;
+	});
+
+	// 페이지 변경
+	function goToPage(page) {
+		if (page < 1 || page > totalPages) return;
+		currentPage = page;
 	}
 
-	function saveInfo() {
-		console.log('Saving user info:', userInfo);
-		editMode = false;
+	// 필터 초기화
+	function resetFilters() {
+		filters.startMonth = currentMonth;
+		filters.endMonth = currentMonth;
+		filters.grade = '';
 	}
+
+	// 날짜 포맷팅
+	function formatDate(dateStr) {
+		if (!dateStr) return '-';
+		const date = new Date(dateStr);
+		return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+	}
+
+	// 금액 포맷팅
+	function formatAmount(amount) {
+		if (!amount && amount !== 0) return '-';
+		return amount.toLocaleString() + '원';
+	}
+
+	// 등급 목록
+	const grades = ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'];
 </script>
 
 <svelte:head>
-	<title>사용자 홈 - 나눔페이</title>
+	<title>내 용역비 - 나눔페이</title>
 </svelte:head>
 
-<style>
-	.filter-indigo {
-		filter: invert(30%) sepia(100%) saturate(1247%) hue-rotate(203deg) brightness(90%) contrast(97%);
-	}
-	.filter-teal {
-		filter: invert(72%) sepia(18%) saturate(2124%) hue-rotate(136deg) brightness(92%) contrast(88%);
-	}
-</style>
-
 {#if isLoading}
-	<div class="flex justify-center items-center h-64">
+	<div class="flex h-screen items-center justify-center">
 		<div class="text-gray-500">로딩 중...</div>
 	</div>
+{:else if error}
+	<div class="flex h-screen items-center justify-center">
+		<div class="text-center">
+			<p class="mb-2 text-red-500">{error}</p>
+		</div>
+	</div>
 {:else}
-	<div class="px-4 py-6 sm:px-0">
-		<div class="bg-white shadow overflow-hidden sm:rounded-lg">
-			<div class="px-4 py-5 sm:px-6 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
-				<h3 class="text-lg leading-6 font-medium text-gray-900">사용자 정보</h3>
-				<button
-					on:click={toggleEdit}
-					class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 text-sm"
-				>
-					{editMode ? '취소' : '편집'}
-				</button>
-			</div>
-			<div class="px-4 py-5">
-				<div class="grid grid-cols-2 gap-4">
-					<div class="space-y-4">
-						<div class="flex items-center">
-							<label class="w-32 text-sm font-medium text-gray-700">닉네임</label>
-							{#if editMode}
-								<input type="text" bind:value={userInfo.nickname} class="flex-1 border-gray-300 rounded-md shadow-sm" />
+	<div class="container">
+		<!-- 상단 요약 카드 -->
+		<div class="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+			<!-- 사용자 정보 카드 -->
+			<div class="rounded-lg bg-gradient-to-br from-blue-50 to-indigo-100 p-3 shadow-md">
+				<div class="mb-2 flex items-center justify-between">
+					<div class="flex items-center gap-2">
+						<img src="/icons/user.svg" alt="사용자" class="h-5 w-5 text-indigo-700" />
+						<h3 class="text-base font-bold text-indigo-900">내 정보</h3>
+					</div>
+					<a
+						href="/dashboard/profile"
+						class="text-xs text-indigo-600 underline hover:text-indigo-800"
+					>
+						상세보기
+					</a>
+				</div>
+				<div class="space-y-1">
+					<div class="flex justify-between">
+						<span class="text-sm text-indigo-700">이름</span>
+						<span class="text-sm font-medium text-indigo-900">{userInfo?.name || '-'}</span>
+					</div>
+					<div class="flex justify-between">
+						<span class="text-sm text-indigo-700">아이디</span>
+						<span class="text-sm font-medium text-indigo-900">{userInfo?.loginId || '-'}</span>
+					</div>
+					<div class="flex items-center justify-between">
+						<span class="text-sm text-indigo-700">현재 등급</span>
+						<div class="flex items-center gap-2">
+							{#if userInfo?.grade}
+								<a href="/dashboard/network" class="cursor-pointer transition-transform hover:scale-110">
+									<img
+										src="/icons/{userInfo.grade}.svg"
+										alt={userInfo.grade}
+										class="h-8 w-8"
+										title="{userInfo.grade} 등급 - 클릭하여 산하 정보 보기"
+									/>
+								</a>
 							{:else}
-								<span class="text-sm text-gray-900">{userInfo.nickname}</span>
-							{/if}
-						</div>
-						<div class="flex items-center">
-							<label class="w-32 text-sm font-medium text-gray-700">이름</label>
-							{#if editMode}
-								<input type="text" bind:value={userInfo.name} class="flex-1 border-gray-300 rounded-md shadow-sm" />
-							{:else}
-								<span class="text-sm text-gray-900">{userInfo.name}</span>
-							{/if}
-						</div>
-						<div class="flex items-center">
-							<label class="w-32 text-sm font-medium text-gray-700">전화번호</label>
-							{#if editMode}
-								<input type="text" bind:value={userInfo.phone1} class="flex-1 border-gray-300 rounded-md shadow-sm" />
-							{:else}
-								<span class="text-sm text-gray-900">{userInfo.phone1}</span>
-							{/if}
-						</div>
-						<div class="flex items-center">
-							<label class="w-32 text-sm font-medium text-gray-700">은행</label>
-							{#if editMode}
-								<input type="text" bind:value={userInfo.bank} class="flex-1 border-gray-300 rounded-md shadow-sm" />
-							{:else}
-								<span class="text-sm text-gray-900">{userInfo.bank}</span>
-							{/if}
-						</div>
-						<div class="flex items-center">
-							<label class="w-32 text-sm font-medium text-gray-700">계좌</label>
-							{#if editMode}
-								<input type="text" bind:value={userInfo.account} class="flex-1 border-gray-300 rounded-md shadow-sm" />
-							{:else}
-								<span class="text-sm text-gray-900">{userInfo.account}</span>
-							{/if}
-						</div>
-						<div class="flex items-center">
-							<label class="w-32 text-sm font-medium text-gray-700">주민번호</label>
-							{#if editMode}
-								<input type="text" bind:value={userInfo.phone2} class="flex-1 border-gray-300 rounded-md shadow-sm" />
-							{:else}
-								<span class="text-sm text-gray-900">{userInfo.phone2}</span>
-							{/if}
-						</div>
-						<div class="flex items-center">
-							<label class="w-32 text-sm font-medium text-gray-700">보험</label>
-							{#if editMode}
-								<input type="text" bind:value={userInfo.assistant} class="flex-1 border-gray-300 rounded-md shadow-sm" />
-							{:else}
-								<span class="text-sm text-gray-900">{userInfo.assistant}</span>
-							{/if}
-						</div>
-						<div class="flex items-center">
-							<label class="w-32 text-sm font-medium text-gray-700">보험회사</label>
-							{#if editMode}
-								<input type="text" bind:value={userInfo.manager} class="flex-1 border-gray-300 rounded-md shadow-sm" />
-							{:else}
-								<span class="text-sm text-gray-900">{userInfo.manager}</span>
+								<span class="text-lg font-bold text-indigo-900">-</span>
 							{/if}
 						</div>
 					</div>
+					{#if userInfo?.grade && ['F3', 'F4', 'F5', 'F6', 'F7', 'F8'].includes(userInfo.grade)}
+						<div class="flex justify-between">
+							<span class="text-sm text-indigo-700">보험</span>
+							<span
+								class="text-sm font-medium {userInfo?.insuranceActive
+									? 'text-green-600'
+									: 'text-red-600'}"
+							>
+								{userInfo?.insuranceActive ? '가입' : '미가입'}
+							</span>
+						</div>
+					{/if}
+				</div>
+			</div>
 
-					<div class="space-y-4">
-						<div class="flex items-center">
-							<label class="w-32 text-sm font-medium text-gray-700">소속/지사</label>
-							{#if editMode}
-								<input type="text" bind:value={userInfo.salesOffice} class="flex-1 border-gray-300 rounded-md shadow-sm" />
-							{:else}
-								<span class="text-sm text-gray-900">{userInfo.salesOffice}</span>
-							{/if}
-						</div>
-						<div class="flex items-center">
-							<label class="w-32 text-sm font-medium text-gray-700">설계사</label>
-							{#if editMode}
-								<input type="text" bind:value={userInfo.manager2} class="flex-1 border-gray-300 rounded-md shadow-sm" />
-							{:else}
-								<span class="text-sm text-gray-900">{userInfo.manager2}</span>
-							{/if}
-						</div>
-						<div class="flex items-center">
-							<label class="w-32 text-sm font-medium text-gray-700">설계사 전화번호</label>
-							{#if editMode}
-								<input type="text" bind:value={userInfo.phone3} class="flex-1 border-gray-300 rounded-md shadow-sm" />
-							{:else}
-								<span class="text-sm text-gray-900">{userInfo.phone3}</span>
-							{/if}
-						</div>
-						<div class="flex items-center">
-							<label class="w-32 text-sm font-medium text-gray-700">&nbsp;</label>
-							<span class="text-sm text-gray-900">&nbsp;</span>
-						</div>
-						<div class="flex items-center">
-							<label class="w-32 text-sm font-medium text-gray-700">판매인</label>
-							{#if editMode}
-								<input type="text" bind:value={userInfo.phone4} class="flex-1 border-gray-300 rounded-md shadow-sm" />
-							{:else}
-								<span class="text-sm text-gray-900">{userInfo.phone4}</span>
-							{/if}
-						</div>
-						<div class="flex items-center">
-							<label class="w-32 text-sm font-medium text-gray-700">판매인 전화번호</label>
-							{#if editMode}
-								<input type="text" bind:value={userInfo.supervisor} class="flex-1 border-gray-300 rounded-md shadow-sm" />
-							{:else}
-								<span class="text-sm text-gray-900">{userInfo.supervisor}</span>
-							{/if}
-						</div>
+			<!-- 용역비 요약 카드 -->
+			<div class="rounded-lg bg-gradient-to-br from-green-50 to-emerald-100 p-3 shadow-md">
+				<div class="mb-2 flex items-center gap-2">
+					<img src="/icons/money.svg" alt="용역비" class="h-5 w-5" />
+					<h3 class="text-base font-bold text-emerald-900">용역비 요약</h3>
+				</div>
+				<div class="space-y-1">
+					<div class="flex justify-between">
+						<span class="text-sm text-emerald-700">이번주 금액</span>
+						<span class="text-lg font-bold text-emerald-900"
+							>{formatAmount(paymentSummary?.thisWeekAmount)}</span
+						>
+					</div>
+					<div class="flex justify-between">
+						<span class="text-sm text-emerald-700">이번달 금액</span>
+						<span class="text-sm font-medium text-emerald-900"
+							>{formatAmount(paymentSummary?.thisMonthAmount)}</span
+						>
+					</div>
+					<div class="flex justify-between border-t border-emerald-200 pt-2">
+						<span class="text-sm text-emerald-700">지급 예정액</span>
+						<span class="text-sm font-medium text-emerald-900"
+							>{formatAmount(paymentSummary?.upcomingAmount)}</span
+						>
 					</div>
 				</div>
-
-				{#if editMode}
-					<div class="mt-6 flex justify-end">
-						<button
-							on:click={saveInfo}
-							class="bg-green-500 text-white px-6 py-2 rounded-md hover:bg-green-600"
-						>
-							저장
-						</button>
-					</div>
-				{/if}
 			</div>
 		</div>
 
-		<div class="mt-6 bg-white shadow overflow-hidden sm:rounded-lg">
-			<div class="px-4 py-5 sm:px-6 border-b border-gray-200 bg-gray-50">
-				<h3 class="text-lg leading-6 font-medium text-gray-900">빠른 메뉴</h3>
+		<!-- 용역비 지급 내역 테이블 -->
+		<div class="overflow-hidden rounded-lg bg-white shadow">
+			<div class="border-b border-gray-200 bg-gray-50 px-4 py-5">
+				<div class="flex items-center gap-2">
+					<img src="/icons/receipt.svg" alt="용역비" class="h-5 w-5" />
+					<h3 class="text-base font-bold text-gray-900">용역비 지급 내역</h3>
+				</div>
+				<p class="mt-1 text-sm text-gray-600">주차별 용역비 지급 내역입니다</p>
 			</div>
-			<div class="px-4 py-4">
-				<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-					<a href="/dashboard/income" class="block">
-						<div class="bg-gradient-to-br from-blue-50 to-indigo-100 hover:from-blue-100 hover:to-indigo-200 rounded-xl p-6 transition-all shadow-md hover:shadow-lg">
-							<div class="flex items-center">
-								<div class="p-3 bg-white rounded-lg shadow-sm mr-4">
-									<img src="/icons/money.svg" alt="용역비" class="h-10 w-10 filter-indigo" />
-								</div>
-								<div>
-									<p class="text-lg font-semibold text-indigo-900">내용역비정보</p>
-									<p class="text-sm text-indigo-600 mt-1">지급 내역 및 등급 정보 확인</p>
-								</div>
-							</div>
-						</div>
-					</a>
-					<a href="/dashboard/network" class="block">
-						<div class="bg-gradient-to-br from-teal-50 to-cyan-100 hover:from-teal-100 hover:to-cyan-200 rounded-xl p-6 transition-all shadow-md hover:shadow-lg">
-							<div class="flex items-center">
-								<div class="p-3 bg-white rounded-lg shadow-sm mr-4">
-									<img src="/icons/chart.svg" alt="조직도" class="h-10 w-10 filter-teal" />
-								</div>
-								<div>
-									<p class="text-lg font-semibold text-teal-900">나의 산하정보</p>
-									<p class="text-sm text-teal-600 mt-1">나의 조직 구조 확인</p>
-								</div>
-							</div>
-						</div>
-					</a>
+
+			<!-- 검색 필터 -->
+			<div class="border-b border-gray-200 bg-white px-4 py-4">
+				<div class="flex items-end gap-3">
+					<!-- 시작 월 -->
+					<div class="w-40">
+						<label class="mb-1 block text-xs font-medium text-gray-700">시작</label>
+						<input
+							type="month"
+							bind:value={filters.startMonth}
+							class="w-full rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+						/>
+					</div>
+
+					<!-- 종료 월 -->
+					<div class="w-40">
+						<label class="mb-1 block text-xs font-medium text-gray-700">종료</label>
+						<input
+							type="month"
+							bind:value={filters.endMonth}
+							class="w-full rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+						/>
+					</div>
+
+					<!-- 등급 -->
+					<div class="w-32">
+						<label class="mb-1 block text-xs font-medium text-gray-700">등급</label>
+						<select
+							bind:value={filters.grade}
+							class="w-full rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+						>
+							<option value="">전체</option>
+							{#each grades as grade}
+								<option value={grade}>{grade}</option>
+							{/each}
+						</select>
+					</div>
+
+					<!-- 초기화 아이콘 -->
+					<button
+						onclick={resetFilters}
+						class="rounded-md border border-gray-300 bg-white p-1 text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-700"
+						title="초기화"
+					>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+							class="h-4 w-4"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+							/>
+						</svg>
+					</button>
+				</div>
+
+			</div>
+
+			<!-- 총 건수 및 페이지당 보기 갯수 -->
+			<div class="flex items-center justify-between bg-white px-4 py-2">
+				<div class="text-sm text-gray-600">
+					총 <span class="font-semibold text-gray-900">{filteredPayments.length}</span>건
+				</div>
+				<div class="flex items-center gap-2">
+					<label class="text-xs font-medium text-gray-700">페이지당:</label>
+					<select
+						bind:value={itemsPerPage}
+						class="w-24 rounded-md border border-gray-300 px-3 py-1 text-sm focus:border-blue-500 focus:outline-none"
+					>
+						{#each itemsPerPageOptions as option}
+							<option value={option}>{option}개</option>
+						{/each}
+					</select>
 				</div>
 			</div>
+
+			<div class="overflow-x-auto">
+				<table class="min-w-full divide-y divide-gray-200">
+					<thead class="bg-gray-50">
+						<tr>
+							<th class="table-header">지급일</th>
+							<th class="table-header">등급</th>
+							<th class="table-header">지급액</th>
+							<th class="table-header">세금</th>
+							<th class="table-header">실수령액</th>
+						</tr>
+					</thead>
+					<tbody class="divide-y divide-gray-200 bg-white">
+						{#if displayedPayments.length === 0}
+							<tr>
+								<td colspan="5" class="px-6 py-8 text-center text-sm text-gray-500">
+									지급 내역이 없습니다
+								</td>
+							</tr>
+						{:else}
+							{#each displayedPayments as payment}
+								<tr class="hover:bg-gray-50">
+									<td class="table-cell">{formatDate(payment.weekDate)}</td>
+									<td class="table-cell">
+										<div class="flex items-center justify-center gap-1">
+											{#each payment.grades as grade}
+												<img
+													src="/icons/{grade}.svg"
+													alt={grade}
+													class="h-5 w-5"
+													title="{grade} 등급"
+												/>
+											{/each}
+										</div>
+									</td>
+									<td class="table-cell text-right">{formatAmount(payment.amount)}</td>
+									<td class="table-cell text-right">{formatAmount(payment.tax)}</td>
+									<td class="table-cell text-right font-medium"
+										>{formatAmount(payment.netAmount)}</td
+									>
+								</tr>
+							{/each}
+						{/if}
+					</tbody>
+				</table>
+			</div>
+
+			<!-- 페이지네이션 -->
+			{#if totalPages > 1}
+				<div class="border-t border-gray-200 bg-gray-50 px-4 py-3">
+					<div class="flex items-center justify-center gap-1">
+						<button
+							onclick={() => goToPage(currentPage - 1)}
+							disabled={currentPage === 1}
+							class="rounded-md border border-gray-300 bg-white px-3 py-1 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+						>
+							이전
+						</button>
+						{#each Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+							const startPage = Math.max(1, Math.min(currentPage - 2, totalPages - 4));
+							return startPage + i;
+						}) as page}
+							<button
+								onclick={() => goToPage(page)}
+								class="rounded-md border px-3 py-1 text-sm font-medium transition-colors {currentPage === page
+									? 'border-blue-500 bg-blue-500 text-white'
+									: 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}"
+							>
+								{page}
+							</button>
+						{/each}
+						<button
+							onclick={() => goToPage(currentPage + 1)}
+							disabled={currentPage === totalPages}
+							class="rounded-md border border-gray-300 bg-white px-3 py-1 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+						>
+							다음
+						</button>
+					</div>
+				</div>
+			{/if}
 		</div>
 	</div>
 {/if}
+
+<style>
+	@reference "$lib/../app.css";
+
+	.container {
+		padding: 20px;
+		max-width: 1400px;
+		margin: 0 auto;
+		background: white;
+	}
+
+	.title {
+		font-size: 20px;
+		font-weight: 700;
+		text-align: center;
+		margin-bottom: 20px;
+		color: #1f2937;
+	}
+
+	.table-header {
+		@apply border border-gray-300 px-2 py-1.5 text-center text-sm font-bold uppercase tracking-wider text-gray-900;
+		min-width: 80px;
+	}
+
+	.table-cell {
+		@apply whitespace-nowrap border border-gray-300 px-2 py-1.5 text-center text-sm text-gray-900;
+		min-width: 80px;
+	}
+
+	/* 모바일 반응형 */
+	@media (max-width: 480px) {
+		.container {
+			padding: 10px;
+		}
+
+		.title {
+			font-size: 18px;
+			margin-bottom: 15px;
+		}
+
+		.table-header,
+		.table-cell {
+			@apply px-2 py-2 text-xs;
+		}
+	}
+</style>

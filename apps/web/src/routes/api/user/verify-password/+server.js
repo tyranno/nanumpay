@@ -1,0 +1,40 @@
+import { json } from '@sveltejs/kit';
+import { db } from '$lib/server/db.js';
+import User from '$lib/server/models/User.js';
+
+export async function POST({ locals, request }) {
+	if (!locals.user || locals.user.type !== 'user') {
+		return json({ message: '권한이 없습니다.' }, { status: 401 });
+	}
+
+	await db();
+
+	try {
+		const { password } = await request.json();
+
+		if (!password) {
+			return json({ message: '비밀번호를 입력해주세요.' }, { status: 400 });
+		}
+
+		const user = await User.findById(locals.user.id);
+
+		if (!user) {
+			return json({ message: '사용자를 찾을 수 없습니다.' }, { status: 404 });
+		}
+
+		// bcryptjs 동적 import
+		const bcrypt = await import('bcryptjs');
+
+		// 비밀번호 확인
+		const isValid = await bcrypt.default.compare(password, user.passwordHash);
+
+		if (!isValid) {
+			return json({ message: '비밀번호가 일치하지 않습니다.' }, { status: 400 });
+		}
+
+		return json({ success: true });
+	} catch (error) {
+		console.error('Password verification error:', error);
+		return json({ message: '비밀번호 확인에 실패했습니다.' }, { status: 500 });
+	}
+}
