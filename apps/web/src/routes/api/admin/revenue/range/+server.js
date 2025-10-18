@@ -57,17 +57,13 @@ async function calculateMonthlyGradePaymentsFromSummary(monthKey) {
     }
   }
 
-  // 등급별 평균 1회 지급액 계산
+  // 등급별 총 지급액 (해당 월 전체 합산)
   const gradePayments = {};
 
   for (const grade of ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8']) {
     const stats = gradeStats[grade];
-    const weekCount = weeklySummaries.length;
-
-    // 월간 평균 1회 지급액 = 총액 ÷ 주수
-    gradePayments[grade] = weekCount > 0
-      ? Math.floor(stats.totalAmount / weekCount)
-      : 0;
+    // 해당 월의 전체 합산 금액
+    gradePayments[grade] = stats.totalAmount;
   }
 
   return { gradePayments };

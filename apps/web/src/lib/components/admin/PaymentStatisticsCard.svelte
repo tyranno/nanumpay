@@ -236,18 +236,18 @@
 		const count = column.data.gradeDistribution?.[grade] || 0;
 
 		if (column.type === 'monthly') {
-			// 월간: gradePayments는 1회분, 10회 곱함
-			const perInstallment = column.data.gradePayments?.[grade] || 0;
+			// 월간: gradePayments는 주간 평균 금액
+			const weeklyAvg = column.data.gradePayments?.[grade] || 0;
 			return {
 				count: count,
-				amount: perInstallment * 10 * count
+				amount: weeklyAvg
 			};
 		} else {
 			// 주간: API에서 이미 계산된 금액 사용
 			const weeklyAmount = column.data.gradePayments?.[grade] || 0;
 			return {
 				count: count,
-				amount: weeklyAmount * count
+				amount: weeklyAmount
 			};
 		}
 	}
