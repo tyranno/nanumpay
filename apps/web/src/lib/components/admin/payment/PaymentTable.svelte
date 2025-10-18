@@ -147,7 +147,7 @@
 {/if}
 
 <style>
-	@reference "$/app.css";
+	@reference "$lib/../app.css";
 
 	/* 상태 메시지 */
 	.loading-state {
@@ -159,7 +159,7 @@
 	}
 
 	.empty-state {
-		@apply border-r border-b border-l border-gray-300 bg-white py-10 text-center text-gray-600 italic;
+		@apply border-b border-l border-r border-gray-300 bg-white py-10 text-center italic text-gray-600;
 	}
 
 	/* 테이블 래퍼 */
@@ -190,8 +190,8 @@
 
 	/* 헤더 - 기본 */
 	.th-base {
-		@apply border-t border-r border-b border-gray-300 bg-gray-200;
-		@apply p-1.5 text-center text-sm font-bold whitespace-nowrap;
+		@apply border-b border-r border-t border-gray-300 bg-gray-200;
+		@apply whitespace-nowrap p-1.5 text-center text-sm font-bold;
 	}
 
 	.th-base:first-child {
@@ -200,14 +200,14 @@
 
 	/* 헤더 - 주차 */
 	.th-week {
-		@apply border-t border-r border-b border-gray-300 bg-blue-100;
-		@apply p-1.5 text-center text-sm font-bold whitespace-nowrap;
+		@apply border-b border-r border-t border-gray-300 bg-blue-100;
+		@apply whitespace-nowrap p-1.5 text-center text-sm font-bold;
 	}
 
 	/* 헤더 - 서브 */
 	.th-sub {
-		@apply border-r border-b border-gray-300 bg-gray-200;
-		@apply min-w-[100px] p-1.5 text-center text-[13px] font-normal whitespace-nowrap;
+		@apply border-b border-r border-gray-300 bg-gray-200;
+		@apply min-w-[100px] whitespace-nowrap p-1.5 text-center text-[13px] font-normal;
 	}
 
 	.th-tax {
@@ -230,8 +230,8 @@
 
 	/* 데이터 셀 - 기본 */
 	.td-base {
-		@apply border-r border-b border-gray-300;
-		@apply p-1.5 text-center text-sm whitespace-nowrap;
+		@apply border-b border-r border-gray-300;
+		@apply whitespace-nowrap p-1.5 text-center text-sm;
 	}
 
 	.td-base:first-child {
@@ -241,8 +241,8 @@
 	/* 데이터 셀 - 고정 컬럼 */
 	.td-sticky-0 {
 		@apply sticky left-0 z-10 bg-white;
-		@apply border-r border-b border-l border-gray-300;
-		@apply p-1.5 text-center text-sm whitespace-nowrap;
+		@apply border-b border-l border-r border-gray-300;
+		@apply whitespace-nowrap p-1.5 text-center text-sm;
 	}
 
 	.data-row:hover .td-sticky-0 {
@@ -251,8 +251,8 @@
 
 	.td-sticky-1 {
 		@apply sticky left-[60px] z-[9] bg-white;
-		@apply border-r border-b border-gray-300;
-		@apply p-1.5 text-center text-sm whitespace-nowrap;
+		@apply border-b border-r border-gray-300;
+		@apply whitespace-nowrap p-1.5 text-center text-sm;
 	}
 
 	.data-row:hover .td-sticky-1 {
@@ -261,8 +261,8 @@
 
 	/* 데이터 셀 - 지급액 */
 	.td-amount {
-		@apply border-r border-b border-gray-300 bg-yellow-100;
-		@apply p-1.5 pr-3 text-right text-sm font-bold whitespace-nowrap;
+		@apply border-b border-r border-gray-300 bg-yellow-100;
+		@apply whitespace-nowrap p-1.5 pr-3 text-right text-sm font-bold;
 	}
 
 	.data-row:hover .td-amount {
@@ -271,8 +271,8 @@
 
 	/* 데이터 셀 - 원천징수 */
 	.td-tax {
-		@apply border-r border-b border-gray-300 bg-red-50;
-		@apply p-1.5 pr-3 text-right text-sm whitespace-nowrap text-red-600;
+		@apply border-b border-r border-gray-300 bg-red-50;
+		@apply whitespace-nowrap p-1.5 pr-3 text-right text-sm text-red-600;
 	}
 
 	.data-row:hover .td-tax {
@@ -281,8 +281,8 @@
 
 	/* 데이터 셀 - 실지급액 */
 	.td-net {
-		@apply border-r border-b border-gray-300 bg-green-50;
-		@apply p-1.5 pr-3 text-right text-sm font-bold whitespace-nowrap;
+		@apply border-b border-r border-gray-300 bg-green-50;
+		@apply whitespace-nowrap p-1.5 pr-3 text-right text-sm font-bold;
 	}
 
 	.data-row:hover .td-net {
@@ -291,6 +291,6 @@
 
 	/* 등급 아이콘 */
 	.grade-icon {
-		@apply absolute -top-1.5 -right-5 h-5 w-5;
+		@apply absolute -right-5 -top-1.5 h-5 w-5;
 	}
 </style>

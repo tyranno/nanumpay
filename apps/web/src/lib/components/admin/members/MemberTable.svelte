@@ -157,7 +157,7 @@
 {/if}
 
 <style>
-	@reference "$app.css";
+	@reference "$lib/../app.css";
 
 	/* 로딩 상태 */
 	.loading-state {

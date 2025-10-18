@@ -151,7 +151,16 @@
 			breadcrumbPaths.push(path.substring(0, i));
 		}
 
-		console.log('Selected:', node.label, 'Path:', path, 'NamePath:', namePath, 'Breadcrumb:', breadcrumbPath);
+		console.log(
+			'Selected:',
+			node.label,
+			'Path:',
+			path,
+			'NamePath:',
+			namePath,
+			'Breadcrumb:',
+			breadcrumbPath
+		);
 	}
 
 	function handleBreadcrumbClick(index) {
@@ -172,12 +181,14 @@
 
 	<!-- 검색 영역 -->
 	<div class="search-section">
-		<div class="relative search-container">
+		<div class="search-container relative">
 			<input
 				type="text"
 				bind:value={searchQuery}
 				oninput={handleSearchInput}
-				onfocus={() => { if (searchResults.length > 0) showSearchResults = true; }}
+				onfocus={() => {
+					if (searchResults.length > 0) showSearchResults = true;
+				}}
 				placeholder="이름 검색..."
 				class="input-search"
 			/>
@@ -187,16 +198,18 @@
 
 			<!-- 검색 결과 드롭다운 -->
 			{#if showSearchResults && searchResults.length > 0}
-				<div class="absolute right-0 top-full mt-2 w-96 bg-white rounded-lg shadow-xl border border-gray-200 max-h-96 overflow-y-auto z-50">
+				<div
+					class="absolute right-0 top-full z-50 mt-2 max-h-96 w-96 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-xl"
+				>
 					<div class="p-2">
-						<div class="text-xs text-gray-500 px-3 py-2 border-b">
+						<div class="border-b px-3 py-2 text-xs text-gray-500">
 							{searchResults.length}명의 용역자를 찾았습니다
 						</div>
 						{#each searchResults as user}
 							<button
 								type="button"
 								onclick={() => selectSearchResult(user)}
-								class="w-full text-left px-3 py-2.5 hover:bg-blue-50 rounded flex items-center justify-between transition-colors group"
+								class="group flex w-full items-center justify-between rounded px-3 py-2.5 text-left transition-colors hover:bg-blue-50"
 							>
 								<div class="flex-1">
 									<div class="font-medium text-gray-900 group-hover:text-blue-600">
@@ -206,8 +219,8 @@
 								{#if user.grade}
 									<img
 										src="/icons/{user.grade}.svg"
-										alt="{user.grade}"
-										class="w-6 h-6 flex-shrink-0"
+										alt={user.grade}
+										class="h-6 w-6 flex-shrink-0"
 										title="{user.grade} 등급"
 									/>
 								{/if}
@@ -218,18 +231,18 @@
 			{/if}
 
 			{#if showSearchResults && searchResults.length === 0 && searchQuery.trim().length >= 2 && !isSearching}
-				<div class="absolute right-0 top-full mt-2 w-96 bg-white rounded-lg shadow-xl border border-gray-200 p-4 z-50">
-					<div class="text-sm text-gray-500 text-center">
-						검색 결과가 없습니다
-					</div>
+				<div
+					class="absolute right-0 top-full z-50 mt-2 w-96 rounded-lg border border-gray-200 bg-white p-4 shadow-xl"
+				>
+					<div class="text-center text-sm text-gray-500">검색 결과가 없습니다</div>
 				</div>
 			{/if}
 
 			{#if isSearching}
-				<div class="absolute right-0 top-full mt-2 w-96 bg-white rounded-lg shadow-xl border border-gray-200 p-4 z-50">
-					<div class="text-sm text-gray-500 text-center">
-						검색 중...
-					</div>
+				<div
+					class="absolute right-0 top-full z-50 mt-2 w-96 rounded-lg border border-gray-200 bg-white p-4 shadow-xl"
+				>
+					<div class="text-center text-sm text-gray-500">검색 중...</div>
 				</div>
 			{/if}
 		</div>
@@ -237,68 +250,78 @@
 
 	<!-- 트리 영역 -->
 	{#if isLoading}
-		<div class="flex justify-center items-center h-96 bg-white rounded-lg shadow">
+		<div class="flex h-96 items-center justify-center rounded-lg bg-white shadow">
 			<div class="text-gray-500">로딩 중...</div>
 		</div>
 	{:else if error}
-		<div class="flex justify-center items-center h-96 bg-white rounded-lg shadow">
+		<div class="flex h-96 items-center justify-center rounded-lg bg-white shadow">
 			<div class="text-center">
-				<p class="text-red-500 mb-2">{error}</p>
+				<p class="mb-2 text-red-500">{error}</p>
 				<button
 					onclick={() => loadTreeData()}
-					class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+					class="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
 				>
 					다시 시도
 				</button>
 			</div>
 		</div>
 	{:else if treeData}
-		<!-- 트리 표시 영역 -->
-		<div class="bg-gray-50" style="height: calc(100vh - 280px);">
-			<div class="h-full relative">
-				<BinaryTreeD3
-					bind:this={treeComponent}
-					data={treeData}
-					nodeWidth={100}
-					nodeHeight={50}
-					levelGapY={80}
-					siblingGapX={20}
-					maxDepth={7}
-					topScale={0.3}
-					curveGamma={1.15}
-					onselect={handleSelect}
-				/>
-			</div>
-		</div>
-
-		<!-- 하단 계층 경로 표시 -->
-		<div class="mt-4 bg-white rounded-lg shadow p-4">
-			<div class="flex items-center gap-2 text-sm">
-				<span class="font-medium text-gray-700">계층 경로:</span>
-				<nav class="flex items-center gap-1" aria-label="Breadcrumb">
-					{#each breadcrumbPath as item, index}
-						{#if index > 0}
-							<svg class="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-								<path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
-							</svg>
-						{/if}
-						<button
-							type="button"
-							onclick={() => handleBreadcrumbClick(index)}
-							class="px-2 py-1 rounded transition-colors {index === breadcrumbPath.length - 1 ? 'bg-blue-100 text-blue-800 font-medium cursor-default' : 'text-gray-600 hover:bg-gray-100 cursor-pointer'}"
-							disabled={index === breadcrumbPath.length - 1}
-						>
-							{item}
-						</button>
-					{/each}
-				</nav>
-			</div>
+		<!-- 트리 표시 영역 (전체 화면 높이 - 상단 요소들 - 하단 breadcrumb) -->
+		<div class="tree-container">
+			<BinaryTreeD3
+				bind:this={treeComponent}
+				data={treeData}
+				nodeWidth={100}
+				nodeHeight={50}
+				levelGapY={80}
+				siblingGapX={20}
+				maxDepth={7}
+				topScale={0.3}
+				curveGamma={1.15}
+				onselect={handleSelect}
+			/>
 		</div>
 	{/if}
 </div>
 
+<!-- 🔧 브라우저 하단 고정 계층 경로 -->
+{#if treeData && breadcrumbPath.length > 0}
+	<div class="breadcrumb-fixed">
+		<div class="flex items-center gap-2 text-sm">
+			<span class="font-medium text-gray-700">계층 경로:</span>
+			<nav class="flex flex-wrap items-center gap-1" aria-label="Breadcrumb">
+				{#each breadcrumbPath as item, index}
+					{#if index > 0}
+						<svg
+							class="h-4 w-4 flex-shrink-0 text-gray-400"
+							fill="currentColor"
+							viewBox="0 0 20 20"
+						>
+							<path
+								fill-rule="evenodd"
+								d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
+								clip-rule="evenodd"
+							/>
+						</svg>
+					{/if}
+					<button
+						type="button"
+						onclick={() => handleBreadcrumbClick(index)}
+						class="rounded px-2 py-1 transition-colors {index === breadcrumbPath.length - 1
+							? 'cursor-default bg-blue-100 font-medium text-blue-800'
+							: 'cursor-pointer text-gray-600 hover:bg-gray-100'}"
+						disabled={index === breadcrumbPath.length - 1}
+					>
+						{item}
+					</button>
+				{/each}
+			</nav>
+		</div>
+	</div>
+{/if}
+
 <style>
-	@reference "../../../../app.css";
+	@reference "$lib/../app.css";
 
 	/* 컨테이너 */
 	.container {
@@ -307,13 +330,22 @@
 		background: white;
 	}
 
+	/* 트리 컨테이너 - viewport 기준 동적 높이 */
+	.tree-container {
+		background: #f9fafb;
+		/* 전체 화면 - 상단 패딩(20px) - 제목(~40px) - 검색(~60px) - 하단 패딩(20px) - breadcrumb(80px) */
+		height: calc(100vh - 280px);
+		overflow: hidden;
+		position: relative;
+	}
+
 	/* 제목 */
 	.title {
 		font-size: 20px;
 		font-weight: 700;
 		text-align: center;
 		margin-bottom: 20px;
-		color: #1F2937;
+		color: #1f2937;
 	}
 
 	/* 검색 섹션 */
@@ -338,13 +370,35 @@
 	}
 
 	.btn-icon {
-		@apply w-4 h-4 filter brightness-0 invert;
+		@apply h-4 w-4 brightness-0 invert filter;
+	}
+
+	/* 브라우저 하단 고정 계층 경로 */
+	.breadcrumb-fixed {
+		position: fixed;
+		bottom: 0;
+		left: 0;
+		right: 0;
+		background: white;
+		border-top: 2px solid #e5e7eb;
+		padding: 12px 20px;
+		box-shadow:
+			0 -4px 6px -1px rgba(0, 0, 0, 0.1),
+			0 -2px 4px -1px rgba(0, 0, 0, 0.06);
+		z-index: 40;
+		max-height: 80px;
+		overflow-y: auto;
 	}
 
 	/* 반응형 - 모바일 */
 	@media (max-width: 480px) {
 		.container {
 			padding: 5px;
+		}
+
+		.tree-container {
+			/* 모바일: 전체 화면 - 상단(5px) - 제목(~35px) - 검색(~55px) - breadcrumb(70px) */
+			height: calc(100vh - 280px);
 		}
 
 		.title {
@@ -358,6 +412,11 @@
 
 		.input-search {
 			min-width: 200px;
+		}
+
+		.breadcrumb-fixed {
+			padding: 8px 10px;
+			font-size: 12px;
 		}
 	}
 </style>

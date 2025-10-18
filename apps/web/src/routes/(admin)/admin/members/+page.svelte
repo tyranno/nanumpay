@@ -697,7 +697,7 @@
 </div>
 
 <style>
-	@reference "$app.css";
+	@reference "$lib/../app.css";
 
 	/* 컨테이너 */
 	.container {
@@ -809,10 +809,6 @@
 	/* 입력 필드 */
 	.input-search {
 		@apply w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-transparent focus:ring-2 focus:ring-blue-500;
-	}
-
-	.select-items-per-page {
-		@apply cursor-pointer appearance-none rounded-md border border-gray-300 bg-white bg-no-repeat py-1.5 pl-3 pr-10 text-sm shadow-sm transition-colors hover:border-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500;
 	}
 
 	/* 모달 메시지 박스 */

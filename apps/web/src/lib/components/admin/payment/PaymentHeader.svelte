@@ -53,9 +53,21 @@
 	let searchCategory = $paymentPageFilterState.searchCategory;
 
 	// Store 업데이트
-	$: filterType, selectedDate, selectedYear, selectedMonth, periodType,
-	   startYear, startMonth, endYear, endMonth, itemsPerPage,
-	   showTaxColumn, showNetColumn, searchQuery, searchCategory, updateStore();
+	$: (filterType,
+		selectedDate,
+		selectedYear,
+		selectedMonth,
+		periodType,
+		startYear,
+		startMonth,
+		endYear,
+		endMonth,
+		itemsPerPage,
+		showTaxColumn,
+		showNetColumn,
+		searchQuery,
+		searchCategory,
+		updateStore());
 
 	function updateStore() {
 		if (browser) {
@@ -127,20 +139,37 @@
 	<div class="mb-2">
 		<div class="filter-box">
 			<!-- 필터 타입 선택 -->
-			<div class="flex items-center gap-2 mb-2">
+			<div class="mb-2 flex items-center gap-2">
 				<label class="radio-label-mobile">
-					<input type="radio" bind:group={filterType} value="date" onchange={handleFilterTypeChange} class="cursor-pointer" />
+					<input
+						type="radio"
+						bind:group={filterType}
+						value="date"
+						onchange={handleFilterTypeChange}
+						class="cursor-pointer"
+					/>
 					<span class="font-medium">주간</span>
 				</label>
 				<label class="radio-label-mobile">
-					<input type="radio" bind:group={filterType} value="period" onchange={handleFilterTypeChange} class="cursor-pointer" />
+					<input
+						type="radio"
+						bind:group={filterType}
+						value="period"
+						onchange={handleFilterTypeChange}
+						class="cursor-pointer"
+					/>
 					<span class="font-medium">기간</span>
 				</label>
 			</div>
 
 			<!-- 주간 선택 -->
 			{#if filterType === 'date'}
-				<input type="date" bind:value={selectedDate} onchange={handleDateChange} class="input-mobile" />
+				<input
+					type="date"
+					bind:value={selectedDate}
+					onchange={handleDateChange}
+					class="input-mobile"
+				/>
 			{/if}
 
 			<!-- 기간 선택 -->
@@ -174,13 +203,25 @@
 					</div>
 					<!-- 표시 -->
 					<div class="period-type-selector">
-						<span class="text-gray-600 font-medium">표시:</span>
+						<span class="font-medium text-gray-600">표시:</span>
 						<label class="radio-label-mobile">
-							<input type="radio" bind:group={periodType} value="weekly" onchange={handlePeriodChange} class="cursor-pointer" />
+							<input
+								type="radio"
+								bind:group={periodType}
+								value="weekly"
+								onchange={handlePeriodChange}
+								class="cursor-pointer"
+							/>
 							<span>주간</span>
 						</label>
 						<label class="radio-label-mobile">
-							<input type="radio" bind:group={periodType} value="monthly" onchange={handlePeriodChange} class="cursor-pointer" />
+							<input
+								type="radio"
+								bind:group={periodType}
+								value="monthly"
+								onchange={handlePeriodChange}
+								class="cursor-pointer"
+							/>
 							<span>월간</span>
 						</label>
 					</div>
@@ -216,12 +257,18 @@
 	<!-- 검색 및 설정 -->
 	<div class="search-section-mobile">
 		<!-- 검색 -->
-		<div class="flex gap-1 mb-2">
+		<div class="mb-2 flex gap-1">
 			<select bind:value={searchCategory} class="select-mobile">
 				<option value="name">이름</option>
 				<option value="planner">설계자</option>
 			</select>
-			<input type="text" bind:value={searchQuery} onkeypress={handleKeyPress} placeholder="검색..." class="input-search-mobile" />
+			<input
+				type="text"
+				bind:value={searchQuery}
+				onkeypress={handleKeyPress}
+				placeholder="검색..."
+				class="input-search-mobile"
+			/>
 			<button onclick={handleSearch} class="btn-search-mobile">검색</button>
 		</div>
 
@@ -229,7 +276,11 @@
 		<div class="settings-row-mobile">
 			<label class="flex items-center gap-1">
 				<span class="text-gray-600">페이지:</span>
-				<select bind:value={itemsPerPage} onchange={handleItemsPerPageChange} class="select-page-mobile">
+				<select
+					bind:value={itemsPerPage}
+					onchange={handleItemsPerPageChange}
+					class="select-page-mobile"
+				>
 					<option value={10}>10개</option>
 					<option value={20}>20개</option>
 					<option value={50}>50개</option>
@@ -239,11 +290,11 @@
 
 			<div class="flex items-center gap-2">
 				<label class="checkbox-label-mobile">
-					<input type="checkbox" bind:checked={showTaxColumn} class="w-3 h-3" />
+					<input type="checkbox" bind:checked={showTaxColumn} class="h-3 w-3" />
 					<span>원천</span>
 				</label>
 				<label class="checkbox-label-mobile">
-					<input type="checkbox" bind:checked={showNetColumn} class="w-3 h-3" />
+					<input type="checkbox" bind:checked={showNetColumn} class="h-3 w-3" />
 					<span>실지급</span>
 				</label>
 				{#if hasData}
@@ -254,21 +305,31 @@
 			</div>
 		</div>
 	</div>
-
 {:else}
 	<!-- ==================== 데스크탑 버전 ==================== -->
 
 	<!-- 필터 영역 -->
-	<div class="flex gap-2.5 mb-2.5 items-start">
+	<div class="mb-2.5 flex items-start gap-2.5">
 		<div class="filter-container-desktop">
 			<div class="flex items-center gap-1.5 text-[13px]">
 				<!-- 주간 필터 -->
 				<label class="radio-label-desktop">
-					<input type="radio" bind:group={filterType} value="date" onchange={handleFilterTypeChange} class="cursor-pointer" />
+					<input
+						type="radio"
+						bind:group={filterType}
+						value="date"
+						onchange={handleFilterTypeChange}
+						class="cursor-pointer"
+					/>
 					<span>주간</span>
 				</label>
 				{#if filterType === 'date'}
-					<input type="date" bind:value={selectedDate} onchange={handleDateChange} class="input-desktop" />
+					<input
+						type="date"
+						bind:value={selectedDate}
+						onchange={handleDateChange}
+						class="input-desktop"
+					/>
 				{/if}
 
 				<!-- 구분선 -->
@@ -276,21 +337,41 @@
 
 				<!-- 기간 필터 -->
 				<label class="radio-label-desktop">
-					<input type="radio" bind:group={filterType} value="period" onchange={handleFilterTypeChange} class="cursor-pointer" />
+					<input
+						type="radio"
+						bind:group={filterType}
+						value="period"
+						onchange={handleFilterTypeChange}
+						class="cursor-pointer"
+					/>
 					<span>기간</span>
 				</label>
 
 				{#if filterType === 'period'}
-					<input type="number" bind:value={startYear} onchange={handlePeriodChange} class="input-year" min="2020" max="2030" />
-					<span class="text-[13px] whitespace-nowrap leading-7">년</span>
+					<input
+						type="number"
+						bind:value={startYear}
+						onchange={handlePeriodChange}
+						class="input-year"
+						min="2020"
+						max="2030"
+					/>
+					<span class="whitespace-nowrap text-[13px] leading-7">년</span>
 					<select bind:value={startMonth} onchange={handlePeriodChange} class="select-month">
 						{#each Array(12) as _, i}
 							<option value={i + 1}>{i + 1}월</option>
 						{/each}
 					</select>
-					<span class="mx-0.5 text-gray-600 text-[13px] leading-7">~</span>
-					<input type="number" bind:value={endYear} onchange={handlePeriodChange} class="input-year" min="2020" max="2030" />
-					<span class="text-[13px] whitespace-nowrap leading-7">년</span>
+					<span class="mx-0.5 text-[13px] leading-7 text-gray-600">~</span>
+					<input
+						type="number"
+						bind:value={endYear}
+						onchange={handlePeriodChange}
+						class="input-year"
+						min="2020"
+						max="2030"
+					/>
+					<span class="whitespace-nowrap text-[13px] leading-7">년</span>
 					<select bind:value={endMonth} onchange={handlePeriodChange} class="select-month">
 						{#each Array(12) as _, i}
 							<option value={i + 1}>{i + 1}월</option>
@@ -300,7 +381,7 @@
 					<!-- 구분선 -->
 					<div class="divider-vertical"></div>
 
-					<span class="font-bold text-[13px] whitespace-nowrap leading-7">표시:</span>
+					<span class="whitespace-nowrap text-[13px] font-bold leading-7">표시:</span>
 					<select bind:value={periodType} onchange={handlePeriodChange} class="select-period-type">
 						<option value="weekly">주간</option>
 						<option value="monthly">월간</option>
@@ -359,7 +440,11 @@
 		<!-- 페이지당 항목 수 -->
 		<label class="label-desktop">
 			페이지당
-			<select bind:value={itemsPerPage} onchange={handleItemsPerPageChange} class="select-desktop-with-focus">
+			<select
+				bind:value={itemsPerPage}
+				onchange={handleItemsPerPageChange}
+				class="select-desktop-with-focus"
+			>
 				<option value={10}>10개</option>
 				<option value={20}>20개</option>
 				<option value={50}>50개</option>
@@ -389,7 +474,7 @@
 {/if}
 
 <style>
-	@reference "../../../../app.css";
+	@reference "$lib/../app.css";
 
 	/* ==================== 공통 ==================== */
 	.icon-small {
