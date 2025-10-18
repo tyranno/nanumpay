@@ -24,6 +24,16 @@
 		loadData();
 	}
 
+	// 날짜 범위 검증
+	let isDateRangeInvalid = false;
+	$: {
+		if (startYear > endYear || (startYear === endYear && startMonth > endMonth)) {
+			isDateRangeInvalid = true;
+		} else {
+			isDateRangeInvalid = false;
+		}
+	}
+
 	async function loadData() {
 		try {
 			isLoading = true;
@@ -34,63 +44,8 @@
 
 			const response = await fetch(`/api/admin/revenue/range?start=${startMonthKey}&end=${endMonthKey}&viewMode=${paymentViewMode}`);
 			if (response.ok) {
-				const data = await response.json();
-				console.log('[PaymentStatisticsCard] API Response:', data);
-				console.log('[PaymentStatisticsCard] viewMode:', data?.viewMode);
-
-				// 월간 모드인 경우 모든 월 생성
-				if (data.viewMode === 'monthly' && paymentViewMode === 'monthly') {
-					console.log(`[PaymentStatisticsCard] API returned ${data.monthlyData?.length || 0} months`);
-
-					// 선택한 기간의 모든 월 생성
-					const allMonths = [];
-					let currentYear = startYear;
-					let currentMonth = startMonth;
-
-					while (currentYear < endYear || (currentYear === endYear && currentMonth <= endMonth)) {
-						const monthKey = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
-
-						// API에서 받은 데이터 중 해당 월 찾기
-						const existingMonth = (data.monthlyData || []).find(m => m.monthKey === monthKey);
-
-						if (existingMonth) {
-							console.log(`[PaymentStatisticsCard] ${monthKey}: 데이터 있음`);
-							allMonths.push(existingMonth);
-						} else {
-							console.log(`[PaymentStatisticsCard] ${monthKey}: 데이터 없음 (빈 객체 생성)`);
-							allMonths.push({
-								monthKey,
-								registrationCount: 0,
-								effectiveRevenue: 0,
-								gradeDistribution: {
-									F1: 0, F2: 0, F3: 0, F4: 0, F5: 0, F6: 0, F7: 0, F8: 0
-								},
-								gradePayments: {
-									F1: 0, F2: 0, F3: 0, F4: 0, F5: 0, F6: 0, F7: 0, F8: 0
-								}
-							});
-						}
-
-						// 다음 월로 이동
-						currentMonth++;
-						if (currentMonth > 12) {
-							currentMonth = 1;
-							currentYear++;
-						}
-					}
-
-					console.log(`[PaymentStatisticsCard] Total generated months: ${allMonths.length}`, allMonths.map(m => m.monthKey));
-
-					rangeData = {
-						...data,
-						monthlyData: allMonths
-					};
-				} else {
-					// 주간 모드는 그대로
-					rangeData = data;
-				}
-
-				console.log('[PaymentStatisticsCard] Final rangeData:', rangeData);
+				rangeData = await response.json();
+				console.log('[PaymentStatisticsCard] API Response:', rangeData);
 			} else {
 				console.error('Failed to load range data');
 				rangeData = null;
@@ -109,51 +64,155 @@
 		return Object.values(monthData.gradeDistribution).reduce((sum, count) => sum + count, 0);
 	}
 
+	// 금요일 기준 주차 계산 (백엔드 로직과 동일)
+	function getFridaysInMonth(year, month) {
+		const firstDay = new Date(year, month - 1, 1);
+
+		// 해당 월의 첫 금요일 찾기
+		let firstFriday = new Date(firstDay);
+		const dayOfWeek = firstFriday.getDay();
+		const daysUntilFriday = (5 - dayOfWeek + 7) % 7;
+		firstFriday.setDate(firstFriday.getDate() + daysUntilFriday);
+
+		const lastDay = new Date(year, month, 0);
+
+		// 해당 월의 모든 금요일 카운트
+		const fridays = [];
+		let currentFriday = new Date(firstFriday);
+
+		while (currentFriday <= lastDay) {
+			if (currentFriday.getMonth() === month - 1) {
+				fridays.push(new Date(currentFriday));
+			}
+			currentFriday.setDate(currentFriday.getDate() + 7);
+		}
+
+		return fridays.length;
+	}
+
 	// 컬럼 생성 (rangeData가 변경될 때마다 재계산)
 	let periodColumns = [];
+	let monthGroups = [];
 	$: {
 		console.log('[Reactive] rangeData changed:', rangeData);
-		periodColumns = generatePeriodColumns();
+		const result = generatePeriodColumns();
+		periodColumns = result.columns;
+		monthGroups = result.monthGroups;
 		console.log('[Reactive] periodColumns updated:', periodColumns.length);
+		console.log('[Reactive] monthGroups updated:', monthGroups.length);
 	}
 
 	function generatePeriodColumns() {
 		const columns = [];
+		const groups = [];
 
 		console.log('[generatePeriodColumns] rangeData:', rangeData);
 
-		// API 응답이 있으면 사용
-		if (rangeData) {
-			if (rangeData.viewMode === 'monthly' && rangeData.monthlyData) {
-				console.log('[generatePeriodColumns] Processing monthly data, count:', rangeData.monthlyData.length);
-				// 월별 데이터
-				rangeData.monthlyData.forEach(monthData => {
-					columns.push({
-						key: monthData.monthKey,
-						label: `${monthData.monthKey.split('-')[0]}년 ${parseInt(monthData.monthKey.split('-')[1])}월`,
-						type: 'monthly',
-						data: monthData
-					});
+		if (paymentViewMode === 'monthly') {
+			// 월간 모드
+			let currentYear = startYear;
+			let currentMonth = startMonth;
+
+			do {
+				const monthKey = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
+
+				// API에서 받은 데이터 중 해당 월 찾기
+				const monthData = rangeData?.monthlyData?.find(m => m.monthKey === monthKey) || {
+					monthKey,
+					registrationCount: 0,
+					effectiveRevenue: 0,
+					gradeDistribution: {
+						F1: 0, F2: 0, F3: 0, F4: 0, F5: 0, F6: 0, F7: 0, F8: 0
+					},
+					gradePayments: {
+						F1: 0, F2: 0, F3: 0, F4: 0, F5: 0, F6: 0, F7: 0, F8: 0
+					}
+				};
+
+				columns.push({
+					key: monthKey,
+					label: `${currentYear}년 ${currentMonth}월`,
+					type: 'monthly',
+					data: monthData
 				});
-			} else if (rangeData.viewMode === 'weekly' && rangeData.weeklyData) {
-				console.log('[generatePeriodColumns] Processing weekly data, count:', rangeData.weeklyData.length);
-				// 주차별 데이터
-				rangeData.weeklyData.forEach(weekData => {
+
+				if (isDateRangeInvalid) {
+					break; // 날짜 역전 시 시작 월만 표시
+				}
+
+				// 다음 월로 이동
+				currentMonth++;
+				if (currentMonth > 12) {
+					currentMonth = 1;
+					currentYear++;
+				}
+			} while (currentYear < endYear || (currentYear === endYear && currentMonth <= endMonth));
+
+		} else if (paymentViewMode === 'weekly') {
+			// 주간 모드
+			let currentYear = startYear;
+			let currentMonth = startMonth;
+
+			do {
+				const monthKey = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
+				const weeksInMonth = getFridaysInMonth(currentYear, currentMonth);
+
+				const monthWeeks = [];
+
+				for (let week = 1; week <= weeksInMonth; week++) {
+					// API에서 받은 데이터 중 해당 주차 찾기
+					const weekData = rangeData?.weeklyData?.find(
+						w => w.monthKey === monthKey && w.week === week
+					) || {
+						monthKey,
+						week,
+						weekCount: weeksInMonth,
+						gradeDistribution: {
+							F1: 0, F2: 0, F3: 0, F4: 0, F5: 0, F6: 0, F7: 0, F8: 0
+						},
+						gradePayments: {
+							F1: 0, F2: 0, F3: 0, F4: 0, F5: 0, F6: 0, F7: 0, F8: 0
+						}
+					};
+
 					columns.push({
-						key: `${weekData.monthKey}-W${weekData.week}`,
-						label: weekData.weekLabel,
+						key: `${monthKey}-W${week}`,
+						label: `${week}주`,
 						type: 'weekly',
-						monthKey: weekData.monthKey,
-						week: weekData.week,
-						weekCount: weekData.weekCount,
+						monthKey,
+						week,
+						weekCount: weeksInMonth,
 						data: weekData
 					});
+
+					monthWeeks.push({
+						key: `${monthKey}-W${week}`,
+						label: `${week}주`
+					});
+				}
+
+				groups.push({
+					monthKey,
+					monthLabel: `${currentYear}년 ${currentMonth}월`,
+					weeks: monthWeeks
 				});
-			}
+
+				if (isDateRangeInvalid) {
+					break; // 날짜 역전 시 시작 월만 표시
+				}
+
+				// 다음 월로 이동
+				currentMonth++;
+				if (currentMonth > 12) {
+					currentMonth = 1;
+					currentYear++;
+				}
+			} while (currentYear < endYear || (currentYear === endYear && currentMonth <= endMonth));
 		}
 
 		console.log('[generatePeriodColumns] Generated columns:', columns.length);
-		return columns;
+		console.log('[generatePeriodColumns] Generated month groups:', groups.length);
+		return { columns, monthGroups: groups };
 	}
 
 	// 특정 등급의 특정 기간 데이터 가져오기
@@ -187,46 +246,52 @@
 			<h3 class="text-lg font-semibold text-gray-900">📊 등급별 지급 통계</h3>
 
 			<!-- 조회 옵션 -->
-			<div class="flex items-center gap-2">
-				<span class="text-xs text-gray-600">조회:</span>
-				<label class="flex items-center gap-1 cursor-pointer">
-					<input type="radio" bind:group={paymentViewMode} value="monthly" class="form-radio text-xs" />
-					<span class="text-xs">월간</span>
-				</label>
-				<label class="flex items-center gap-1 cursor-pointer">
-					<input type="radio" bind:group={paymentViewMode} value="weekly" class="form-radio text-xs" />
-					<span class="text-xs">주간</span>
-				</label>
+			<div class="flex flex-col gap-2">
+				<!-- 기간 선택 -->
+				<div class="flex items-center gap-2">
+					<span class="text-sm text-gray-600">기간:</span>
+					<input
+						type="month"
+						value="{startYear}-{String(startMonth).padStart(2, '0')}"
+						on:change={(e) => {
+							const [year, month] = e.target.value.split('-');
+							startYear = parseInt(year);
+							startMonth = parseInt(month);
+						}}
+						class="border border-gray-300 rounded px-2 py-1 text-sm"
+					/>
+					<span class="text-sm">~</span>
+					<input
+						type="month"
+						value="{endYear}-{String(endMonth).padStart(2, '0')}"
+						on:change={(e) => {
+							const [year, month] = e.target.value.split('-');
+							endYear = parseInt(year);
+							endMonth = parseInt(month);
+						}}
+						class="border border-gray-300 rounded px-2 py-1 text-sm"
+					/>
+				</div>
 
-				<span class="text-gray-400 text-xs mx-2">|</span>
+				<!-- 보기 선택 -->
+				<div class="flex items-center gap-2">
+					<span class="text-sm text-gray-600">보기:</span>
+					<label class="flex items-center gap-1 cursor-pointer">
+						<input type="radio" bind:group={paymentViewMode} value="monthly" class="form-radio" />
+						<span class="text-sm">월간</span>
+					</label>
+					<label class="flex items-center gap-1 cursor-pointer">
+						<input type="radio" bind:group={paymentViewMode} value="weekly" class="form-radio" />
+						<span class="text-sm">주간</span>
+					</label>
+				</div>
 
-				<input
-					type="number"
-					bind:value={startYear}
-					class="text-xs border border-gray-300 rounded px-2 py-0.5 w-16"
-					min="2025"
-					max="2030"
-				/>
-				<span class="text-xs">년</span>
-				<select bind:value={startMonth} class="text-xs border border-gray-300 rounded px-1 py-0.5 w-16">
-					{#each Array(12) as _, i}
-						<option value={i + 1}>{i + 1}월</option>
-					{/each}
-				</select>
-				<span class="text-gray-500 text-xs">~</span>
-				<input
-					type="number"
-					bind:value={endYear}
-					class="text-xs border border-gray-300 rounded px-2 py-0.5 w-16"
-					min="2025"
-					max="2030"
-				/>
-				<span class="text-xs">년</span>
-				<select bind:value={endMonth} class="text-xs border border-gray-300 rounded px-1 py-0.5 w-16">
-					{#each Array(12) as _, i}
-						<option value={i + 1}>{i + 1}월</option>
-					{/each}
-				</select>
+				<!-- 날짜 역전 경고 -->
+				{#if isDateRangeInvalid}
+					<div class="bg-red-50 border border-red-200 rounded px-3 py-2">
+						<p class="text-sm text-red-700">⚠️ 종료 기간이 시작 기간보다 앞설 수 없습니다.</p>
+					</div>
+				{/if}
 			</div>
 		</div>
 	</div>
@@ -241,37 +306,22 @@
 			<div class="space-y-4">
 				<!-- 안내 메시지 -->
 				<div class="bg-yellow-50 border border-yellow-200 rounded px-3 py-2">
-					<p class="text-xs text-gray-700">
-						{#if paymentViewMode === 'monthly'}
-							💡 월간 뷰: 각 월에 실제 지급되는 인원을 표시합니다 (병행 지급으로 중복 카운트 가능)
-						{:else}
-							💡 주간 뷰: 각 주차에 실제 지급되는 인원을 표시합니다 (여러 매출월 병행 지급)
-						{/if}
-					</p>
+					<p class="text-sm text-gray-700">💡 각 기간에 등급별 지급액 표시: 지급 금액(인원수)</p>
 				</div>
 
-				<!-- 테이블 -->
-				<div class="grade-table-wrapper">
-					<table class="grade-table">
-						<thead>
-							<tr class="header-row-1">
-								<th rowspan="2" class="sticky-col">등급</th>
-								{#if periodColumns.length > 0}
+				<!-- 월간 뷰 테이블 -->
+				{#if paymentViewMode === 'monthly'}
+					<div class="grade-table-wrapper">
+						<table class="grade-table">
+							<thead>
+								<tr class="header-row-1">
+									<th class="sticky-col">등급</th>
 									{#each periodColumns as column}
-										<th colspan="1" class="period-header">{column.label}</th>
+										<th class="period-header">{column.label}</th>
 									{/each}
-								{:else}
-									<th colspan="1" class="period-header">
-										{startYear}년 {startMonth}월
-										{#if startYear !== endYear || startMonth !== endMonth}
-											~ {endYear}년 {endMonth}월
-										{/if}
-									</th>
-								{/if}
-							</tr>
-						</thead>
-						<tbody>
-							{#if periodColumns.length > 0}
+								</tr>
+							</thead>
+							<tbody>
 								{#each ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'] as grade}
 									<tr class="data-row">
 										<td class="sticky-col">
@@ -279,7 +329,7 @@
 										</td>
 										{#each periodColumns as column}
 											{@const gradeData = getGradeDataForPeriod(grade, column)}
-											<td class="data-col text-center font-semibold">
+											<td class="data-col text-center">
 												{gradeData.amount.toLocaleString()}({gradeData.count})
 											</td>
 										{/each}
@@ -288,9 +338,7 @@
 								<tr class="total-row">
 									<td class="sticky-col">합계</td>
 									{#each periodColumns as column}
-										{@const totalCount = column.type === 'monthly'
-											? getTotalTargetsForRange(column.data)
-											: column.data.userCount || 0}
+										{@const totalCount = getTotalTargetsForRange(column.data)}
 										{@const totalAmount = (() => {
 											let sum = 0;
 											['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'].forEach(g => {
@@ -304,25 +352,64 @@
 										</td>
 									{/each}
 								</tr>
-							{:else}
+							</tbody>
+						</table>
+					</div>
+				{/if}
+
+				<!-- 주간 뷰 테이블 -->
+				{#if paymentViewMode === 'weekly'}
+					<div class="grade-table-wrapper">
+						<table class="grade-table">
+							<thead>
+								<!-- 2단 헤더: 월 + 주차 -->
+								<tr class="header-row-1">
+									<th rowspan="2" class="sticky-col">등급</th>
+									{#each monthGroups as group}
+										<th colspan={group.weeks.length} class="month-header">{group.monthLabel}</th>
+									{/each}
+								</tr>
+								<tr class="header-row-2">
+									{#each periodColumns as column}
+										<th class="week-header">{column.label}</th>
+									{/each}
+								</tr>
+							</thead>
+							<tbody>
 								{#each ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'] as grade}
 									<tr class="data-row">
 										<td class="sticky-col">
 											<GradeBadge {grade} size="sm" />
 										</td>
-										<td class="data-col text-center text-gray-400 text-xs">
-											지급 데이터가 없습니다.
-										</td>
+										{#each periodColumns as column}
+											{@const gradeData = getGradeDataForPeriod(grade, column)}
+											<td class="data-col text-center">
+												{gradeData.amount.toLocaleString()}({gradeData.count})
+											</td>
+										{/each}
 									</tr>
 								{/each}
 								<tr class="total-row">
 									<td class="sticky-col">합계</td>
-									<td class="data-col text-center text-gray-400 text-xs">지급 데이터가 없습니다.</td>
+									{#each periodColumns as column}
+										{@const totalCount = column.data.userCount || 0}
+										{@const totalAmount = (() => {
+											let sum = 0;
+											['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'].forEach(g => {
+												const data = getGradeDataForPeriod(g, column);
+												sum += data.amount;
+											});
+											return sum;
+										})()}
+										<td class="data-col text-center">
+											{totalAmount.toLocaleString()}({totalCount})
+										</td>
+									{/each}
 								</tr>
-							{/if}
-						</tbody>
-					</table>
-				</div>
+							</tbody>
+						</table>
+					</div>
+				{/if}
 			</div>
 		{:else}
 			<div class="text-center text-gray-500 py-8">
@@ -353,7 +440,7 @@
 	.grade-table td {
 		border-right: 1px solid #d1d5db;
 		border-bottom: 1px solid #d1d5db;
-		padding: 0.5rem 0.75rem;
+		padding: 0.25rem 0.5rem;
 		text-align: center;
 		white-space: nowrap;
 	}
@@ -399,7 +486,26 @@
 		font-weight: bold;
 	}
 
+	.header-row-2 {
+		background: #f3f4f6;
+		font-weight: bold;
+	}
+
 	.period-header {
+		background: #dbeafe;
+		text-align: center;
+		font-size: 0.875rem;
+	}
+
+	.month-header {
+		background: #93c5fd;
+		text-align: center;
+		font-size: 0.875rem;
+		font-weight: bold;
+		color: #1e3a8a;
+	}
+
+	.week-header {
 		background: #dbeafe;
 		text-align: center;
 		font-size: 0.75rem;

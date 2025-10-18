@@ -49,6 +49,16 @@
 		isCurrentMonth = selectedMonthKey === currentMonthKey;
 	}
 
+	// 날짜 범위 검증
+	let isDateRangeInvalid = false;
+	$: {
+		if (startYear > endYear || (startYear === endYear && startMonth > endMonth)) {
+			isDateRangeInvalid = true;
+		} else {
+			isDateRangeInvalid = false;
+		}
+	}
+
 	async function loadData() {
 		try {
 			isLoading = true;
@@ -87,12 +97,12 @@
 					data.monthlyData?.map((m) => m.monthKey)
 				);
 
-				// 선택한 기간의 모든 월 생성
+				// 선택한 기간의 모든 월 생성 (do...while로 최소 시작월은 보장)
 				const allMonths = [];
 				let currentYear = startYear;
 				let currentMonth = startMonth;
 
-				while (currentYear < endYear || (currentYear === endYear && currentMonth <= endMonth)) {
+				do {
 					const monthKey = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
 
 					// API에서 받은 데이터 중 해당 월 찾기
@@ -122,13 +132,17 @@
 						});
 					}
 
+					if (isDateRangeInvalid) {
+						break; // 날짜 역전 시 시작 월만 표시
+					}
+
 					// 다음 월로 이동
 					currentMonth++;
 					if (currentMonth > 12) {
 						currentMonth = 1;
 						currentYear++;
 					}
-				}
+				} while (currentYear < endYear || (currentYear === endYear && currentMonth <= endMonth));
 
 				console.log(
 					`[MonthlyRevenueCard] Total generated months: ${allMonths.length}`,
@@ -383,6 +397,13 @@
 			</div>
 		{:else if rangeData}
 			<div class="space-y-4">
+				<!-- 날짜 역전 경고 -->
+				{#if isDateRangeInvalid}
+					<div class="rounded-lg border border-red-200 bg-red-50 px-4 py-2">
+						<p class="text-xs text-red-700">⚠️ 종료 기간이 시작 기간보다 앞설 수 없습니다. 시작 월만 표시됩니다.</p>
+					</div>
+				{/if}
+
 				<!-- 기간 제목 -->
 				<div class="border-b border-gray-300 pb-2">
 					<h4 class="text-base font-semibold text-gray-900">기간 현황</h4>
@@ -474,9 +495,7 @@
 								{#if rangeData.months && rangeData.months.length > 0}
 									{#each rangeData.months as month}
 										<tr class="hover:bg-gray-50">
-											<td
-												class="border border-gray-300 px-2 py-1 text-center text-xs font-semibold"
-											>
+											<td class="border border-gray-300 px-2 py-1 text-center text-xs">
 												{month.monthKey}
 											</td>
 											<td class="border border-gray-300 px-2 py-1 text-center text-xs">

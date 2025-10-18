@@ -49,6 +49,16 @@
 		isCurrentMonth = (selectedMonthKey === currentMonthKey);
 	}
 
+	// 날짜 범위 검증
+	let isDateRangeInvalid = false;
+	$: {
+		if (startYear > endYear || (startYear === endYear && startMonth > endMonth)) {
+			isDateRangeInvalid = true;
+		} else {
+			isDateRangeInvalid = false;
+		}
+	}
+
 	async function loadData() {
 		try {
 			isLoading = true;
@@ -82,12 +92,12 @@
 				const data = await response.json();
 				console.log(`[MonthlyRevenueCard] API returned ${data.monthlyData?.length || 0} months:`, data.monthlyData?.map(m => m.monthKey));
 
-				// 선택한 기간의 모든 월 생성
+				// 선택한 기간의 모든 월 생성 (do...while로 최소 시작월은 보장)
 				const allMonths = [];
 				let currentYear = startYear;
 				let currentMonth = startMonth;
 
-				while (currentYear < endYear || (currentYear === endYear && currentMonth <= endMonth)) {
+				do {
 					const monthKey = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
 
 					// API에서 받은 데이터 중 해당 월 찾기
@@ -110,13 +120,17 @@
 						});
 					}
 
+					if (isDateRangeInvalid) {
+						break; // 날짜 역전 시 시작 월만 표시
+					}
+
 					// 다음 월로 이동
 					currentMonth++;
 					if (currentMonth > 12) {
 						currentMonth = 1;
 						currentYear++;
 					}
-				}
+				} while (currentYear < endYear || (currentYear === endYear && currentMonth <= endMonth));
 
 				console.log(`[MonthlyRevenueCard] Total generated months: ${allMonths.length}`, allMonths.map(m => m.monthKey));
 
@@ -179,61 +193,70 @@
 			<h3 class="text-lg font-semibold text-gray-900">📈 매출 통계</h3>
 
 			<!-- 조회 옵션 -->
-			<div class="flex items-center gap-2 flex-wrap">
-				<label class="flex items-center gap-1 cursor-pointer">
-					<input type="radio" bind:group={viewMode} value="single" class="form-radio text-xs" />
-					<span class="text-xs">월간</span>
-				</label>
+			<div class="flex flex-col gap-2">
+				<!-- 조회 모드 선택 -->
+				<div class="flex items-center gap-2">
+					<span class="text-sm text-gray-600">조회:</span>
+					<label class="flex items-center gap-1 cursor-pointer">
+						<input type="radio" bind:group={viewMode} value="single" class="form-radio" />
+						<span class="text-sm">월간</span>
+					</label>
+					<label class="flex items-center gap-1 cursor-pointer">
+						<input type="radio" bind:group={viewMode} value="range" class="form-radio" />
+						<span class="text-sm">기간</span>
+					</label>
+				</div>
+
+				<!-- 월간 모드 -->
 				{#if viewMode === 'single'}
-					<input
-						type="number"
-						bind:value={selectedYear}
-						class="text-xs border border-gray-300 rounded px-2 py-0.5 w-16"
-						min="2025"
-						max="2030"
-					/>
-					<span class="text-xs">년</span>
-					<select bind:value={selectedMonth} class="text-xs border border-gray-300 rounded px-1 py-0.5 w-16">
-						{#each Array(12) as _, i}
-							<option value={i + 1}>{i + 1}월</option>
-						{/each}
-					</select>
+					<div class="flex items-center gap-2">
+						<span class="text-sm text-gray-600">선택:</span>
+						<input
+							type="month"
+							value="{selectedYear}-{String(selectedMonth).padStart(2, '0')}"
+							on:change={(e) => {
+								const [year, month] = e.target.value.split('-');
+								selectedYear = parseInt(year);
+								selectedMonth = parseInt(month);
+							}}
+							class="border border-gray-300 rounded px-2 py-1 text-sm"
+						/>
+					</div>
 				{/if}
 
-				<span class="text-gray-400 text-xs">|</span>
-
-				<label class="flex items-center gap-1 cursor-pointer">
-					<input type="radio" bind:group={viewMode} value="range" class="form-radio text-xs" />
-					<span class="text-xs">기간</span>
-				</label>
+				<!-- 기간 모드 -->
 				{#if viewMode === 'range'}
-					<input
-						type="number"
-						bind:value={startYear}
-						class="text-xs border border-gray-300 rounded px-2 py-0.5 w-16"
-						min="2025"
-						max="2030"
-					/>
-					<span class="text-xs">년</span>
-					<select bind:value={startMonth} class="text-xs border border-gray-300 rounded px-1 py-0.5 w-16">
-						{#each Array(12) as _, i}
-							<option value={i + 1}>{i + 1}월</option>
-						{/each}
-					</select>
-					<span class="text-xs">~</span>
-					<input
-						type="number"
-						bind:value={endYear}
-						class="text-xs border border-gray-300 rounded px-2 py-0.5 w-16"
-						min="2025"
-						max="2030"
-					/>
-					<span class="text-xs">년</span>
-					<select bind:value={endMonth} class="text-xs border border-gray-300 rounded px-1 py-0.5 w-16">
-						{#each Array(12) as _, i}
-							<option value={i + 1}>{i + 1}월</option>
-						{/each}
-					</select>
+					<div class="flex items-center gap-2">
+						<span class="text-sm text-gray-600">기간:</span>
+						<input
+							type="month"
+							value="{startYear}-{String(startMonth).padStart(2, '0')}"
+							on:change={(e) => {
+								const [year, month] = e.target.value.split('-');
+								startYear = parseInt(year);
+								startMonth = parseInt(month);
+							}}
+							class="border border-gray-300 rounded px-2 py-1 text-sm"
+						/>
+						<span class="text-sm">~</span>
+						<input
+							type="month"
+							value="{endYear}-{String(endMonth).padStart(2, '0')}"
+							on:change={(e) => {
+								const [year, month] = e.target.value.split('-');
+								endYear = parseInt(year);
+								endMonth = parseInt(month);
+							}}
+							class="border border-gray-300 rounded px-2 py-1 text-sm"
+						/>
+					</div>
+
+					<!-- 날짜 역전 경고 -->
+					{#if isDateRangeInvalid}
+						<div class="bg-red-50 border border-red-200 rounded px-3 py-2">
+							<p class="text-sm text-red-700">⚠️ 종료 기간이 시작 기간보다 앞설 수 없습니다. 시작 월만 표시됩니다.</p>
+						</div>
+					{/if}
 				{/if}
 			</div>
 		</div>
@@ -329,11 +352,11 @@
 					<table class="min-w-full border border-gray-300">
 						<thead class="bg-gray-100">
 							<tr>
-								<th class="border border-gray-300 px-2 py-1 text-xs">등급</th>
-								<th class="border border-gray-300 px-2 py-1 text-xs">인원</th>
-								<th class="border border-gray-300 px-2 py-1 text-xs">1회 금액</th>
-								<th class="border border-gray-300 px-2 py-1 text-xs">10회 총액</th>
-								<th class="border border-gray-300 px-2 py-1 text-xs">지급 기간</th>
+								<th class="border border-gray-300 px-2 py-0.5 text-sm">등급</th>
+								<th class="border border-gray-300 px-2 py-0.5 text-sm">인원</th>
+								<th class="border border-gray-300 px-2 py-0.5 text-sm">1회 금액</th>
+								<th class="border border-gray-300 px-2 py-0.5 text-sm">10회 총액</th>
+								<th class="border border-gray-300 px-2 py-0.5 text-sm">지급 기간</th>
 							</tr>
 						</thead>
 						<tbody>
@@ -341,19 +364,19 @@
 								{@const count = monthlyData.gradeDistribution?.[grade] || 0}
 								{@const perAmount = monthlyData.gradePayments?.[grade] || 0}
 								<tr class="hover:bg-gray-50">
-									<td class="border border-gray-300 px-2 py-1 text-center">
+									<td class="border border-gray-300 px-2 py-0.5 text-center">
 										<GradeBadge {grade} size="sm" />
 									</td>
-									<td class="border border-gray-300 px-2 py-1 text-center font-semibold text-xs">
-										{count}명
+									<td class="border border-gray-300 px-2 py-0.5 text-center text-sm">
+										{count}
 									</td>
-									<td class="border border-gray-300 px-2 py-1 text-right text-xs">
-										{perAmount.toLocaleString()}원
+									<td class="border border-gray-300 px-2 py-0.5 text-right text-sm">
+										{perAmount.toLocaleString()}
 									</td>
-									<td class="border border-gray-300 px-2 py-1 text-right text-blue-600 text-xs">
-										{(perAmount * 10 * count).toLocaleString()}원
+									<td class="border border-gray-300 px-2 py-0.5 text-right text-blue-600 text-sm">
+										{(perAmount * 10 * count).toLocaleString()}
 									</td>
-									<td class="border border-gray-300 px-2 py-1 text-center text-xs">
+									<td class="border border-gray-300 px-2 py-0.5 text-center text-sm">
 										{getPaymentPeriod(selectedYear, selectedMonth)}
 									</td>
 								</tr>
@@ -365,20 +388,26 @@
 			</div>
 		{:else if rangeData}
 			<div class="space-y-4">
-				<!-- 기간 표시 -->
+				<!-- 날짜 역전 경고 -->
+				{#if isDateRangeInvalid}
+					<div class="bg-red-50 border border-red-200 rounded-lg px-4 py-2">
+						<p class="text-sm text-red-700">⚠️ 종료 기간이 시작 기간보다 앞설 수 없습니다. 시작 월만 표시됩니다.</p>
+					</div>
+				{/if}
+
+				<!-- 기간 제목 -->
 				<div class="border-b border-gray-300 pb-2">
-					<h4 class="text-base font-semibold text-gray-900">
-						{startYear}년 {startMonth}월 ~ {endYear}년 {endMonth}월 통합 현황
-					</h4>
+					<h4 class="text-base font-semibold text-gray-900">기간 현황</h4>
 				</div>
 
 				<!-- 통합 매출 정보 -->
 				<div class="border border-gray-300 rounded-lg bg-green-50 px-4 py-3">
-					<h5 class="text-sm font-semibold text-gray-900 mb-2">💰 기간 통합 매출</h5>
-					<div class="flex items-center gap-4 text-xs">
+					<div class="flex items-center gap-4 text-sm">
 						<div>
 							<span class="text-gray-600">총 기간:</span>
-							<span class="font-semibold ml-1">{rangeData.summary?.totalMonths || 0}개월</span>
+							<span class="font-semibold ml-1">
+								({startYear}년 {startMonth}월 ~ {endYear}년 {endMonth}월) {rangeData.summary?.totalMonths || 0}개월
+							</span>
 						</div>
 						<span class="text-gray-400">|</span>
 						<div>
@@ -406,46 +435,46 @@
 					<table class="min-w-full border border-gray-300">
 						<thead class="bg-gray-100">
 							<tr>
-								<th class="border border-gray-300 px-2 py-1 text-xs" rowspan="2">월</th>
-								<th class="border border-gray-300 px-2 py-1 text-xs" rowspan="2">등록자</th>
-								<th class="border border-gray-300 px-2 py-1 text-xs" rowspan="2">매출</th>
-								<th class="border border-gray-300 px-2 py-1 text-xs text-center" colspan="8">등급 분포</th>
+								<th class="border border-gray-300 px-2 py-0.5 text-sm" rowspan="2">월</th>
+								<th class="border border-gray-300 px-2 py-0.5 text-sm" rowspan="2">등록자</th>
+								<th class="border border-gray-300 px-2 py-0.5 text-sm" rowspan="2">매출</th>
+								<th class="border border-gray-300 px-2 py-0.5 text-sm text-center" colspan="8">등급 분포</th>
 							</tr>
 							<tr>
-								<th class="border border-gray-300 px-2 py-1 text-xs">F1</th>
-								<th class="border border-gray-300 px-2 py-1 text-xs">F2</th>
-								<th class="border border-gray-300 px-2 py-1 text-xs">F3</th>
-								<th class="border border-gray-300 px-2 py-1 text-xs">F4</th>
-								<th class="border border-gray-300 px-2 py-1 text-xs">F5</th>
-								<th class="border border-gray-300 px-2 py-1 text-xs">F6</th>
-								<th class="border border-gray-300 px-2 py-1 text-xs">F7</th>
-								<th class="border border-gray-300 px-2 py-1 text-xs">F8</th>
+								<th class="border border-gray-300 px-2 py-0.5 text-xs">F1</th>
+								<th class="border border-gray-300 px-2 py-0.5 text-xs">F2</th>
+								<th class="border border-gray-300 px-2 py-0.5 text-xs">F3</th>
+								<th class="border border-gray-300 px-2 py-0.5 text-xs">F4</th>
+								<th class="border border-gray-300 px-2 py-0.5 text-xs">F5</th>
+								<th class="border border-gray-300 px-2 py-0.5 text-xs">F6</th>
+								<th class="border border-gray-300 px-2 py-0.5 text-xs">F7</th>
+								<th class="border border-gray-300 px-2 py-0.5 text-xs">F8</th>
 							</tr>
 						</thead>
 						<tbody>
 							{#if rangeData.months && rangeData.months.length > 0}
 								{#each rangeData.months as month}
 									<tr class="hover:bg-gray-50">
-										<td class="border border-gray-300 px-2 py-1 text-center text-xs font-semibold">
+										<td class="border border-gray-300 px-2 py-0.5 text-center text-sm">
 											{month.monthKey}
 										</td>
-										<td class="border border-gray-300 px-2 py-1 text-center text-xs">
-											{month.registrationCount || 0}명
+										<td class="border border-gray-300 px-2 py-0.5 text-center text-sm">
+											{month.registrationCount || 0}
 										</td>
-										<td class="border border-gray-300 px-2 py-1 text-right text-xs">
-											{(month.effectiveRevenue || 0).toLocaleString()}원
+										<td class="border border-gray-300 px-2 py-0.5 text-right text-sm">
+											{(month.effectiveRevenue || 0).toLocaleString()}
 										</td>
 										{#each ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'] as grade}
 											{@const count = month.gradeDistribution?.[grade] || 0}
-											<td class="border border-gray-300 px-2 py-1 text-center text-xs">
-												{count}명
+											<td class="border border-gray-300 px-2 py-0.5 text-center text-sm">
+												{count}
 											</td>
 										{/each}
 									</tr>
 								{/each}
 							{:else}
 								<tr>
-									<td colspan="11" class="border border-gray-300 px-2 py-8 text-center text-gray-500 text-xs">
+									<td colspan="11" class="border border-gray-300 px-2 py-8 text-center text-gray-500 text-sm">
 										{startYear}년 {startMonth}월 ~ {endYear}년 {endMonth}월 기간에 매출 자료가 없습니다.
 									</td>
 								</tr>
