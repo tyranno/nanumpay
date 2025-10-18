@@ -17,7 +17,7 @@ import { getAllWeeksInPeriod } from '$lib/utils/fridayWeekCalculator.js';
 /**
  * WeeklyPaymentSummary에서 월간 등급별 지급액 합산
  *
- * @param {string} monthKey - 매출 귀속 월 (YYYY-MM)
+ * @param {string} monthKey - 지급 월 (YYYY-MM)
  * @returns {Promise<Object>} 등급별 총 지급액 및 인원수
  */
 async function calculateMonthlyGradePaymentsFromSummary(monthKey) {
@@ -114,78 +114,81 @@ export async function GET({ url, locals }) {
 }
 
 /**
- * 월간 데이터 조회 (매출 통계용)
+ * 월간 데이터 조회 (WeeklyPaymentSummary 기반)
  */
 async function getMonthlyData(start, end) {
+  // 1. 기간 내 모든 MonthlyRegistrations 조회 (매출 정보용)
   const registrations = await MonthlyRegistrations.find({
-    monthKey: {
-      $gte: start,
-      $lte: end
-    }
+    monthKey: { $gte: start, $lte: end }
   }).sort({ monthKey: 1 }).lean();
 
-  console.log(`📊 [getMonthlyData] Found ${registrations.length} months between ${start} and ${end}`);
+  // 2. 기간 내 모든 monthKey 생성 (7월~10월 등)
+  const [startYear, startMonth] = start.split('-').map(Number);
+  const [endYear, endMonth] = end.split('-').map(Number);
+
+  const allMonthKeys = [];
+  for (let y = startYear; y <= endYear; y++) {
+    const sm = (y === startYear) ? startMonth : 1;
+    const em = (y === endYear) ? endMonth : 12;
+    for (let m = sm; m <= em; m++) {
+      allMonthKeys.push(`${y}-${String(m).padStart(2, '0')}`);
+    }
+  }
+
+  console.log(`📊 [getMonthlyData] Query: ${start} ~ ${end}, generating ${allMonthKeys.length} months`);
 
   const monthlyData = [];
-  let totalRevenue = 0;
-  let totalRegistrants = 0;
 
-  for (const reg of registrations) {
-    const paymentStatus = await checkPaymentStatus(reg.monthKey);
-    const effectiveRevenue = reg.adjustedRevenue !== null ? reg.adjustedRevenue : reg.totalRevenue;
+  // 3. 각 월별로 WeeklyPaymentSummary 합산
+  for (const monthKey of allMonthKeys) {
+    const reg = registrations.find(r => r.monthKey === monthKey);
+    const paymentStatus = reg ? await checkPaymentStatus(monthKey) : null;
 
-    const paymentTargetsCount =
-      (reg.paymentTargets?.registrants?.length || 0) +
-      (reg.paymentTargets?.promoted?.length || 0) +
-      (reg.paymentTargets?.additionalPayments?.length || 0);
+    // ⭐ WeeklyPaymentSummary에서 해당 월 통계 합산
+    const { gradePayments, gradeDistribution } = await calculateMonthlyGradePaymentsFromSummary(monthKey);
 
-    // ⭐ WeeklyPaymentSummary에서 월간 통계 합산
-    const { gradePayments, gradeDistribution } = await calculateMonthlyGradePaymentsFromSummary(reg.monthKey);
-
-    // 컴포넌트가 필요로 하는 모든 필드 포함
     monthlyData.push({
-      monthKey: reg.monthKey,
+      monthKey: monthKey,
 
-      // 매출 정보
-      totalRevenue: reg.totalRevenue || 0,
-      adjustedRevenue: reg.adjustedRevenue,
-      effectiveRevenue,
-      isManualRevenue: reg.isManualRevenue || false,
+      // 매출 정보 (MonthlyRegistrations에서)
+      totalRevenue: reg?.totalRevenue || 0,
+      adjustedRevenue: reg?.adjustedRevenue || null,
+      effectiveRevenue: reg ? (reg.adjustedRevenue !== null ? reg.adjustedRevenue : reg.totalRevenue) : 0,
+      isManualRevenue: reg?.isManualRevenue || false,
 
-      // 등록자 정보
-      registrationCount: reg.registrationCount || 0,
-      paymentTargetsCount,
+      // 등록자 정보 (MonthlyRegistrations에서)
+      registrationCount: reg?.registrationCount || 0,
+      paymentTargetsCount: reg ? (
+        (reg.paymentTargets?.registrants?.length || 0) +
+        (reg.paymentTargets?.promoted?.length || 0) +
+        (reg.paymentTargets?.additionalPayments?.length || 0)
+      ) : 0,
 
       // ⭐ 등급별 통계 (WeeklyPaymentSummary 기반)
       gradeDistribution,
-
-      // ⭐ 등급별 평균 1회 지급액 (WeeklyPaymentSummary 기반)
       gradePayments,
 
       // 지급 상태
       paymentStatus,
 
       // 매출 변경 이력
-      revenueChangeHistory: reg.revenueChangeHistory || []
+      revenueChangeHistory: reg?.revenueChangeHistory || []
     });
-
-    totalRevenue += effectiveRevenue;
-    totalRegistrants += reg.registrationCount || 0;
   }
 
-  const avgRevenue = registrations.length > 0 ? Math.floor(totalRevenue / registrations.length) : 0;
+  const totalRevenue = monthlyData.reduce((sum, m) => sum + m.effectiveRevenue, 0);
+  const totalRegistrants = monthlyData.reduce((sum, m) => sum + m.registrationCount, 0);
+  const avgRevenue = allMonthKeys.length > 0 ? Math.floor(totalRevenue / allMonthKeys.length) : 0;
 
   const response = {
     viewMode: 'monthly',
     start,
     end,
     monthlyData,
-    // 컴포넌트가 기대하는 최상위 필드 (하위 호환성)
     totalRevenue,
     totalRegistrants,
-    // 상세 요약 정보
     summary: {
-      totalMonths: registrations.length,
+      totalMonths: allMonthKeys.length,
       totalRevenue,
       totalRegistrants,
       avgRevenue

@@ -41,103 +41,137 @@ export async function executeStep5(plans, registrationMonth) {
 
   // ========================================
   // 5-1. 주별 총계 생성/업데이트
+  // ⭐ 귀속월 다음달 첫 금요일부터 10주간 조사
   // ========================================
 
-  const weeklyData = {};
+  // 귀속월 다음달 첫 금요일 계산
+  const [year, month] = registrationMonth.split('-').map(Number);
+  const nextMonthStart = new Date(year, month, 1);  // 다음 달 1일
 
-  for (const plan of allPlans) {
-    const grade = plan.baseGrade;
+  // 첫 금요일 찾기
+  let firstFriday = new Date(nextMonthStart);
+  const dayOfWeek = firstFriday.getDay();
+  const daysUntilFriday = (5 - dayOfWeek + 7) % 7;
+  firstFriday.setDate(firstFriday.getDate() + daysUntilFriday);
 
-    for (const inst of plan.installments) {
-      if (inst.status !== 'pending') continue;
-
-      const weekNumber = inst.weekNumber || getWeekNumber(inst.scheduledDate);
-      const weekDate = inst.scheduledDate;
-      const revenueMonth = inst.revenueMonth || plan.revenueMonth;
-
-      if (!weeklyData[weekNumber]) {
-        weeklyData[weekNumber] = {
-          weekNumber,
-          weekDate,
-          monthKey: revenueMonth,
-          byGrade: {
-            F1: { userIds: new Set(), totalAmount: 0 },
-            F2: { userIds: new Set(), totalAmount: 0 },
-            F3: { userIds: new Set(), totalAmount: 0 },
-            F4: { userIds: new Set(), totalAmount: 0 },
-            F5: { userIds: new Set(), totalAmount: 0 },
-            F6: { userIds: new Set(), totalAmount: 0 },
-            F7: { userIds: new Set(), totalAmount: 0 },
-            F8: { userIds: new Set(), totalAmount: 0 }
-          }
-        };
-      }
-
-      // 등급별 집계 (userId 중복 제거)
-      if (weeklyData[weekNumber].byGrade[grade]) {
-        weeklyData[weekNumber].byGrade[grade].totalAmount += inst.installmentAmount || 0;
-        weeklyData[weekNumber].byGrade[grade].userIds.add(plan.userId);
-      }
-    }
+  // 10주간의 금요일 날짜 리스트 생성
+  const fridayDates = [];
+  for (let i = 0; i < 10; i++) {
+    const friday = new Date(firstFriday);
+    friday.setDate(friday.getDate() + (i * 7));
+    fridayDates.push(friday);
   }
 
-  // WeeklyPaymentSummary 업데이트
+  console.log(`\n📅 [Step5] 주간 통계 갱신: ${fridayDates[0].toISOString().split('T')[0]} ~ ${fridayDates[9].toISOString().split('T')[0]}`);
+
+  // 각 금요일에 대해 WeeklyPaymentSummary 갱신
   let updatedWeeks = 0;
 
-  for (const [weekNumber, data] of Object.entries(weeklyData)) {
-    // ISO 주차 포맷으로 변환 (예: "202530" -> "2025-W30")
-    const isoWeekNumber = weekNumber.toString().replace(/^(\d{4})(\d{2})$/, '$1-W$2');
+  for (const friday of fridayDates) {
+    const weekNumber = getWeekNumber(friday);
+    const monthKey = WeeklyPaymentSummary.generateMonthKey(friday);
 
-    // 등급별 userCount 계산 (Set 크기) 및 스키마에 맞게 구성
-    const byGrade = {};
+    // 해당 주차에 지급될 모든 계획 조회 (상태 무관, terminated 제외)
+    const plansForWeek = await WeeklyPaymentPlans.find({
+      'installments': {
+        $elemMatch: {
+          scheduledDate: {
+            $gte: new Date(friday.setHours(0, 0, 0, 0)),
+            $lt: new Date(friday.setHours(23, 59, 59, 999))
+          }
+        }
+      },
+      planStatus: { $ne: 'terminated' }  // ⭐ terminated 제외
+    });
+
+    // 등급별 집계
+    const byGrade = {
+      F1: { userIds: new Set(), totalAmount: 0, totalTax: 0, totalNet: 0, paymentCount: 0 },
+      F2: { userIds: new Set(), totalAmount: 0, totalTax: 0, totalNet: 0, paymentCount: 0 },
+      F3: { userIds: new Set(), totalAmount: 0, totalTax: 0, totalNet: 0, paymentCount: 0 },
+      F4: { userIds: new Set(), totalAmount: 0, totalTax: 0, totalNet: 0, paymentCount: 0 },
+      F5: { userIds: new Set(), totalAmount: 0, totalTax: 0, totalNet: 0, paymentCount: 0 },
+      F6: { userIds: new Set(), totalAmount: 0, totalTax: 0, totalNet: 0, paymentCount: 0 },
+      F7: { userIds: new Set(), totalAmount: 0, totalTax: 0, totalNet: 0, paymentCount: 0 },
+      F8: { userIds: new Set(), totalAmount: 0, totalTax: 0, totalNet: 0, paymentCount: 0 }
+    };
+
+    for (const plan of plansForWeek) {
+      const grade = plan.baseGrade;
+
+      // 해당 금요일의 installment 찾기
+      const inst = plan.installments.find(i => {
+        const instDate = new Date(i.scheduledDate);
+        return instDate.toDateString() === friday.toDateString();
+      });
+
+      if (inst && inst.status !== 'canceled') {  // ⭐ canceled 제외
+        byGrade[grade].userIds.add(plan.userId);
+        byGrade[grade].totalAmount += inst.installmentAmount || 0;
+        byGrade[grade].totalTax += inst.withholdingTax || Math.round((inst.installmentAmount || 0) * 0.033);
+        byGrade[grade].totalNet += inst.netAmount || (inst.installmentAmount || 0) - Math.round((inst.installmentAmount || 0) * 0.033);
+        byGrade[grade].paymentCount += 1;
+      }
+    }
+
+    // 전체 총계 계산
     let totalAmount = 0;
     let totalTax = 0;
     let totalNet = 0;
     let totalUserCount = 0;
     let totalPaymentCount = 0;
 
-    for (const [grade, gradeData] of Object.entries(data.byGrade)) {
-      const userCount = gradeData.userIds.size;
-      const amount = gradeData.totalAmount;
-      const tax = Math.round(amount * 0.033);
-      const net = amount - tax;
-      const paymentCount = userCount; // 1인당 1건
-
-      byGrade[grade] = {
-        amount,
-        tax,
-        net,
-        userCount,
-        paymentCount
+    const byGradeFormatted = {};
+    for (const [grade, data] of Object.entries(byGrade)) {
+      byGradeFormatted[grade] = {
+        amount: data.totalAmount,
+        tax: data.totalTax,
+        net: data.totalNet,
+        userCount: data.userIds.size,
+        paymentCount: data.paymentCount
       };
 
-      totalAmount += amount;
-      totalTax += tax;
-      totalNet += net;
-      totalUserCount += userCount;
-      totalPaymentCount += paymentCount;
+      totalAmount += data.totalAmount;
+      totalTax += data.totalTax;
+      totalNet += data.totalNet;
+      totalUserCount += data.userIds.size;
+      totalPaymentCount += data.paymentCount;
     }
 
-    // WeeklyPaymentSummary 생성/업데이트 (스키마에 맞게)
+    // WeeklyPaymentSummary 생성/갱신 (ISO 주차 형식)
+    const isoWeekNumber = weekNumber.toString().replace(/^(\d{4})(\d{2})$/, '$1-W$2');
+
     await WeeklyPaymentSummary.findOneAndUpdate(
       { weekNumber: isoWeekNumber },
       {
-        weekNumber: isoWeekNumber,  // ⭐ String 타입, ISO 형식
-        weekDate: data.weekDate,
-        monthKey: data.monthKey,
+        weekNumber: isoWeekNumber,
+        weekDate: friday,
+        monthKey: monthKey,
         totalAmount,
         totalTax,
         totalNet,
         totalUserCount,
         totalPaymentCount,
-        byGrade,
-        status: 'scheduled'  // ⭐ enum 값 수정
+        byGrade: byGradeFormatted,
+        status: 'scheduled'
       },
       { upsert: true, new: true }
     );
 
+    // 주차별 결과 로그 (금액이 있는 경우만)
+    if (totalAmount > 0) {
+      const gradesSummary = Object.entries(byGradeFormatted)
+        .filter(([_, data]) => data.amount > 0)
+        .map(([grade, data]) => `${grade}:${data.userCount}명/${data.amount.toLocaleString()}원`)
+        .join(', ');
+
+      console.log(`  ${friday.toISOString().split('T')[0]} (${isoWeekNumber}): ${totalUserCount}명, ${totalAmount.toLocaleString()}원 [${gradesSummary}]`);
+    }
+
     updatedWeeks++;
   }
+
+  console.log(`✅ [Step5-1] 주간 통계: ${updatedWeeks}주 갱신 완료\n`);
 
 
   // ========================================
@@ -149,6 +183,8 @@ export async function executeStep5(plans, registrationMonth) {
     revenueMonth: registrationMonth,
     planStatus: { $in: ['active', 'completed'] }
   });
+
+  console.log(`📊 [Step5-2] 월별 총계 계산: ${registrationMonth} (${allActivePlans.length}개 계획)`);
 
 
   // 월별 총계 계산
@@ -207,7 +243,15 @@ export async function executeStep5(plans, registrationMonth) {
 
     await monthlyReg.save();
 
+    // 월별 총계 결과 로그
+    const gradesSummary = Object.entries(monthlyTotals)
+      .filter(([_, data]) => data.totalAmount > 0)
+      .map(([grade, data]) => `${grade}:${data.userCount}명/${data.totalAmount.toLocaleString()}원`)
+      .join(', ');
+
+    console.log(`✅ [Step5-2] 월별 총계: ${totalUsers}명, ${totalPayment.toLocaleString()}원 [${gradesSummary}]`);
   } else {
+    console.log(`⚠️ [Step5-2] MonthlyRegistrations 없음: ${registrationMonth}`);
   }
 
 
