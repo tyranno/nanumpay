@@ -1,6 +1,7 @@
 <script>
 	import { onMount, onDestroy, tick, createEventDispatcher } from 'svelte';
 	import * as d3 from 'd3';
+	import panzoom from 'panzoom';
 
 	// === Props ===
 	export let data;
@@ -31,20 +32,13 @@
 
 	// === State ===
 	const dispatch = createEventDispatcher();
-	let zoomBehavior, ro;
+	let panzoomInstance, ro;
 	let originalData;
 	let currentRoot;
 	let currentPath = '';
 	let layoutNodes = [];
 	let layoutLinks = [];
-	let tx = 0,
-		ty = 0; // 화면상 translate
-	let k = 1; // 휠 줌 상태(시각적 scale 미사용)
-
-	// d3 transform 추적(드래그 delta 계산용)
-	let lastZX = 0,
-		lastZY = 0,
-		lastZK = 1;
+	let k = 1; // 휠 줌 상태(가로 간격 제어용)
 
 	const PADDING = 24;
 	const ZOOM_MIN = 0.25;
@@ -216,39 +210,32 @@
 		return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
 	}
 
-	// === 화면 적용 (모바일 pinch-zoom 대응) ===
-	function applyTransforms() {
-		// transform-container에만 적용 (SVG + HTML 동시 이동)
-		if (transformContainerEl) {
-			transformContainerEl.style.transform = `translate(${tx}px, ${ty}px)`;
-			transformContainerEl.style.transformOrigin = '0 0';
-			transformContainerEl.style.willChange = 'transform';
-		}
-	}
 
 	// === 포커싱 (reroot 시 상단 중앙) ===
 	function focusCurrentRoot(topPad = focusTopPadding) {
-		if (!layoutNodes.length) return;
+		if (!layoutNodes.length || !panzoomInstance) return;
 		const rootNode = layoutNodes.find((n) => n.data.__path === currentPath);
 		if (!rootNode) return;
 		const viewW = wrapEl.clientWidth;
 		const targetScreenX = viewW / 2;
 		const targetScreenY = topPad + nodeHeight / 2;
-		tx = targetScreenX - rootNode.x;
-		ty = targetScreenY - rootNode.y;
-		applyTransforms();
+		const tx = targetScreenX - rootNode.x;
+		const ty = targetScreenY - rootNode.y;
+		panzoomInstance.moveTo(tx, ty);
 	}
 
 	// 가운데 정렬(Y) (작을 때만)
 	function focusCenterY(padding = PADDING) {
+		if (!panzoomInstance) return;
 		const bbox = getBBoxFallback();
 		if (!bbox) return;
 		const viewH = wrapEl.clientHeight;
 		const cy = bbox.y + bbox.height / 2;
-		ty = viewH / 2 - cy;
-		applyTransforms();
+		const transform = panzoomInstance.getTransform();
+		panzoomInstance.moveTo(transform.x, viewH / 2 - cy);
 	}
 	function focusCenterYIfFits(padding = PADDING, resetX = false) {
+		if (!panzoomInstance) return false;
 		const bbox = getBBoxFallback();
 		if (!bbox) return false;
 		const viewW = wrapEl.clientWidth;
@@ -256,11 +243,9 @@
 		if (bbox.height + padding * 2 < viewH) {
 			const cx = bbox.x + bbox.width / 2;
 			const cy = bbox.y + bbox.height / 2;
-			const nx = resetX ? viewW / 2 - cx : tx;
+			const nx = resetX ? viewW / 2 - cx : panzoomInstance.getTransform().x;
 			const ny = viewH / 2 - cy;
-			tx = nx;
-			ty = ny;
-			applyTransforms();
+			panzoomInstance.moveTo(nx, ny);
 			return true;
 		}
 		return false;
@@ -281,12 +266,13 @@
 		hoverPath = '';
 	}
 	$: {
-		if (!hoverPath) {
+		if (!hoverPath || !panzoomInstance) {
 			hoverPos = null;
 		} else {
 			const n = layoutNodes.find((m) => m.data.__path === hoverPath);
 			if (n) {
-				hoverPos = { x: tx + n.x, y: ty + (n.y - nodeHeight / 2) };
+				const transform = panzoomInstance.getTransform();
+				hoverPos = { x: transform.x + n.x, y: transform.y + (n.y - nodeHeight / 2) };
 			} else {
 				hoverPos = null;
 			}
@@ -350,69 +336,80 @@
 		await tick();
 		await raf();
 
-		zoomBehavior = d3
-			.zoom()
-			.scaleExtent([ZOOM_MIN, ZOOM_MAX])
-			.filter((e) => {
-				// 터치 이벤트 명시적 허용
-				if (e.type === 'touchstart' || e.type === 'touchmove' || e.type === 'touchend') {
-					return true;
+		// 🔧 panzoom 초기화: 드래그/팬만 사용 (줌은 완전히 비활성화)
+		panzoomInstance = panzoom(transformContainerEl, {
+			minZoom: 1,
+			maxZoom: 1, // scale 고정 = 드래그만 허용
+			smoothScroll: false,
+			zoomDoubleClickSpeed: 1,
+			beforeWheel: function (e) {
+				// 모든 휠 이벤트 차단 (커스텀 처리)
+				e.preventDefault();
+				return false;
+			},
+			onTouch: function (e) {
+				// 모바일: 노드 위 터치는 비활성화 (클릭 이벤트 허용)
+				if (e.target.closest && e.target.closest('.node-box')) {
+					return false;
 				}
-				// 마우스 드래그 (좌클릭만)
-				if (e.type === 'mousedown') {
-					return e.button === 0 && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey;
-				}
-				// 휠, 더블클릭 등
 				return true;
-			})
-			.on('start', (e) => {
-				if (e.sourceEvent && e.sourceEvent.type !== 'touchstart') {
-					wrapEl.style.cursor = 'grabbing';
+			}
+		});
+
+		// 🔧 데스크톱 휠: 가로 간격만 조정
+		wrapEl.addEventListener('wheel', function (e) {
+			e.preventDefault();
+			const delta = e.deltaY;
+			const zoomSpeed = 0.002;
+			const prevK = k;
+			k = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, k * (1 - delta * zoomSpeed)));
+			if (k !== prevK) {
+				computeLayout(currentRoot);
+			}
+		}, { passive: false });
+
+		// 🔧 모바일 핀치: 가로 간격만 조정 (네이티브 터치 이벤트 사용)
+		let initialPinchDistance = null;
+		let initialK = 1;
+
+		wrapEl.addEventListener('touchstart', function (e) {
+			// 노드 위에서 시작된 터치는 무시 (클릭 이벤트 허용)
+			if (e.target.closest && e.target.closest('.node-box')) {
+				return;
+			}
+
+			if (e.touches.length === 2) {
+				// 핀치 시작
+				const dx = e.touches[0].clientX - e.touches[1].clientX;
+				const dy = e.touches[0].clientY - e.touches[1].clientY;
+				initialPinchDistance = Math.sqrt(dx * dx + dy * dy);
+				initialK = k;
+			}
+		}, { passive: true });
+
+		wrapEl.addEventListener('touchmove', function (e) {
+			if (e.touches.length === 2 && initialPinchDistance) {
+				e.preventDefault();
+				// 핀치 진행 중
+				const dx = e.touches[0].clientX - e.touches[1].clientX;
+				const dy = e.touches[0].clientY - e.touches[1].clientY;
+				const currentDistance = Math.sqrt(dx * dx + dy * dy);
+				const scale = currentDistance / initialPinchDistance;
+				const newK = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, initialK * scale));
+
+				if (newK !== k) {
+					k = newK;
+					computeLayout(currentRoot);
 				}
-			})
-			.on('end', (e) => {
-				if (e.sourceEvent && e.sourceEvent.type !== 'touchend') {
-					wrapEl.style.cursor = 'grab';
-				}
-			})
-			.on('zoom', (e) => {
-				const t = e.transform;
+			}
+		}, { passive: false });
 
-				// 1) 드래그(팬): k 변화 없으면 delta로 이동
-				const dx = t.x - lastZX;
-				const dy = t.y - lastZY;
-				if (t.k === lastZK) {
-					if (dx || dy) {
-						tx += dx;
-						ty += dy;
-					}
-				} else {
-					// 2) 휠 줌: 가로 간격만 변경 + 마우스 X 앵커 유지
-					const prevSpreadX = getSpreadX(lastZK);
-					const nextSpreadX = getSpreadX(t.k);
+		wrapEl.addEventListener('touchend', function (e) {
+			if (e.touches.length < 2) {
+				initialPinchDistance = null;
+			}
+		}, { passive: true });
 
-					// 마우스 X 위치 (없으면 화면 중앙)
-					let mx = wrapEl.clientWidth / 2;
-					if (e.sourceEvent) {
-						const p = d3.pointer(e.sourceEvent, wrapEl);
-						mx = p[0];
-					}
-					// world X (spread 전 좌표)
-					const wx = (mx - tx) / Math.max(1e-6, prevSpreadX);
-					// 새 spreadX에서 같은 화면점 유지되도록 보정
-					tx = mx - nextSpreadX * wx;
-
-					k = t.k;
-					computeLayout(currentRoot); // X만 재배치(세로 고정)
-				}
-
-				applyTransforms();
-				lastZX = t.x;
-				lastZY = t.y;
-				lastZK = t.k;
-			});
-
-		d3.select(wrapEl).call(zoomBehavior);
 		wrapEl.style.cursor = 'grab';
 
 		// 초기 포커스
@@ -437,17 +434,15 @@
 		};
 		dispatch('select', initialEventData);
 		if (onselect) onselect({ detail: initialEventData });
-		applyTransforms();
 	});
 
 	onDestroy(() => {
 		ro && ro.disconnect();
+		panzoomInstance && panzoomInstance.dispose();
 	});
 
 	// === UI 이벤트 ===
 	function handleClick(e) {
-		// 터치 이벤트는 무시 (d3.zoom이 처리)
-		if (e.type === 'touchend') return;
 		const path = e.currentTarget?.dataset?.path || '';
 		rerootByPath(path);
 	}
@@ -583,22 +578,10 @@
 		box-sizing: border-box;
 		overflow: hidden;
 		user-select: none;
-		pointer-events: auto;
+		pointer-events: auto; /* panzoom이 beforeMouseDown/onTouch에서 처리 */
 		transition:
 			box-shadow 120ms ease,
 			border-color 120ms ease;
-	}
-	/* 데스크톱에서만 pointer-events 활성화 */
-	@media (hover: hover) and (pointer: fine) {
-		.node-box {
-			pointer-events: auto;
-		}
-	}
-	/* 모바일에서는 pointer-events 비활성화 (d3.zoom이 처리) */
-	@media (hover: none) and (pointer: coarse) {
-		.node-box {
-			pointer-events: none;
-		}
 	}
 	.node-box.hovered {
 		/* ★ 호버 시 강조 */

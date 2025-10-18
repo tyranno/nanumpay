@@ -32,6 +32,7 @@
     "bcryptjs": "^2.4.3",
     "mongodb": "^6.20.0",
     "node-fetch": "^3.3.2",
+    "panzoom": "^9.4.3",
     "xlsx": "^0.18.5"
   }
 }
