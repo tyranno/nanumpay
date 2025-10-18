@@ -1,6 +1,10 @@
 /**
  * GET /api/admin/revenue/range?start=2025-07&end=2025-10&viewMode=monthly|weekly
- * 기간별 매출 및 지급 통계 API (v7.2)
+ * 기간별 매출 및 지급 통계 API (v7.3)
+ *
+ * v7.3 변경사항:
+ * - 월간 모드: WeeklyPaymentPlans에서 installmentAmount 기반 지급액 계산
+ * - terminated 되지 않은 금액만 포함
  */
 
 import { json } from '@sveltejs/kit';
@@ -9,6 +13,68 @@ import MonthlyRegistrations from '$lib/server/models/MonthlyRegistrations.js';
 import WeeklyPaymentSummary from '$lib/server/models/WeeklyPaymentSummary.js';
 import { checkPaymentStatus } from '$lib/server/services/revenueService.js';
 import { getAllWeeksInPeriod } from '$lib/utils/fridayWeekCalculator.js';
+
+/**
+ * WeeklyPaymentSummary에서 월간 등급별 지급액 합산
+ *
+ * @param {string} monthKey - 매출 귀속 월 (YYYY-MM)
+ * @returns {Promise<Object>} 등급별 총 지급액 및 인원수
+ */
+async function calculateMonthlyGradePaymentsFromSummary(monthKey) {
+  // 해당 월의 모든 주간 통계 조회
+  const weeklySummaries = await WeeklyPaymentSummary.find({
+    monthKey: monthKey
+  }).sort({ weekNumber: 1 }).lean();
+
+  console.log(`💡 [calculateMonthlyGradePayments] ${monthKey}: ${weeklySummaries.length} weeks found`);
+
+  // 등급별 합산
+  const gradeStats = {
+    F1: { totalAmount: 0, userCount: 0 },
+    F2: { totalAmount: 0, userCount: 0 },
+    F3: { totalAmount: 0, userCount: 0 },
+    F4: { totalAmount: 0, userCount: 0 },
+    F5: { totalAmount: 0, userCount: 0 },
+    F6: { totalAmount: 0, userCount: 0 },
+    F7: { totalAmount: 0, userCount: 0 },
+    F8: { totalAmount: 0, userCount: 0 }
+  };
+
+  // 각 주간 통계의 등급별 금액을 합산
+  for (const summary of weeklySummaries) {
+    if (!summary.byGrade) continue;
+
+    for (const grade of ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8']) {
+      const gradeData = summary.byGrade[grade];
+      if (gradeData) {
+        gradeStats[grade].totalAmount += gradeData.amount || 0;
+        // userCount는 최대값 사용 (중복 방지)
+        gradeStats[grade].userCount = Math.max(
+          gradeStats[grade].userCount,
+          gradeData.userCount || 0
+        );
+      }
+    }
+  }
+
+  // 등급별 평균 1회 지급액 계산
+  const gradePayments = {};
+  const gradeDistribution = {};
+
+  for (const grade of ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8']) {
+    const stats = gradeStats[grade];
+    const weekCount = weeklySummaries.length;
+
+    // 월간 평균 1회 지급액 = 총액 ÷ 주수
+    gradePayments[grade] = weekCount > 0
+      ? Math.floor(stats.totalAmount / weekCount)
+      : 0;
+
+    gradeDistribution[grade] = stats.userCount;
+  }
+
+  return { gradePayments, gradeDistribution };
+}
 
 export async function GET({ url, locals }) {
   try {
@@ -73,6 +139,9 @@ async function getMonthlyData(start, end) {
       (reg.paymentTargets?.promoted?.length || 0) +
       (reg.paymentTargets?.additionalPayments?.length || 0);
 
+    // ⭐ WeeklyPaymentSummary에서 월간 통계 합산
+    const { gradePayments, gradeDistribution } = await calculateMonthlyGradePaymentsFromSummary(reg.monthKey);
+
     // 컴포넌트가 필요로 하는 모든 필드 포함
     monthlyData.push({
       monthKey: reg.monthKey,
@@ -87,29 +156,11 @@ async function getMonthlyData(start, end) {
       registrationCount: reg.registrationCount || 0,
       paymentTargetsCount,
 
-      // 등급별 통계 (반드시 모든 등급 포함)
-      gradeDistribution: {
-        F1: reg.gradeDistribution?.F1 || 0,
-        F2: reg.gradeDistribution?.F2 || 0,
-        F3: reg.gradeDistribution?.F3 || 0,
-        F4: reg.gradeDistribution?.F4 || 0,
-        F5: reg.gradeDistribution?.F5 || 0,
-        F6: reg.gradeDistribution?.F6 || 0,
-        F7: reg.gradeDistribution?.F7 || 0,
-        F8: reg.gradeDistribution?.F8 || 0
-      },
+      // ⭐ 등급별 통계 (WeeklyPaymentSummary 기반)
+      gradeDistribution,
 
-      // 등급별 1회 지급액
-      gradePayments: {
-        F1: reg.gradePayments?.F1 || 0,
-        F2: reg.gradePayments?.F2 || 0,
-        F3: reg.gradePayments?.F3 || 0,
-        F4: reg.gradePayments?.F4 || 0,
-        F5: reg.gradePayments?.F5 || 0,
-        F6: reg.gradePayments?.F6 || 0,
-        F7: reg.gradePayments?.F7 || 0,
-        F8: reg.gradePayments?.F8 || 0
-      },
+      // ⭐ 등급별 평균 1회 지급액 (WeeklyPaymentSummary 기반)
+      gradePayments,
 
       // 지급 상태
       paymentStatus,
