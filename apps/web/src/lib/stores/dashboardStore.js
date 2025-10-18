@@ -22,3 +22,24 @@ export const paymentCardState = writable({
 	endYear: new Date().getFullYear(),
 	endMonth: new Date().getMonth() + 1
 });
+
+// 용역비 관리대장 페이지 필터 상태 (PaymentPage 공유)
+const today = new Date();
+export const paymentPageFilterState = writable({
+	filterType: 'date', // 'date' | 'period'
+	selectedDate: today.toISOString().split('T')[0],
+	selectedYear: today.getFullYear(),
+	selectedMonth: today.getMonth() + 1,
+	periodType: 'weekly', // 'weekly' | 'monthly'
+	startYear: today.getFullYear(),
+	startMonth: today.getMonth() + 1,
+	endYear: today.getFullYear(),
+	endMonth: today.getMonth() + 1,
+	itemsPerPage: 20,
+	// 컬럼 표시 설정
+	showTaxColumn: true, // 원천징수 컬럼 표시
+	showNetColumn: true, // 실지급액 컬럼 표시
+	// 검색 관련
+	searchQuery: '', // 검색어
+	searchCategory: 'name' // 'name' | 'planner'
+});
