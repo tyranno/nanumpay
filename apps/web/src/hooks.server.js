@@ -25,13 +25,6 @@ export async function handle({ event, resolve }) {
 	const token = event.cookies.get('token');
 	const refreshToken = event.cookies.get('refreshToken');
 
-	console.log('🔍 [AUTH CHECK]', {
-		path: event.url.pathname,
-		hasToken: !!token,
-		hasRefreshToken: !!refreshToken,
-		cookies: event.cookies.getAll()
-	});
-
 	if (token) {
 		try {
 			const user = jwt.verify(token, JWT_SECRET);
