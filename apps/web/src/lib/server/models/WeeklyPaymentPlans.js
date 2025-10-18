@@ -184,14 +184,16 @@ weeklyPaymentPlansSchema.statics.getNextFriday = function(date) {
   return d;
 };
 
-// 헬퍼 메소드: 등록일+1개월 후 첫 금요일
+// 헬퍼 메소드: 등록일+1개월 후 같은 날의 다음 금요일
 weeklyPaymentPlansSchema.statics.getPaymentStartDate = function(registrationDate) {
   const d = new Date(registrationDate);
 
-  // 1개월 후의 1일로 이동 (타임존 문제 해결)
+  // 등록일의 년/월/일 추출
   const year = d.getFullYear();
   const month = d.getMonth();  // 0-based (7월 = 6)
+  const day = d.getDate();  // 1-31
 
+  // 1개월 후 계산
   let nextMonth = month + 1;
   let nextYear = year;
   if (nextMonth > 11) {  // 12월 다음은 1월
@@ -199,13 +201,18 @@ weeklyPaymentPlansSchema.statics.getPaymentStartDate = function(registrationDate
     nextYear += 1;
   }
 
-  // 문자열로 날짜 생성하여 타임존 문제 회피
-  const nextMonthStr = String(nextMonth + 1).padStart(2, '0');  // 월을 1-based로 변환
-  const dateStr = `${nextYear}-${nextMonthStr}-01`;
-  const firstDayOfNextMonth = new Date(dateStr);
+  // 다음 달의 마지막 날 계산 (날짜 초과 방지)
+  const lastDayOfNextMonth = new Date(nextYear, nextMonth + 1, 0).getDate();
+  const targetDay = Math.min(day, lastDayOfNextMonth);  // 예: 1월 31일 → 2월 28일
 
-  // 해당 월의 첫 금요일
-  const result = this.getNextFriday(firstDayOfNextMonth);
+  // 문자열로 날짜 생성하여 타임존 문제 회피
+  const nextMonthStr = String(nextMonth + 1).padStart(2, '0');
+  const dayStr = String(targetDay).padStart(2, '0');
+  const dateStr = `${nextYear}-${nextMonthStr}-${dayStr}`;
+  const sameDayNextMonth = new Date(dateStr);
+
+  // 해당 날짜의 다음 금요일
+  const result = this.getNextFriday(sameDayNextMonth);
   return result;
 };
 
