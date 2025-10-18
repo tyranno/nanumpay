@@ -27,7 +27,7 @@
 	export let spreadMin = 0.35; // 가로 간격 최소 배수 (축소 한계)
 
 	// === Refs ===
-	let wrapEl, svgEl, gEl, nodeLayerEl;
+	let wrapEl, svgEl, gEl, nodeLayerEl, transformContainerEl;
 
 	// === State ===
 	const dispatch = createEventDispatcher();
@@ -101,12 +101,12 @@
 	function getNodeNamePath(root, path = '') {
 		const names = [];
 		let cur = root;
-		
+
 		// 루트 노드 추가
 		if (cur) {
 			names.push(cur.label);
 		}
-		
+
 		// 경로 따라가면서 노드 이름 수집
 		for (const ch of path) {
 			if (!cur) break;
@@ -115,7 +115,7 @@
 				names.push(cur.label);
 			}
 		}
-		
+
 		return names;
 	}
 
@@ -216,12 +216,13 @@
 		return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
 	}
 
-	// === 화면 적용: scale 미사용 (translate만) ===
+	// === 화면 적용 (모바일 pinch-zoom 대응) ===
 	function applyTransforms() {
-		if (gEl) gEl.setAttribute('transform', `translate(${tx},${ty})`);
-		if (nodeLayerEl) {
-			nodeLayerEl.style.transform = `translate3d(${tx}px, ${ty}px, 0)`;
-			nodeLayerEl.style.transformOrigin = '0 0';
+		// transform-container에만 적용 (SVG + HTML 동시 이동)
+		if (transformContainerEl) {
+			transformContainerEl.style.transform = `translate(${tx}px, ${ty}px)`;
+			transformContainerEl.style.transformOrigin = '0 0';
+			transformContainerEl.style.willChange = 'transform';
 		}
 	}
 
@@ -351,15 +352,29 @@
 
 		zoomBehavior = d3
 			.zoom()
-			.scaleExtent([ZOOM_MIN, ZOOM_MAX]) // k는 간격 계산에만 사용
+			.scaleExtent([ZOOM_MIN, ZOOM_MAX])
 			.filter((e) => {
-				// 드래그(좌클릭) 허용, 휠/터치 허용
-				if (e.type === 'mousedown')
+				// 터치 이벤트 명시적 허용
+				if (e.type === 'touchstart' || e.type === 'touchmove' || e.type === 'touchend') {
+					return true;
+				}
+				// 마우스 드래그 (좌클릭만)
+				if (e.type === 'mousedown') {
 					return e.button === 0 && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey;
+				}
+				// 휠, 더블클릭 등
 				return true;
 			})
-			.on('start', () => (wrapEl.style.cursor = 'grabbing'))
-			.on('end', () => (wrapEl.style.cursor = 'grab'))
+			.on('start', (e) => {
+				if (e.sourceEvent && e.sourceEvent.type !== 'touchstart') {
+					wrapEl.style.cursor = 'grabbing';
+				}
+			})
+			.on('end', (e) => {
+				if (e.sourceEvent && e.sourceEvent.type !== 'touchend') {
+					wrapEl.style.cursor = 'grab';
+				}
+			})
 			.on('zoom', (e) => {
 				const t = e.transform;
 
@@ -415,7 +430,11 @@
 		});
 		ro.observe(wrapEl);
 
-		const initialEventData = { path: '', node: originalData, namePath: originalData ? [originalData.label] : [] };
+		const initialEventData = {
+			path: '',
+			node: originalData,
+			namePath: originalData ? [originalData.label] : []
+		};
 		dispatch('select', initialEventData);
 		if (onselect) onselect({ detail: initialEventData });
 		applyTransforms();
@@ -427,6 +446,8 @@
 
 	// === UI 이벤트 ===
 	function handleClick(e) {
+		// 터치 이벤트는 무시 (d3.zoom이 처리)
+		if (e.type === 'touchend') return;
 		const path = e.currentTarget?.dataset?.path || '';
 		rerootByPath(path);
 	}
@@ -443,63 +464,73 @@
 	}
 </script>
 
-<div bind:this={wrapEl} class="tree-wrap">
-	<!-- 링크 -->
-	<svg bind:this={svgEl} class="link-svg" ondblclick={() => backToFull()}>
-		<g bind:this={gEl}>
-			{#each layoutLinks as l}
-				<path
-					class="link"
-					d={`M ${l.source.x} ${l.source.y + nodeHeight / 2}
-              C ${l.source.x} ${(l.source.y + l.target.y) / 2}
-                ${l.target.x} ${(l.source.y + l.target.y) / 2}
-                ${l.target.x} ${l.target.y - nodeHeight / 2}`}
-				/>
-			{/each}
-		</g>
-	</svg>
+<div bind:this={wrapEl} class="tree-wrap" ondblclick={() => backToFull()}>
+	<!-- SVG와 HTML을 하나의 컨테이너로 묶음 (모바일 pinch-zoom 대응) -->
+	<div bind:this={transformContainerEl} class="transform-container">
+		<!-- 링크 -->
+		<svg bind:this={svgEl} class="link-svg">
+			<g bind:this={gEl}>
+				{#each layoutLinks as l}
+					<path
+						class="link"
+						d={`M ${l.source.x} ${l.source.y + nodeHeight / 2}
+	              C ${l.source.x} ${(l.source.y + l.target.y) / 2}
+	                ${l.target.x} ${(l.source.y + l.target.y) / 2}
+	                ${l.target.x} ${l.target.y - nodeHeight / 2}`}
+					/>
+				{/each}
+			</g>
+		</svg>
 
-	<!-- 노드 -->
-	<div bind:this={nodeLayerEl} class="node-layer" style="transform-origin: 0 0;">
-		{#each layoutNodes as n}
-			<div
-				class="node-box {hoverPath === n.data.__path ? 'hovered' : ''}"
-				data-path={n.data.__path}
-				style={`left:${n.x - nodeWidth / 2}px; top:${n.y - nodeHeight / 2}px; width:${nodeWidth}px; height:${nodeHeight}px; z-index:${hoverPath === n.data.__path ? 10 : 1};`}
-				role="button"
-				tabindex="0"
-				onclick={handleClick}
-				onkeydown={handleKeydown}
-				onmouseenter={() => onEnterNode(n.data.__path)}
-				onmouseleave={onLeaveNode}
-			>
-				{#if nodeComponent}
-					<svelte:component this={nodeComponent} node={n.data} />
-				{:else}
-					<div class="node-default">
-						<div class="relative inline-block">
-							<strong>{n.data.label}</strong>
-							{#if n.data.grade}
-								<img
-									src="/icons/{n.data.grade}.svg"
-									alt="{n.data.grade}"
-									class="w-5 h-5 absolute -top-1.5 -right-5"
-									title="{n.data.grade} 등급"
-								/>
+		<!-- 노드 -->
+		<div bind:this={nodeLayerEl} class="node-layer">
+			{#each layoutNodes as n}
+				<div
+					class="node-box {hoverPath === n.data.__path ? 'hovered' : ''}"
+					data-path={n.data.__path}
+					style={`left:${n.x - nodeWidth / 2}px; top:${n.y - nodeHeight / 2}px; width:${nodeWidth}px; height:${nodeHeight}px;`}
+					role="button"
+					tabindex="0"
+					onclick={handleClick}
+					onkeydown={handleKeydown}
+					onmouseenter={() => onEnterNode(n.data.__path)}
+					onmouseleave={onLeaveNode}
+				>
+					{#if nodeComponent}
+						<svelte:component this={nodeComponent} node={n.data} />
+					{:else}
+						<div class="node-default">
+							<div class="relative inline-block">
+								<strong>{n.data.label}</strong>
+								{#if n.data.grade}
+									<img
+										src="/icons/{n.data.grade}.svg"
+										alt={n.data.grade}
+										class="absolute -right-5 -top-1.5 h-5 w-5"
+										title="{n.data.grade} 등급"
+									/>
+								{/if}
+							</div>
+							{#if n.data.__hasMoreBelow}
+								<span class="hint">▼ 아래 단계</span>
+							{/if}
+							{#if n.data.__path === currentPath && currentRoot?.__hasParentAbove}
+								<button
+									class="hint-btn"
+									onclick={(e) => {
+										e.stopPropagation();
+										goParent();
+									}}
+									title="윗 단계 이동"
+								>
+									▲ 윗 단계
+								</button>
 							{/if}
 						</div>
-						{#if n.data.__hasMoreBelow}
-							<span class="hint">▼ 아래 단계</span>
-						{/if}
-						{#if n.data.__path === currentPath && currentRoot?.__hasParentAbove}
-							<button class="hint-btn" onclick={(e) => { e.stopPropagation(); goParent(); }} title="윗 단계 이동">
-								▲ 윗 단계
-							</button>
-						{/if}
-					</div>
-				{/if}
-			</div>
-		{/each}
+					{/if}
+				</div>
+			{/each}
+		</div>
 	</div>
 </div>
 
@@ -515,13 +546,19 @@
 		cursor: grab;
 		touch-action: none;
 	}
+	.transform-container {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+	}
 	.link-svg {
 		position: absolute;
 		inset: 0;
 		width: 100%;
 		height: 100%;
 		display: block;
-		z-index: 0;
+		overflow: visible;
 		pointer-events: none;
 	}
 	.link {
@@ -532,7 +569,7 @@
 	.node-layer {
 		position: absolute;
 		inset: 0;
-		z-index: 1;
+		pointer-events: none;
 	}
 	.node-box {
 		position: absolute;
@@ -546,9 +583,22 @@
 		box-sizing: border-box;
 		overflow: hidden;
 		user-select: none;
+		pointer-events: auto;
 		transition:
 			box-shadow 120ms ease,
 			border-color 120ms ease;
+	}
+	/* 데스크톱에서만 pointer-events 활성화 */
+	@media (hover: hover) and (pointer: fine) {
+		.node-box {
+			pointer-events: auto;
+		}
+	}
+	/* 모바일에서는 pointer-events 비활성화 (d3.zoom이 처리) */
+	@media (hover: none) and (pointer: coarse) {
+		.node-box {
+			pointer-events: none;
+		}
 	}
 	.node-box.hovered {
 		/* ★ 호버 시 강조 */
