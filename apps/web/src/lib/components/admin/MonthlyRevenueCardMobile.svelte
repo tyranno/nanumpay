@@ -3,19 +3,31 @@
 	import { browser } from '$app/environment';
 	import GradeBadge from '$lib/components/GradeBadge.svelte';
 	import RevenueAdjustModal from './RevenueAdjustModal.svelte';
+	import { revenueCardState } from '$lib/stores/dashboardStore';
 
-	let viewMode = 'single'; // 'single' | 'range'
+	// Store에서 초기값 가져오기
+	let viewMode = $revenueCardState.viewMode;
+	let selectedYear = $revenueCardState.startYear;
+	let selectedMonth = $revenueCardState.startMonth;
+	let startYear = $revenueCardState.startYear;
+	let startMonth = $revenueCardState.startMonth;
+	let endYear = $revenueCardState.endYear;
+	let endMonth = $revenueCardState.endMonth;
 
-	// 단일 월 선택
-	let currentDate = new Date();
-	let selectedYear = currentDate.getFullYear();
-	let selectedMonth = currentDate.getMonth() + 1;
+	// 변경 시 Store 업데이트
+	$: viewMode, selectedYear, selectedMonth, startYear, startMonth, endYear, endMonth, updateStore();
 
-	// 기간 선택
-	let startYear = currentDate.getFullYear();
-	let startMonth = currentDate.getMonth() + 1;
-	let endYear = currentDate.getFullYear();
-	let endMonth = currentDate.getMonth() + 1;
+	function updateStore() {
+		if (browser) {
+			revenueCardState.set({
+				viewMode,
+				startYear: viewMode === 'single' ? selectedYear : startYear,
+				startMonth: viewMode === 'single' ? selectedMonth : startMonth,
+				endYear,
+				endMonth
+			});
+		}
+	}
 
 	// 데이터
 	let monthlyData = null;

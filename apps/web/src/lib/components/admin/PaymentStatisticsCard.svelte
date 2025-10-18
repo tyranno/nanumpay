@@ -2,15 +2,29 @@
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
 	import GradeBadge from '$lib/components/GradeBadge.svelte';
+	import { paymentCardState } from '$lib/stores/dashboardStore';
 
-	let paymentViewMode = 'monthly'; // 'monthly' | 'weekly'
+	// Store에서 초기값 가져오기
+	let paymentViewMode = $paymentCardState.viewMode;
+	let startYear = $paymentCardState.startYear;
+	let startMonth = $paymentCardState.startMonth;
+	let endYear = $paymentCardState.endYear;
+	let endMonth = $paymentCardState.endMonth;
 
-	// 기간 선택 (기본값: 현재 달)
-	let currentDate = new Date();
-	let startYear = currentDate.getFullYear();
-	let startMonth = currentDate.getMonth() + 1;
-	let endYear = currentDate.getFullYear();
-	let endMonth = currentDate.getMonth() + 1;
+	// 변경 시 Store 업데이트
+	$: paymentViewMode, startYear, startMonth, endYear, endMonth, updateStore();
+
+	function updateStore() {
+		if (browser) {
+			paymentCardState.set({
+				viewMode: paymentViewMode,
+				startYear,
+				startMonth,
+				endYear,
+				endMonth
+			});
+		}
+	}
 
 	// 데이터
 	let rangeData = null;
