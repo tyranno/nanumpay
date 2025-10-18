@@ -1,11 +1,18 @@
 <script>
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
+	import { onMount } from 'svelte';
 
 	let loginId = '';
 	let password = '';
 	let isLoading = false;
 	let errorMessage = '';
+
+	// 로그인 페이지 진입 시 클라이언트 저장소 정리
+	onMount(() => {
+		localStorage.clear();
+		sessionStorage.clear();
+	});
 
 	async function handleSubmit(e) {
 		e.preventDefault();

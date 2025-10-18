@@ -4,9 +4,33 @@ import { redirect } from '@sveltejs/kit';
 
 /** @type {import('@sveltejs/kit').Handle} */
 export async function handle({ event, resolve }) {
+	// 로그인 페이지 접근 시 모든 인증 정보 강제 삭제 (보안 강화)
+	if (event.url.pathname === '/login') {
+		event.cookies.delete('token', {
+			path: '/',
+			httpOnly: true,
+			secure: process.env.NODE_ENV === 'production',
+			sameSite: 'strict'
+		});
+		event.cookies.delete('refreshToken', {
+			path: '/',
+			httpOnly: true,
+			secure: process.env.NODE_ENV === 'production',
+			sameSite: 'strict'
+		});
+		event.locals.user = null;
+	}
+
 	// JWT 인증 처리
 	const token = event.cookies.get('token');
 	const refreshToken = event.cookies.get('refreshToken');
+
+	console.log('🔍 [AUTH CHECK]', {
+		path: event.url.pathname,
+		hasToken: !!token,
+		hasRefreshToken: !!refreshToken,
+		cookies: event.cookies.getAll()
+	});
 
 	if (token) {
 		try {
@@ -35,13 +59,13 @@ export async function handle({ event, resolve }) {
 						{ expiresIn: JWT_EXPIRES || '1h' }
 					);
 
-					// 새 토큰 쿠키 설정
+					// 새 토큰 세션 쿠키로 설정 (브라우저 종료 시 자동 삭제)
 					event.cookies.set('token', newToken, {
 						httpOnly: true,
 						secure: process.env.NODE_ENV === 'production',
 						sameSite: 'strict',
-						maxAge: 60 * 60, // 1시간
 						path: '/'
+						// maxAge 제거 → 세션 쿠키
 					});
 
 					const verifiedUser = jwt.verify(newToken, JWT_SECRET);
@@ -92,12 +116,16 @@ export async function handle({ event, resolve }) {
 		throw redirect(302, '/admin');
 	}
 
-	// 이미 로그인한 사용자가 로그인 페이지에 접근하려는 경우
-	if (event.url.pathname === '/login' && event.locals.user) {
-		const redirectTo = event.locals.user.type === 'admin' ? '/admin' : '/dashboard';
-		throw redirect(302, redirectTo);
-	}
+	// 로그인 페이지는 항상 접근 허용 (위에서 이미 쿠키 삭제됨)
 
 	const response = await resolve(event);
+
+	// 보호된 페이지에 캐시 방지 헤더 추가 (뒤로가기 시 재인증 강제)
+	if (isProtectedRoute) {
+		response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+		response.headers.set('Pragma', 'no-cache');
+		response.headers.set('Expires', '0');
+	}
+
 	return response;
 }

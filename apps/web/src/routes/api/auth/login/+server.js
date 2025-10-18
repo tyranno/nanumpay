@@ -56,22 +56,22 @@ export async function POST({ request, cookies }) {
 		{ expiresIn: JWT_REFRESH_EXPIRES || '7d' }
 	);
 
-	// Access Token을 쿠키에 저장
+	// Access Token을 세션 쿠키로 저장 (브라우저 종료 시 자동 삭제)
 	cookies.set('token', accessToken, {
 		httpOnly: true,
 		secure: process.env.NODE_ENV === 'production',
 		sameSite: 'strict',
-		maxAge: 60 * 60, // 1시간
 		path: '/'
+		// maxAge 제거 → 세션 쿠키 (브라우저 종료 시 삭제)
 	});
 
-	// Refresh Token을 별도 쿠키에 저장
+	// Refresh Token도 세션 쿠키로 저장 (브라우저 종료 시 자동 삭제)
 	cookies.set('refreshToken', refreshToken, {
 		httpOnly: true,
 		secure: process.env.NODE_ENV === 'production',
 		sameSite: 'strict',
-		maxAge: 60 * 60 * 24 * 7, // 7일
 		path: '/'
+		// maxAge 제거 → 세션 쿠키 (브라우저 종료 시 삭제)
 	});
 
 	// 마지막 로그인 시간 업데이트

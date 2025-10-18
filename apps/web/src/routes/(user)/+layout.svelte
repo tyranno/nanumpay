@@ -5,8 +5,15 @@
 	let { data, children } = $props();
 
 	async function logout() {
+		// 1. 서버 세션 삭제
 		await fetch('/api/auth/logout', { method: 'POST' });
-		goto('/login');
+
+		// 2. 클라이언트 저장소 완전 정리
+		localStorage.clear();
+		sessionStorage.clear();
+
+		// 3. 히스토리 대체 (뒤로가기 방지) + 새로고침 강제
+		goto('/login', { replaceState: true, invalidateAll: true });
 	}
 
 	function goBack() {

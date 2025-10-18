@@ -1,7 +1,6 @@
-import { json } from '@sveltejs/kit';
-
-export async function POST({ cookies }) {
-	// 모든 인증 관련 쿠키 삭제 (로그인 시 설정한 옵션과 동일하게)
+/** @type {import('./$types').PageServerLoad} */
+export async function load({ cookies }) {
+	// 로그인 페이지 진입 시 모든 인증 쿠키 강제 삭제 (보안 강화)
 	cookies.delete('token', {
 		path: '/',
 		httpOnly: true,
@@ -16,5 +15,5 @@ export async function POST({ cookies }) {
 		sameSite: 'strict'
 	});
 
-	return json({ success: true });
+	return {};
 }
