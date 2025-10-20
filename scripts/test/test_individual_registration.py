@@ -60,7 +60,7 @@ def register_july_1():
         return False
 
     user = {
-        "registrationDate": "2025-07-01",
+        "registrationDate": "2025-07-09",
         "name": "사장님",
         "phone": "010-1234-5678",
         "salesperson": "-",
@@ -77,7 +77,7 @@ def register_july_2():
         return False
 
     user = {
-        "registrationDate": "2025-07-01",
+        "registrationDate": "2025-07-15",
         "name": "김영수",
         "phone": "010-2222-2222",
         "salesperson": "사장님",
@@ -94,7 +94,7 @@ def register_july_3():
         return False
 
     user = {
-        "registrationDate": "2025-07-02",
+        "registrationDate": "2025-07-31",
         "name": "이미영",
         "phone": "010-3333-3333",
         "salesperson": "사장님",

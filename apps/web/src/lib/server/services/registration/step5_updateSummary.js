@@ -72,12 +72,17 @@ export async function executeStep5(plans, registrationMonth) {
     const monthKey = WeeklyPaymentSummary.generateMonthKey(friday);
 
     // 해당 주차에 지급될 모든 계획 조회 (상태 무관, terminated 제외)
+    const fridayStart = new Date(friday);
+    fridayStart.setHours(0, 0, 0, 0);
+    const fridayEnd = new Date(friday);
+    fridayEnd.setHours(23, 59, 59, 999);
+
     const plansForWeek = await WeeklyPaymentPlans.find({
       'installments': {
         $elemMatch: {
           scheduledDate: {
-            $gte: new Date(friday.setHours(0, 0, 0, 0)),
-            $lt: new Date(friday.setHours(23, 59, 59, 999))
+            $gte: fridayStart,
+            $lt: fridayEnd
           }
         }
       },
