@@ -109,7 +109,6 @@ export async function calculateGradeForUser(userId) {
  * 모든 사용자의 등급 재계산 (리프 노드부터 상향식)
  */
 export async function recalculateAllGrades() {
-
   // 모든 용역자(User) 가져오기 - Admin은 별도 컬렉션이므로 제외
   const users = await User.find({ type: 'user' }).sort({ createdAt: 1 });
 
@@ -118,10 +117,11 @@ export async function recalculateAllGrades() {
   const userMap = new Map();
   const userMapById = new Map(); // ObjectId로도 찾을 수 있도록 추가
 
-  // 사용자 맵 생성
+  // ⭐ v8.0: 사용자 맵 생성 (_id 기준)
   for (const user of users) {
-    userMap.set(user.loginId, user);
-    userMapById.set(user._id.toString(), user); // ObjectId를 String으로 변환하여 저장
+    const userIdStr = user._id.toString();
+    userMap.set(userIdStr, user);
+    userMapById.set(userIdStr, user);
   }
 
   // 각 사용자의 레벨 계산 (루트로부터의 거리)
@@ -132,15 +132,15 @@ export async function recalculateAllGrades() {
       const user = userMap.get(userId);
       if (user) {
         if (user.leftChildId) {
-          const leftChild = userMapById.get(user.leftChildId.toString()); // ObjectId → String 변환 후 조회
+          const leftChild = userMapById.get(user.leftChildId.toString());
           if (leftChild) {
-            await calculateLevel(leftChild.loginId, level + 1); // loginId 전달
+            await calculateLevel(leftChild._id.toString(), level + 1); // ⭐ v8.0: _id 전달
           }
         }
         if (user.rightChildId) {
           const rightChild = userMapById.get(user.rightChildId.toString());
           if (rightChild) {
-            await calculateLevel(rightChild.loginId, level + 1);
+            await calculateLevel(rightChild._id.toString(), level + 1); // ⭐ v8.0: _id 전달
           }
         }
       }
@@ -148,9 +148,9 @@ export async function recalculateAllGrades() {
   }
 
   // 루트 노드들부터 레벨 계산
-  const roots = users.filter(u => !u.parentId || u.parentId === '관리자');
+  const roots = users.filter(u => !u.parentId);
   for (const root of roots) {
-    await calculateLevel(root.loginId, 0);
+    await calculateLevel(root._id.toString(), 0); // ⭐ v8.0: _id 전달
   }
 
   // 레벨별로 사용자 그룹화 (높은 레벨부터 = 리프 노드부터)
@@ -220,24 +220,23 @@ export async function recalculateAllGrades() {
 export async function updateParentGrade(parentId) {
   if (!parentId || parentId === '관리자') return;
 
-  const parent = await User.findOne({ loginId: parentId });
+  // ⭐ v8.0: _id로 조회 (loginId 대신)
+  const parent = await User.findById(parentId);
 
   if (!parent) return;
 
   const oldGrade = parent.grade;
-  const newGrade = await calculateGradeForUser(parent.loginId);
+  // ⭐ v8.0: _id 전달 (loginId 대신)
+  const newGrade = await calculateGradeForUser(parent._id);
 
   if (oldGrade !== newGrade) {
     parent.grade = newGrade;
     await parent.save();
 
     // 부모의 부모도 확인 (연쇄 작용)
-    if (parent.parentId && parent.parentId !== '관리자') {
-      // parentId가 ObjectId이므로 해당 유저를 찾아서 loginId를 전달
-      const grandParent = await User.findById(parent.parentId);
-      if (grandParent) {
-        await updateParentGrade(grandParent.loginId);
-      }
+    if (parent.parentId) {
+      // ⭐ v8.0: parentId가 이미 ObjectId이므로 직접 재귀 호출
+      await updateParentGrade(parent.parentId);
     }
   }
 }

@@ -15,7 +15,7 @@ import requests
 import json
 import sys
 
-BASE_URL = "http://localhost:3101"
+BASE_URL = "http://localhost:3100"
 
 def login():
     """관리자 로그인"""

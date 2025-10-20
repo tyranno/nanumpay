@@ -61,11 +61,15 @@ def register_july_1():
 
     user = {
         "registrationDate": "2025-07-09",
+        "ID": "사장님",
         "name": "사장님",
         "phone": "010-1234-5678",
         "salesperson": "-",
+        "planner": "김설계",
+        "plannerPhone": "010-9999-9999",
         "bank": "국민은행",
-        "accountNumber": "123456789012"
+        "accountNumber": "123456789012",
+        "idNumber": "750315-1234567"
     }
     return register_user(cookies, user)
 
@@ -78,11 +82,15 @@ def register_july_2():
 
     user = {
         "registrationDate": "2025-07-15",
+        "ID": "김영수",
         "name": "김영수",
         "phone": "010-2222-2222",
         "salesperson": "사장님",
+        "planner": "김설계",
+        "plannerPhone": "010-9999-9999",
         "bank": "신한은행",
-        "accountNumber": "223456789012"
+        "accountNumber": "223456789012",
+        "idNumber": "750315-1234567"
     }
     return register_user(cookies, user)
 
@@ -95,11 +103,15 @@ def register_july_3():
 
     user = {
         "registrationDate": "2025-07-31",
+        "ID": "이미영",
         "name": "이미영",
         "phone": "010-3333-3333",
         "salesperson": "사장님",
+        "planner": "김설계",
+        "plannerPhone": "010-9999-9999",
         "bank": "우리은행",
-        "accountNumber": "323456789012"
+        "accountNumber": "323456789012",
+        "idNumber": "800422-2345678"
     }
     return register_user(cookies, user)
 
@@ -137,11 +149,15 @@ def register_august_1():
 
     user = {
         "registrationDate": "2025-08-01",
+        "ID": "박철수",
         "name": "박철수",
         "phone": "010-4444-4444",
         "salesperson": "김영수",
+        "planner": "김설계",
+        "plannerPhone": "010-9999-9999",
         "bank": "국민은행",
-        "accountNumber": "423456789012"
+        "accountNumber": "423456789012",
+        "idNumber": "850101-1111111"
     }
     return register_user(cookies, user)
 
@@ -154,11 +170,15 @@ def register_august_2():
 
     user = {
         "registrationDate": "2025-08-01",
+        "ID": "최영희",
         "name": "최영희",
         "phone": "010-5555-5555",
         "salesperson": "김영수",
+        "planner": "김설계",
+        "plannerPhone": "010-9999-9999",
         "bank": "신한은행",
-        "accountNumber": "523456789012"
+        "accountNumber": "523456789012",
+        "idNumber": "880202-2222222"
     }
     return register_user(cookies, user)
 
@@ -171,11 +191,15 @@ def register_august_3():
 
     user = {
         "registrationDate": "2025-08-02",
+        "ID": "정민수",
         "name": "정민수",
         "phone": "010-6666-6666",
         "salesperson": "이미영",
+        "planner": "김설계",
+        "plannerPhone": "010-9999-9999",
         "bank": "우리은행",
-        "accountNumber": "623456789012"
+        "accountNumber": "623456789012",
+        "idNumber": "900303-1111111"
     }
     return register_user(cookies, user)
 
@@ -213,11 +237,15 @@ def register_september_1():
 
     user = {
         "registrationDate": "2025-09-01",
+        "ID": "강민지",
         "name": "강민지",
         "phone": "010-7777-7777",
         "salesperson": "이미영",
+        "planner": "김설계",
+        "plannerPhone": "010-9999-9999",
         "bank": "국민은행",
-        "accountNumber": "723456789012"
+        "accountNumber": "723456789012",
+        "idNumber": "920404-2222222"
     }
     return register_user(cookies, user)
 
