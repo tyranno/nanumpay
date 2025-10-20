@@ -195,9 +195,29 @@ async function getSingleWeekPaymentsV5(year, month, week, page, limit, search, s
 			$addFields: {
 				registrationDate: { $arrayElemAt: ['$userInfo.registrationDate', 0] },
 				createdAt: { $arrayElemAt: ['$userInfo.createdAt', 0] },
-				userObjectId: { $arrayElemAt: ['$userInfo._id', 0] }
+				userObjectId: { $arrayElemAt: ['$userInfo._id', 0] },
+				plannerAccountId: { $arrayElemAt: ['$userInfo.plannerAccountId', 0] }
 			}
 		},
+		{
+			$lookup: {
+				from: 'planneraccounts',
+				localField: 'plannerAccountId',
+				foreignField: '_id',
+				as: 'plannerInfo'
+			}
+		},
+		{
+			$addFields: {
+				plannerName: { $arrayElemAt: ['$plannerInfo.name', 0] }
+			}
+		},
+		// 설계사 검색 필터 적용
+		...(searchFilter.needPlannerSearch ? [{
+			$match: {
+				plannerName: { $regex: searchFilter.plannerSearch, $options: 'i' }
+			}
+		}] : []),
 		{
 			$sort: { registrationDate: 1, createdAt: 1, userObjectId: 1 }
 		}
@@ -221,18 +241,24 @@ async function getSingleWeekPaymentsV5(year, month, week, page, limit, search, s
 
 	// 5. 사용자 상세 정보 추가
 	const userIds = userPayments.map(p => p._id); // String형 ObjectId들
-	const users = await User.find({ _id: { $in: userIds } }).lean();
+	const users = await User.find({ _id: { $in: userIds } })
+		.populate('userAccountId') // UserAccount join
+		.populate('plannerAccountId') // PlannerAccount join
+		.lean();
 	const userMap = new Map(users.map(u => [u._id.toString(), u]));
 
 	const enrichedPayments = userPayments.map((payment, idx) => {
 		const user = userMap.get(payment._id) || {};
+		const userAccount = user.userAccountId || {};
+		const plannerAccount = user.plannerAccountId || {};
+
 		return {
 			no: (page - 1) * limit + idx + 1,
 			userId: payment._id,
 			userName: payment.userName,
-			planner: user.planner || '',
-			bank: user.bank || '',
-			accountNumber: user.accountNumber || '',
+			planner: plannerAccount.name || '',
+			bank: userAccount.bank || '',
+			accountNumber: userAccount.accountNumber || '',
 			grade: user.grade || 'F1', // User 테이블의 최신 등급 사용
 			actualAmount: payment.totalAmount || 0,
 			taxAmount: payment.totalTax || 0,
@@ -298,13 +324,27 @@ async function getRangePaymentsV5(startYear, startMonth, endYear, endMonth, page
 	const searchFilter = buildSearchFilter(search, searchCategory);
 
 	// 3. 모든 용역자 조회 (관리자 제외, 등록일자 순)
-	let allUsers = await User.find({ isAdmin: { $ne: true } }).sort({ registrationDate: 1, createdAt: 1 }).lean();
+	let allUsers = await User.find({ isAdmin: { $ne: true } })
+		.populate('userAccountId') // UserAccount join
+		.populate('plannerAccountId') // PlannerAccount join
+		.sort({ registrationDate: 1, createdAt: 1 })
+		.lean();
 	console.log(`[API 기간조회] 전체 용역자 ${allUsers.length}명 조회 (등록일자 순)`);
 
 	// 검색 필터 적용
 	if (searchFilter.userName) {
 		allUsers = allUsers.filter(u => searchFilter.userName.$regex.test(u.name));
-		console.log(`[API 기간조회] 검색 필터 적용 후 ${allUsers.length}명`);
+		console.log(`[API 기간조회] 이름 검색 필터 적용 후 ${allUsers.length}명`);
+	}
+
+	// 설계사 검색 필터 적용
+	if (searchFilter.needPlannerSearch) {
+		const searchRegex = new RegExp(searchFilter.plannerSearch, 'i');
+		allUsers = allUsers.filter(u => {
+			const plannerName = u.plannerAccountId?.name || '';
+			return searchRegex.test(plannerName);
+		});
+		console.log(`[API 기간조회] 설계사 검색 필터 적용 후 ${allUsers.length}명`);
 	}
 
 	// 4. 주차별 데이터 생성
@@ -357,12 +397,15 @@ async function getRangePaymentsV5(startYear, startMonth, endYear, endMonth, page
 		const payments = allUsers.map(user => {
 			const userId = user._id.toString(); // ObjectId를 문자열로 변환
 			const payment = paymentMap.get(userId);
+			const userAccount = user.userAccountId || {};
+			const plannerAccount = user.plannerAccountId || {};
+
 			return {
 				userId: userId,
 				userName: user.name,
-				planner: user.planner || '',
-				bank: user.bank || '',
-				accountNumber: user.accountNumber || '',
+				planner: plannerAccount.name || '',
+				bank: userAccount.bank || '',
+				accountNumber: userAccount.accountNumber || '',
 				grade: user.grade || 'F1', // 항상 User 테이블의 최신 등급 사용
 				actualAmount: payment ? payment.installmentAmount : 0,
 				taxAmount: payment ? payment.withholdingTax : 0,
@@ -434,13 +477,16 @@ async function getRangePaymentsV5(startYear, startMonth, endYear, endMonth, page
 			// 현재 페이지 사용자 목록 (페이징 적용)
 			payments: allUsers.slice((page - 1) * limit, page * limit).map((user, idx) => {
 				const userId = user._id.toString();
+				const userAccount = user.userAccountId || {};
+				const plannerAccount = user.plannerAccountId || {};
+
 				return {
 					no: (page - 1) * limit + idx + 1,
 					userId: userId,
 					userName: user.name,
-					planner: user.planner || '',
-					bank: user.bank || '',
-					accountNumber: user.accountNumber || '',
+					planner: plannerAccount.name || '',
+					bank: userAccount.bank || '',
+					accountNumber: userAccount.accountNumber || '',
 					grade: user.grade || 'F1',
 					// 전체 기간 동안의 총 지급액
 					totalAmount: weeks.reduce((sum, week) => {
