@@ -1,27 +1,22 @@
 import mongoose from 'mongoose';
 
 const userSchema = new mongoose.Schema({
+	// v8.0: UserAccount 연결 (FK)
+	userAccountId: {
+		type: mongoose.Schema.Types.ObjectId,
+		ref: 'UserAccount',
+		required: true,
+		index: true
+	},
+	// v8.0: 등록 순번 (1, 2, 3...)
+	registrationNumber: {
+		type: Number,
+		required: true,
+		default: 1
+	},
 	name: {
 		type: String,
 		required: true
-	},
-	loginId: {
-		type: String,
-		required: true,
-		unique: true,
-		lowercase: true
-	},
-	passwordHash: {
-		type: String,
-		required: true
-	},
-	email: {
-		type: String,
-		sparse: true
-	},
-	phone: {
-		type: String,
-		sparse: true
 	},
 	// 계층 구조 필드 - ObjectId를 사용하여 참조
 	parentId: {
@@ -44,14 +39,16 @@ const userSchema = new mongoose.Schema({
 		ref: 'User',
 		default: null
 	},
-	// 개인정보 (엑셀 구조에 맞춤)
-	idNumber: String, // 주민번호
-	bank: String, // 은행
-	accountNumber: String, // 계좌번호
+	// v8.0: PlannerAccount 연결 (FK, 필수)
+	plannerAccountId: {
+		type: mongoose.Schema.Types.ObjectId,
+		ref: 'PlannerAccount',
+		required: true,
+		index: true
+	},
+	// 용역 관련 정보 (개인정보는 UserAccount에 저장)
 	salesperson: String, // 판매인
 	salespersonPhone: String, // 판매인 연락처
-	planner: String, // 설계사
-	plannerPhone: String, // 설계사 연락처
 	insuranceProduct: String, // 보험상품명
 	insuranceCompany: String, // 보험회사
 	branch: String, // 소속/지사
@@ -142,6 +139,9 @@ const userSchema = new mongoose.Schema({
 userSchema.index({ parentId: 1, position: 1 });
 userSchema.index({ status: 1, createdAt: -1 });
 userSchema.index({ createdAt: 1 });
+// v8.0: FK 인덱스
+userSchema.index({ userAccountId: 1, registrationNumber: 1 });
+userSchema.index({ plannerAccountId: 1 });
 
 // 가상 필드 - 자식 존재 여부
 userSchema.virtual('hasLeftChild').get(function() {

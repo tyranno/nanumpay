@@ -1,4 +1,6 @@
 import User from '../models/User.js';
+import UserAccount from '../models/UserAccount.js'; // v8.0
+import PlannerAccount from '../models/PlannerAccount.js'; // v8.0
 import bcrypt from 'bcryptjs';
 import { smartTreeRestructure } from './treeRestructure.js';
 import ValidationService from './validationService.js';
@@ -116,12 +118,12 @@ export class UserRegistrationService {
 		for (let i = 0; i < users.length; i++) {
 			const userData = users[i];
 
-			// 헤더 행 건너뛰기
-			if (userData['용 역 자 관 리 명 부'] === '순번' || userData['__EMPTY_1'] === '성명') {
+			// v8.0: 헤더 행 건너뛰기 (ID 컬럼 추가로 인한 변경)
+			if (userData['용 역 자 관 리 명 부'] === '순번' || userData['__EMPTY_2'] === '성명') {
 				continue;
 			}
 
-			const name = getValue(userData, ['성명', '이름', 'name', '__EMPTY_1']);
+			const name = getValue(userData, ['성명', '이름', 'name', '__EMPTY_2']);
 			if (!name) continue; // 빈 행 건너뛰기
 
 			this.excelUserNames.add(name);
@@ -131,15 +133,15 @@ export class UserRegistrationService {
 		for (let i = 0; i < users.length; i++) {
 			const userData = users[i];
 
-			// 헤더 행 건너뛰기
-			if (userData['용 역 자 관 리 명 부'] === '순번' || userData['__EMPTY_1'] === '성명') {
+			// v8.0: 헤더 행 건너뛰기 (ID 컬럼 추가로 인한 변경)
+			if (userData['용 역 자 관 리 명 부'] === '순번' || userData['__EMPTY_2'] === '성명') {
 				continue;
 			}
 
-			const name = getValue(userData, ['성명', '이름', 'name', '__EMPTY_1']);
+			const name = getValue(userData, ['성명', '이름', 'name', '__EMPTY_2']);
 			if (!name) continue;
 
-			const salesperson = getValue(userData, ['판매인', '추천인', 'salesperson', '__EMPTY_6']);
+			const salesperson = getValue(userData, ['판매인', '추천인', 'salesperson', '__EMPTY_7']);
 
 			// 판매인 검증
 			if (!salesperson || salesperson === '-') {
@@ -179,7 +181,7 @@ export class UserRegistrationService {
 
 					for (let j = 0; j < users.length; j++) {
 						const checkUserData = users[j];
-						const checkName = getValue(checkUserData, ['성명', '이름', 'name', '__EMPTY_1']);
+						const checkName = getValue(checkUserData, ['성명', '이름', 'name', '__EMPTY_2']); // v8.0
 
 						if (checkName === salesperson) {
 							sellerRowIndex = j;
@@ -245,10 +247,11 @@ export class UserRegistrationService {
 			const userData = users[i];
 			const row = i + 1;
 			let name = '';
+			let loginId = '';
 
 			try {
-				// 헤더 행 건너뛰기
-				if (userData['용 역 자 관 리 명 부'] === '순번' || userData['__EMPTY_1'] === '성명') {
+				// v8.0: 헤더 행 건너뛰기 (ID 컬럼 추가로 인한 변경)
+				if (userData['용 역 자 관 리 명 부'] === '순번' || userData['__EMPTY_2'] === '성명') {
 					continue;
 				}
 
@@ -272,44 +275,61 @@ export class UserRegistrationService {
 					createdAt = new Date();
 				}
 
-				// 필드 추출
-				name = getValue(userData, ['성명', '이름', 'name', '__EMPTY_1']);
-				const phone = getValue(userData, ['연락처', '전화번호', 'phone', '__EMPTY_2']);
-				const idNumber = getValue(userData, ['주민번호', '__EMPTY_3']);
-				const bank = getValue(userData, ['은행', 'bank', '__EMPTY_4']);
+				// v8.0: 필드 추출 (ID 컬럼 추가)
+				loginId = getValue(userData, ['ID', 'id', '__EMPTY_1']);
+				name = getValue(userData, ['성명', '이름', 'name', '__EMPTY_2']);
+				const phone = getValue(userData, ['연락처', '전화번호', 'phone', '__EMPTY_3']);
+				const idNumber = getValue(userData, ['주민번호', '__EMPTY_4']);
+				const bank = getValue(userData, ['은행', 'bank', '__EMPTY_5']);
 				const accountNumber = getValue(userData, [
 					'계좌번호',
 					'계좌',
 					'accountNumber',
-					'__EMPTY_5'
+					'__EMPTY_6'
 				]);
-				const salesperson = getValue(userData, ['판매인', '추천인', 'salesperson', '__EMPTY_6']);
+				const salesperson = getValue(userData, ['판매인', '추천인', 'salesperson', '__EMPTY_7']);
 				const salespersonPhone = getValue(userData, [
 					'판매인 연락처',
 					'연락처.1',
 					'salespersonPhone',
-					'__EMPTY_7'
+					'__EMPTY_8'
 				]);
-				const planner = getValue(userData, ['설계사', 'planner', '__EMPTY_8']);
+				const plannerName = getValue(userData, ['설계사', 'planner', '__EMPTY_9']);
 				const plannerPhone = getValue(userData, [
 					'설계사 연락처',
 					'연락처.2',
 					'plannerPhone',
-					'__EMPTY_9'
+					'__EMPTY_10'
 				]);
 				const insuranceProduct = getValue(userData, [
 					'보험상품명',
 					'보험상품',
 					'insuranceProduct',
-					'__EMPTY_10'
+					'__EMPTY_11'
 				]);
-				const insuranceCompany = getValue(userData, ['보험회사', 'insuranceCompany', '__EMPTY_11']);
-				const branch = getValue(userData, ['지사', '소속/지사', 'branch', '__EMPTY_12']);
+				const insuranceCompany = getValue(userData, ['보험회사', 'insuranceCompany', '__EMPTY_12']);
+				const branch = getValue(userData, ['지사', '소속/지사', 'branch', '__EMPTY_13']);
+
+				// v8.0: 필수 필드 검증
+				if (!loginId) {
+					results.failed++;
+					results.errors.push(`행 ${row}: ID가 없습니다.`);
+					console.warn(`행 ${row} 실패: ID 없음`);
+					continue;
+				}
 
 				if (!name) {
 					results.failed++;
 					results.errors.push(`행 ${row}: 이름이 없습니다.`);
 					console.warn(`행 ${row} 실패: 이름 없음`);
+					continue;
+				}
+
+				// v8.0: 설계사 필수 검증
+				if (!plannerName) {
+					results.failed++;
+					results.errors.push(`행 ${row} (${name}): 설계사가 비어있습니다.`);
+					console.warn(`행 ${row} 실패: 설계사 없음`);
 					continue;
 				}
 
@@ -330,26 +350,65 @@ export class UserRegistrationService {
 					continue;
 				}
 
-				// 전화번호에서 암호 생성
-				const phoneDigits = phone.replace(/[^0-9]/g, '');
-				const password = phoneDigits.length >= 4 ? phoneDigits.slice(-4) : '1234';
+				// v8.0: UserAccount 생성 또는 조회
+				let userAccount = await UserAccount.findOne({ loginId: loginId.toLowerCase() });
 
-				// loginId 자동 생성
-				let baseLoginId = name.toLowerCase();
-				let loginId = baseLoginId;
-				let counter = 0;
+				if (!userAccount) {
+					// 신규: UserAccount 생성
+					const phoneDigits = phone.replace(/[^0-9]/g, '');
+					const password = phoneDigits.length >= 4 ? phoneDigits.slice(-4) : '1234';
+					const passwordHash = await bcrypt.hash(password, 10);
 
-				while (await User.exists({ loginId })) {
-					counter++;
-					const suffix =
-						counter <= 26
-							? String.fromCharCode(64 + counter) // A, B, C, ...
-							: counter.toString(); // 27, 28, ...
-					loginId = baseLoginId + suffix;
+					userAccount = new UserAccount({
+						loginId: loginId.toLowerCase(),
+						passwordHash,
+						name,
+						phone,
+						idNumber,
+						bank,
+						accountNumber,
+						email: getValue(userData, ['email', 'Email', '__EMPTY_14']) || null,
+						status: 'active',
+						createdAt: createdAt
+					});
+					await userAccount.save();
+					console.log(`✅ UserAccount 생성: ${loginId}`);
+				} else {
+					// 재등록: 개인정보 업데이트 안 함 (v8.0 설계 원칙)
+					console.log(`✅ UserAccount 재사용: ${loginId} (registrationNumber will be incremented)`);
 				}
 
-				// 비밀번호 해싱
-				const passwordHash = await bcrypt.hash(password, 10);
+				// v8.0: PlannerAccount 생성 또는 조회 (자동 생성)
+				let plannerAccount = await PlannerAccount.findOne({ loginId: plannerName });
+
+				if (!plannerAccount) {
+					const plannerPhoneDigits = plannerPhone.replace(/[^0-9]/g, '');
+					const plannerPassword = plannerPhoneDigits.length >= 4 ? plannerPhoneDigits.slice(-4) : '1234';
+					const plannerPasswordHash = await bcrypt.hash(plannerPassword, 10);
+
+					plannerAccount = new PlannerAccount({
+						loginId: plannerName,
+						passwordHash: plannerPasswordHash,
+						name: plannerName,
+						phone: plannerPhone,
+						status: 'active',
+						createdAt: createdAt
+					});
+					await plannerAccount.save();
+					console.log(`✅ PlannerAccount 자동 생성: ${plannerName} (초기 비밀번호: ${plannerPassword})`);
+				}
+
+				// v8.0: registrationNumber 계산
+				const existingUsers = await User.find({ userAccountId: userAccount._id })
+					.sort({ registrationNumber: -1 })
+					.limit(1);
+
+				const registrationNumber = existingUsers.length > 0
+					? existingUsers[0].registrationNumber + 1
+					: 1;
+
+				// v8.0: 표시 이름 생성 (홍길동, 홍길동2, 홍길동3)
+				const displayName = registrationNumber === 1 ? name : `${name}${registrationNumber}`;
 
 				// 초기 등급 설정
 				const grade = 'F1';
@@ -357,16 +416,13 @@ export class UserRegistrationService {
 				// 시퀀스 번호 할당
 				currentSequence++;
 
-				// 사용자 생성
+				// v8.0: User 생성 (FK 연결)
 				const newUser = new User({
-					name,
-					loginId,
-					passwordHash,
-					phone,
-					idNumber,
+					userAccountId: userAccount._id, // FK
+					registrationNumber, // 1, 2, 3...
+					plannerAccountId: plannerAccount._id, // FK (required)
+					name: displayName, // 홍길동, 홍길동2, 홍길동3
 					branch,
-					bank,
-					accountNumber,
 					grade,
 					gradePaymentCount: 0,
 					lastGradeChangeDate: createdAt,
@@ -375,8 +431,6 @@ export class UserRegistrationService {
 					insuranceAmount: 0,
 					salesperson,
 					salespersonPhone,
-					planner,
-					plannerPhone,
 					insuranceProduct,
 					insuranceCompany,
 					status: 'active',
@@ -386,8 +440,9 @@ export class UserRegistrationService {
 				});
 
 				const savedUser = await newUser.save();
-				this.registeredUsers.set(loginId, { user: savedUser, salesperson, name, row });
-				usersByOrder.push({ loginId, salesperson, name, row });
+				// v8.0: registeredUsers는 User._id 기준 (내부 트리 처리용)
+				this.registeredUsers.set(savedUser._id.toString(), { user: savedUser, salesperson, name: displayName, row });
+				usersByOrder.push({ userId: savedUser._id.toString(), salesperson, name: displayName, row });
 
 				results.created++;
 			} catch (error) {

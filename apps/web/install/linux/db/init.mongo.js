@@ -16,28 +16,52 @@
 
 	var dbx = db.getSiblingDB(dbName);
 
-	// ⭐ v7.0: 기존 컬렉션 모두 삭제 (--force 옵션 시)
+	// ⭐ v8.0: 기존 컬렉션 모두 삭제 (--force 옵션 시)
 	if (force) {
 		print('[init] --force 옵션: 기존 컬렉션 모두 삭제');
 		var allCollections = dbx.getCollectionNames();
 		allCollections.forEach(function (colName) {
-			if (colName !== 'admins') {  // admins는 나중에 업데이트
+			if (colName !== 'admins' && colName !== 'useraccounts' && colName !== 'planneraccounts') {
 				dbx.getCollection(colName).drop();
 				print('[init] Dropped collection: ' + colName);
 			}
 		});
 	}
 
-	// admins 컬렉션만 생성 (나머지는 자동 생성됨)
+	// ⭐ v8.0: 필수 컬렉션 생성
+	// 1) admins
 	if (dbx.getCollectionNames().indexOf('admins') < 0) {
 		dbx.createCollection('admins');
 		print('[init] Created collection: admins');
 	}
 
-	// admins 인덱스
+	// 2) useraccounts
+	if (dbx.getCollectionNames().indexOf('useraccounts') < 0) {
+		dbx.createCollection('useraccounts');
+		print('[init] Created collection: useraccounts');
+	}
+
+	// 3) planneraccounts
+	if (dbx.getCollectionNames().indexOf('planneraccounts') < 0) {
+		dbx.createCollection('planneraccounts');
+		print('[init] Created collection: planneraccounts');
+	}
+
+	// ⭐ v8.0: 인덱스 생성
+	// admins
 	dbx.admins.createIndex({ loginId: 1 }, { unique: true });
 	dbx.admins.createIndex({ createdAt: 1 });
 	print('[init] Indexes created for admins collection');
+
+	// useraccounts
+	dbx.useraccounts.createIndex({ loginId: 1 }, { unique: true });
+	dbx.useraccounts.createIndex({ status: 1 });
+	print('[init] Indexes created for useraccounts collection');
+
+	// planneraccounts
+	dbx.planneraccounts.createIndex({ loginId: 1 }, { unique: true });
+	dbx.planneraccounts.createIndex({ status: 1 });
+	print('[init] Indexes created for planneraccounts collection');
 
 	// 관리자 생성 (admins 컬렉션에)
 	if (!hash) {
