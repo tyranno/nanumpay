@@ -6,7 +6,6 @@
 		name: '',
 		loginId: '',
 		phone: '',
-		email: '',
 		bank: '',
 		accountNumber: '',
 		idNumber: '',
@@ -170,9 +169,17 @@
 		}
 
 		try {
+			// ⭐ v8.0: 수정 가능한 필드만 전송
+			// 변경 불가: loginId, grade, salesperson, salespersonPhone, planner, plannerPhone
 			const requestBody = {
+				name: userInfo.name,
 				phone: userInfo.phone,
-				email: userInfo.email
+				bank: userInfo.bank,
+				accountNumber: userInfo.accountNumber,
+				idNumber: userInfo.idNumber,
+				insuranceCompany: userInfo.insuranceCompany,
+				insuranceProduct: userInfo.insuranceProduct,
+				branch: userInfo.branch
 			};
 
 			// 패스워드 변경이 있는 경우 추가
@@ -193,6 +200,11 @@
 
 			if (!response.ok) {
 				throw new Error(data.message || '저장에 실패했습니다.');
+			}
+
+			// ⭐ v8.0: 업데이트된 프로필 정보로 userInfo 갱신
+			if (data.profile) {
+				userInfo = { ...userInfo, ...data.profile };
 			}
 
 			saveMessage = data.message || '정보가 저장되었습니다.';
@@ -299,11 +311,20 @@
 					<div class="space-y-4">
 						<div class="flex items-center">
 							<label class="w-32 text-sm font-bold text-gray-700">이름</label>
-							<span class="text-sm text-gray-900">{userInfo.name || '-'}</span>
+							{#if editMode}
+								<input
+									type="text"
+									bind:value={userInfo.name}
+									class="flex-1 rounded-md border border-gray-300 px-2 py-1 text-sm"
+									placeholder="이름"
+								/>
+							{:else}
+								<span class="text-sm text-gray-900">{userInfo.name || '-'}</span>
+							{/if}
 						</div>
 						<div class="flex items-center">
 							<label class="w-32 text-sm font-bold text-gray-700">아이디</label>
-							<span class="text-sm text-gray-900">{userInfo.loginId || '-'}</span>
+							<span class="text-sm text-gray-500">{userInfo.loginId || '-'} (변경 불가)</span>
 						</div>
 						<div class="flex items-center">
 							<label class="w-32 text-sm font-bold text-gray-700">등급</label>
@@ -333,30 +354,45 @@
 								<span class="text-sm text-gray-900">{userInfo.phone || '-'}</span>
 							{/if}
 						</div>
+						
 						<div class="flex items-center">
-							<label class="w-32 text-sm font-bold text-gray-700">이메일</label>
+							<label class="w-32 text-sm font-bold text-gray-700">은행</label>
 							{#if editMode}
 								<input
-									type="email"
-									bind:value={userInfo.email}
+									type="text"
+									bind:value={userInfo.bank}
 									class="flex-1 rounded-md border border-gray-300 px-2 py-1 text-sm"
-									placeholder="example@email.com"
+									placeholder="은행명"
 								/>
 							{:else}
-								<span class="text-sm text-gray-900">{userInfo.email || '-'}</span>
+								<span class="text-sm text-gray-900">{userInfo.bank || '-'}</span>
 							{/if}
 						</div>
 						<div class="flex items-center">
-							<label class="w-32 text-sm font-bold text-gray-700">은행</label>
-							<span class="text-sm text-gray-900">{userInfo.bank || '-'}</span>
-						</div>
-						<div class="flex items-center">
 							<label class="w-32 text-sm font-bold text-gray-700">계좌번호</label>
-							<span class="text-sm text-gray-900">{userInfo.accountNumber || '-'}</span>
+							{#if editMode}
+								<input
+									type="text"
+									bind:value={userInfo.accountNumber}
+									class="flex-1 rounded-md border border-gray-300 px-2 py-1 text-sm"
+									placeholder="계좌번호"
+								/>
+							{:else}
+								<span class="text-sm text-gray-900">{userInfo.accountNumber || '-'}</span>
+							{/if}
 						</div>
 						<div class="flex items-center">
 							<label class="w-32 text-sm font-bold text-gray-700">주민번호</label>
-							<span class="text-sm text-gray-900">{userInfo.idNumber || '-'}</span>
+							{#if editMode}
+								<input
+									type="text"
+									bind:value={userInfo.idNumber}
+									class="flex-1 rounded-md border border-gray-300 px-2 py-1 text-sm"
+									placeholder="123456-1234567"
+								/>
+							{:else}
+								<span class="text-sm text-gray-900">{userInfo.idNumber || '-'}</span>
+							{/if}
 						</div>
 					</div>
 
@@ -375,16 +411,43 @@
 							</div>
 							<div class="flex items-center">
 								<label class="w-32 text-sm font-bold text-gray-700">보험회사</label>
-								<span class="text-sm text-gray-900">{userInfo.insuranceCompany || '-'}</span>
+								{#if editMode}
+									<input
+										type="text"
+										bind:value={userInfo.insuranceCompany}
+										class="flex-1 rounded-md border border-gray-300 px-2 py-1 text-sm"
+										placeholder="보험회사"
+									/>
+								{:else}
+									<span class="text-sm text-gray-900">{userInfo.insuranceCompany || '-'}</span>
+								{/if}
 							</div>
 							<div class="flex items-center">
 								<label class="w-32 text-sm font-bold text-gray-700">보험상품</label>
-								<span class="text-sm text-gray-900">{userInfo.insuranceProduct || '-'}</span>
+								{#if editMode}
+									<input
+										type="text"
+										bind:value={userInfo.insuranceProduct}
+										class="flex-1 rounded-md border border-gray-300 px-2 py-1 text-sm"
+										placeholder="보험상품"
+									/>
+								{:else}
+									<span class="text-sm text-gray-900">{userInfo.insuranceProduct || '-'}</span>
+								{/if}
 							</div>
 						{/if}
 						<div class="flex items-center">
 							<label class="w-32 text-sm font-bold text-gray-700">소속/지사</label>
-							<span class="text-sm text-gray-900">{userInfo.branch || '-'}</span>
+							{#if editMode}
+								<input
+									type="text"
+									bind:value={userInfo.branch}
+									class="flex-1 rounded-md border border-gray-300 px-2 py-1 text-sm"
+									placeholder="소속/지사"
+								/>
+							{:else}
+								<span class="text-sm text-gray-900">{userInfo.branch || '-'}</span>
+							{/if}
 						</div>
 						<div class="flex items-center">
 							<label class="w-32 text-sm font-bold text-gray-700">판매인</label>

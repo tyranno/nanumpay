@@ -16,17 +16,27 @@ export async function POST({ locals, request }) {
 			return json({ message: '비밀번호를 입력해주세요.' }, { status: 400 });
 		}
 
-		const user = await User.findById(locals.user.id);
+		// ⭐ v8.0: primaryUserId 사용 (User._id)
+		const userId = locals.user.primaryUserId || locals.user.id;
+		const user = await User.findById(userId).populate('userAccountId').lean();
 
-		if (!user) {
+		if (!user || !user.userAccountId) {
 			return json({ message: '사용자를 찾을 수 없습니다.' }, { status: 404 });
+		}
+
+		// ⭐ v8.0: UserAccount 모델 import
+		const { default: UserAccount } = await import('$lib/server/models/UserAccount.js');
+		const userAccount = await UserAccount.findById(user.userAccountId._id);
+
+		if (!userAccount) {
+			return json({ message: '계정을 찾을 수 없습니다.' }, { status: 404 });
 		}
 
 		// bcryptjs 동적 import
 		const bcrypt = await import('bcryptjs');
 
-		// 비밀번호 확인
-		const isValid = await bcrypt.default.compare(password, user.passwordHash);
+		// ⭐ v8.0: UserAccount의 passwordHash와 비교
+		const isValid = await bcrypt.default.compare(password, userAccount.passwordHash);
 
 		if (!isValid) {
 			return json({ message: '비밀번호가 일치하지 않습니다.' }, { status: 400 });

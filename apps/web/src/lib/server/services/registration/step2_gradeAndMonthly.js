@@ -42,8 +42,10 @@ export async function executeStep2(users) {
 
 	// 2-4. 이번 배치 등록자 추가
 	for (const user of users) {
+		const userIdStr = user._id.toString(); // ⭐ v8.0: _id 사용
+
 		// 승급 여부 확인
-		const promotion = promoted.find((p) => p.userId === user.loginId);
+		const promotion = promoted.find((p) => p.userId === userIdStr);
 		const currentGrade = promotion ? promotion.newGrade : 'F1';
 
 		// position 값 변환 (L/R/ROOT → left/right/root)
@@ -53,7 +55,7 @@ export async function executeStep2(users) {
 		else if (positionValue === 'ROOT') positionValue = 'root';
 
 		// 기존 등록자 확인
-		const existingIdx = monthlyReg.registrations.findIndex((r) => r.userId === user.loginId);
+		const existingIdx = monthlyReg.registrations.findIndex((r) => r.userId === userIdStr);
 
 		if (existingIdx >= 0) {
 			// ⭐ 이미 등록되어 있으면 등급만 업데이트 (승급 시)
@@ -63,7 +65,7 @@ export async function executeStep2(users) {
 		} else {
 			// 신규 등록
 			monthlyReg.registrations.push({
-				userId: user.loginId,
+				userId: userIdStr, // ⭐ v8.0: _id 사용
 				userName: user.name,
 				registrationDate: user.registrationDate || user.createdAt,
 				grade: currentGrade, // 현재 등급 (승급 후)
@@ -78,7 +80,7 @@ export async function executeStep2(users) {
 		const existingIdx = monthlyReg.registrations.findIndex((r) => r.userId === prom.userId);
 		if (existingIdx >= 0) {
 			// users 배열에 있는 경우는 위에서 이미 처리됨
-			const isInUsers = users.find((u) => u.loginId === prom.userId);
+			const isInUsers = users.find((u) => u._id.toString() === prom.userId); // ⭐ v8.0: _id 사용
 			if (!isInUsers) {
 				monthlyReg.registrations[existingIdx].grade = prom.newGrade;
 			}

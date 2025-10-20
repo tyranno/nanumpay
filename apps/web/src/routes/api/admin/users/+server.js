@@ -41,22 +41,29 @@ export async function GET({ url, locals }) {
 		const sortOptions = {};
 		sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
 
-		// 사용자 목록 조회
+		// ⭐ v8.0: 사용자 목록 조회 + UserAccount populate
 		const users = await User.find(query)
+			.populate('userAccountId', 'canViewSubordinates phone bank accountNumber idNumber')
 			.select('-passwordHash')
 			.sort(sortOptions)
 			.skip(skip)
 			.limit(limit)
 			.lean();
 
-		// 각 사용자의 등급 정보 추가 (User 모델에서 직접 가져옴)
+		// 각 사용자의 등급 정보 추가 + UserAccount 필드 병합
 		const usersWithGrade = users.map((user) => {
 			return {
 				...user,
 				grade: user.grade || 'F1',
 				totalDescendants: 0,  // 필요 시 계산
 				leftCount: 0,
-				rightCount: 0
+				rightCount: 0,
+				// ⭐ v8.0: UserAccount 필드들
+				canViewSubordinates: user.userAccountId?.canViewSubordinates || false,
+				phone: user.userAccountId?.phone || '',
+				bank: user.userAccountId?.bank || '',
+				accountNumber: user.userAccountId?.accountNumber || '',
+				idNumber: user.userAccountId?.idNumber || ''
 			};
 		});
 
@@ -92,14 +99,52 @@ export async function PUT({ request, locals }) {
 		delete updateData.passwordHash;
 		delete updateData._id;
 
+		// ⭐ v8.0: canViewSubordinates는 UserAccount에 저장
+		const canViewSubordinates = updateData.canViewSubordinates;
+		delete updateData.canViewSubordinates;
+
+		// ⭐ v8.0: UserAccount 관련 필드 분리 (phone, bank, accountNumber, idNumber)
+		const userAccountFields = {};
+		if (updateData.phone !== undefined) {
+			userAccountFields.phone = updateData.phone;
+			delete updateData.phone;
+		}
+		if (updateData.bank !== undefined) {
+			userAccountFields.bank = updateData.bank;
+			delete updateData.bank;
+		}
+		if (updateData.accountNumber !== undefined) {
+			userAccountFields.accountNumber = updateData.accountNumber;
+			delete updateData.accountNumber;
+		}
+		if (updateData.idNumber !== undefined) {
+			userAccountFields.idNumber = updateData.idNumber;
+			delete updateData.idNumber;
+		}
+
+		// User 업데이트
 		const user = await User.findByIdAndUpdate(
 			userId,
 			updateData,
 			{ new: true, runValidators: true }
-		).select('-passwordHash');
+		).populate('userAccountId').select('-passwordHash');
 
 		if (!user) {
 			return json({ error: 'User not found' }, { status: 404 });
+		}
+
+		// ⭐ v8.0: UserAccount 업데이트 (권한 및 개인정보)
+		const { default: UserAccount } = await import('$lib/server/models/UserAccount.js');
+		if (canViewSubordinates !== undefined) {
+			userAccountFields.canViewSubordinates = canViewSubordinates;
+		}
+
+		if (Object.keys(userAccountFields).length > 0) {
+			await UserAccount.findByIdAndUpdate(
+				user.userAccountId._id,
+				{ $set: userAccountFields },
+				{ new: true }
+			);
 		}
 
 		return json({ user });

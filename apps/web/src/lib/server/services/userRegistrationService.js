@@ -279,7 +279,12 @@ export class UserRegistrationService {
 				loginId = getValue(userData, ['ID', 'id', '__EMPTY_1']);
 				name = getValue(userData, ['성명', '이름', 'name', '__EMPTY_2']);
 				const phone = getValue(userData, ['연락처', '전화번호', 'phone', '__EMPTY_3']);
-				const idNumber = getValue(userData, ['주민번호', '__EMPTY_4']);
+				// ⭐ idNumber 추출 (여러 필드명 시도)
+				let idNumber = getValue(userData, ['주민번호', 'idNumber', '__EMPTY_4']);
+				// getValue가 빈 문자열을 반환하면, 원본 데이터에서 직접 확인
+				if (!idNumber && userData.idNumber) {
+					idNumber = String(userData.idNumber).trim();
+				}
 				const bank = getValue(userData, ['은행', 'bank', '__EMPTY_5']);
 				const accountNumber = getValue(userData, [
 					'계좌번호',

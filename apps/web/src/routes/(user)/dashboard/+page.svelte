@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 
 	let userInfo = $state(null);
+	let allRegistrations = $state([]); // ⭐ v8.0: 모든 등록 정보
 	let paymentSummary = $state(null);
 	let allPayments = $state([]); // 전체 데이터
 	let filteredPayments = $state([]); // 필터링된 데이터
@@ -24,9 +25,9 @@
 
 	// 페이지네이션 상태
 	let currentPage = $state(1);
-	let itemsPerPage = $state(10);
+	let itemsPerPage = $state(5); // ⭐ 기본값 5개
 	let totalPages = $state(1);
-	let itemsPerPageOptions = [10, 20, 50, 100];
+	let itemsPerPageOptions = [5, 10, 20, 50];
 
 	onMount(async () => {
 		try {
@@ -41,9 +42,11 @@
 
 			if (data.success) {
 				userInfo = data.user;
+				allRegistrations = data.allRegistrations || []; // ⭐ v8.0
 				paymentSummary = data.summary;
 				allPayments = data.payments;
 				console.log('✅ allPayments 설정됨:', allPayments.length, '건');
+				console.log('✅ allRegistrations 설정됨:', allRegistrations.length, '건');
 				console.log('📅 첫 번째 데이터:', allPayments[0]);
 			} else {
 				throw new Error('용역비 정보가 없습니다.');
@@ -63,7 +66,7 @@
 		const endMonth = filters.endMonth;
 		const grade = filters.grade;
 
-		// 필터링 (API에서 이미 주별로 그룹화되어 옴)
+		// ⭐ v8.0: 개별 행 필터링
 		const filtered = allPayments.filter((payment) => {
 			const paymentDate = new Date(payment.weekDate);
 			const paymentMonth = `${paymentDate.getFullYear()}-${String(paymentDate.getMonth() + 1).padStart(2, '0')}`;
@@ -78,8 +81,8 @@
 				return false;
 			}
 
-			// 등급 필터 (grades 배열에 포함 여부 확인)
-			if (grade && !payment.grades.includes(grade)) {
+			// ⭐ v8.0: 등급 필터 (단일 값)
+			if (grade && payment.grade !== grade) {
 				return false;
 			}
 
@@ -90,12 +93,58 @@
 		currentPage = 1;
 	});
 
+	// ⭐ v8.0: 주차별로 그룹화 (날짜 기준)
+	let groupedPayments = $state([]);
+	let periodSummary = $state({ totalAmount: 0, totalTax: 0, totalNet: 0 }); // ⭐ 기간 총액
+
+	$effect(() => {
+		// 주차별 그룹화
+		const grouped = new Map();
+		let periodTotal = 0;
+		let periodTax = 0;
+		let periodNet = 0;
+
+		for (const payment of filteredPayments) {
+			const weekKey = payment.weekDate;
+
+			if (!grouped.has(weekKey)) {
+				grouped.set(weekKey, {
+					weekDate: payment.weekDate,
+					weekNumber: payment.weekNumber,
+					users: [],
+					totalAmount: 0, // ⭐ 지급총액
+					totalTax: 0,
+					totalNet: 0
+				});
+			}
+
+			const group = grouped.get(weekKey);
+			group.users.push(payment);
+			group.totalAmount += payment.amount || 0; // ⭐ 지급총액 합산
+			group.totalTax += payment.tax || 0;
+			group.totalNet += payment.netAmount || 0;
+
+			// ⭐ 전체 기간 총액 합산
+			periodTotal += payment.amount || 0;
+			periodTax += payment.tax || 0;
+			periodNet += payment.netAmount || 0;
+		}
+
+		// ⭐ 각 주차별로 사용자를 등록 차수(registrationNumber) 순으로 정렬
+		for (const group of grouped.values()) {
+			group.users.sort((a, b) => a.registrationNumber - b.registrationNumber);
+		}
+
+		groupedPayments = Array.from(grouped.values());
+		periodSummary = { totalAmount: periodTotal, totalTax: periodTax, totalNet: periodNet };
+	});
+
 	// 페이지네이션 업데이트 (필터나 페이지가 변경될 때마다)
 	$effect(() => {
-		const total = Math.ceil(filteredPayments.length / itemsPerPage);
+		const total = Math.ceil(groupedPayments.length / itemsPerPage);
 		const startIndex = (currentPage - 1) * itemsPerPage;
 		const endIndex = startIndex + itemsPerPage;
-		const displayed = filteredPayments.slice(startIndex, endIndex);
+		const displayed = groupedPayments.slice(startIndex, endIndex);
 
 		totalPages = total;
 		displayedPayments = displayed;
@@ -125,6 +174,16 @@
 	function formatAmount(amount) {
 		if (!amount && amount !== 0) return '-';
 		return amount.toLocaleString() + '원';
+	}
+
+	// ⭐ 지급액 내역 계산 (50:25:25)
+	function calculateBreakdown(amount) {
+		if (!amount) return { 영업: 0, 홍보: 0, 판촉: 0 };
+		return {
+			영업: Math.round(amount * 0.5),
+			홍보: Math.round(amount * 0.25),
+			판촉: Math.round(amount * 0.25)
+		};
 	}
 
 	// 등급 목록
@@ -163,45 +222,37 @@
 						상세보기
 					</a>
 				</div>
-				<div class="space-y-1">
-					<div class="flex justify-between">
-						<span class="text-sm text-indigo-700">이름</span>
-						<span class="text-sm font-medium text-indigo-900">{userInfo?.name || '-'}</span>
-					</div>
-					<div class="flex justify-between">
-						<span class="text-sm text-indigo-700">아이디</span>
-						<span class="text-sm font-medium text-indigo-900">{userInfo?.loginId || '-'}</span>
-					</div>
-					<div class="flex items-center justify-between">
-						<span class="text-sm text-indigo-700">현재 등급</span>
-						<div class="flex items-center gap-2">
-							{#if userInfo?.grade}
-								<a href="/dashboard/network" class="cursor-pointer transition-transform hover:scale-110">
-									<img
-										src="/icons/{userInfo.grade}.svg"
-										alt={userInfo.grade}
-										class="h-8 w-8"
-										title="{userInfo.grade} 등급 - 클릭하여 산하 정보 보기"
-									/>
-								</a>
-							{:else}
-								<span class="text-lg font-bold text-indigo-900">-</span>
-							{/if}
+
+				<!-- ⭐ v8.0: 여러 등록 정보 표시 -->
+				{#if allRegistrations.length > 0}
+					<div class="mb-2 rounded border border-indigo-200 bg-indigo-50 p-2">
+						<div class="mb-1 border-b border-indigo-200 pb-1 text-xs font-semibold text-indigo-700">
+							등록 계약 목록{#if userInfo?.canViewSubordinates} (클릭 시 산하정보 보기){/if}
+						</div>
+						<!-- ⭐ 스크롤 영역: 최대 3개 표시 -->
+						<div class="max-h-[72px] overflow-y-auto">
+							{#each allRegistrations as reg, index}
+								{#if userInfo?.canViewSubordinates}
+									<!-- ⭐ 권한 있음: 전체 리스트 항목 클릭 시 산하정보 이동 -->
+									<a
+										href="/dashboard/network?userId={reg.id}"
+										class="flex items-center justify-between border-b border-indigo-200 py-1 text-indigo-600 last:border-b-0 hover:bg-indigo-100 transition-colors cursor-pointer rounded px-1"
+										title="{reg.grade} 등급 - 산하정보 보기"
+									>
+										<span class="text-xs">{reg.name} ({formatDate(reg.createdAt)})</span>
+										<img src="/icons/{reg.grade}.svg" alt={reg.grade} class="h-5 w-5" />
+									</a>
+								{:else}
+									<!-- ⭐ 권한 없음: 클릭 불가능한 일반 목록 -->
+									<div class="flex items-center justify-between border-b border-indigo-200 py-1 text-indigo-600 last:border-b-0">
+										<span class="text-xs">{reg.name} ({formatDate(reg.createdAt)})</span>
+										<img src="/icons/{reg.grade}.svg" alt={reg.grade} class="h-5 w-5" />
+									</div>
+								{/if}
+							{/each}
 						</div>
 					</div>
-					{#if userInfo?.grade && ['F3', 'F4', 'F5', 'F6', 'F7', 'F8'].includes(userInfo.grade)}
-						<div class="flex justify-between">
-							<span class="text-sm text-indigo-700">보험</span>
-							<span
-								class="text-sm font-medium {userInfo?.insuranceActive
-									? 'text-green-600'
-									: 'text-red-600'}"
-							>
-								{userInfo?.insuranceActive ? '가입' : '미가입'}
-							</span>
-						</div>
-					{/if}
-				</div>
+				{/if}
 			</div>
 
 			<!-- 용역비 요약 카드 -->
@@ -210,37 +261,47 @@
 					<img src="/icons/money.svg" alt="용역비" class="h-5 w-5" />
 					<h3 class="text-base font-bold text-emerald-900">용역비 요약</h3>
 				</div>
-				<div class="space-y-1">
-					<div class="flex justify-between">
-						<span class="text-sm text-emerald-700">이번주 금액</span>
-						<span class="text-lg font-bold text-emerald-900"
-							>{formatAmount(paymentSummary?.thisWeekAmount)}</span
-						>
-					</div>
-					<div class="flex justify-between">
-						<span class="text-sm text-emerald-700">이번달 금액</span>
-						<span class="text-sm font-medium text-emerald-900"
-							>{formatAmount(paymentSummary?.thisMonthAmount)}</span
-						>
-					</div>
-					<div class="flex justify-between border-t border-emerald-200 pt-2">
-						<span class="text-sm text-emerald-700">지급 예정액</span>
-						<span class="text-sm font-medium text-emerald-900"
-							>{formatAmount(paymentSummary?.upcomingAmount)}</span
-						>
-					</div>
-				</div>
+				<table class="w-full text-xs">
+					<thead>
+						<tr class="border-b border-emerald-300">
+							<th class="py-1 text-left font-semibold text-emerald-700">구분</th>
+							<th class="py-1 text-right font-semibold text-emerald-700">총액</th>
+							<th class="py-1 text-right font-semibold text-emerald-700">세금</th>
+							<th class="py-1 text-right font-semibold text-emerald-700">실수령</th>
+						</tr>
+					</thead>
+					<tbody>
+						<tr class="border-b border-emerald-200">
+							<td class="py-1 font-semibold text-emerald-700">이번주</td>
+							<td class="py-1 text-right text-emerald-600">{formatAmount(paymentSummary?.thisWeek?.amount)}</td>
+							<td class="py-1 text-right text-emerald-600">{formatAmount(paymentSummary?.thisWeek?.tax)}</td>
+							<td class="py-1 text-right font-bold text-emerald-900">{formatAmount(paymentSummary?.thisWeek?.net)}</td>
+						</tr>
+						<tr class="border-b border-emerald-200">
+							<td class="py-1 font-semibold text-emerald-700">이번달</td>
+							<td class="py-1 text-right text-emerald-600">{formatAmount(paymentSummary?.thisMonth?.amount)}</td>
+							<td class="py-1 text-right text-emerald-600">{formatAmount(paymentSummary?.thisMonth?.tax)}</td>
+							<td class="py-1 text-right font-bold text-emerald-900">{formatAmount(paymentSummary?.thisMonth?.net)}</td>
+						</tr>
+						<tr>
+							<td class="py-1 font-semibold text-emerald-700">수령예정</td>
+							<td class="py-1 text-right text-emerald-600">{formatAmount(paymentSummary?.upcoming?.amount)}</td>
+							<td class="py-1 text-right text-emerald-600">{formatAmount(paymentSummary?.upcoming?.tax)}</td>
+							<td class="py-1 text-right font-bold text-emerald-900">{formatAmount(paymentSummary?.upcoming?.net)}</td>
+						</tr>
+					</tbody>
+				</table>
 			</div>
 		</div>
 
-		<!-- 용역비 지급 내역 테이블 -->
+		<!-- 용역비 수령 내역 테이블 -->
 		<div class="overflow-hidden rounded-lg bg-white shadow">
 			<div class="border-b border-gray-200 bg-gray-50 px-4 py-5">
 				<div class="flex items-center gap-2">
 					<img src="/icons/receipt.svg" alt="용역비" class="h-5 w-5" />
-					<h3 class="text-base font-bold text-gray-900">용역비 지급 내역</h3>
+					<h3 class="text-base font-bold text-gray-900">용역비 수령 내역</h3>
 				</div>
-				<p class="mt-1 text-sm text-gray-600">주차별 용역비 지급 내역입니다</p>
+				<p class="mt-1 text-sm text-gray-600">주차별 용역비 수령 내역입니다</p>
 			</div>
 
 			<!-- 검색 필터 -->
@@ -303,12 +364,33 @@
 					</button>
 				</div>
 
+				<!-- ⭐ 기간 총액 정보 -->
+				<div class="mt-4 rounded-md bg-blue-50 p-3">
+					<div class="flex items-center justify-between text-sm">
+						<span class="font-semibold text-blue-900">선택 기간 총액:</span>
+						<div class="flex gap-6">
+							<div class="text-right">
+								<div class="text-xs text-blue-700">수령총액</div>
+								<div class="font-bold text-blue-900">{formatAmount(periodSummary.totalAmount)}</div>
+							</div>
+							<div class="text-right">
+								<div class="text-xs text-blue-700">세금</div>
+								<div class="font-medium text-blue-900">{formatAmount(periodSummary.totalTax)}</div>
+							</div>
+							<div class="text-right">
+								<div class="text-xs text-blue-700">실수령액</div>
+								<div class="font-bold text-blue-900">{formatAmount(periodSummary.totalNet)}</div>
+							</div>
+						</div>
+					</div>
+				</div>
+
 			</div>
 
 			<!-- 총 건수 및 페이지당 보기 갯수 -->
 			<div class="flex items-center justify-between bg-white px-4 py-2">
 				<div class="text-sm text-gray-600">
-					총 <span class="font-semibold text-gray-900">{filteredPayments.length}</span>건
+					총 <span class="font-semibold text-gray-900">{groupedPayments.length}</span>주차
 				</div>
 				<div class="flex items-center gap-2">
 					<label class="text-xs font-medium text-gray-700">페이지당:</label>
@@ -327,9 +409,11 @@
 				<table class="min-w-full divide-y divide-gray-200">
 					<thead class="bg-gray-50">
 						<tr>
-							<th class="table-header">지급일</th>
+							<th class="table-header">수령일</th>
+							<th class="table-header">이름</th>
 							<th class="table-header">등급</th>
-							<th class="table-header">지급액</th>
+							<th class="table-header">수령총액</th>
+							<th class="table-header">수령액(영업/홍보/판촉)</th>
 							<th class="table-header">세금</th>
 							<th class="table-header">실수령액</th>
 						</tr>
@@ -337,32 +421,50 @@
 					<tbody class="divide-y divide-gray-200 bg-white">
 						{#if displayedPayments.length === 0}
 							<tr>
-								<td colspan="5" class="px-6 py-8 text-center text-sm text-gray-500">
+								<td colspan="7" class="px-6 py-8 text-center text-sm text-gray-500">
 									지급 내역이 없습니다
 								</td>
 							</tr>
 						{:else}
-							{#each displayedPayments as payment}
-								<tr class="hover:bg-gray-50">
-									<td class="table-cell">{formatDate(payment.weekDate)}</td>
-									<td class="table-cell">
-										<div class="flex items-center justify-center gap-1">
-											{#each payment.grades as grade}
+							{#each displayedPayments as weekGroup}
+								{#each weekGroup.users as user, index}
+									{@const breakdown = calculateBreakdown(user.amount)}
+									<tr class="hover:bg-gray-50">
+										{#if index === 0}
+											<!-- 첫 번째 행만 지급일, 지급총액 표시 (rowspan) -->
+											<td class="table-cell" rowspan={weekGroup.users.length}>
+												{formatDate(weekGroup.weekDate)}
+											</td>
+										{/if}
+										<td class="table-cell">{user.userName || '-'}</td>
+										<td class="table-cell">
+											<div class="flex items-center justify-center gap-1">
 												<img
-													src="/icons/{grade}.svg"
-													alt={grade}
+													src="/icons/{user.grade}.svg"
+													alt={user.grade}
 													class="h-5 w-5"
-													title="{grade} 등급"
+													title="{user.grade} 등급"
 												/>
-											{/each}
-										</div>
-									</td>
-									<td class="table-cell text-right">{formatAmount(payment.amount)}</td>
-									<td class="table-cell text-right">{formatAmount(payment.tax)}</td>
-									<td class="table-cell text-right font-medium"
-										>{formatAmount(payment.netAmount)}</td
-									>
-								</tr>
+											</div>
+										</td>
+										{#if index === 0}
+											<!-- ⭐ 지급총액: 첫 번째 행만 표시 (rowspan) -->
+											<td class="table-cell text-right font-bold" rowspan={weekGroup.users.length}>
+												{formatAmount(weekGroup.totalAmount)}
+											</td>
+										{/if}
+										<!-- ⭐ 지급액: 2줄 (총합 + 내역) -->
+										<td class="table-cell text-right">
+											<div class="font-medium">{formatAmount(user.amount)}</div>
+											<div class="text-xs text-gray-600">
+												({breakdown.영업.toLocaleString()}/{breakdown.홍보.toLocaleString()}/{breakdown.판촉.toLocaleString()})
+											</div>
+										</td>
+										<!-- ⭐ 세금, 실수령액도 개별 표시 -->
+										<td class="table-cell text-right">{formatAmount(user.tax)}</td>
+										<td class="table-cell text-right font-medium">{formatAmount(user.netAmount)}</td>
+									</tr>
+								{/each}
 							{/each}
 						{/if}
 					</tbody>

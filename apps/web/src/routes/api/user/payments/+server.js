@@ -10,19 +10,30 @@ export async function GET({ locals, url }) {
 
 	await db();
 
-	const userId = locals.user.id;
+	// ⭐ v8.0: JWT에서 primaryUserId 사용 (locals.user.id는 UserAccount._id)
+	const primaryUserId = locals.user.primaryUserId || locals.user.id;
 
-	// 사용자 정보 조회
-	const user = await User.findById(userId)
-		.select('name loginId grade insuranceActive')
+	// ⭐ v8.0: primaryUser 정보 조회 + UserAccount populate
+	const primaryUser = await User.findById(primaryUserId)
+		.populate('userAccountId', 'canViewSubordinates')
+		.select('name grade insuranceActive userAccountId registrationNumber')
 		.lean();
 
-	if (!user) {
+	if (!primaryUser) {
 		return json({ message: '사용자를 찾을 수 없습니다.' }, { status: 404 });
 	}
 
-	// 용역비 지급 계획 조회 (최신순)
-	const paymentPlans = await WeeklyPaymentPlans.find({ userId: user.loginId })
+	// ⭐ v8.0: 같은 계정의 모든 User 조회
+	const allUsers = await User.find({ userAccountId: primaryUser.userAccountId })
+		.select('_id name grade registrationNumber createdAt')
+		.sort({ registrationNumber: 1 })
+		.lean();
+
+	// ⭐ v8.0: 모든 User의 userId 목록
+	const allUserIds = allUsers.map(u => u._id.toString());
+
+	// ⭐ v8.0: 모든 User의 용역비 지급 계획 조회 (최신순)
+	const paymentPlans = await WeeklyPaymentPlans.find({ userId: { $in: allUserIds } })
 		.sort({ createdAt: -1 })
 		.lean();
 
@@ -39,64 +50,72 @@ export async function GET({ locals, url }) {
 	const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 	const thisMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
 
-	// 주별로 그룹화 및 합산
-	const weeklyMap = new Map();
+	// ⭐ v8.0: 사용자별로 개별 행 생성 (합산하지 않음)
+	const paymentRows = [];
 	let thisWeekAmount = 0;
+	let thisWeekTax = 0;
+	let thisWeekNet = 0;
 	let thisMonthAmount = 0;
-	let upcomingAmount = 0; // 이번주 포함 지급 예정액
+	let thisMonthTax = 0;
+	let thisMonthNet = 0;
+	let upcomingAmount = 0;
+	let upcomingTax = 0;
+	let upcomingNet = 0;
+
+	// User 정보 맵 생성 (빠른 조회)
+	const userMap = new Map();
+	for (const user of allUsers) {
+		userMap.set(user._id.toString(), user);
+	}
 
 	for (const plan of paymentPlans) {
+		const user = userMap.get(plan.userId);
+		if (!user) continue; // 사용자 정보 없으면 스킵
+
 		for (const installment of plan.installments) {
 			const weekDate = installment.scheduledDate || installment.weekDate;
 			const installmentDate = new Date(weekDate);
 
-			// 날짜만 사용 (시간 제거) - YYYY-MM-DD 형식
-			const date = new Date(weekDate);
-			const weekKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+			// ⭐ v8.0: 각 사용자의 각 지급 건을 개별 행으로 추가
+			paymentRows.push({
+				weekDate: weekDate,
+				weekNumber: installment.weekNumber,
+				userId: plan.userId,
+				userName: user.name, // ⭐ 사용자 이름 추가
+				grade: plan.baseGrade,
+				registrationNumber: user.registrationNumber, // ⭐ 등록 차수 추가
+				amount: installment.installmentAmount || 0,
+				tax: installment.withholdingTax || 0,
+				netAmount: installment.netAmount || 0,
+				세금: installment.withholdingTax || 0, // 한글 필드 추가
+				실수령액: installment.netAmount || 0 // 한글 필드 추가
+			});
 
-			// 주별 그룹 초기화
-			if (!weeklyMap.has(weekKey)) {
-				weeklyMap.set(weekKey, {
-					weekDate: weekDate,
-					weekNumber: installment.weekNumber,
-					grades: [],
-					amount: 0,
-					tax: 0,
-					netAmount: 0
-				});
-			}
-
-			const weekData = weeklyMap.get(weekKey);
-
-			// 등급 중복 없이 추가
-			if (!weekData.grades.includes(plan.baseGrade)) {
-				weekData.grades.push(plan.baseGrade);
-			}
-
-			// 금액 합산
-			weekData.amount += installment.installmentAmount || 0;
-			weekData.tax += installment.withholdingTax || 0;
-			weekData.netAmount += installment.netAmount || 0;
-
-			// 이번주 금액 계산
+			// 이번주 금액 계산 (총액/세금/실수령액)
 			if (installmentDate >= thisWeekStart && installmentDate <= thisWeekEnd) {
-				thisWeekAmount += installment.netAmount || 0;
+				thisWeekAmount += installment.installmentAmount || 0;
+				thisWeekTax += installment.withholdingTax || 0;
+				thisWeekNet += installment.netAmount || 0;
 			}
 
-			// 이번달 금액 계산
+			// 이번달 금액 계산 (총액/세금/실수령액)
 			if (installmentDate >= thisMonthStart && installmentDate <= thisMonthEnd) {
-				thisMonthAmount += installment.netAmount || 0;
+				thisMonthAmount += installment.installmentAmount || 0;
+				thisMonthTax += installment.withholdingTax || 0;
+				thisMonthNet += installment.netAmount || 0;
 			}
 
-			// 이번주 포함 지급 예정액 (pending만)
+			// 이번주 포함 지급 예정액 (pending만) (총액/세금/실수령액)
 			if (installment.status === 'pending' && installmentDate >= thisWeekStart) {
-				upcomingAmount += installment.netAmount || 0;
+				upcomingAmount += installment.installmentAmount || 0;
+				upcomingTax += installment.withholdingTax || 0;
+				upcomingNet += installment.netAmount || 0;
 			}
 		}
 	}
 
-	// Map을 배열로 변환하고 날짜순 정렬 (최신순)
-	const paymentHistory = Array.from(weeklyMap.values()).sort((a, b) => {
+	// 날짜순 정렬 (최신순)
+	const paymentHistory = paymentRows.sort((a, b) => {
 		const dateA = new Date(a.weekDate);
 		const dateB = new Date(b.weekDate);
 		return dateB - dateA;
@@ -105,15 +124,36 @@ export async function GET({ locals, url }) {
 	return json({
 		success: true,
 		user: {
-			name: user.name,
-			loginId: user.loginId,
-			grade: user.grade,
-			insuranceActive: user.insuranceActive
+			id: primaryUser._id.toString(),
+			name: primaryUser.name,
+			grade: primaryUser.grade,
+			insuranceActive: primaryUser.insuranceActive,
+			registrationNumber: primaryUser.registrationNumber,
+			canViewSubordinates: primaryUser.userAccountId?.canViewSubordinates || false // ⭐ v8.0
 		},
+		allRegistrations: allUsers.map(reg => ({
+			id: reg._id.toString(),
+			name: reg.name,
+			grade: reg.grade,
+			registrationNumber: reg.registrationNumber,
+			createdAt: reg.createdAt // ⭐ 등록일 추가
+		})),
 		summary: {
-			thisWeekAmount,
-			thisMonthAmount,
-			upcomingAmount
+			thisWeek: {
+				amount: thisWeekAmount,
+				tax: thisWeekTax,
+				net: thisWeekNet
+			},
+			thisMonth: {
+				amount: thisMonthAmount,
+				tax: thisMonthTax,
+				net: thisMonthNet
+			},
+			upcoming: {
+				amount: upcomingAmount,
+				tax: upcomingTax,
+				net: upcomingNet
+			}
 		},
 		payments: paymentHistory
 	});

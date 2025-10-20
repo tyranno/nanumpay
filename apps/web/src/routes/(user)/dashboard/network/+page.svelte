@@ -82,6 +82,9 @@
 		searchResults = [];
 	}
 
+	// ⭐ v8.0: 권한 체크
+	let hasPermission = false;
+
 	// 트리 데이터 로드
 	async function loadTreeData() {
 		try {
@@ -89,12 +92,28 @@
 			isTreeReady = false;
 			error = null;
 
-			const response = await fetch('/api/user/tree');
+			// ⭐ URL 파라미터에서 userId 가져오기
+			const params = new URLSearchParams(window.location.search);
+			const targetUserId = params.get('userId');
+
+			// ⭐ userId 파라미터가 있으면 포함
+			const url = targetUserId
+				? `/api/user/tree?userId=${targetUserId}`
+				: '/api/user/tree';
+			const response = await fetch(url);
 			const data = await response.json();
 
 			if (!response.ok) {
+				// ⭐ v8.0: 권한 없음 메시지 체크
+				if (response.status === 403) {
+					hasPermission = false;
+					error = '산하정보 조회 권한이 없습니다. 관리자에게 문의하세요.';
+					return;
+				}
 				throw new Error(data.message || '계층도 정보를 불러오는데 실패했습니다.');
 			}
+
+			hasPermission = true;
 
 			if (data.success && data.tree) {
 				treeData = data.tree;
@@ -175,12 +194,12 @@
 </script>
 
 <svelte:head>
-	<title>나의 산하정보 - 나눔페이</title>
+	<title>계약 산하정보 - 나눔페이</title>
 </svelte:head>
 
 <div class="container">
 	<!-- 제목 -->
-	<h1 class="title">나의 산하정보</h1>
+	<h1 class="title">계약 산하정보</h1>
 
 	<!-- 검색 영역 -->
 	<div class="search-section">

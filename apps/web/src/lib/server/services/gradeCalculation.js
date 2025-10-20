@@ -43,7 +43,7 @@ async function collectSubtreeGrades(userObjectId) {
  * @returns {String} 계산된 등급
  */
 export async function calculateGradeForUser(userId) {
-  const user = await User.findOne({ loginId: userId });
+  const user = await User.findById(userId); // ⭐ v8.0: _id로 조회
   if (!user) return 'F1';
 
   // F1: 자식이 없거나 하나인 경우
@@ -177,7 +177,7 @@ export async function recalculateAllGrades() {
       if (!user) continue;
 
       const oldGrade = user.grade;
-      const newGrade = await calculateGradeForUser(user.loginId);
+      const newGrade = await calculateGradeForUser(user._id.toString()); // ⭐ v8.0: _id 사용
 
       if (oldGrade !== newGrade) {
         await User.findByIdAndUpdate(user._id, { grade: newGrade });
@@ -186,7 +186,7 @@ export async function recalculateAllGrades() {
 
         // 승급자 정보 저장
         changedUsers.push({
-          userId: user.loginId,
+          userId: user._id.toString(), // ⭐ v8.0: _id 사용
           userName: user.name,
           changeType: 'grade_change',
           oldGrade: oldGrade,

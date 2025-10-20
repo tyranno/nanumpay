@@ -34,6 +34,12 @@ const userAccountSchema = new mongoose.Schema({
 		type: String,
 		sparse: true
 	},
+	// 권한 관리
+	canViewSubordinates: {
+		type: Boolean,
+		default: false,
+		comment: '산하정보 보기 권한 (관리자만 설정 가능)'
+	},
 	// 상태 관리
 	status: {
 		type: String,

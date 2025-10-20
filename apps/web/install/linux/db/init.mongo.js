@@ -21,7 +21,8 @@
 		print('[init] --force 옵션: 기존 컬렉션 모두 삭제');
 		var allCollections = dbx.getCollectionNames();
 		allCollections.forEach(function (colName) {
-			if (colName !== 'admins' && colName !== 'useraccounts' && colName !== 'planneraccounts') {
+			// admins만 유지, 나머지 모두 삭제
+			if (colName !== 'admins') {
 				dbx.getCollection(colName).drop();
 				print('[init] Dropped collection: ' + colName);
 			}

@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db.js';
 import { registerUsers } from '$lib/server/services/userRegistrationService.js';
 
@@ -52,14 +53,21 @@ export async function POST({ request, locals }) {
 		const password = autoPassword || (phone.replace(/[^0-9]/g, '').slice(-4) || '1234');
 
 		// 단일 사용자를 배열로 변환 (bulk 형식)
-		const singleUserArray = [{
+		// ⭐ idNumber를 한글 키로 명시적 매핑
+		const userData = {
 			'성명': name,
 			'연락처': phone,
 			'판매인': salesperson || '',
 			'날짜': createdAt.toISOString(),
-			// autoPassword는 userRegistrationService에서 처리 안 함 (전화번호 기반)
 			...otherFields
-		}];
+		};
+
+		// ⭐ idNumber가 otherFields에 있으면 '주민번호'로도 추가
+		if (otherFields.idNumber) {
+			userData['주민번호'] = otherFields.idNumber;
+		}
+
+		const singleUserArray = [userData];
 
 		// 공통 등록 함수 호출 (1명짜리 bulk, 매번 새 인스턴스)
 		const results = await registerUsers(singleUserArray, {
