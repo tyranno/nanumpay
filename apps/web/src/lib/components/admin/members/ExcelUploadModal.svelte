@@ -16,18 +16,8 @@
 	size="md"
 	{onClose}
 >
-	<!-- 파일 형식 안내 및 다운로드 -->
-	<div class="bg-blue-50 border border-blue-200 rounded p-3 mb-4">
-		<div class="flex items-start gap-2 mb-3">
-			<div class="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-				<span class="text-white text-xs font-bold">i</span>
-			</div>
-			<div class="flex-1">
-				<p class="text-sm font-semibold text-gray-700 mb-1">파일 형식 안내</p>
-				<p class="text-xs text-gray-600 mb-1">필수: 성명, 연락처, 지사, 판매인, 설계사</p>
-				<p class="text-xs text-blue-700 font-medium">v8.0 추가: 주민번호, 설계사 연락처</p>
-			</div>
-		</div>
+	<!-- 엑셀 양식 다운로드 -->
+	<div class="mb-4">
 		<a
 			href="/용역자_등록_양식.xlsx"
 			download="용역자_등록_양식.xlsx"
@@ -81,14 +71,15 @@
 		</div>
 	{/if}
 
-	<!-- 주의사항 -->
+	<!-- 파일 형식 안내 -->
 	<div class="p-3 bg-amber-50 border border-amber-200 rounded">
 		<div class="flex items-start gap-2">
 			<svg class="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
 				<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
 			</svg>
 			<div class="text-xs text-amber-700">
-				<p><span class="font-semibold">주의:</span> 날짜 컬럼이 매출 발생일로 기록됩니다.</p>
+				<p class="font-semibold mb-1">필수: 성명, 연락처, 지사, 판매인, 설계사, 주민번호, 설계사 연락처</p>
+				<p class="mt-1"><span class="font-semibold">주의:</span> 날짜 컬럼이 매출 발생일로 기록됩니다.</p>
 				<p class="mt-1">ID: 이름 자동생성, PW: 전화번호 뒤 4자리</p>
 			</div>
 		</div>
