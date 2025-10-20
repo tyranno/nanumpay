@@ -16,17 +16,28 @@
 	size="md"
 	{onClose}
 >
-	<!-- 파일 형식 안내 -->
+	<!-- 파일 형식 안내 및 다운로드 -->
 	<div class="bg-blue-50 border border-blue-200 rounded p-3 mb-4">
-		<div class="flex items-start gap-2">
+		<div class="flex items-start gap-2 mb-3">
 			<div class="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
 				<span class="text-white text-xs font-bold">i</span>
 			</div>
 			<div class="flex-1">
 				<p class="text-sm font-semibold text-gray-700 mb-1">파일 형식 안내</p>
-				<p class="text-xs text-gray-600">필수: 성명, 연락처, 지사, 은행, 계좌번호</p>
+				<p class="text-xs text-gray-600 mb-1">필수: 성명, 연락처, 지사, 판매인, 설계사</p>
+				<p class="text-xs text-blue-700 font-medium">v8.0 추가: 주민번호, 설계사 연락처</p>
 			</div>
 		</div>
+		<a
+			href="/용역자_등록_양식.xlsx"
+			download="용역자_등록_양식.xlsx"
+			class="flex items-center justify-center gap-2 w-full px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors text-sm font-medium"
+		>
+			<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+			</svg>
+			엑셀 양식 다운로드 (예제 포함)
+		</a>
 	</div>
 
 	<!-- 파일 선택 -->
