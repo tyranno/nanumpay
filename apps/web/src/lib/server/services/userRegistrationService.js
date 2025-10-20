@@ -387,15 +387,17 @@ export class UserRegistrationService {
 				let plannerAccount = await PlannerAccount.findOne({ loginId: plannerName });
 
 				if (!plannerAccount) {
-					const plannerPhoneDigits = plannerPhone.replace(/[^0-9]/g, '');
-					const plannerPassword = plannerPhoneDigits.length >= 4 ? plannerPhoneDigits.slice(-4) : '1234';
+					// plannerPhone이 비어있으면 기본값 설정
+					const plannerPhoneFinal = plannerPhone || '010-0000-0000';
+					const plannerPhoneDigits = plannerPhoneFinal.replace(/[^0-9]/g, '');
+					const plannerPassword = plannerPhoneDigits.length >= 4 ? plannerPhoneDigits.slice(-4) : '9999';
 					const plannerPasswordHash = await bcrypt.hash(plannerPassword, 10);
 
 					plannerAccount = new PlannerAccount({
 						loginId: plannerName,
 						passwordHash: plannerPasswordHash,
 						name: plannerName,
-						phone: plannerPhone,
+						phone: plannerPhoneFinal,
 						status: 'active',
 						createdAt: createdAt
 					});

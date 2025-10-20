@@ -62,12 +62,14 @@
 		<div class="flex items-start gap-2">
 			<img src="/icons/edit-blue.svg" alt="Info" class="w-4 h-4 mt-0.5 flex-shrink-0" />
 			<div class="text-xs text-amber-700">
-				<p class="mb-2">엑셀 양식 및 예제 데이터:
+				<p class="mb-1.5">엑셀 양식 및 예제 데이터:
 					<a href="/용역자_등록_양식.xlsx" download class="underline font-semibold hover:text-amber-900">
 						다운로드
 					</a>
 				</p>
-				<p>비밀번호: 전화번호 뒤 4자리</p>
+				<p class="mb-1.5">• 형식 맞지 않으면 등록이 안됩니다.</p>
+				<p class="mb-1.5">• 판매인은 기존 용역자에 등록되어 있어야 합니다.</p>
+				<p>• 비밀번호: 전화번호 뒤 4자리</p>
 			</div>
 		</div>
 	</div>
