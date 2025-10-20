@@ -127,14 +127,24 @@
 		<!-- 왼쪽: 사용자 기본 정보 -->
 		<div class="space-y-3">
 			<h4 class="text-sm font-semibold text-gray-900 border-b pb-1">기본 정보</h4>
-			<div>
-				<label class="block text-xs font-medium text-gray-700">성명 *</label>
-				<input
-					type="text"
-					bind:value={newMember.name}
-					class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
-				/>
-				<p class="text-xs text-gray-500 mt-0.5">※ ID 자동 생성</p>
+			<div class="grid grid-cols-2 gap-2">
+				<div>
+					<label class="block text-xs font-medium text-gray-700">ID *</label>
+					<input
+						type="text"
+						bind:value={newMember.loginId}
+						class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
+						placeholder="홍길동"
+					/>
+				</div>
+				<div>
+					<label class="block text-xs font-medium text-gray-700">성명 *</label>
+					<input
+						type="text"
+						bind:value={newMember.name}
+						class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
+					/>
+				</div>
 			</div>
 			<div>
 				<label class="block text-xs font-medium text-gray-700">연락처 *</label>

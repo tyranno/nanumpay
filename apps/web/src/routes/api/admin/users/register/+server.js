@@ -19,6 +19,7 @@ export async function POST({ request, locals }) {
 	try {
 		const data = await request.json();
 		const {
+			loginId,
 			name,
 			phone,
 			autoPassword,
@@ -28,8 +29,8 @@ export async function POST({ request, locals }) {
 		} = data;
 
 		// 필수 필드 확인
-		if (!name || !phone) {
-			return json({ error: '이름과 연락처는 필수입니다.' }, { status: 400 });
+		if (!loginId || !name || !phone) {
+			return json({ error: 'ID, 이름, 연락처는 필수입니다.' }, { status: 400 });
 		}
 
 		// 자기 자신을 판매인으로 등록하는 것 방지
@@ -53,8 +54,9 @@ export async function POST({ request, locals }) {
 		const password = autoPassword || (phone.replace(/[^0-9]/g, '').slice(-4) || '1234');
 
 		// 단일 사용자를 배열로 변환 (bulk 형식)
-		// ⭐ idNumber를 한글 키로 명시적 매핑
+		// ⭐ v8.0: ID, 주민번호 등을 한글 키로 명시적 매핑
 		const userData = {
+			'ID': loginId,
 			'성명': name,
 			'연락처': phone,
 			'판매인': salesperson || '',
@@ -65,6 +67,14 @@ export async function POST({ request, locals }) {
 		// ⭐ idNumber가 otherFields에 있으면 '주민번호'로도 추가
 		if (otherFields.idNumber) {
 			userData['주민번호'] = otherFields.idNumber;
+		}
+
+		// ⭐ planner, plannerPhone도 한글 키로 매핑
+		if (otherFields.planner) {
+			userData['설계사'] = otherFields.planner;
+		}
+		if (otherFields.plannerPhone) {
+			userData['설계사 연락처'] = otherFields.plannerPhone;
 		}
 
 		const singleUserArray = [userData];
