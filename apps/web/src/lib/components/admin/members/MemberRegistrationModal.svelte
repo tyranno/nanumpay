@@ -136,6 +136,7 @@
 						class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
 						placeholder="홍길동"
 					/>
+					<p class="text-xs text-gray-500 mt-0.5">※ 같은 성명 계약정보 구분</p>
 				</div>
 				<div>
 					<label class="block text-xs font-medium text-gray-700">성명 *</label>

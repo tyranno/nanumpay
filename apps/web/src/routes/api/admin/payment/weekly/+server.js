@@ -179,10 +179,15 @@ async function getSingleWeekPaymentsV5(year, month, week, page, limit, search, s
 			}
 		},
 		{
+			$addFields: {
+				userIdAsObjectId: { $toObjectId: '$_id' }
+			}
+		},
+		{
 			$lookup: {
 				from: 'users',
-				localField: '_id',
-				foreignField: 'loginId',
+				localField: 'userIdAsObjectId',
+				foreignField: '_id',
 				as: 'userInfo'
 			}
 		},
@@ -215,9 +220,9 @@ async function getSingleWeekPaymentsV5(year, month, week, page, limit, search, s
 	const userPayments = await WeeklyPaymentPlans.aggregate(paginatedPipeline);
 
 	// 5. 사용자 상세 정보 추가
-	const userIds = userPayments.map(p => p._id);
-	const users = await User.find({ loginId: { $in: userIds } }).lean();
-	const userMap = new Map(users.map(u => [u.loginId, u]));
+	const userIds = userPayments.map(p => p._id); // String형 ObjectId들
+	const users = await User.find({ _id: { $in: userIds } }).lean();
+	const userMap = new Map(users.map(u => [u._id.toString(), u]));
 
 	const enrichedPayments = userPayments.map((payment, idx) => {
 		const user = userMap.get(payment._id) || {};
@@ -350,9 +355,10 @@ async function getRangePaymentsV5(startYear, startMonth, endYear, endMonth, page
 
 		// 모든 용역자에 대해 지급 정보 생성 (0원 포함)
 		const payments = allUsers.map(user => {
-			const payment = paymentMap.get(user.loginId);
+			const userId = user._id.toString(); // ObjectId를 문자열로 변환
+			const payment = paymentMap.get(userId);
 			return {
-				userId: user.loginId,
+				userId: userId,
 				userName: user.name,
 				planner: user.planner || '',
 				bank: user.bank || '',
@@ -426,32 +432,35 @@ async function getRangePaymentsV5(startYear, startMonth, endYear, endMonth, page
 			// 주차별 데이터
 			weeks,
 			// 현재 페이지 사용자 목록 (페이징 적용)
-			payments: allUsers.slice((page - 1) * limit, page * limit).map((user, idx) => ({
-				no: (page - 1) * limit + idx + 1,
-				userId: user.loginId,
-				userName: user.name,
-				planner: user.planner || '',
-				bank: user.bank || '',
-				accountNumber: user.accountNumber || '',
-				grade: user.grade || 'F1',
-				// 전체 기간 동안의 총 지급액
-				totalAmount: weeks.reduce((sum, week) => {
-					const payment = week.payments.find(p => p.userId === user.loginId);
-					return sum + (payment?.actualAmount || 0);
-				}, 0),
-				totalTax: weeks.reduce((sum, week) => {
-					const payment = week.payments.find(p => p.userId === user.loginId);
-					return sum + (payment?.taxAmount || 0);
-				}, 0),
-				totalNet: weeks.reduce((sum, week) => {
-					const payment = week.payments.find(p => p.userId === user.loginId);
-					return sum + (payment?.netAmount || 0);
-				}, 0),
-				paymentCount: weeks.reduce((count, week) => {
-					const payment = week.payments.find(p => p.userId === user.loginId);
-					return count + (payment?.actualAmount > 0 ? 1 : 0);
-				}, 0)
-			}))
+			payments: allUsers.slice((page - 1) * limit, page * limit).map((user, idx) => {
+				const userId = user._id.toString();
+				return {
+					no: (page - 1) * limit + idx + 1,
+					userId: userId,
+					userName: user.name,
+					planner: user.planner || '',
+					bank: user.bank || '',
+					accountNumber: user.accountNumber || '',
+					grade: user.grade || 'F1',
+					// 전체 기간 동안의 총 지급액
+					totalAmount: weeks.reduce((sum, week) => {
+						const payment = week.payments.find(p => p.userId === userId);
+						return sum + (payment?.actualAmount || 0);
+					}, 0),
+					totalTax: weeks.reduce((sum, week) => {
+						const payment = week.payments.find(p => p.userId === userId);
+						return sum + (payment?.taxAmount || 0);
+					}, 0),
+					totalNet: weeks.reduce((sum, week) => {
+						const payment = week.payments.find(p => p.userId === userId);
+						return sum + (payment?.netAmount || 0);
+					}, 0),
+					paymentCount: weeks.reduce((count, week) => {
+						const payment = week.payments.find(p => p.userId === userId);
+						return count + (payment?.actualAmount > 0 ? 1 : 0);
+					}, 0)
+				};
+			})
 		}
 	});
 }
