@@ -78,6 +78,10 @@
 						<th rowspan="2" class="th-base th-sticky-1">성명</th>
 						<th rowspan="2" class="th-base">은행</th>
 						<th rowspan="2" class="th-base">계좌번호</th>
+						{#if filterType === 'period'}
+							{@const colCount = 1 + (showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0)}
+							<th colspan={colCount} class="th-week">기간 합계</th>
+						{/if}
 						{#each weeklyColumns as week}
 							{@const colCount = 1 + (showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0)}
 							<th colspan={colCount} class="th-week">{week.label}</th>
@@ -85,6 +89,15 @@
 					</tr>
 					<!-- 두 번째 헤더 행 -->
 					<tr>
+						{#if filterType === 'period'}
+							<th class="th-sub">지급액</th>
+							{#if showTaxColumn}
+								<th class="th-sub th-tax">원천징수(3.3%)</th>
+							{/if}
+							{#if showNetColumn}
+								<th class="th-sub">실지급액</th>
+							{/if}
+						{/if}
 						{#each weeklyColumns as week}
 							<th class="th-sub">지급액</th>
 							{#if showTaxColumn}
@@ -117,8 +130,35 @@
 									</div>
 								</td>
 								<td class="td-base">{user.bank}</td>
-								<td class="td-base">{user.accountNumber}</td>
-								{#each weeklyColumns as week}
+						<td class="td-base">{user.accountNumber}</td>
+						
+						<!-- 기간 합계 컬럼 (filterType === 'period'일 때만) -->
+						{#if filterType === 'period'}
+							{@const userTotal = (() => {
+								let total = { amount: 0, tax: 0, net: 0 };
+								weeklyColumns.forEach(week => {
+									const key = periodType === 'monthly' 
+										? `month_${week.month}` 
+										: `${week.year}_${week.month}_${week.week}`;
+									const payment = user.payments[key];
+									if (payment) {
+										total.amount += payment.amount || 0;
+										total.tax += payment.tax || 0;
+										total.net += payment.net || 0;
+									}
+								});
+								return total;
+							})()}
+							<td class="td-amount">{formatAmount(userTotal.amount)}</td>
+							{#if showTaxColumn}
+								<td class="td-tax">{formatAmount(userTotal.tax)}</td>
+							{/if}
+							{#if showNetColumn}
+								<td class="td-net">{formatAmount(userTotal.net)}</td>
+							{/if}
+						{/if}
+						
+						{#each weeklyColumns as week}
 							{@const key =
 								filterType === 'period' && periodType === 'monthly'
 									? `month_${week.month}`
@@ -144,8 +184,11 @@
 							</tr>
 						{/each}
 					{:else}
+					{@const colsPerWeek = 1 + (showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0)}
+					{@const periodCols = filterType === 'period' ? colsPerWeek : 0}
+					{@const totalCols = 4 + periodCols + weeklyColumns.length * colsPerWeek}
 					<tr>
-						<td colspan={5 + weeklyColumns.length * 3} class="empty-state">
+						<td colspan={totalCols} class="empty-state">
 							데이터가 없습니다
 						</td>
 					</tr>
@@ -163,8 +206,6 @@
 							{#if showNetColumn}
 								<td class="grand-total-value">{formatAmount(grandTotal.net)}</td>
 							{/if}
-						{:else}
-							<td class="grand-total-label"></td>
 						{/if}
 						{#each weeklyColumns as column}
 							{@const columnTotal = getColumnTotal(column)}

@@ -20,6 +20,8 @@ export class PaymentExcelExporter {
 		this.periodType = options.periodType || 'weekly';
 		this.searchQuery = options.searchQuery || '';
 		this.searchCategory = options.searchCategory || 'name';
+		this.plannerName = options.plannerName || ''; // 설계사 이름
+		this.isPlanner = options.isPlanner || false; // 설계사 모드 여부
 	}
 
 	/**
@@ -37,7 +39,8 @@ export class PaymentExcelExporter {
 		// 컬럼 수 계산
 		const colsPerWeek = 1 + (this.showTaxColumn ? 1 : 0) + (this.showNetColumn ? 1 : 0);
 		const periodTotalCols = this.filterType === 'period' ? colsPerWeek : 0; // 기간 합계 컬럼
-		const totalCols = 5 + periodTotalCols + allWeeks.length * colsPerWeek;
+		const fixedCols = this.isPlanner ? 4 : 5; // 설계사 모드일 때 4개, 아닐 때 5개
+		const totalCols = fixedCols + periodTotalCols + allWeeks.length * colsPerWeek;
 
 		// 헤더 정보 생성
 		const periodInfo = this.getPeriodInfo();
@@ -151,15 +154,25 @@ export class PaymentExcelExporter {
 	 * 정보 행들 추가
 	 */
 	addInfoRows(worksheet, periodInfo, searchInfo, totalSummary, userCount) {
+		// 설계사 모드일 때
+		if (this.isPlanner && this.plannerName) {
+			const plannerRow = worksheet.addRow(['설계사:', this.plannerName]);
+			this.styleInfoCell(plannerRow.getCell(1));
+			plannerRow.getCell(2).alignment = { vertical: 'middle', horizontal: 'left' };
+			plannerRow.getCell(2).font = { bold: true, size: 11 };
+		}
+		
 		// 조회 기간
 		const periodRow = worksheet.addRow(['조회 기간:', periodInfo]);
 		this.styleInfoCell(periodRow.getCell(1));
 		periodRow.getCell(2).alignment = { vertical: 'middle', horizontal: 'left' };
 
-		// 검색 조건
-		const searchRow = worksheet.addRow(['검색 조건:', searchInfo]);
-		this.styleInfoCell(searchRow.getCell(1));
-		searchRow.getCell(2).alignment = { vertical: 'middle', horizontal: 'left' };
+		// 검색 조건 (설계사 모드가 아닐 때만)
+		if (!this.isPlanner) {
+			const searchRow = worksheet.addRow(['검색 조건:', searchInfo]);
+			this.styleInfoCell(searchRow.getCell(1));
+			searchRow.getCell(2).alignment = { vertical: 'middle', horizontal: 'left' };
+		}
 
 		// 총액 정보
 		const summaryRow = worksheet.addRow([
@@ -209,7 +222,10 @@ export class PaymentExcelExporter {
 	 */
 	addTableHeaders(worksheet, allWeeks, totalCols) {
 		// 헤더 1행 (주차 정보)
-		const headerRow1Data = ['순번', '성명', '설계자', '은행', '계좌번호'];
+		// 설계사 모드일 때는 "설계자" 컬럼 제외
+		const headerRow1Data = this.isPlanner
+			? ['순번', '성명', '은행', '계좌번호']
+			: ['순번', '성명', '설계자', '은행', '계좌번호'];
 		const colsPerWeek = 1 + (this.showTaxColumn ? 1 : 0) + (this.showNetColumn ? 1 : 0);
 
 		// 기간 조회일 때만 기간 합계 컬럼 추가
@@ -238,7 +254,10 @@ export class PaymentExcelExporter {
 		}
 
 		// 헤더 2행 (세부 항목)
-		const headerRow2Data = ['', '', '', '', ''];
+		// 설계사 모드일 때는 "설계자" 컬럼 제외 (4개 항목)
+		const headerRow2Data = this.isPlanner
+			? ['', '', '', '']
+			: ['', '', '', '', ''];
 
 		// 기간 조회일 때만 기간 합계 상세 항목 추가
 		if (this.filterType === 'period') {
@@ -264,19 +283,20 @@ export class PaymentExcelExporter {
 		const headerRow2 = worksheet.addRow(headerRow2Data);
 
 		// 헤더 2행 스타일
-		for (let i = 6; i <= totalCols; i++) {
+		const fixedColCount = this.isPlanner ? 4 : 5; // 설계사 모드일 때 4개, 아닐 때 5개
+		for (let i = fixedColCount + 1; i <= totalCols; i++) {
 			headerRow2.getCell(i).font = { bold: true };
 			headerRow2.getCell(i).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8E8E8' } };
 			headerRow2.getCell(i).alignment = { vertical: 'middle', horizontal: 'center' };
 		}
 
 		// 고정 컬럼 병합
-		for (let i = 1; i <= 5; i++) {
+		for (let i = 1; i <= fixedColCount; i++) {
 			worksheet.mergeCells(headerRow1.number, i, headerRow2.number, i);
 		}
 
 		// 주차 헤더 병합
-		let colStart = 6;
+		let colStart = fixedColCount + 1;
 		allWeeks.forEach(() => {
 			worksheet.mergeCells(headerRow1.number, colStart, headerRow1.number, colStart + colsPerWeek - 1);
 			for (let c = colStart; c < colStart + colsPerWeek; c++) {
@@ -293,13 +313,21 @@ export class PaymentExcelExporter {
 	 */
 	addDataRows(worksheet, allData, allWeeks) {
 		allData.forEach(user => {
-			const rowData = [
-				user.no,
-				user.name,
-				user.planner || '',
-				user.bank || '',
-				user.accountNumber || ''
-			];
+			// 설계사 모드일 때는 "설계자" 컬럼 제외
+			const rowData = this.isPlanner
+				? [
+					user.no,
+					user.name,
+					user.bank || '',
+					user.accountNumber || ''
+				]
+				: [
+					user.no,
+					user.name,
+					user.planner || '',
+					user.bank || '',
+					user.accountNumber || ''
+				];
 
 			// 기간 조회일 때 개인별 총액 추가
 			if (this.filterType === 'period') {
@@ -348,7 +376,8 @@ export class PaymentExcelExporter {
 	 * 데이터 행 스타일 적용
 	 */
 	styleDataRow(dataRow, weekCount) {
-		let col = 6;
+		// 설계사 모드일 때는 5번째 컬럼부터, 아닐 때는 6번째 컬럼부터
+		let col = this.isPlanner ? 5 : 6;
 		
 		// 기간 합계 컬럼 스타일 (filterType === 'period'일 때)
 		if (this.filterType === 'period') {
@@ -410,7 +439,10 @@ export class PaymentExcelExporter {
 	 */
 	addTotalRows(worksheet, allData, allWeeks, totalSummary, totalCols) {
 		// 합계 행 ("총금액")
-		const totalRowData = ['', '', '', '', '총금액'];
+		// 설계사 모드일 때는 "설계자" 컬럼 제외
+		const totalRowData = this.isPlanner
+			? ['', '', '', '총금액']
+			: ['', '', '', '', '총금액'];
 		
 		// 기간 합계 컬럼 추가 (filterType === 'period'일 때)
 		if (this.filterType === 'period') {
@@ -436,6 +468,8 @@ export class PaymentExcelExporter {
 		});
 
 		const totalRow = worksheet.addRow(totalRowData);
+		const fixedColCount = this.isPlanner ? 4 : 5;
+
 		// 총금액 행 스타일 (보라색 배경, 굵은 글씨)
 		for (let i = 1; i <= totalCols; i++) {
 			totalRow.getCell(i).font = { bold: true, size: 11 };
@@ -443,7 +477,7 @@ export class PaymentExcelExporter {
 			totalRow.getCell(i).alignment = { vertical: 'middle', horizontal: 'center' };
 		}
 		// 금액 컬럼은 오른쪽 정렬 및 숫자 포맷
-		for (let i = 6; i <= totalCols; i++) {
+		for (let i = fixedColCount + 1; i <= totalCols; i++) {
 			totalRow.getCell(i).numFmt = '#,##0';
 			totalRow.getCell(i).alignment = { vertical: 'middle', horizontal: 'right' };
 		}
@@ -472,13 +506,25 @@ export class PaymentExcelExporter {
 	 * 컬럼 너비 설정
 	 */
 	setColumnWidths(worksheet, totalCols) {
-		worksheet.getColumn(1).width = 15;
-		worksheet.getColumn(2).width = 12;
-		worksheet.getColumn(3).width = 12;
-		worksheet.getColumn(4).width = 12;
-		worksheet.getColumn(5).width = 18;
-		for (let i = 6; i <= totalCols; i++) {
-			worksheet.getColumn(i).width = 14;
+		if (this.isPlanner) {
+			// 설계사 모드: 순번, 성명, 은행, 계좌번호 (4개)
+			worksheet.getColumn(1).width = 8;  // 순번
+			worksheet.getColumn(2).width = 12; // 성명
+			worksheet.getColumn(3).width = 12; // 은행
+			worksheet.getColumn(4).width = 18; // 계좌번호
+			for (let i = 5; i <= totalCols; i++) {
+				worksheet.getColumn(i).width = 14;
+			}
+		} else {
+			// 관리자 모드: 순번, 성명, 설계자, 은행, 계좌번호 (5개)
+			worksheet.getColumn(1).width = 8;  // 순번
+			worksheet.getColumn(2).width = 12; // 성명
+			worksheet.getColumn(3).width = 12; // 설계자
+			worksheet.getColumn(4).width = 12; // 은행
+			worksheet.getColumn(5).width = 18; // 계좌번호
+			for (let i = 6; i <= totalCols; i++) {
+				worksheet.getColumn(i).width = 14;
+			}
 		}
 	}
 
@@ -487,7 +533,12 @@ export class PaymentExcelExporter {
 	 */
 	async downloadFile(workbook) {
 		const today = new Date();
-		const fileName = `용역비지급명부_${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}.xlsx`;
+		const dateStr = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`;
+
+		// 설계사 모드일 때 파일명에 설계사 이름 포함
+		const fileName = this.isPlanner && this.plannerName
+			? `용역비지급명부_${this.plannerName}_${dateStr}.xlsx`
+			: `용역비지급명부_${dateStr}.xlsx`;
 
 		const buffer = await workbook.xlsx.writeBuffer();
 		const blob = new Blob([buffer], {

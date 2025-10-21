@@ -94,34 +94,12 @@
 		}
 	}
 
-	// 전체 합계 계산
-	function calculateGrandTotal() {
-		if (apiGrandTotal && apiGrandTotal.totalAmount !== undefined) {
-			return {
-				amount: apiGrandTotal.totalAmount || 0,
-				tax: apiGrandTotal.totalTax || 0,
-				net: apiGrandTotal.totalNet || 0
-			};
-		}
-
-		let grandTotal = { amount: 0, tax: 0, net: 0 };
-		weeklyColumns.forEach(week => {
-			const key = filterState.periodType === 'monthly'
-				? `month_${week.month}`
-				: `${week.year}_${week.month}_${week.week}`;
-
-			filteredPaymentList.forEach(user => {
-				const payment = user.payments[key];
-				if (payment) {
-					grandTotal.amount += payment.amount || 0;
-					grandTotal.tax += payment.tax || 0;
-					grandTotal.net += payment.net || 0;
-				}
-			});
-		});
-
-		return grandTotal;
-	}
+	// grandTotal을 reactive 변수로 계산
+	$: grandTotal = apiGrandTotal ? {
+		amount: apiGrandTotal.totalAmount || 0,
+		tax: apiGrandTotal.totalTax || 0,
+		net: apiGrandTotal.totalNet || 0
+	} : { amount: 0, tax: 0, net: 0 };
 
 	// 금액 포맷
 	function formatAmount(amount) {
@@ -133,12 +111,21 @@
 	async function handleExcelExport() {
 		try {
 			const { PaymentExcelExporter } = await import('$lib/utils/paymentExcelExporter.js');
-			
+
 			const exporter = new PaymentExcelExporter({
 				filterType: filterState.filterType,
+				selectedDate: filterState.selectedDate,
+				startYear: filterState.startYear,
+				startMonth: filterState.startMonth,
+				endYear: filterState.endYear,
+				endMonth: filterState.endMonth,
 				periodType: filterState.periodType,
 				showTaxColumn: filterState.showTaxColumn,
-				showNetColumn: filterState.showNetColumn
+				showNetColumn: filterState.showNetColumn,
+				searchQuery: filterState.searchQuery,
+				searchCategory: filterState.searchCategory,
+				plannerName: plannerInfo?.name || '',
+				isPlanner: true
 			});
 
 			await exporter.export(filteredPaymentList, weeklyColumns, apiGrandTotal);
@@ -292,7 +279,7 @@
 		<PaymentHeader
 			{isLoading}
 			isProcessingPast={false}
-			grandTotal={calculateGrandTotal()}
+			{grandTotal}
 			{totalPaymentTargets}
 			hasData={filteredPaymentList.length > 0}
 			onFilterChange={handleFilterTypeChange}
@@ -317,7 +304,7 @@
 			{totalPaymentTargets}
 			itemsPerPage={filterState.itemsPerPage}
 			onPageChange={goToPage}
-			grandTotal={calculateGrandTotal()}
+			{grandTotal}
 			{weeklyTotals}
 			{monthlyTotals}
 		/>
