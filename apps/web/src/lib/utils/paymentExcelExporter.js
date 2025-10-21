@@ -36,7 +36,8 @@ export class PaymentExcelExporter {
 
 		// 컬럼 수 계산
 		const colsPerWeek = 1 + (this.showTaxColumn ? 1 : 0) + (this.showNetColumn ? 1 : 0);
-		const totalCols = 5 + allWeeks.length * colsPerWeek;
+		const periodTotalCols = this.filterType === 'period' ? colsPerWeek : 0; // 기간 합계 컬럼
+		const totalCols = 5 + periodTotalCols + allWeeks.length * colsPerWeek;
 
 		// 헤더 정보 생성
 		const periodInfo = this.getPeriodInfo();
@@ -211,6 +212,14 @@ export class PaymentExcelExporter {
 		const headerRow1Data = ['순번', '성명', '설계자', '은행', '계좌번호'];
 		const colsPerWeek = 1 + (this.showTaxColumn ? 1 : 0) + (this.showNetColumn ? 1 : 0);
 
+		// 기간 조회일 때만 기간 합계 컬럼 추가
+		if (this.filterType === 'period') {
+			headerRow1Data.push('기간 합계');
+			for (let i = 1; i < colsPerWeek; i++) {
+				headerRow1Data.push('');
+			}
+		}
+
 		allWeeks.forEach(week => {
 			headerRow1Data.push(week.label);
 			for (let i = 1; i < colsPerWeek; i++) {
@@ -230,6 +239,18 @@ export class PaymentExcelExporter {
 
 		// 헤더 2행 (세부 항목)
 		const headerRow2Data = ['', '', '', '', ''];
+
+		// 기간 조회일 때만 기간 합계 상세 항목 추가
+		if (this.filterType === 'period') {
+			headerRow2Data.push('지급액');
+			if (this.showTaxColumn) {
+				headerRow2Data.push('원천징수(3.3%)');
+			}
+			if (this.showNetColumn) {
+				headerRow2Data.push('실지급액');
+			}
+		}
+
 		allWeeks.forEach(() => {
 			headerRow2Data.push('지급액');
 			if (this.showTaxColumn) {
@@ -280,6 +301,28 @@ export class PaymentExcelExporter {
 				user.accountNumber || ''
 			];
 
+			// 기간 조회일 때 개인별 총액 추가
+			if (this.filterType === 'period') {
+				let userTotal = { amount: 0, tax: 0, net: 0 };
+				allWeeks.forEach(week => {
+					const key = this.getPaymentKey(week);
+					const payment = user.payments[key];
+					if (payment) {
+						userTotal.amount += payment.amount || 0;
+						userTotal.tax += payment.tax || 0;
+						userTotal.net += payment.net || 0;
+					}
+				});
+
+				rowData.push(userTotal.amount);
+				if (this.showTaxColumn) {
+					rowData.push(userTotal.tax);
+				}
+				if (this.showNetColumn) {
+					rowData.push(userTotal.net);
+				}
+			}
+
 			allWeeks.forEach(week => {
 				const key = this.getPaymentKey(week);
 				const payment = user.payments[key];
@@ -306,6 +349,35 @@ export class PaymentExcelExporter {
 	 */
 	styleDataRow(dataRow, weekCount) {
 		let col = 6;
+		
+		// 기간 합계 컬럼 스타일 (filterType === 'period'일 때)
+		if (this.filterType === 'period') {
+			// 지급액
+			dataRow.getCell(col).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE1BEE7' } };
+			dataRow.getCell(col).font = { bold: true };
+			dataRow.getCell(col).numFmt = '#,##0';
+			dataRow.getCell(col).alignment = { vertical: 'middle', horizontal: 'right' };
+			col++;
+
+			// 원천징수
+			if (this.showTaxColumn) {
+				dataRow.getCell(col).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEEEE' } };
+				dataRow.getCell(col).font = { color: { argb: 'FFD9534F' } };
+				dataRow.getCell(col).numFmt = '#,##0';
+				dataRow.getCell(col).alignment = { vertical: 'middle', horizontal: 'right' };
+				col++;
+			}
+
+			// 실지급액
+			if (this.showNetColumn) {
+				dataRow.getCell(col).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8F5E9' } };
+				dataRow.getCell(col).numFmt = '#,##0';
+				dataRow.getCell(col).alignment = { vertical: 'middle', horizontal: 'right' };
+				col++;
+			}
+		}
+		
+		// 주차별 컬럼 스타일
 		for (let w = 0; w < weekCount; w++) {
 			// 지급액
 			dataRow.getCell(col).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFCC' } };
@@ -337,8 +409,21 @@ export class PaymentExcelExporter {
 	 * 합계 행 추가
 	 */
 	addTotalRows(worksheet, allData, allWeeks, totalSummary, totalCols) {
-		// 합계 행
-		const totalRowData = ['', '', '', '', '합계'];
+		// 합계 행 ("총금액")
+		const totalRowData = ['', '', '', '', '총금액'];
+		
+		// 기간 합계 컬럼 추가 (filterType === 'period'일 때)
+		if (this.filterType === 'period') {
+			totalRowData.push(totalSummary.amount);
+			if (this.showTaxColumn) {
+				totalRowData.push(totalSummary.tax);
+			}
+			if (this.showNetColumn) {
+				totalRowData.push(totalSummary.net);
+			}
+		}
+		
+		// 주차별 합계 추가
 		allWeeks.forEach(week => {
 			const total = this.calculateWeekTotal(allData, week);
 			totalRowData.push(total.amount);
@@ -351,46 +436,19 @@ export class PaymentExcelExporter {
 		});
 
 		const totalRow = worksheet.addRow(totalRowData);
+		// 총금액 행 스타일 (보라색 배경, 굵은 글씨)
 		for (let i = 1; i <= totalCols; i++) {
-			totalRow.getCell(i).font = { bold: true };
-			totalRow.getCell(i).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F0F0' } };
+			totalRow.getCell(i).font = { bold: true, size: 11 };
+			totalRow.getCell(i).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE1BEE7' } };
 			totalRow.getCell(i).alignment = { vertical: 'middle', horizontal: 'center' };
 		}
+		// 금액 컬럼은 오른쪽 정렬 및 숫자 포맷
 		for (let i = 6; i <= totalCols; i++) {
 			totalRow.getCell(i).numFmt = '#,##0';
 			totalRow.getCell(i).alignment = { vertical: 'middle', horizontal: 'right' };
 		}
 
-		// 총합계 행
-		const colsPerWeek = 1 + (this.showTaxColumn ? 1 : 0) + (this.showNetColumn ? 1 : 0);
-		const grandTotalData = ['', '', '', '', '총합계'];
-		grandTotalData.push(totalSummary.amount);
-		if (this.showTaxColumn) {
-			grandTotalData.push(totalSummary.tax);
-		}
-		if (this.showNetColumn) {
-			grandTotalData.push(totalSummary.net);
-		}
 
-		// 나머지 주차는 빈칸
-		allWeeks.slice(1).forEach(() => {
-			for (let i = 0; i < colsPerWeek; i++) {
-				grandTotalData.push('');
-			}
-		});
-
-		const grandTotalRow = worksheet.addRow(grandTotalData);
-		for (let i = 1; i <= totalCols; i++) {
-			grandTotalRow.getCell(i).font = { bold: true, size: 12, color: { argb: 'FFE65100' } };
-			grandTotalRow.getCell(i).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE0B2' } };
-			grandTotalRow.getCell(i).alignment = { vertical: 'middle', horizontal: 'center' };
-		}
-
-		const grandTotalEndCol = 5 + colsPerWeek;
-		for (let i = 6; i <= grandTotalEndCol; i++) {
-			grandTotalRow.getCell(i).numFmt = '#,##0';
-			grandTotalRow.getCell(i).alignment = { vertical: 'middle', horizontal: 'right' };
-		}
 	}
 
 	/**
