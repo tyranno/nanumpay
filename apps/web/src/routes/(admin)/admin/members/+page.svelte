@@ -376,7 +376,37 @@
 				const data = new Uint8Array(e.target.result);
 				const workbook = XLSX.read(data, { type: 'array' });
 				const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-				const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+
+				// __EMPTY_X 인덱스 키를 포함한 커스텀 파싱 (중복 헤더 대응)
+				const rawData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+				const headers = rawData[0] || [];
+				const jsonData = [];
+
+				for (let i = 1; i < rawData.length; i++) {
+					const row = rawData[i];
+					if (!row || row.every(cell => cell === null || cell === undefined || cell === '')) {
+						continue; // 빈 행 스킵
+					}
+
+					const rowData = {};
+					for (let j = 0; j < row.length; j++) {
+						const value = row[j];
+						if (value !== null && value !== undefined && value !== '') {
+							// 인덱스 기반 키 추가 (__EMPTY_X)
+							const indexKey = j === 0 ? '__EMPTY' : `__EMPTY_${j}`;
+							rowData[indexKey] = String(value).trim();
+
+							// 헤더 이름 키도 추가 (중복되면 마지막 값이 남음)
+							if (headers[j]) {
+								rowData[String(headers[j]).trim()] = String(value).trim();
+							}
+						}
+					}
+
+					if (Object.keys(rowData).length > 0) {
+						jsonData.push(rowData);
+					}
+				}
 
 				const response = await fetch('/api/admin/users/bulk', {
 					method: 'POST',
