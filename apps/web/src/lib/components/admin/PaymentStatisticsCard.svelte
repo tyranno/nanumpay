@@ -103,7 +103,7 @@
 	// 컬럼 생성 (rangeData가 변경될 때마다 재계산)
 	let periodColumns = [];
 	let monthGroups = [];
-	$: {
+	$: if (rangeData) {
 		const result = generatePeriodColumns();
 		periodColumns = result.columns;
 		monthGroups = result.monthGroups;
