@@ -260,10 +260,22 @@ async function getSingleWeekPayments(year, month, week, page, limit, search, sea
 		net: enrichedPayments.reduce((sum, p) => sum + p.netAmount, 0)
 	};
 
+	// weeklyTotals 생성
+	const weekKey = `${year}-${month}-${week}`;
+	const weeklyTotals = {
+		[weekKey]: {
+			totalAmount: grandTotal.totalAmount || 0,
+			totalTax: grandTotal.totalTax || 0,
+			totalNet: grandTotal.totalNet || 0
+		}
+	};
+
 	return json({
 		success: true,
 		data: {
 			grandTotal,
+			weeklyTotals,
+			monthlyTotals: {},
 			pagination: {
 				page,
 				totalPages,
@@ -394,16 +406,40 @@ async function getRangePayments(startYear, startMonth, endYear, endMonth, page, 
 	// 전체 총계 계산
 	let grandTotal = { totalAmount: 0, totalTax: 0, totalNet: 0 };
 	let totalPaymentCount = 0;
+	
+	// weeklyTotals 및 monthlyTotals 계산
+	const weeklyTotals = {}; // 주차별 총계 저장
+	const monthlyTotals = {}; // 월별 총계 저장
 
 	weeks.forEach(week => {
+		let weekTotal = { totalAmount: 0, totalTax: 0, totalNet: 0 };
+		
 		week.payments.forEach(payment => {
 			if (payment.actualAmount > 0) {
 				grandTotal.totalAmount += payment.actualAmount;
 				grandTotal.totalTax += payment.taxAmount;
 				grandTotal.totalNet += payment.netAmount;
 				totalPaymentCount++;
+				
+				// 주차별 합계
+				weekTotal.totalAmount += payment.actualAmount;
+				weekTotal.totalTax += payment.taxAmount;
+				weekTotal.totalNet += payment.netAmount;
 			}
 		});
+		
+		// weeklyTotals에 저장
+		const weekKey = `${week.year}-${week.monthNumber}-${week.weekNumber}`;
+		weeklyTotals[weekKey] = weekTotal;
+		
+		// monthlyTotals에 누적
+		const monthKey = `month_${week.monthNumber}`;
+		if (!monthlyTotals[monthKey]) {
+			monthlyTotals[monthKey] = { totalAmount: 0, totalTax: 0, totalNet: 0 };
+		}
+		monthlyTotals[monthKey].totalAmount += weekTotal.totalAmount;
+		monthlyTotals[monthKey].totalTax += weekTotal.totalTax;
+		monthlyTotals[monthKey].totalNet += weekTotal.totalNet;
 	});
 
 	// 기간 정보
@@ -417,6 +453,8 @@ async function getRangePayments(startYear, startMonth, endYear, endMonth, page, 
 		success: true,
 		data: {
 			grandTotal,
+			weeklyTotals,
+			monthlyTotals,
 			period: periodInfo,
 			pagination: {
 				page,

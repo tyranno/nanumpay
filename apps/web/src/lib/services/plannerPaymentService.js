@@ -105,7 +105,9 @@ export const plannerPaymentService = {
 			}],
 			totalPages: data.pagination?.totalPages || 1,
 			totalPaymentTargets: data.pagination?.totalItems || 0,
-			apiGrandTotal: data.grandTotal || null
+			apiGrandTotal: data.grandTotal || null,
+			weeklyTotals: data.weeklyTotals || {},
+			monthlyTotals: data.monthlyTotals || {}
 		};
 	},
 
@@ -247,7 +249,10 @@ export const plannerPaymentService = {
 			weeklyColumns,
 			totalPages: data.pagination?.totalPages || 1,
 			totalPaymentTargets: data.pagination?.totalItems || 0,
-			apiGrandTotal: data.grandTotal || null
+			apiGrandTotal: data.grandTotal || null,
+			weeklyTotals: data.weeklyTotals || {},
+			monthlyTotals: data.monthlyTotals || {},
+			allWeeklyData: weeklyColumns
 		};
 	}
 };

@@ -13,11 +13,15 @@
 	export let totalPaymentTargets = 0;
 	export let itemsPerPage = 20;
 	export let onPageChange = () => {};
+	export let grandTotal = { amount: 0, tax: 0, net: 0 };
+	export let weeklyTotals = {};
+	export let monthlyTotals = {};
 
 	// Store에서 컬럼 표시 설정 가져오기
 	$: showTaxColumn = $paymentPageFilterState.showTaxColumn;
 	$: showNetColumn = $paymentPageFilterState.showNetColumn;
 	$: periodType = $paymentPageFilterState.periodType;
+	$: filterType = $paymentPageFilterState.filterType;
 
 	// 금액 포맷
 	function formatAmount(amount) {
@@ -35,6 +39,25 @@
 		if (page >= 1 && page <= totalPages) {
 			onPageChange(page);
 		}
+	}
+
+	// 컬럼별 총계 가져오기
+	function getColumnTotal(column) {
+		let total;
+		
+		if (filterType === 'period' && periodType === 'monthly') {
+			const monthKey = `month_${column.month}`;
+			total = monthlyTotals[monthKey];
+		} else {
+			const weekKey = `${column.year}-${column.month}-${column.week}`;
+			total = weeklyTotals[weekKey];
+		}
+		
+		return total ? {
+			totalAmount: total.totalAmount || 0,
+			totalTax: total.totalTax || 0,
+			totalNet: total.totalNet || 0
+		} : { totalAmount: 0, totalTax: 0, totalNet: 0 };
 	}
 </script>
 
@@ -96,11 +119,11 @@
 								<td class="td-base">{user.bank}</td>
 								<td class="td-base">{user.accountNumber}</td>
 								{#each weeklyColumns as week}
-									{@const key =
-										periodType === 'monthly'
-											? `month_${week.month}`
-											: `${week.year}_${week.month}_${week.week}`}
-									{@const payment = user.payments[key]}
+							{@const key =
+								filterType === 'period' && periodType === 'monthly'
+									? `month_${week.month}`
+									: `${week.year}_${week.month}_${week.week}`}
+							{@const payment = user.payments[key]}
 									<td
 										class="td-amount"
 										title={payment?.installmentDetails
@@ -121,13 +144,41 @@
 							</tr>
 						{/each}
 					{:else}
-						<tr>
-							<td colspan={5 + weeklyColumns.length * 3} class="empty-state">
-								데이터가 없습니다
-							</td>
-						</tr>
-					{/if}
-				</tbody>
+					<tr>
+						<td colspan={5 + weeklyColumns.length * 3} class="empty-state">
+							데이터가 없습니다
+						</td>
+					</tr>
+				{/if}
+				
+				<!-- 총금액 행 -->
+				{#if paymentList.length > 0}
+					<tr class="grand-total-row">
+						<td colspan="4" class="grand-total-label">총금액</td>
+						{#if filterType === 'period'}
+							<td class="grand-total-value">{formatAmount(grandTotal.amount)}</td>
+							{#if showTaxColumn}
+								<td class="grand-total-value grand-total-tax">{formatAmount(grandTotal.tax)}</td>
+							{/if}
+							{#if showNetColumn}
+								<td class="grand-total-value">{formatAmount(grandTotal.net)}</td>
+							{/if}
+						{:else}
+							<td class="grand-total-label"></td>
+						{/if}
+						{#each weeklyColumns as column}
+							{@const columnTotal = getColumnTotal(column)}
+							<td class="grand-total-value">{formatAmount(columnTotal.totalAmount)}</td>
+							{#if showTaxColumn}
+								<td class="grand-total-value grand-total-tax">{formatAmount(columnTotal.totalTax)}</td>
+							{/if}
+							{#if showNetColumn}
+								<td class="grand-total-value">{formatAmount(columnTotal.totalNet)}</td>
+							{/if}
+						{/each}
+					</tr>
+				{/if}
+			</tbody>
 			</table>
 		</div>
 
@@ -290,5 +341,36 @@
 	/* 등급 아이콘 */
 	.grade-icon {
 		@apply absolute -right-5 -top-1.5 h-5 w-5;
+	}
+
+	/* 총금액 행 스타일 */
+	.grand-total-row {
+		@apply bg-purple-100;
+	}
+
+	.grand-total-row td {
+		@apply border-b border-r border-gray-300;
+		@apply whitespace-nowrap p-1.5 text-center text-sm font-bold;
+	}
+
+	.grand-total-label {
+		@apply bg-purple-200 text-purple-900;
+	}
+
+	.grand-total-value {
+		@apply bg-purple-100 pr-3 text-right text-purple-900;
+	}
+
+	.grand-total-tax {
+		@apply bg-red-100 text-red-700;
+	}
+
+	.grand-total-row td:first-child {
+		@apply border-l;
+	}
+
+	/* 총금액 행에 sticky 적용 */
+	.grand-total-row .grand-total-label:first-child {
+		@apply sticky left-0 z-10;
 	}
 </style>

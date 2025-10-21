@@ -22,6 +22,8 @@
 	let totalPages = 1;
 	let totalPaymentTargets = 0;
 	let apiGrandTotal = null;
+	let weeklyTotals = {};
+	let monthlyTotals = {};
 
 	// Store 구독
 	$: filterState = $paymentPageFilterState;
@@ -53,6 +55,8 @@
 			totalPages = result.totalPages;
 			totalPaymentTargets = result.totalPaymentTargets;
 			apiGrandTotal = result.apiGrandTotal;
+			weeklyTotals = result.weeklyTotals || {};
+			monthlyTotals = result.monthlyTotals || {};
 		} catch (err) {
 			console.error('Error loading payment data:', err);
 			error = err.message;
@@ -123,6 +127,25 @@
 	function formatAmount(amount) {
 		if (!amount && amount !== 0) return '-';
 		return amount.toLocaleString() + '원';
+	}
+
+	// 엑셀 다운로드
+	async function handleExcelExport() {
+		try {
+			const { PaymentExcelExporter } = await import('$lib/utils/paymentExcelExporter.js');
+			
+			const exporter = new PaymentExcelExporter({
+				filterType: filterState.filterType,
+				periodType: filterState.periodType,
+				showTaxColumn: filterState.showTaxColumn,
+				showNetColumn: filterState.showNetColumn
+			});
+
+			await exporter.export(filteredPaymentList, weeklyColumns, apiGrandTotal);
+		} catch (err) {
+			console.error('엑셀 내보내기 오류:', err);
+			alert('엑셀 파일 생성 중 오류가 발생했습니다.');
+		}
 	}
 
 	// 전화번호 업데이트
@@ -277,9 +300,9 @@
 			onDateChange={() => loadPaymentData()}
 			onSearch={handleSearch}
 			onItemsPerPageChange={handleItemsPerPageChange}
-			onExport={() => {}}
+			onExport={handleExcelExport}
 			hidePastProcessButton={true}
-			hideExportButton={true}
+			hideExportButton={false}
 			onProcessPast={() => {}}
 		/>
 
@@ -294,6 +317,9 @@
 			{totalPaymentTargets}
 			itemsPerPage={filterState.itemsPerPage}
 			onPageChange={goToPage}
+			grandTotal={calculateGrandTotal()}
+			{weeklyTotals}
+			{monthlyTotals}
 		/>
 	</div>
 </div>

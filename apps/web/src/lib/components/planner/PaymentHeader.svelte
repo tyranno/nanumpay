@@ -212,17 +212,17 @@
 								onchange={handlePeriodChange}
 								class="cursor-pointer"
 							/>
-							<span>주간</span>
-						</label>
-						<label class="radio-label-mobile">
-							<input
-								type="radio"
-								bind:group={periodType}
-								value="monthly"
-								onchange={handlePeriodChange}
-								class="cursor-pointer"
-							/>
-							<span>월간</span>
+							<span>주별</span>
+					</label>
+					<label class="radio-label-mobile">
+						<input
+							type="radio"
+							bind:group={periodType}
+							value="monthly"
+							onchange={handlePeriodChange}
+							class="cursor-pointer"
+						/>
+						<span>월별</span>
 						</label>
 					</div>
 				</div>
@@ -379,8 +379,8 @@
 
 					<span class="whitespace-nowrap text-[13px] font-bold leading-7">표시:</span>
 					<select bind:value={periodType} onchange={handlePeriodChange} class="select-period-type">
-						<option value="weekly">주간</option>
-						<option value="monthly">월간</option>
+						<option value="weekly">주별</option>
+						<option value="monthly">월별</option>
 					</select>
 				{/if}
 			</div>
