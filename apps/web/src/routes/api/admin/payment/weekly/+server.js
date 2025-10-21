@@ -3,6 +3,8 @@ import { connectDB } from '$lib/server/db.js';
 import WeeklyPaymentPlans from '$lib/server/models/WeeklyPaymentPlans.js';
 import WeeklyPaymentSummary from '$lib/server/models/WeeklyPaymentSummary.js';
 import User from '$lib/server/models/User.js';
+import UserAccount from '$lib/server/models/UserAccount.js';
+import PlannerAccount from '$lib/server/models/PlannerAccount.js';
 import { getAllWeeksInPeriod, getFridaysInMonth } from '$lib/utils/fridayWeekCalculator.js';
 
 /**

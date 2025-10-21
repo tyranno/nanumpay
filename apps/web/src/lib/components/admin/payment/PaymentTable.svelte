@@ -18,6 +18,7 @@
 	$: showTaxColumn = $paymentPageFilterState.showTaxColumn;
 	$: showNetColumn = $paymentPageFilterState.showNetColumn;
 	$: periodType = $paymentPageFilterState.periodType;
+	$: filterType = $paymentPageFilterState.filterType;
 
 	// 금액 포맷
 	function formatAmount(amount) {
@@ -73,16 +74,16 @@
 						<th rowspan="2" class="th-base">설계자</th>
 						<th rowspan="2" class="th-base">은행</th>
 						<th rowspan="2" class="th-base">계좌번호</th>
-						{#if periodType === 'monthly'}
-							<th colspan={(showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0) + 1} class="th-total">기간 합계</th>
+						{#if filterType === 'period'}
+							<th colspan={1 + (showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0)} class="th-total">기간 합계</th>
 						{/if}
 						{#each weeklyColumns as week}
-							<th colspan={(showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0) + 1} class="th-week">{week.label}</th>
+							<th colspan={1 + (showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0)} class="th-week">{week.label}</th>
 						{/each}
 					</tr>
 					<!-- 두 번째 헤더 행 -->
 					<tr>
-						{#if periodType === 'monthly'}
+						{#if filterType === 'period'}
 							<th class="th-sub th-total-sub">지급액</th>
 							{#if showTaxColumn}
 								<th class="th-sub th-total-sub th-tax">원천징수(3.3%)</th>
@@ -126,8 +127,8 @@
 								<td class="td-base">{user.planner || ''}</td>
 								<td class="td-base">{user.bank}</td>
 								<td class="td-base">{user.accountNumber}</td>
-								<!-- 기간 합계 (월간 보기일 때만) -->
-								{#if periodType === 'monthly'}
+								<!-- 기간 합계 (기간 선택일 때만) -->
+								{#if filterType === 'period'}
 									<td class="td-total">{formatAmount(userTotal.totalAmount)}</td>
 									{#if showTaxColumn}
 										<td class="td-total td-tax">{formatAmount(userTotal.totalTax)}</td>

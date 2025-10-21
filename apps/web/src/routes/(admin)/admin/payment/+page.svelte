@@ -22,6 +22,13 @@
 	// Store 구독
 	$: filterState = $paymentPageFilterState;
 
+	// grandTotal을 reactive 변수로 계산
+	$: grandTotal = apiGrandTotal ? {
+		amount: apiGrandTotal.totalAmount || 0,
+		tax: apiGrandTotal.totalTax || 0,
+		net: apiGrandTotal.totalNet || 0
+	} : { amount: 0, tax: 0, net: 0 };
+
 	// 데이터 로드
 	async function loadPaymentData(page = 1) {
 		isLoading = true;
@@ -138,20 +145,6 @@
 		}
 	}
 
-	// 전체 합계 반환 (API에서 계산된 값 사용)
-	function getGrandTotal() {
-		if (apiGrandTotal) {
-			return {
-				amount: apiGrandTotal.totalAmount || 0,
-				tax: apiGrandTotal.totalTax || 0,
-				net: apiGrandTotal.totalNet || 0
-			};
-		}
-
-		// API 데이터 없으면 0 반환
-		return { amount: 0, tax: 0, net: 0 };
-	}
-
 	onMount(() => {
 		loadPaymentData();
 	});
@@ -169,7 +162,7 @@
 	<PaymentHeader
 		{isLoading}
 		{isProcessingPast}
-		grandTotal={getGrandTotal()}
+		{grandTotal}
 		{totalPaymentTargets}
 		hasData={filteredPaymentList.length > 0}
 		onFilterChange={handleFilterTypeChange}
