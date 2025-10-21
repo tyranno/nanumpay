@@ -47,7 +47,7 @@ def login_admin():
         sys.exit(1)
 
 def read_excel_to_json(file_path):
-    """엑셀 파일을 JSON 배열로 변환"""
+    """엑셀 파일을 JSON 배열로 변환 (중복 헤더를 __EMPTY_X로 처리)"""
     print(f"📖 엑셀 파일 읽는 중: {file_path}")
 
     wb = openpyxl.load_workbook(file_path)
@@ -55,13 +55,19 @@ def read_excel_to_json(file_path):
 
     # 헤더 추출 (첫 번째 행)
     headers = []
-    for cell in ws[1]:
+    header_names = []
+    for idx, cell in enumerate(ws[1]):
         if cell.value:
-            headers.append(str(cell.value).strip())
+            header_name = str(cell.value).strip()
+            headers.append(header_name)
+            header_names.append(header_name)
+        else:
+            headers.append(None)
+            header_names.append(None)
 
-    print(f"📋 컬럼: {headers}")
+    print(f"📋 컬럼: {[h for h in headers if h]}")
 
-    # 데이터 추출
+    # 데이터 추출 (__EMPTY_X 형식으로 인덱스 키 추가)
     data = []
     for row_idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
         row_data = {}
@@ -70,7 +76,17 @@ def read_excel_to_json(file_path):
         for idx, value in enumerate(row):
             if idx < len(headers):
                 if value is not None and str(value).strip():
-                    row_data[headers[idx]] = str(value).strip()
+                    # 인덱스 기반 키 추가 (__EMPTY_X)
+                    if idx == 0:
+                        index_key = '__EMPTY'
+                    else:
+                        index_key = f'__EMPTY_{idx}'
+                    row_data[index_key] = str(value).strip()
+
+                    # 헤더 이름 키도 추가 (중복되면 마지막 값이 남음)
+                    if headers[idx]:
+                        row_data[headers[idx]] = str(value).strip()
+
                     is_empty = False
 
         # 빈 행이 아니면 추가

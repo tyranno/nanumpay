@@ -255,8 +255,8 @@ export class UserRegistrationService {
 					continue;
 				}
 
-				// 날짜 필드 처리
-				const dateValue = getValue(userData, ['날짜', 'date', '__EMPTY', 'registrationDate']);
+				// 날짜 필드 처리 (순번 컬럼 있으면 __EMPTY_1, 없으면 __EMPTY)
+				const dateValue = getValue(userData, ['날짜', 'date', '__EMPTY_1', '__EMPTY', 'registrationDate']);
 				let createdAt;
 				if (dateValue) {
 					// Excel 날짜 처리
@@ -275,45 +275,51 @@ export class UserRegistrationService {
 					createdAt = new Date();
 				}
 
-				// v8.0: 필드 추출 (ID 컬럼 추가)
-				loginId = getValue(userData, ['ID', 'id', '__EMPTY_1']);
-				name = getValue(userData, ['성명', '이름', 'name', '__EMPTY_2']);
-				const phone = getValue(userData, ['연락처', '전화번호', 'phone', '__EMPTY_3']);
+				// v8.0: 필드 추출 (순번 컬럼 고려하여 인덱스 +1 추가)
+				loginId = getValue(userData, ['ID', 'id', '__EMPTY_2', '__EMPTY_1']);
+				name = getValue(userData, ['성명', '이름', 'name', '__EMPTY_3', '__EMPTY_2']);
+				const phone = getValue(userData, ['__EMPTY_4', '__EMPTY_3', '연락처', '전화번호', 'phone']);
 				// ⭐ idNumber 추출 (여러 필드명 시도)
-				let idNumber = getValue(userData, ['주민번호', 'idNumber', '__EMPTY_4']);
+				let idNumber = getValue(userData, ['주민번호', 'idNumber', '__EMPTY_5', '__EMPTY_4']);
 				// getValue가 빈 문자열을 반환하면, 원본 데이터에서 직접 확인
 				if (!idNumber && userData.idNumber) {
 					idNumber = String(userData.idNumber).trim();
 				}
-				const bank = getValue(userData, ['은행', 'bank', '__EMPTY_5']);
+				const bank = getValue(userData, ['은행', 'bank', '__EMPTY_6', '__EMPTY_5']);
 				const accountNumber = getValue(userData, [
 					'계좌번호',
 					'계좌',
 					'accountNumber',
+					'__EMPTY_7',
 					'__EMPTY_6'
 				]);
-				const salesperson = getValue(userData, ['판매인', '추천인', 'salesperson', '__EMPTY_7']);
+				const salesperson = getValue(userData, ['판매인', '추천인', 'salesperson', '__EMPTY_8', '__EMPTY_7']);
 				const salespersonPhone = getValue(userData, [
+					'__EMPTY_9',
+					'__EMPTY_8',
 					'판매인 연락처',
 					'연락처.1',
-					'salespersonPhone',
-					'__EMPTY_8'
+					'salespersonPhone'
 				]);
-				const plannerName = getValue(userData, ['설계사', 'planner', '__EMPTY_9']);
+				const plannerName = getValue(userData, ['__EMPTY_10', '__EMPTY_9', '설계사', 'planner']);
+				// ⚠️ plannerPhone은 userData에서 '연락처' 키로 마지막 중복 값(설계사 연락처)을 가져옴
 				const plannerPhone = getValue(userData, [
+					'__EMPTY_11',
+					'__EMPTY_10',
+					'연락처',  // Excel 중복 헤더의 마지막 값
 					'설계사 연락처',
 					'연락처.2',
-					'plannerPhone',
-					'__EMPTY_10'
+					'plannerPhone'
 				]);
 				const insuranceProduct = getValue(userData, [
 					'보험상품명',
 					'보험상품',
 					'insuranceProduct',
+					'__EMPTY_12',
 					'__EMPTY_11'
 				]);
-				const insuranceCompany = getValue(userData, ['보험회사', 'insuranceCompany', '__EMPTY_12']);
-				const branch = getValue(userData, ['지사', '소속/지사', 'branch', '__EMPTY_13']);
+				const insuranceCompany = getValue(userData, ['보험회사', 'insuranceCompany', '__EMPTY_13', '__EMPTY_12']);
+				const branch = getValue(userData, ['지사', '소속/지사', 'branch', '__EMPTY_14', '__EMPTY_13']);
 
 				// v8.0: 필수 필드 검증
 				if (!loginId) {
