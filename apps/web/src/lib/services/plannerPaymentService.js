@@ -142,7 +142,8 @@ export const plannerPaymentService = {
 			page,
 			limit,
 			search: searchQuery,
-			searchCategory
+			searchCategory,
+			periodType  // ⭐ periodType 전달
 		});
 
 		const response = await fetch(`/api/planner/payment/weekly?${queryParams}`);
@@ -154,36 +155,77 @@ export const plannerPaymentService = {
 
 		const data = result.data;
 
-		// 주차별 컬럼 생성
-		const weeklyColumns = (data.weeks || []).map(week => ({
-			year: week.year,
-			month: week.monthNumber,
-			week: week.weekNumber,
-			label: week.week,
-			data: week
-		}));
+		let weeklyColumns;
+
+		if (periodType === 'monthly') {
+			// ⭐ 월간 보기: 월별 컬럼 생성
+			const monthMap = new Map();
+			(data.weeks || []).forEach(weekData => {
+				const monthKey = weekData.monthNumber;
+				if (!monthMap.has(monthKey)) {
+					monthMap.set(monthKey, {
+						year: weekData.year,
+						month: weekData.monthNumber,
+						label: `${weekData.year}년 ${weekData.monthNumber}월`,
+						data: weekData
+					});
+				}
+			});
+			weeklyColumns = Array.from(monthMap.values());
+		} else {
+			// 주간 보기: 주차별 컬럼 생성
+			weeklyColumns = (data.weeks || []).map(week => ({
+				year: week.year,
+				month: week.monthNumber,
+				week: week.weekNumber,
+				label: week.week,
+				data: week
+			}));
+		}
 
 		// 사용자별 데이터 매핑
 		const paymentList = (data.payments || []).map((user, index) => {
 			const payments = {};
 
-			// 주차별 지급 정보 매핑
-			weeklyColumns.forEach(column => {
-				const weekKey = `${column.year}_${column.month}_${column.week}`;
-				const weekData = data.weeks.find(w =>
-					w.year === column.year &&
-					w.monthNumber === column.month &&
-					w.weekNumber === column.week
-				);
+			// 주차별/월별 지급 정보 매핑
+			if (periodType === 'monthly') {
+				// ⭐ 월간 보기: 월별로 합산
+				(data.weeks || []).forEach(weekData => {
+					const monthKey = `month_${weekData.monthNumber}`;
+					const userPayment = weekData.payments?.find(p => p.userId === user.userId);
 
-				const userPayment = weekData?.payments.find(p => p.userId === user.userId);
+					if (userPayment) {
+						if (!payments[monthKey]) {
+							payments[monthKey] = {
+								amount: 0,
+								tax: 0,
+								net: 0
+							};
+						}
+						payments[monthKey].amount += userPayment.actualAmount || 0;
+						payments[monthKey].tax += userPayment.taxAmount || 0;
+						payments[monthKey].net += userPayment.netAmount || 0;
+					}
+				});
+			} else {
+				// 주간 보기: 주차별로 저장
+				weeklyColumns.forEach(column => {
+					const weekKey = `${column.year}_${column.month}_${column.week}`;
+					const weekData = data.weeks.find(w =>
+						w.year === column.year &&
+						w.monthNumber === column.month &&
+						w.weekNumber === column.week
+					);
 
-				payments[weekKey] = {
-					amount: userPayment?.actualAmount || 0,
-					tax: userPayment?.taxAmount || 0,
-					net: userPayment?.netAmount || 0
-				};
-			});
+					const userPayment = weekData?.payments.find(p => p.userId === user.userId);
+
+					payments[weekKey] = {
+						amount: userPayment?.actualAmount || 0,
+						tax: userPayment?.taxAmount || 0,
+						net: userPayment?.netAmount || 0
+					};
+				});
+			}
 
 			return {
 				no: (page - 1) * limit + index + 1,
