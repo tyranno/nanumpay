@@ -54,12 +54,9 @@
 			const startMonthKey = `${startYear}-${String(startMonth).padStart(2, '0')}`;
 			const endMonthKey = `${endYear}-${String(endMonth).padStart(2, '0')}`;
 
-			console.log(`[PaymentStatisticsCard] loadData: ${startMonthKey} ~ ${endMonthKey}, viewMode: ${paymentViewMode}`);
-
 			const response = await fetch(`/api/admin/revenue/range?start=${startMonthKey}&end=${endMonthKey}&viewMode=${paymentViewMode}`);
 			if (response.ok) {
 				rangeData = await response.json();
-				console.log('[PaymentStatisticsCard] API Response:', rangeData);
 			} else {
 				console.error('Failed to load range data');
 				rangeData = null;
@@ -108,19 +105,14 @@
 	let periodColumns = [];
 	let monthGroups = [];
 	$: {
-		console.log('[Reactive] rangeData changed:', rangeData);
 		const result = generatePeriodColumns();
 		periodColumns = result.columns;
 		monthGroups = result.monthGroups;
-		console.log('[Reactive] periodColumns updated:', periodColumns.length);
-		console.log('[Reactive] monthGroups updated:', monthGroups.length);
 	}
 
 	function generatePeriodColumns() {
 		const columns = [];
 		const groups = [];
-
-		console.log('[generatePeriodColumns] rangeData:', rangeData);
 
 		if (paymentViewMode === 'monthly') {
 			// 월간 모드
@@ -224,8 +216,6 @@
 			} while (currentYear < endYear || (currentYear === endYear && currentMonth <= endMonth));
 		}
 
-		console.log('[generatePeriodColumns] Generated columns:', columns.length);
-		console.log('[generatePeriodColumns] Generated month groups:', groups.length);
 		return { columns, monthGroups: groups };
 	}
 
@@ -320,7 +310,11 @@
 			<div class="space-y-4">
 				<!-- 안내 메시지 -->
 				<div class="bg-yellow-50 border border-yellow-200 rounded px-3 py-2">
-					<p class="text-sm text-gray-700">💡 각 기간에 등급별 지급액 표시: 지급 금액(인원수)</p>
+					{#if paymentViewMode === 'monthly'}
+						<p class="text-sm text-gray-700">💡 월간 보기: 각 월별 등급별 지급 금액 표시</p>
+					{:else}
+						<p class="text-sm text-gray-700">💡 주간 보기: 각 주차별 등급별 지급액 표시 - 지급 금액(계획 건수)</p>
+					{/if}
 				</div>
 
 				<!-- 월간 뷰 테이블 -->
@@ -344,7 +338,7 @@
 										{#each periodColumns as column}
 											{@const gradeData = getGradeDataForPeriod(grade, column)}
 											<td class="data-col text-center">
-												{gradeData.amount.toLocaleString()}({gradeData.count})
+												{gradeData.amount.toLocaleString()}
 											</td>
 										{/each}
 									</tr>
@@ -362,7 +356,7 @@
 											return sum;
 										})()}
 										<td class="data-col text-center">
-											{totalAmount.toLocaleString()}({totalCount})
+											{totalAmount.toLocaleString()}
 										</td>
 									{/each}
 								</tr>

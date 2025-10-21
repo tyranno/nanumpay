@@ -371,7 +371,8 @@ async function updateWeeklyProjections(plan, operation) {
           plan.planType,
           installmentAmount,
           withholdingTax,
-          netAmount
+          netAmount,
+          plan.userId  // ⭐ userId 추가
         );
       } else if (operation === 'remove') {
         // 차감 로직

@@ -50,56 +50,64 @@ const weeklyPaymentSummarySchema = new mongoose.Schema(
         tax: { type: Number, default: 0 },
         net: { type: Number, default: 0 },
         userCount: { type: Number, default: 0 },
-        paymentCount: { type: Number, default: 0 }
+        paymentCount: { type: Number, default: 0 },
+        userIds: { type: [String], default: [] }  // 유니크 userId 추적
       },
       F2: {
         amount: { type: Number, default: 0 },
         tax: { type: Number, default: 0 },
         net: { type: Number, default: 0 },
         userCount: { type: Number, default: 0 },
-        paymentCount: { type: Number, default: 0 }
+        paymentCount: { type: Number, default: 0 },
+        userIds: { type: [String], default: [] }
       },
       F3: {
         amount: { type: Number, default: 0 },
         tax: { type: Number, default: 0 },
         net: { type: Number, default: 0 },
         userCount: { type: Number, default: 0 },
-        paymentCount: { type: Number, default: 0 }
+        paymentCount: { type: Number, default: 0 },
+        userIds: { type: [String], default: [] }
       },
       F4: {
         amount: { type: Number, default: 0 },
         tax: { type: Number, default: 0 },
         net: { type: Number, default: 0 },
         userCount: { type: Number, default: 0 },
-        paymentCount: { type: Number, default: 0 }
+        paymentCount: { type: Number, default: 0 },
+        userIds: { type: [String], default: [] }
       },
       F5: {
         amount: { type: Number, default: 0 },
         tax: { type: Number, default: 0 },
         net: { type: Number, default: 0 },
         userCount: { type: Number, default: 0 },
-        paymentCount: { type: Number, default: 0 }
+        paymentCount: { type: Number, default: 0 },
+        userIds: { type: [String], default: [] }
       },
       F6: {
         amount: { type: Number, default: 0 },
         tax: { type: Number, default: 0 },
         net: { type: Number, default: 0 },
         userCount: { type: Number, default: 0 },
-        paymentCount: { type: Number, default: 0 }
+        paymentCount: { type: Number, default: 0 },
+        userIds: { type: [String], default: [] }
       },
       F7: {
         amount: { type: Number, default: 0 },
         tax: { type: Number, default: 0 },
         net: { type: Number, default: 0 },
         userCount: { type: Number, default: 0 },
-        paymentCount: { type: Number, default: 0 }
+        paymentCount: { type: Number, default: 0 },
+        userIds: { type: [String], default: [] }
       },
       F8: {
         amount: { type: Number, default: 0 },
         tax: { type: Number, default: 0 },
         net: { type: Number, default: 0 },
         userCount: { type: Number, default: 0 },
-        paymentCount: { type: Number, default: 0 }
+        paymentCount: { type: Number, default: 0 },
+        userIds: { type: [String], default: [] }
       }
     },
 
@@ -188,7 +196,7 @@ weeklyPaymentSummarySchema.statics.getWeekOfMonthByFriday = function(date) {
 };
 
 // 인스턴스 메소드: 증분 업데이트
-weeklyPaymentSummarySchema.methods.incrementPayment = function(grade, planType, amount, tax, net) {
+weeklyPaymentSummarySchema.methods.incrementPayment = function(grade, planType, amount, tax, net, userId) {
   // 전체 총계
   this.totalAmount += amount;
   this.totalTax += tax;
@@ -201,6 +209,18 @@ weeklyPaymentSummarySchema.methods.incrementPayment = function(grade, planType, 
     this.byGrade[grade].tax += tax;
     this.byGrade[grade].net += net;
     this.byGrade[grade].paymentCount += 1;
+
+    // userId가 제공된 경우, 유니크한 사용자만 카운트
+    if (userId) {
+      const userIdStr = userId.toString();
+      if (!this.byGrade[grade].userIds) {
+        this.byGrade[grade].userIds = [];
+      }
+      if (!this.byGrade[grade].userIds.includes(userIdStr)) {
+        this.byGrade[grade].userIds.push(userIdStr);
+        this.byGrade[grade].userCount = this.byGrade[grade].userIds.length;
+      }
+    }
   }
 
   // 계획 타입별 총계

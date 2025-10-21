@@ -254,18 +254,17 @@ async function getWeeklyData(start, end) {
         F1: 0, F2: 0, F3: 0, F4: 0, F5: 0, F6: 0, F7: 0, F8: 0
       };
       let weekTotalAmount = 0;
-      let weekUserCount = 0;
+      let weekTotalPaymentCount = 0;  // ⭐ 전체 계획 수
 
       if (summary && summary.byGrade) {
         Object.entries(summary.byGrade).forEach(([grade, data]) => {
-          const userCount = data.userCount || 0;
-          const totalAmount = data.amount || 0;  // ⭐ 스키마에 맞게 수정
-          const amountPerUser = userCount > 0 ? Math.floor(totalAmount / userCount) : 0;
+          const paymentCount = data.paymentCount || 0;  // ⭐ 계획 수
+          const totalAmount = data.amount || 0;
 
-          gradeDistribution[grade] = userCount;
-          gradePayments[grade] = amountPerUser;  // 1인당 평균 지급액
+          gradeDistribution[grade] = paymentCount;  // ⭐ 계획 수 저장
+          gradePayments[grade] = totalAmount;  // ⭐ 총 지급액 저장
           weekTotalAmount += totalAmount;
-          weekUserCount += userCount;
+          weekTotalPaymentCount += paymentCount;  // ⭐ 전체 계획 수 합산
         });
       }
 
@@ -279,12 +278,12 @@ async function getWeeklyData(start, end) {
         weekLabel: `${year}년 ${month}월 ${weekNumber}주`,
 
         // 등급별 통계
-        gradeDistribution,
-        gradePayments,
+        gradeDistribution,  // ⭐ 계획 수 (F1: 6, F2: 3, ...)
+        gradePayments,      // ⭐ 총 지급액 (F1: 96000, F2: 162000, ...)
 
         // 주차별 합계
         totalAmount: weekTotalAmount,
-        userCount: weekUserCount,
+        userCount: weekTotalPaymentCount,  // ⭐ 합계에는 전체 계획 수 표시
 
         // 메타 정보
         weekDate: summary?.weekDate || null,
@@ -293,7 +292,7 @@ async function getWeeklyData(start, end) {
       });
 
       totalAmount += weekTotalAmount;
-      totalUserCount += weekUserCount;
+      totalUserCount += weekTotalPaymentCount;  // ⭐ 전체 계획 수 합산
     });
   }
 

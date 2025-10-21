@@ -129,13 +129,14 @@ export async function processWeeklyPayments(date = new Date()) {
 
       await plan.save();
 
-      // 통계 업데이트
+      // 통계 업데이트 (userId 전달하여 유니크 카운트)
       summary.incrementPayment(
         plan.baseGrade,
         plan.planType,
         paymentAmounts.installmentAmount,
         paymentAmounts.withholdingTax,
-        paymentAmounts.netAmount
+        paymentAmounts.netAmount,
+        plan.userId  // ⭐ userId 추가
       );
 
       processedPayments.push({
