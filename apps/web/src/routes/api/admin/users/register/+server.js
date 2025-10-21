@@ -1,5 +1,4 @@
 import { json } from '@sveltejs/kit';
-import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db.js';
 import { registerUsers } from '$lib/server/services/userRegistrationService.js';
 
