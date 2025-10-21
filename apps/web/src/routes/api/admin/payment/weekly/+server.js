@@ -276,11 +276,23 @@ async function getSingleWeekPaymentsV5(year, month, week, page, limit, search, s
 		net: enrichedPayments.reduce((sum, p) => sum + p.netAmount, 0)
 	};
 
+	// 7. 주차별 총계 생성 (단일 주차)
+	const weekKey = `${year}-${month}-${week}`;
+	const weeklyTotals = {
+		[weekKey]: {
+			totalAmount: grandTotal.totalAmount,
+			totalTax: grandTotal.totalTax,
+			totalNet: grandTotal.totalNet
+		}
+	};
+
 	return json({
 		success: true,
 		data: {
 			// 전체 총계 (페이지 무관)
 			grandTotal,
+			// 주차별 총계
+			weeklyTotals,
 			// 페이지네이션 정보
 			pagination: {
 				page,
@@ -435,19 +447,41 @@ async function getRangePaymentsV5(startYear, startMonth, endYear, endMonth, page
 		}
 	}
 
-	// 전체 총계 계산
+	// 전체 총계 및 주차별/월별 총계 계산
 	let grandTotal = { totalAmount: 0, totalTax: 0, totalNet: 0 };
 	let totalPaymentCount = 0;
+	const weeklyTotals = {}; // 주차별 총계 저장
+	const monthlyTotals = {}; // 월별 총계 저장
 
 	weeks.forEach(week => {
+		let weekTotal = { totalAmount: 0, totalTax: 0, totalNet: 0 };
+
 		week.payments.forEach(payment => {
 			if (payment.actualAmount > 0) {
 				grandTotal.totalAmount += payment.actualAmount;
 				grandTotal.totalTax += payment.taxAmount;
 				grandTotal.totalNet += payment.netAmount;
 				totalPaymentCount++;
+
+				// 주차별 총계 누적
+				weekTotal.totalAmount += payment.actualAmount;
+				weekTotal.totalTax += payment.taxAmount;
+				weekTotal.totalNet += payment.netAmount;
 			}
 		});
+
+		// 주차별 총계 저장 (key: "2025-10-4")
+		const weekKey = `${week.year}-${week.monthNumber}-${week.weekNumber}`;
+		weeklyTotals[weekKey] = weekTotal;
+
+		// 월별 총계 누적 (key: "month_10")
+		const monthKey = `month_${week.monthNumber}`;
+		if (!monthlyTotals[monthKey]) {
+			monthlyTotals[monthKey] = { totalAmount: 0, totalTax: 0, totalNet: 0 };
+		}
+		monthlyTotals[monthKey].totalAmount += weekTotal.totalAmount;
+		monthlyTotals[monthKey].totalTax += weekTotal.totalTax;
+		monthlyTotals[monthKey].totalNet += weekTotal.totalNet;
 	});
 
 	// 기간 정보
@@ -465,6 +499,10 @@ async function getRangePaymentsV5(startYear, startMonth, endYear, endMonth, page
 		data: {
 			// 전체 총계 (페이지 무관)
 			grandTotal,
+			// 주차별 총계
+			weeklyTotals,
+			// 월별 총계
+			monthlyTotals,
 			// 기간 정보
 			period: periodInfo,
 			// 페이지네이션 정보

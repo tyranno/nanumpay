@@ -13,6 +13,9 @@
 	export let totalPaymentTargets = 0;
 	export let itemsPerPage = 20;
 	export let onPageChange = () => {};
+	export let grandTotal = { amount: 0, tax: 0, net: 0 };
+	export let weeklyTotals = {}; // 주차별 총계 (API에서 받은 전체 데이터)
+	export let monthlyTotals = {}; // 월별 총계 (API에서 받은 전체 데이터)
 
 	// Store에서 컬럼 표시 설정 가져오기
 	$: showTaxColumn = $paymentPageFilterState.showTaxColumn;
@@ -41,6 +44,33 @@
 		});
 
 		return { totalAmount, totalTax, totalNet };
+	}
+
+	// 주차별/월별 총금액 가져오기 (periodType과 filterType에 따라 다름)
+	function getColumnTotal(column) {
+		let total;
+
+		// 기간 조회이고 월별 보기일 때만 monthlyTotals 사용
+		if (filterType === 'period' && periodType === 'monthly') {
+			// 월별 보기: monthlyTotals 사용 (key: "month_10")
+			const monthKey = `month_${column.month}`;
+			total = monthlyTotals[monthKey];
+		} else {
+			// 주간 보기 또는 단일 주차: weeklyTotals 사용 (key: "2025-10-4")
+			const weekKey = `${column.year}-${column.month}-${column.week}`;
+			total = weeklyTotals[weekKey];
+		}
+
+		if (total) {
+			return {
+				totalAmount: total.totalAmount || 0,
+				totalTax: total.totalTax || 0,
+				totalNet: total.totalNet || 0
+			};
+		}
+
+		// 없으면 0 반환
+		return { totalAmount: 0, totalTax: 0, totalNet: 0 };
 	}
 
 	// 현재 페이지의 데이터 가져오기
@@ -162,6 +192,32 @@
 								{/each}
 							</tr>
 						{/each}
+
+						<!-- 총금액 행 -->
+						<tr class="grand-total-row">
+							<td colspan="5" class="grand-total-label">총금액</td>
+							<!-- 기간 합계 컬럼 -->
+							{#if filterType === 'period'}
+								<td class="grand-total-value">{formatAmount(grandTotal.amount)}</td>
+								{#if showTaxColumn}
+									<td class="grand-total-value grand-total-tax">{formatAmount(grandTotal.tax)}</td>
+								{/if}
+								{#if showNetColumn}
+									<td class="grand-total-value">{formatAmount(grandTotal.net)}</td>
+								{/if}
+							{/if}
+							<!-- 주차별/월별 총계 컬럼 -->
+							{#each weeklyColumns as column}
+								{@const columnTotal = getColumnTotal(column)}
+								<td class="grand-total-value">{formatAmount(columnTotal.totalAmount)}</td>
+								{#if showTaxColumn}
+									<td class="grand-total-value grand-total-tax">{formatAmount(columnTotal.totalTax)}</td>
+								{/if}
+								{#if showNetColumn}
+									<td class="grand-total-value">{formatAmount(columnTotal.totalNet)}</td>
+								{/if}
+							{/each}
+						</tr>
 					{:else}
 						<tr>
 							<td colspan={5 + weeklyColumns.length * 3} class="empty-state">
@@ -360,5 +416,24 @@
 	/* 등급 아이콘 */
 	.grade-icon {
 		@apply absolute -right-5 -top-1.5 h-5 w-5;
+	}
+
+	/* 기간별 총계 행 */
+	.grand-total-row {
+		@apply border-t-2 border-gray-400 bg-purple-100;
+	}
+
+	.grand-total-label {
+		@apply border-b border-l border-r border-gray-300;
+		@apply whitespace-nowrap p-1.5 text-center text-sm font-bold;
+	}
+
+	.grand-total-value {
+		@apply border-b border-r border-gray-300 bg-purple-200;
+		@apply whitespace-nowrap p-1.5 pr-3 text-right text-sm font-bold;
+	}
+
+	.grand-total-tax {
+		@apply bg-red-200 text-red-700;
 	}
 </style>

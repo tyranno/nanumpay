@@ -17,6 +17,8 @@
 	let totalPages = 1;
 	let totalPaymentTargets = 0;
 	let apiGrandTotal = null;
+	let weeklyTotals = {}; // 주차별 총계
+	let monthlyTotals = {}; // 월별 총계
 	let isProcessingPast = false;
 
 	// Store 구독
@@ -56,6 +58,8 @@
 			totalPages = result.totalPages;
 			totalPaymentTargets = result.totalPaymentTargets;
 			apiGrandTotal = result.apiGrandTotal;
+			weeklyTotals = result.weeklyTotals || {}; // 주차별 총계
+			monthlyTotals = result.monthlyTotals || {}; // 월별 총계
 		} catch (err) {
 			console.error('Error loading payment data:', err);
 			error = err.message;
@@ -186,6 +190,9 @@
 		{totalPaymentTargets}
 		itemsPerPage={filterState.itemsPerPage}
 		onPageChange={goToPage}
+		{grandTotal}
+		{weeklyTotals}
+		{monthlyTotals}
 	/>
 </div>
 

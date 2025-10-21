@@ -104,7 +104,8 @@ export const paymentService = {
 			}],
 			totalPages: data.pagination?.totalPages || 1,
 			totalPaymentTargets: data.pagination?.totalItems || 0,
-			apiGrandTotal: data.grandTotal || null
+			apiGrandTotal: data.grandTotal || null,
+			weeklyTotals: data.weeklyTotals || {} // 주차별 총계
 		};
 	},
 
@@ -248,6 +249,8 @@ export const paymentService = {
 			totalPages: data.pagination?.totalPages || 1,
 			totalPaymentTargets: data.pagination?.totalItems || 0,
 			apiGrandTotal: data.grandTotal || null,
+			weeklyTotals: data.weeklyTotals || {}, // 주차별 총계
+			monthlyTotals: data.monthlyTotals || {}, // 월별 총계
 			allWeeklyData: weeklyColumns // 기간 조회시 전체 데이터 포함
 		};
 	},
