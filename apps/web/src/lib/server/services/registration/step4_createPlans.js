@@ -100,7 +100,7 @@ export async function executeStep4(promoted, targets, gradePayments, monthlyReg,
   if (existingPromoted.length > 0) {
 
     for (const prom of existingPromoted) {
-      const user = await User.findOne({ loginId: prom.userId });
+      const user = await User.findById(prom.userId);
       if (!user) {
         continue;
       }

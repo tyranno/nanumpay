@@ -19,7 +19,7 @@ export async function POST({ request, locals }) {
 	try {
 		const data = await request.json();
 		const {
-			loginId,
+			ID,
 			name,
 			phone,
 			autoPassword,
@@ -29,7 +29,7 @@ export async function POST({ request, locals }) {
 		} = data;
 
 		// 필수 필드 확인
-		if (!loginId || !name || !phone) {
+		if (!ID || !name || !phone) {
 			return json({ error: 'ID, 이름, 연락처는 필수입니다.' }, { status: 400 });
 		}
 
@@ -56,7 +56,7 @@ export async function POST({ request, locals }) {
 		// 단일 사용자를 배열로 변환 (bulk 형식)
 		// ⭐ v8.0: ID, 주민번호 등을 한글 키로 명시적 매핑
 		const userData = {
-			'ID': loginId,
+			'ID': ID,
 			'성명': name,
 			'연락처': phone,
 			'판매인': salesperson || '',

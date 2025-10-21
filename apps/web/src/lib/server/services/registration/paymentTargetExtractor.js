@@ -21,7 +21,7 @@
 export function extractRegistrants(users) {
 
   const registrants = users.map(user => ({
-    userId: user.loginId,
+    userId: user._id.toString(),
     userName: user.name,
     grade: user.grade,
     registrationDate: user.registrationDate || user.createdAt || new Date(),
@@ -84,7 +84,7 @@ export function extractPaymentTargets(users, gradeChangeResult) {
   const registrants = extractRegistrants(users);
 
   // 2. 승급자 추출 (현재 등록 배치 제외)
-  const currentBatchUserIds = users.map(u => u.loginId);
+  const currentBatchUserIds = users.map(u => u._id.toString());
   const promoted = extractPromoted(
     gradeChangeResult.changedUsers || [],
     currentBatchUserIds

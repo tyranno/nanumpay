@@ -446,7 +446,7 @@ export async function smartTreeRestructure(users, options = {}) {
 
 				} else {
 					// 판매인의 하위 트리에서 가장 가까운 빈 자리 찾기
-					const nearestSpot = await findNearestEmptySpot(seller.loginId);
+					const nearestSpot = await findNearestEmptySpot(seller._id);
 
 					if (nearestSpot) {
 						await User.findByIdAndUpdate(soldUser._id, {
@@ -485,18 +485,20 @@ export async function smartTreeRestructure(users, options = {}) {
 
 /**
  * 특정 노드에서 가장 가까운 빈 자리 찾기 (BFS)
+ * @param {ObjectId} startUserId - 시작 노드의 _id
  */
-async function findNearestEmptySpot(startLoginId) {
-	const queue = [{ loginId: startLoginId, distance: 0 }];
+async function findNearestEmptySpot(startUserId) {
+	const queue = [{ userId: startUserId, distance: 0 }];
 	const visited = new Set();
 
 	while (queue.length > 0) {
-		const { loginId, distance } = queue.shift();
+		const { userId, distance } = queue.shift();
 
-		if (visited.has(loginId)) continue;
-		visited.add(loginId);
+		const userIdStr = userId.toString();
+		if (visited.has(userIdStr)) continue;
+		visited.add(userIdStr);
 
-		const node = await User.findOne({ loginId });
+		const node = await User.findById(userId);
 		if (!node) continue;
 
 		// 좌측 자리 확인
@@ -521,10 +523,10 @@ async function findNearestEmptySpot(startLoginId) {
 
 		// 하위 노드들을 큐에 추가
 		if (node.leftChildId) {
-			queue.push({ loginId: node.leftChildId, distance: distance + 1 });
+			queue.push({ userId: node.leftChildId, distance: distance + 1 });
 		}
 		if (node.rightChildId) {
-			queue.push({ loginId: node.rightChildId, distance: distance + 1 });
+			queue.push({ userId: node.rightChildId, distance: distance + 1 });
 		}
 	}
 

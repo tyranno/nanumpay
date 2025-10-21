@@ -273,7 +273,7 @@ async function findAdditionalPaymentTargets(promoted, registrationMonth) {
  * @returns {Promise<Object|null>}
  */
 async function checkAdditionalPaymentConditions(userId, grade, revenueMonth, 추가지급단계) {
-	const user = await User.findOne({ loginId: userId });
+	const user = await User.findById(userId);
 	if (!user) return null;
 
 	const currentGrade = user.grade;

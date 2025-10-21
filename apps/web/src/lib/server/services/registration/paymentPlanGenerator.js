@@ -63,14 +63,14 @@ export async function createPromotionPlans(promoted, promotionDate, updatedMonth
 
   for (const prom of promoted) {
 
-    const user = await User.findOne({ loginId: prom.userId });
+    const user = await User.findById(prom.userId);
     if (!user) {
       continue;
     }
 
     // ⭐ 중요: 업데이트된 monthlyReg 객체를 직접 전달!
     const promotionPlan = await createPromotionPaymentPlan(
-      user.loginId,
+      user._id,
       user.name,
       prom.newGrade,
       promotionDate,
@@ -80,7 +80,7 @@ export async function createPromotionPlans(promoted, promotionDate, updatedMonth
 
     // ⭐ 중요: 같은 달에 등록+승급이 일어난 경우, Initial 계획 삭제!
     const initialPlan = await WeeklyPaymentPlans.findOne({
-      userId: user.loginId,
+      userId: user._id,
       planType: 'initial',
       revenueMonth: promotionPlan.revenueMonth  // 같은 매출월
     });
@@ -90,7 +90,7 @@ export async function createPromotionPlans(promoted, promotionDate, updatedMonth
     }
 
     plans.push({
-      userId: user.loginId,
+      userId: user._id.toString(),
       type: 'promotion',
       plan: promotionPlan._id,
       planObject: promotionPlan,

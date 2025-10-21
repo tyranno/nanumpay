@@ -66,7 +66,7 @@ export async function processWeeklyPayments(date = new Date()) {
       if (!installment) continue;
 
       // 사용자 정보 조회
-      const user = await User.findOne({ loginId: plan.userId });
+      const user = await User.findById(plan.userId);
       if (!user) {
         console.log(`사용자 ${plan.userId} 없음`);
         continue;
@@ -139,7 +139,7 @@ export async function processWeeklyPayments(date = new Date()) {
       );
 
       processedPayments.push({
-        userId: user.loginId,
+        userId: user._id.toString(),
         userName: user.name,
         grade: plan.baseGrade,
         amount: paymentAmounts.installmentAmount,
@@ -455,7 +455,7 @@ export async function getWeeklyPaymentReport(date) {
       );
 
       if (installment) {
-        const user = await User.findOne({ loginId: plan.userId });
+        const user = await User.findById(plan.userId);
         payments.push({
           userId: plan.userId,
           userName: plan.userName,
