@@ -11,19 +11,22 @@
 	let endYear = $paymentCardState.endYear;
 	let endMonth = $paymentCardState.endMonth;
 
-	// 변경 시 Store 업데이트
-	$: paymentViewMode, startYear, startMonth, endYear, endMonth, updateStore();
+	// 변경 시 Store 업데이트 및 데이터 로드
+	$: if (browser && paymentViewMode && startYear && startMonth && endYear && endMonth) {
+		updateStoreAndLoadData();
+	}
 
-	function updateStore() {
-		if (browser) {
-			paymentCardState.set({
-				viewMode: paymentViewMode,
-				startYear,
-				startMonth,
-				endYear,
-				endMonth
-			});
-		}
+	function updateStoreAndLoadData() {
+		// Store 업데이트
+		paymentCardState.set({
+			viewMode: paymentViewMode,
+			startYear,
+			startMonth,
+			endYear,
+			endMonth
+		});
+		// 데이터 로드
+		loadData();
 	}
 
 	// 데이터
@@ -33,10 +36,6 @@
 	onMount(() => {
 		loadData();
 	});
-
-	$: if (browser && paymentViewMode && startYear && startMonth && endYear && endMonth) {
-		loadData();
-	}
 
 	// 날짜 범위 검증
 	let isDateRangeInvalid = false;
