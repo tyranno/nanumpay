@@ -212,7 +212,7 @@
 								onchange={handlePeriodChange}
 								class="cursor-pointer"
 							/>
-							<span>주간</span>
+							<span>주별</span>
 						</label>
 						<label class="radio-label-mobile">
 							<input
@@ -222,7 +222,7 @@
 								onchange={handlePeriodChange}
 								class="cursor-pointer"
 							/>
-							<span>월간</span>
+							<span>월별</span>
 						</label>
 					</div>
 				</div>

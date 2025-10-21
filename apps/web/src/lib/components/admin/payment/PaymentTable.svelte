@@ -169,7 +169,7 @@
 								{/if}
 								{#each weeklyColumns as week}
 									{@const key =
-										periodType === 'monthly'
+										filterType === 'period' && periodType === 'monthly'
 											? `month_${week.month}`
 											: `${week.year}_${week.month}_${week.week}`}
 									{@const payment = user.payments[key]}
