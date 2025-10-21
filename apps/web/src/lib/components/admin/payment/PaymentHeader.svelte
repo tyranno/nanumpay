@@ -246,10 +246,12 @@
 					<div class="summary-label-mobile">실지급액</div>
 					<div class="summary-value text-green-600">{formatAmount(grandTotal.net)}원</div>
 				</div>
-				<div class="summary-card-mobile">
-					<div class="summary-label-mobile">지급 대상</div>
-					<div class="summary-value text-gray-600">{totalPaymentTargets}명</div>
-				</div>
+				{#if filterType === 'date'}
+					<div class="summary-card-mobile">
+						<div class="summary-label-mobile">지급 대상</div>
+						<div class="summary-value text-gray-600">{totalPaymentTargets}명</div>
+					</div>
+				{/if}
 			</div>
 		</div>
 	{/if}
@@ -407,10 +409,12 @@
 					<div class="summary-label-desktop">총 실지급액</div>
 					<div class="summary-value-desktop text-green-600">{formatAmount(grandTotal.net)}원</div>
 				</div>
-				<div class="summary-card-desktop">
-					<div class="summary-label-desktop">지급 대상</div>
-					<div class="summary-value-desktop text-gray-600">{totalPaymentTargets}명</div>
-				</div>
+				{#if filterType === 'date'}
+					<div class="summary-card-desktop">
+						<div class="summary-label-desktop">지급 대상</div>
+						<div class="summary-value-desktop text-gray-600">{totalPaymentTargets}명</div>
+					</div>
+				{/if}
 			</div>
 		</div>
 	{/if}

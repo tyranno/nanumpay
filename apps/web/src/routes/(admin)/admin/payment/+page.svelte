@@ -138,9 +138,9 @@
 		}
 	}
 
-	// 전체 합계 계산 (fallback용)
-	function calculateGrandTotal() {
-		if (apiGrandTotal && apiGrandTotal.totalAmount !== undefined) {
+	// 전체 합계 반환 (API에서 계산된 값 사용)
+	function getGrandTotal() {
+		if (apiGrandTotal) {
 			return {
 				amount: apiGrandTotal.totalAmount || 0,
 				tax: apiGrandTotal.totalTax || 0,
@@ -148,25 +148,8 @@
 			};
 		}
 
-		// fallback: 현재 페이지 데이터로 계산
-		let grandTotal = { amount: 0, tax: 0, net: 0 };
-
-		weeklyColumns.forEach(week => {
-			const key = filterState.periodType === 'monthly'
-				? `month_${week.month}`
-				: `${week.year}_${week.month}_${week.week}`;
-
-			filteredPaymentList.forEach(user => {
-				const payment = user.payments[key];
-				if (payment) {
-					grandTotal.amount += payment.amount || 0;
-					grandTotal.tax += payment.tax || 0;
-					grandTotal.net += payment.net || 0;
-				}
-			});
-		});
-
-		return grandTotal;
+		// API 데이터 없으면 0 반환
+		return { amount: 0, tax: 0, net: 0 };
 	}
 
 	onMount(() => {
@@ -186,7 +169,7 @@
 	<PaymentHeader
 		{isLoading}
 		{isProcessingPast}
-		grandTotal={calculateGrandTotal()}
+		grandTotal={getGrandTotal()}
 		{totalPaymentTargets}
 		hasData={filteredPaymentList.length > 0}
 		onFilterChange={handleFilterTypeChange}

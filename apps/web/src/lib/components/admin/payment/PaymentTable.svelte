@@ -25,6 +25,23 @@
 		return amount.toLocaleString();
 	}
 
+	// 개인별 기간 합산 계산
+	function calculateUserTotal(user) {
+		let totalAmount = 0;
+		let totalTax = 0;
+		let totalNet = 0;
+
+		Object.values(user.payments || {}).forEach(payment => {
+			if (payment) {
+				totalAmount += payment.amount || 0;
+				totalTax += payment.tax || 0;
+				totalNet += payment.net || 0;
+			}
+		});
+
+		return { totalAmount, totalTax, totalNet };
+	}
+
 	// 현재 페이지의 데이터 가져오기
 	function getCurrentPageData() {
 		return filteredPaymentList;
@@ -56,13 +73,24 @@
 						<th rowspan="2" class="th-base">설계자</th>
 						<th rowspan="2" class="th-base">은행</th>
 						<th rowspan="2" class="th-base">계좌번호</th>
+						{#if periodType === 'monthly'}
+							<th colspan={(showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0) + 1} class="th-total">기간 합계</th>
+						{/if}
 						{#each weeklyColumns as week}
-							{@const colCount = 1 + (showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0)}
-							<th colspan={colCount} class="th-week">{week.label}</th>
+							<th colspan={(showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0) + 1} class="th-week">{week.label}</th>
 						{/each}
 					</tr>
 					<!-- 두 번째 헤더 행 -->
 					<tr>
+						{#if periodType === 'monthly'}
+							<th class="th-sub th-total-sub">지급액</th>
+							{#if showTaxColumn}
+								<th class="th-sub th-total-sub th-tax">원천징수(3.3%)</th>
+							{/if}
+							{#if showNetColumn}
+								<th class="th-sub th-total-sub">실지급액</th>
+							{/if}
+						{/if}
 						{#each weeklyColumns as week}
 							<th class="th-sub">지급액</th>
 							{#if showTaxColumn}
@@ -77,6 +105,7 @@
 				<tbody>
 					{#if paymentList.length > 0}
 						{#each getCurrentPageData() as user}
+							{@const userTotal = calculateUserTotal(user)}
 							<tr class="data-row">
 								<td class="td-sticky-0">{user.no}</td>
 								<td class="td-sticky-1">
@@ -97,6 +126,16 @@
 								<td class="td-base">{user.planner || ''}</td>
 								<td class="td-base">{user.bank}</td>
 								<td class="td-base">{user.accountNumber}</td>
+								<!-- 기간 합계 (월간 보기일 때만) -->
+								{#if periodType === 'monthly'}
+									<td class="td-total">{formatAmount(userTotal.totalAmount)}</td>
+									{#if showTaxColumn}
+										<td class="td-total td-tax">{formatAmount(userTotal.totalTax)}</td>
+									{/if}
+									{#if showNetColumn}
+										<td class="td-total">{formatAmount(userTotal.totalNet)}</td>
+									{/if}
+								{/if}
 								{#each weeklyColumns as week}
 									{@const key =
 										periodType === 'monthly'
@@ -198,6 +237,12 @@
 		@apply border-l;
 	}
 
+	/* 헤더 - 기간 합계 */
+	.th-total {
+		@apply border-b border-r border-t border-gray-300 bg-purple-200;
+		@apply whitespace-nowrap p-1.5 text-center text-sm font-bold;
+	}
+
 	/* 헤더 - 주차 */
 	.th-week {
 		@apply border-b border-r border-t border-gray-300 bg-blue-100;
@@ -208,6 +253,10 @@
 	.th-sub {
 		@apply border-b border-r border-gray-300 bg-gray-200;
 		@apply min-w-[100px] whitespace-nowrap p-1.5 text-center text-[13px] font-normal;
+	}
+
+	.th-total-sub {
+		@apply bg-purple-100;
 	}
 
 	.th-tax {
@@ -287,6 +336,24 @@
 
 	.data-row:hover .td-net {
 		@apply bg-green-100;
+	}
+
+	/* 데이터 셀 - 기간 합계 */
+	.td-total {
+		@apply border-b border-r border-gray-300 bg-purple-50;
+		@apply whitespace-nowrap p-1.5 pr-3 text-right text-sm font-bold;
+	}
+
+	.data-row:hover .td-total {
+		@apply bg-purple-100;
+	}
+
+	.td-total.td-tax {
+		@apply bg-red-100 text-red-700;
+	}
+
+	.data-row:hover .td-total.td-tax {
+		@apply bg-red-200;
 	}
 
 	/* 등급 아이콘 */
