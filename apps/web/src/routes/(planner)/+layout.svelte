@@ -17,12 +17,12 @@
 	}
 
 	function goBack() {
-		// SvelteKit의 네비게이션을 사용하여 사용자 대시보드로 이동
-		goto('/dashboard');
+		// 설계사 대시보드로 이동
+		goto('/planner');
 	}
 
 	function goHome() {
-		goto('/dashboard');
+		goto('/planner');
 	}
 </script>
 
@@ -40,7 +40,7 @@
 		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 			<div class="flex justify-between h-16">
 				<div class="flex items-center">
-					{#if $page.url.pathname !== '/dashboard'}
+					{#if $page.url.pathname !== '/planner'}
 						<button
 							onclick={goBack}
 							class="mr-3 p-2 rounded-lg bg-gradient-to-br from-gray-50 to-gray-100 hover:from-gray-100 hover:to-gray-200 transition-all shadow-sm hover:shadow-md"

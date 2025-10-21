@@ -34,6 +34,9 @@
 				// 서버에서 반환한 userType에 따라 리다이렉션
 				if (data.userType === 'admin') {
 					goto('/admin', { replaceState: true });
+				} else if (data.userType === 'planner') {
+					// 설계사는 설계사 전용 대시보드로
+					goto('/planner', { replaceState: true });
 				} else {
 					goto('/dashboard', { replaceState: true });
 				}

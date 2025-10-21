@@ -121,7 +121,9 @@ export async function POST({ request, cookies }) {
 	const response = {
 		success: true,
 		accountType,
-		redirect: accountType === 'admin' ? '/admin' : '/dashboard'
+		userType: accountType, // 하위 호환성을 위해 userType도 추가
+		redirect: accountType === 'admin' ? '/admin' :
+		         accountType === 'planner' ? '/planner' : '/dashboard'
 	};
 
 	// v8.0: UserAccount 로그인 시 primaryUser 및 모든 등록 정보 반환

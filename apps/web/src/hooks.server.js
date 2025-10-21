@@ -31,7 +31,8 @@ export async function handle({ event, resolve }) {
 			// Admin 여부를 명확히 표시
 			event.locals.user = {
 				...user,
-				isAdmin: user.type === 'admin'
+				isAdmin: user.type === 'admin',
+				accountType: user.type // v8.0: accountType 추가
 			};
 		} catch (err) {
 			// 토큰이 만료된 경우
@@ -64,7 +65,8 @@ export async function handle({ event, resolve }) {
 					const verifiedUser = jwt.verify(newToken, JWT_SECRET);
 					event.locals.user = {
 						...verifiedUser,
-						isAdmin: verifiedUser.type === 'admin'
+						isAdmin: verifiedUser.type === 'admin',
+						accountType: verifiedUser.type // v8.0: accountType 추가
 					};
 				} catch (refreshErr) {
 					// 리프레시 토큰도 유효하지 않은 경우
@@ -81,7 +83,7 @@ export async function handle({ event, resolve }) {
 	}
 
 	// 보호된 경로 체크
-	const protectedRoutes = ['/dashboard', '/admin'];
+	const protectedRoutes = ['/dashboard', '/admin', '/planner'];
 	const publicRoutes = ['/login', '/', '/api/auth/login', '/api/auth/refresh'];
 
 	const isProtectedRoute = protectedRoutes.some(route => event.url.pathname.startsWith(route));
