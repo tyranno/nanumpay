@@ -590,53 +590,6 @@
 	<!-- 제목 -->
 	<h1 class="title">용역자 관리명부</h1>
 
-	<!-- DB 관리 카드 (개발 환경 전용) -->
-	{#if data.isDevelopment}
-		<div class="db-management-card">
-			<div class="db-card-header">
-				<h3 class="db-card-title">🛠️ 개발환경 DB 관리</h3>
-				<span class="db-card-badge">DEV ONLY</span>
-			</div>
-			<div class="db-card-content">
-				<div class="db-card-section">
-					<h4 class="db-section-title">월별 데이터 삭제</h4>
-					<p class="db-section-desc">잘못 입력된 특정 월의 데이터를 삭제합니다.</p>
-					<div class="db-section-controls">
-						<select bind:value={selectedMonth} class="db-select">
-							<option value="">월 선택...</option>
-							{#each data.monthlyRegistrations as month}
-								<option value={month.monthKey}>
-									{month.monthKey} ({month.registrationCount}명)
-								</option>
-							{/each}
-						</select>
-						<button
-							onclick={handleDeleteMonthlyData}
-							disabled={!selectedMonth || isProcessingDB}
-							class="db-btn-danger"
-						>
-							삭제
-						</button>
-					</div>
-				</div>
-
-				<div class="db-card-divider"></div>
-
-				<div class="db-card-section">
-					<h4 class="db-section-title">데이터베이스 초기화</h4>
-					<p class="db-section-desc">모든 데이터를 삭제하고 초기 상태로 되돌립니다.</p>
-					<button
-						onclick={handleInitializeDB}
-						disabled={isProcessingDB}
-						class="db-btn-critical"
-					>
-						전체 DB 초기화
-					</button>
-				</div>
-			</div>
-		</div>
-	{/if}
-
 	<!-- 검색 및 필터 -->
 	<div class="filter-section">
 		<div class="search-container">
@@ -762,6 +715,40 @@
 		onShowAll={handleShowAllColumns}
 		onApply={handleApplyColumnSettings}
 	/>
+
+	<!-- DB 관리 카드 (개발 환경 전용) - 페이지 최하단 -->
+	{#if data.isDevelopment}
+		<div class="db-management-compact">
+			<div class="db-compact-header">
+				<span class="db-compact-title">🛠️ DEV</span>
+				<div class="db-compact-controls">
+					<select bind:value={selectedMonth} class="db-compact-select">
+						<option value="">월 선택</option>
+						{#each data.monthlyRegistrations as month}
+							<option value={month.monthKey}>{month.monthKey}</option>
+						{/each}
+					</select>
+					<button
+						onclick={handleDeleteMonthlyData}
+						disabled={!selectedMonth || isProcessingDB}
+						class="db-compact-btn"
+						title="선택한 월 데이터 삭제"
+					>
+						월 삭제
+					</button>
+					<span class="db-compact-divider">|</span>
+					<button
+						onclick={handleInitializeDB}
+						disabled={isProcessingDB}
+						class="db-compact-btn db-compact-btn-critical"
+						title="전체 DB 초기화"
+					>
+						DB 초기화
+					</button>
+				</div>
+			</div>
+		</div>
+	{/if}
 
 	<!-- 알림 모달 -->
 	<WindowsModal
@@ -1017,56 +1004,36 @@
 		@apply mt-1 whitespace-pre-wrap text-xs text-red-700;
 	}
 
-	/* DB 관리 카드 스타일 */
-	.db-management-card {
-		@apply mb-6 rounded-lg border-2 border-red-200 bg-gradient-to-br from-red-50 to-orange-50 shadow-lg;
+	/* DB 관리 컴팩트 스타일 */
+	.db-management-compact {
+		@apply mt-4 rounded border border-red-200 bg-red-50/50 px-3 py-2;
 	}
 
-	.db-card-header {
-		@apply flex items-center justify-between border-b border-red-200 bg-red-100/50 px-4 py-3;
+	.db-compact-header {
+		@apply flex items-center gap-3;
 	}
 
-	.db-card-title {
-		@apply text-lg font-bold text-red-800;
+	.db-compact-title {
+		@apply text-xs font-bold text-red-600;
 	}
 
-	.db-card-badge {
-		@apply rounded-full bg-red-600 px-2 py-1 text-xs font-bold text-white;
+	.db-compact-controls {
+		@apply flex flex-1 items-center gap-2;
 	}
 
-	.db-card-content {
-		@apply p-4;
+	.db-compact-select {
+		@apply h-6 rounded border border-gray-300 px-2 text-xs focus:border-red-500 focus:outline-none;
 	}
 
-	.db-card-section {
-		@apply py-3;
+	.db-compact-btn {
+		@apply h-6 rounded bg-gray-600 px-2 text-xs text-white transition-colors hover:bg-gray-700 disabled:cursor-not-allowed disabled:bg-gray-400;
 	}
 
-	.db-section-title {
-		@apply mb-1 text-sm font-semibold text-gray-800;
+	.db-compact-btn-critical {
+		@apply bg-red-600 hover:bg-red-700;
 	}
 
-	.db-section-desc {
-		@apply mb-3 text-xs text-gray-600;
-	}
-
-	.db-section-controls {
-		@apply flex gap-2;
-	}
-
-	.db-select {
-		@apply flex-1 rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20;
-	}
-
-	.db-btn-danger {
-		@apply rounded bg-red-600 px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-gray-300;
-	}
-
-	.db-btn-critical {
-		@apply rounded bg-gradient-to-r from-red-600 to-red-700 px-4 py-1.5 text-sm font-medium text-white shadow-md transition-all hover:from-red-700 hover:to-red-800 hover:shadow-lg disabled:cursor-not-allowed disabled:from-gray-300 disabled:to-gray-400 disabled:shadow-none;
-	}
-
-	.db-card-divider {
-		@apply my-4 h-px bg-red-200;
+	.db-compact-divider {
+		@apply text-gray-400;
 	}
 </style>
