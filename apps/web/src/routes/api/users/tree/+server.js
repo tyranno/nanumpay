@@ -63,9 +63,10 @@ async function buildTree(rootUserId, maxDepth) {
 	const userIds = [rootUserId];
 	const visited = new Set([rootUserId.toString()]);
 	let currentLevel = [rootUserId];
+	let currentDepth = 0;
 
-	// maxDepth를 충분히 크게 설정하여 전체 트리 순회
-	while (currentLevel.length > 0) {
+	// maxDepth 제한 적용
+	while (currentLevel.length > 0 && currentDepth < maxDepth) {
 		const nextLevel = [];
 		const children = await User.find({
 			parentId: { $in: currentLevel }
@@ -80,6 +81,7 @@ async function buildTree(rootUserId, maxDepth) {
 			}
 		}
 		currentLevel = nextLevel;
+		currentDepth++;
 	}
 
 	// 3. 모든 사용자를 한 번에 조회

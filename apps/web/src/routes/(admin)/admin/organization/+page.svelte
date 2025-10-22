@@ -10,6 +10,14 @@
 	let treeComponent; // BinaryTreeD3 컴포넌트 참조
 	let error = null;
 
+	// ⭐ View 관리
+	let maxDepth = 6; // 한 번에 볼 수 있는 최대 depth (기본값: 6)
+	let viewHistory = []; // { userId, nodeId, nodeName, treeData }
+	let treeCache = new Map(); // userId → treeData 캐시
+	let currentViewIndex = -1; // 현재 view 위치
+	let isLoadingNewView = false; // view 로딩 중 플래그 (무한 루프 방지)
+	let treeKey = 0; // ⭐ 컴포넌트 재생성용 key
+
 	// 노드 검색 관련
 	let searchQuery = '';
 	let searchResults = [];
@@ -82,16 +90,32 @@
 	}
 
 	// 트리 데이터 로드
-	async function loadTreeData(userId = null) {
+	// ⭐ 트리 데이터 로드 (캐시 및 히스토리 관리)
+	async function loadTreeData(userId = null, nodeName = '전체', addToHistory = true) {
 		try {
 			isLoading = true;
+			isLoadingNewView = true;
 			error = null;
+			treeData = null;
 
+			const cacheKey = userId || 'root';
+
+			// 캐시 확인
+			if (treeCache.has(cacheKey)) {
+				console.log('📦 캐시에서 로드:', cacheKey);
+				treeData = treeCache.get(cacheKey);
+				await new Promise(resolve => setTimeout(resolve, 300));
+				isLoading = false;
+				return;
+			}
+
+			// 서버 요청
+			console.log('🌐 서버에서 로드:', cacheKey, 'depth:', maxDepth);
 			const params = new URLSearchParams();
 			if (userId) {
 				params.append('userId', userId);
 			}
-			params.append('depth', '7'); // 최대 7단계까지 표시
+			params.append('depth', maxDepth.toString());
 
 			const response = await fetch(`/api/users/tree?${params}`);
 			const data = await response.json();
@@ -102,6 +126,26 @@
 
 			if (data.success && data.tree) {
 				treeData = data.tree;
+				treeKey++;
+
+				// 캐시 저장
+				treeCache.set(cacheKey, treeData);
+
+				// 히스토리 추가
+				if (addToHistory) {
+					const viewEntry = {
+						userId: userId,
+						nodeId: data.tree.id,
+						nodeName: nodeName,
+						treeData: treeData
+					};
+
+					viewHistory = viewHistory.slice(0, currentViewIndex + 1);
+					viewHistory.push(viewEntry);
+					currentViewIndex = viewHistory.length - 1;
+
+					console.log('📚 히스토리 추가:', nodeName, '(index:', currentViewIndex, ')');
+				}
 			} else {
 				throw new Error('트리 데이터가 없습니다.');
 			}
@@ -110,7 +154,11 @@
 			error = err.message;
 			treeData = null;
 		} finally {
+			await new Promise(resolve => setTimeout(resolve, 300));
 			isLoading = false;
+			setTimeout(() => {
+				isLoadingNewView = false;
+			}, 200);
 		}
 	}
 
@@ -138,7 +186,8 @@
 		};
 	});
 
-	function handleSelect(event) {
+	// ⭐ 노드 선택 시 새로운 view 로드
+	async function handleSelect(event) {
 		const { node, path, namePath } = event.detail;
 		selectedNode = { node, path };
 
@@ -158,15 +207,37 @@
 			path,
 			'NamePath:',
 			namePath,
-			'Breadcrumb:',
-			breadcrumbPath
+			'isLoadingNewView:',
+			isLoadingNewView
 		);
+
+		// ⭐ 노드 클릭 시 새로운 view 로드 (해당 노드를 루트로)
+		if (!isLoadingNewView && node.id && path !== '') {
+			await loadTreeData(node.id, node.label, true);
+		}
 	}
 
-	function handleBreadcrumbClick(index) {
-		if (index < breadcrumbPaths.length && treeComponent) {
-			const targetPath = breadcrumbPaths[index];
-			treeComponent.rerootByPath(targetPath);
+	// ⭐ Breadcrumb 클릭 시 히스토리에서 해당 view 복원
+	async function handleBreadcrumbClick(index) {
+		if (index < viewHistory.length) {
+			const targetView = viewHistory[index];
+			console.log('🔙 히스토리에서 복원:', targetView.nodeName, '(index:', index, ')');
+
+			isLoading = true;
+			treeData = null;
+			await new Promise(resolve => setTimeout(resolve, 50));
+
+			currentViewIndex = index;
+			treeData = targetView.treeData;
+			treeKey++;
+
+			await new Promise(resolve => setTimeout(resolve, 300));
+			isLoading = false;
+
+			if (treeComponent) {
+				await new Promise(resolve => setTimeout(resolve, 100));
+				treeComponent.backToFull();
+			}
 		}
 	}
 
@@ -209,6 +280,20 @@
 			<button class="btn-search" disabled>
 				<img src="/icons/search.svg" alt="검색" class="btn-icon" />
 			</button>
+
+			<!-- ⭐ Depth 설정 (4~8 제한) -->
+			<div class="flex items-center gap-2">
+				<label for="maxDepth" class="text-sm text-gray-700">표시 계층수:</label>
+				<input
+					id="maxDepth"
+					type="number"
+					bind:value={maxDepth}
+					min="4"
+					max="8"
+					class="w-16 rounded border-2 border-gray-200 px-2 py-1 text-sm"
+				/>
+			</div>
+
 			<button
 				onclick={downloadTree}
 				class="btn-download"
@@ -291,29 +376,31 @@
 	{:else if treeData}
 		<!-- 트리 표시 영역 (전체 화면 높이 - 상단 요소들 - 하단 breadcrumb) -->
 		<div class="tree-container">
-			<BinaryTreeD3
-				bind:this={treeComponent}
-				data={treeData}
-				nodeWidth={100}
-				nodeHeight={50}
-				levelGapY={80}
-				siblingGapX={20}
-				maxDepth={7}
-				topScale={0.3}
-				curveGamma={1.15}
-				onselect={handleSelect}
-			/>
+			{#key treeKey}
+				<BinaryTreeD3
+					bind:this={treeComponent}
+					data={treeData}
+					nodeWidth={100}
+					nodeHeight={50}
+					levelGapY={80}
+					siblingGapX={20}
+					maxDepth={maxDepth}
+					topScale={0.3}
+					curveGamma={1.15}
+					onselect={handleSelect}
+				/>
+			{/key}
 		</div>
 	{/if}
 </div>
 
-<!-- 🔧 브라우저 하단 고정 계층 경로 -->
-{#if treeData && breadcrumbPath.length > 0}
+<!-- 🔧 브라우저 하단 고정 계층 경로 (⭐ viewHistory 기반) -->
+{#if treeData && viewHistory.length > 0}
 	<div class="breadcrumb-fixed">
 		<div class="flex items-center gap-2 text-sm">
-			<span class="font-medium text-gray-700">계층 경로:</span>
+			<span class="font-medium text-gray-700">View 경로:</span>
 			<nav class="flex flex-wrap items-center gap-1" aria-label="Breadcrumb">
-				{#each breadcrumbPath as item, index}
+				{#each viewHistory as view, index}
 					{#if index > 0}
 						<svg
 							class="h-4 w-4 flex-shrink-0 text-gray-400"
@@ -330,12 +417,12 @@
 					<button
 						type="button"
 						onclick={() => handleBreadcrumbClick(index)}
-						class="rounded px-2 py-1 transition-colors {index === breadcrumbPath.length - 1
+						class="rounded px-2 py-1 transition-colors {index === currentViewIndex
 							? 'cursor-default bg-blue-100 font-medium text-blue-800'
 							: 'cursor-pointer text-gray-600 hover:bg-gray-100'}"
-						disabled={index === breadcrumbPath.length - 1}
+						disabled={index === currentViewIndex}
 					>
-						{item}
+						{view.nodeName}
 					</button>
 				{/each}
 			</nav>
