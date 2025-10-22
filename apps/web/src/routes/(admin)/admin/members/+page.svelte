@@ -719,33 +719,31 @@
 	<!-- DB 관리 카드 (개발 환경 전용) - 페이지 최하단 -->
 	{#if data.isDevelopment}
 		<div class="db-management-compact">
-			<div class="db-compact-header">
-				<span class="db-compact-title">🛠️ DEV</span>
-				<div class="db-compact-controls">
-					<select bind:value={selectedMonth} class="db-compact-select">
-						<option value="">월 선택</option>
-						{#each data.monthlyRegistrations as month}
-							<option value={month.monthKey}>{month.monthKey}</option>
-						{/each}
-					</select>
-					<button
-						onclick={handleDeleteMonthlyData}
-						disabled={!selectedMonth || isProcessingDB}
-						class="db-compact-btn"
-						title="선택한 월 데이터 삭제"
-					>
-						월 삭제
-					</button>
-					<span class="db-compact-divider">|</span>
-					<button
-						onclick={handleInitializeDB}
-						disabled={isProcessingDB}
-						class="db-compact-btn db-compact-btn-critical"
-						title="전체 DB 초기화"
-					>
-						DB 초기화
-					</button>
-				</div>
+			<span class="db-compact-title">🛠️ 개발중에만 사용</span>
+			<div class="db-compact-controls">
+				<select bind:value={selectedMonth} class="db-compact-select">
+					<option value="">월 선택</option>
+					{#each data.monthlyRegistrations as month}
+						<option value={month.monthKey}>{month.monthKey}</option>
+					{/each}
+				</select>
+				<button
+					onclick={handleDeleteMonthlyData}
+					disabled={!selectedMonth || isProcessingDB}
+					class="db-compact-btn"
+					title="선택한 월 데이터 삭제"
+				>
+					월 삭제
+				</button>
+				<span class="db-compact-divider">|</span>
+				<button
+					onclick={handleInitializeDB}
+					disabled={isProcessingDB}
+					class="db-compact-btn db-compact-btn-critical"
+					title="전체 DB 초기화"
+				>
+					DB 초기화
+				</button>
 			</div>
 		</div>
 	{/if}
@@ -1006,27 +1004,24 @@
 
 	/* DB 관리 컴팩트 스타일 */
 	.db-management-compact {
-		@apply mt-4 rounded border border-red-200 bg-red-50/50 px-3 py-2;
-	}
-
-	.db-compact-header {
-		@apply flex items-center gap-3;
+		@apply mt-4 flex items-center gap-3 rounded border border-red-200 bg-red-50/50 px-3 py-1.5;
 	}
 
 	.db-compact-title {
-		@apply text-xs font-bold text-red-600;
+		@apply whitespace-nowrap text-xs font-bold text-red-600;
 	}
 
 	.db-compact-controls {
-		@apply flex flex-1 items-center gap-2;
+		@apply flex items-center gap-2;
 	}
 
 	.db-compact-select {
-		@apply h-6 rounded border border-gray-300 px-2 text-xs focus:border-red-500 focus:outline-none;
+		@apply h-7 min-w-[100px] rounded border border-gray-300 px-2 py-0.5 text-xs focus:border-red-500 focus:outline-none;
+		line-height: 1.5;
 	}
 
 	.db-compact-btn {
-		@apply h-6 rounded bg-gray-600 px-2 text-xs text-white transition-colors hover:bg-gray-700 disabled:cursor-not-allowed disabled:bg-gray-400;
+		@apply h-7 whitespace-nowrap rounded bg-gray-600 px-3 py-0.5 text-xs text-white transition-colors hover:bg-gray-700 disabled:cursor-not-allowed disabled:bg-gray-400;
 	}
 
 	.db-compact-btn-critical {
