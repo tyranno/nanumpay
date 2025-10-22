@@ -9,6 +9,9 @@
 	import ExcelUploadModal from '$lib/components/admin/members/ExcelUploadModal.svelte';
 	import ColumnSettingsModal from '$lib/components/admin/members/ColumnSettingsModal.svelte';
 
+	// Props from +page.server.js
+	export let data;
+
 	let members = [];
 	let isLoading = true;
 	let searchTerm = '';
@@ -58,6 +61,10 @@
 		results: null,
 		details: []
 	};
+
+	// DB 관리 상태 (개발 환경 전용)
+	let selectedMonth = '';
+	let isProcessingDB = false;
 
 	onMount(async () => {
 		// localStorage에서 컬럼 설정 불러오기
@@ -420,11 +427,215 @@
 		localStorage.setItem('tableColumns', JSON.stringify(visibleColumns));
 		showColumnSettings = false;
 	}
+
+	// DB 관리 함수들 (개발 환경 전용)
+	async function handleDeleteMonthlyData() {
+		if (!selectedMonth) {
+			notificationConfig = {
+				type: 'warning',
+				title: '경고',
+				message: '삭제할 월을 선택해주세요.',
+				results: null,
+				details: []
+			};
+			notificationOpen = true;
+			return;
+		}
+
+		// 확인 다이얼로그
+		notificationConfig = {
+			type: 'warning',
+			title: '월별 데이터 삭제',
+			message: `${selectedMonth} 데이터를 삭제하시겠습니까?\n\n⚠️ 주의: 이 작업은 되돌릴 수 없습니다!\n- 해당 월의 모든 등록 데이터가 삭제됩니다\n- 해당 월의 지급 계획이 삭제됩니다`,
+			primaryAction: {
+				label: '삭제',
+				handler: async () => {
+					notificationOpen = false;
+					await deleteMonthlyData();
+				}
+			},
+			secondaryAction: {
+				label: '취소',
+				handler: () => {
+					notificationOpen = false;
+				}
+			},
+			results: null,
+			details: []
+		};
+		notificationOpen = true;
+	}
+
+	async function deleteMonthlyData() {
+		isProcessingDB = true;
+		try {
+			const response = await fetch('/api/admin/db/delete-monthly', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ monthKey: selectedMonth })
+			});
+
+			const result = await response.json();
+			if (response.ok) {
+				notificationConfig = {
+					type: 'success',
+					title: '삭제 완료',
+					message: `${selectedMonth} 데이터가 삭제되었습니다.\n\n삭제된 항목:\n- 월별 등록: ${result.deletedRegistrations || 0}건\n- 지급 계획: ${result.deletedPlans || 0}건\n- 스냅샷: ${result.deletedSnapshots || 0}건`,
+					results: null,
+					details: []
+				};
+				notificationOpen = true;
+				selectedMonth = '';
+				// 페이지 새로고침
+				window.location.reload();
+			} else {
+				notificationConfig = {
+					type: 'error',
+					title: '삭제 실패',
+					message: result.error || '데이터 삭제 중 오류가 발생했습니다.',
+					results: null,
+					details: []
+				};
+				notificationOpen = true;
+			}
+		} catch (error) {
+			console.error('Delete monthly data error:', error);
+			notificationConfig = {
+				type: 'error',
+				title: '오류',
+				message: '데이터 삭제 중 오류가 발생했습니다.',
+				results: null,
+				details: []
+			};
+			notificationOpen = true;
+		} finally {
+			isProcessingDB = false;
+		}
+	}
+
+	async function handleInitializeDB() {
+		// 확인 다이얼로그
+		notificationConfig = {
+			type: 'warning',
+			title: '⚠️ 데이터베이스 초기화',
+			message: '모든 데이터가 삭제됩니다!\n\n정말로 데이터베이스를 초기화하시겠습니까?\n이 작업은 되돌릴 수 없습니다!',
+			primaryAction: {
+				label: '초기화',
+				handler: async () => {
+					notificationOpen = false;
+					await initializeDB();
+				}
+			},
+			secondaryAction: {
+				label: '취소',
+				handler: () => {
+					notificationOpen = false;
+				}
+			},
+			results: null,
+			details: []
+		};
+		notificationOpen = true;
+	}
+
+	async function initializeDB() {
+		isProcessingDB = true;
+		try {
+			const response = await fetch('/api/admin/db/initialize', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' }
+			});
+
+			const result = await response.json();
+			if (response.ok) {
+				notificationConfig = {
+					type: 'success',
+					title: '초기화 완료',
+					message: '데이터베이스가 초기화되었습니다.\n\n잠시 후 페이지를 새로고침합니다...',
+					results: null,
+					details: []
+				};
+				notificationOpen = true;
+				// 2초 후 새로고침
+				setTimeout(() => {
+					window.location.href = '/login';
+				}, 2000);
+			} else {
+				notificationConfig = {
+					type: 'error',
+					title: '초기화 실패',
+					message: result.error || '데이터베이스 초기화 중 오류가 발생했습니다.',
+					results: null,
+					details: []
+				};
+				notificationOpen = true;
+			}
+		} catch (error) {
+			console.error('Initialize DB error:', error);
+			notificationConfig = {
+				type: 'error',
+				title: '오류',
+				message: '데이터베이스 초기화 중 오류가 발생했습니다.',
+				results: null,
+				details: []
+			};
+			notificationOpen = true;
+		} finally {
+			isProcessingDB = false;
+		}
+	}
 </script>
 
 <div class="container">
 	<!-- 제목 -->
 	<h1 class="title">용역자 관리명부</h1>
+
+	<!-- DB 관리 카드 (개발 환경 전용) -->
+	{#if data.isDevelopment}
+		<div class="db-management-card">
+			<div class="db-card-header">
+				<h3 class="db-card-title">🛠️ 개발환경 DB 관리</h3>
+				<span class="db-card-badge">DEV ONLY</span>
+			</div>
+			<div class="db-card-content">
+				<div class="db-card-section">
+					<h4 class="db-section-title">월별 데이터 삭제</h4>
+					<p class="db-section-desc">잘못 입력된 특정 월의 데이터를 삭제합니다.</p>
+					<div class="db-section-controls">
+						<select bind:value={selectedMonth} class="db-select">
+							<option value="">월 선택...</option>
+							{#each data.monthlyRegistrations as month}
+								<option value={month.monthKey}>
+									{month.monthKey} ({month.registrationCount}명)
+								</option>
+							{/each}
+						</select>
+						<button
+							onclick={handleDeleteMonthlyData}
+							disabled={!selectedMonth || isProcessingDB}
+							class="db-btn-danger"
+						>
+							삭제
+						</button>
+					</div>
+				</div>
+
+				<div class="db-card-divider"></div>
+
+				<div class="db-card-section">
+					<h4 class="db-section-title">데이터베이스 초기화</h4>
+					<p class="db-section-desc">모든 데이터를 삭제하고 초기 상태로 되돌립니다.</p>
+					<button
+						onclick={handleInitializeDB}
+						disabled={isProcessingDB}
+						class="db-btn-critical"
+					>
+						전체 DB 초기화
+					</button>
+				</div>
+			</div>
+		</div>
+	{/if}
 
 	<!-- 검색 및 필터 -->
 	<div class="filter-section">
@@ -804,5 +1015,58 @@
 
 	.detail-content-error {
 		@apply mt-1 whitespace-pre-wrap text-xs text-red-700;
+	}
+
+	/* DB 관리 카드 스타일 */
+	.db-management-card {
+		@apply mb-6 rounded-lg border-2 border-red-200 bg-gradient-to-br from-red-50 to-orange-50 shadow-lg;
+	}
+
+	.db-card-header {
+		@apply flex items-center justify-between border-b border-red-200 bg-red-100/50 px-4 py-3;
+	}
+
+	.db-card-title {
+		@apply text-lg font-bold text-red-800;
+	}
+
+	.db-card-badge {
+		@apply rounded-full bg-red-600 px-2 py-1 text-xs font-bold text-white;
+	}
+
+	.db-card-content {
+		@apply p-4;
+	}
+
+	.db-card-section {
+		@apply py-3;
+	}
+
+	.db-section-title {
+		@apply mb-1 text-sm font-semibold text-gray-800;
+	}
+
+	.db-section-desc {
+		@apply mb-3 text-xs text-gray-600;
+	}
+
+	.db-section-controls {
+		@apply flex gap-2;
+	}
+
+	.db-select {
+		@apply flex-1 rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20;
+	}
+
+	.db-btn-danger {
+		@apply rounded bg-red-600 px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-gray-300;
+	}
+
+	.db-btn-critical {
+		@apply rounded bg-gradient-to-r from-red-600 to-red-700 px-4 py-1.5 text-sm font-medium text-white shadow-md transition-all hover:from-red-700 hover:to-red-800 hover:shadow-lg disabled:cursor-not-allowed disabled:from-gray-300 disabled:to-gray-400 disabled:shadow-none;
+	}
+
+	.db-card-divider {
+		@apply my-4 h-px bg-red-200;
 	}
 </style>
