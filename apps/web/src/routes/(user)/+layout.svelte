@@ -55,7 +55,7 @@
 						class="flex items-center hover:opacity-80 transition-opacity"
 						title="홈으로 이동"
 					>
-						<img src="/logo.svg" alt="나눔페이" class="h-8 w-8 mr-3" />
+						<img src="/logo.png" alt="나눔페이" class="h-8 w-8 mr-3" />
 						<h1 class="text-xl font-semibold text-blue-600">나눔페이</h1>
 					</button>
 				</div>

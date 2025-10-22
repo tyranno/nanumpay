@@ -13,7 +13,7 @@
 	/** 타이틀바 아이콘 경로 (선택사항) */
 	export let icon = null;
 
-	/** 모달 크기: 'sm' | 'md' | 'lg' */
+	/** 모달 크기: 'sm' | 'md' | 'lg' | 'xl' */
 	export let size = "md";
 
 	/** 닫기 콜백 함수 */
@@ -24,9 +24,10 @@
 
 	// 크기별 max-width 매핑
 	const sizeMap = {
-		sm: 'max-w-sm',
-		md: 'max-w-md',
-		lg: 'max-w-2xl'
+		sm: 'max-w-sm',    // 640px
+		md: 'max-w-md',    // 768px
+		lg: 'max-w-lg',    // 896px
+		xl: 'max-w-2xl'    // 1024px
 	};
 
 	const maxWidth = sizeMap[size] || sizeMap.md;

@@ -37,10 +37,16 @@ export async function createInitialPaymentPlan(userId, userName, grade, registra
     let netAmount = 0;
 
     if (monthlyReg) {
-      const revenue = monthlyReg.getEffectiveRevenue();
-
-      const gradePayments = calculateGradePayments(revenue, monthlyReg.gradeDistribution);
-      baseAmount = gradePayments[grade] || 0;
+      // 조정된 금액이 있으면 사용, 없으면 계산
+      if (monthlyReg.adjustedGradePayments?.[grade]?.totalAmount) {
+        baseAmount = monthlyReg.adjustedGradePayments[grade].totalAmount;
+        console.log(`[createInitialPaymentPlan] ${userName} - 조정된 금액 사용: ${grade} = ${baseAmount}원`);
+      } else {
+        const revenue = monthlyReg.getEffectiveRevenue();
+        const gradePayments = calculateGradePayments(revenue, monthlyReg.gradeDistribution);
+        baseAmount = gradePayments[grade] || 0;
+        console.log(`[createInitialPaymentPlan] ${userName} - 계산된 금액 사용: ${grade} = ${baseAmount}원`);
+      }
 
       if (baseAmount > 0) {
         installmentAmount = Math.floor(baseAmount / 10 / 100) * 100;
@@ -135,11 +141,17 @@ export async function createPromotionPaymentPlan(userId, userName, newGrade, pro
     let netAmount = 0;
 
     if (monthlyReg) {
-      const revenue = monthlyReg.getEffectiveRevenue();
-      const gradePayments = calculateGradePayments(revenue, monthlyReg.gradeDistribution);
-      baseAmount = gradePayments[newGrade] || 0;
-      
-      
+      // 조정된 금액이 있으면 사용, 없으면 계산
+      if (monthlyReg.adjustedGradePayments?.[newGrade]?.totalAmount) {
+        baseAmount = monthlyReg.adjustedGradePayments[newGrade].totalAmount;
+        console.log(`[createPromotionPaymentPlan] ${userName} - 조정된 금액 사용: ${newGrade} = ${baseAmount}원`);
+      } else {
+        const revenue = monthlyReg.getEffectiveRevenue();
+        const gradePayments = calculateGradePayments(revenue, monthlyReg.gradeDistribution);
+        baseAmount = gradePayments[newGrade] || 0;
+        console.log(`[createPromotionPaymentPlan] ${userName} - 계산된 금액 사용: ${newGrade} = ${baseAmount}원`);
+      }
+
       if (baseAmount > 0) {
         installmentAmount = Math.floor(baseAmount / 10 / 100) * 100;
         withholdingTax = Math.round(installmentAmount * 0.033);
