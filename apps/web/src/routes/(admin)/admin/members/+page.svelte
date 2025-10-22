@@ -45,7 +45,6 @@
 	let uploadFile = null;
 	let editingMember = null;
 	let isUploading = false;
-	let memberToDelete = null; // 삭제할 회원 정보
 
 	// 회원 등록 모달 참조
 	let registrationModal;
@@ -272,80 +271,6 @@
 		}
 	}
 
-	// 회원 삭제 확인
-	function deleteMember(member) {
-		memberToDelete = member;
-		notificationConfig = {
-			type: 'warning',
-			title: '삭제 확인',
-			message: `정말 ${member.name}님을 삭제하시겠습니까?`,
-			results: null,
-			details: [],
-			primaryAction: {
-				label: '삭제',
-				handler: confirmDelete
-			},
-			secondaryAction: {
-				label: '취소',
-				handler: () => {
-					memberToDelete = null;
-					notificationOpen = false;
-				}
-			}
-		};
-		notificationOpen = true;
-	}
-
-	// 회원 삭제 실행
-	async function confirmDelete() {
-		if (!memberToDelete) return;
-
-		const member = memberToDelete;
-		memberToDelete = null;
-		notificationOpen = false;
-
-		try {
-			const response = await fetch('/api/admin/users', {
-				method: 'DELETE',
-				headers: {
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify({ userId: member._id })
-			});
-
-			if (response.ok) {
-				notificationConfig = {
-					type: 'success',
-					title: '삭제 완료',
-					message: '회원이 삭제되었습니다.',
-					results: null,
-					details: []
-				};
-				notificationOpen = true;
-				await loadMembers();
-			} else {
-				const result = await response.json();
-				notificationConfig = {
-					type: 'error',
-					title: '삭제 실패',
-					message: result.error || '알 수 없는 오류',
-					results: null,
-					details: []
-				};
-				notificationOpen = true;
-			}
-		} catch (error) {
-			console.error('Delete member error:', error);
-			notificationConfig = {
-				type: 'error',
-				title: '오류',
-				message: '삭제 중 오류가 발생했습니다.',
-				results: null,
-				details: []
-			};
-			notificationOpen = true;
-		}
-	}
 
 	// 엑셀 파일 처리
 	function handleFileSelect(event) {
@@ -575,7 +500,6 @@
 		{visibleColumns}
 		onSort={changeSort}
 		onEdit={openEditModal}
-		onDelete={deleteMember}
 	/>
 
 	<!-- 페이지네이션 -->

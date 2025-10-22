@@ -10,7 +10,6 @@
 	export let visibleColumns = {};
 	export let onSort = (field) => {};
 	export let onEdit = (member) => {};
-	export let onDelete = (member) => {};
 </script>
 
 {#if isLoading}
@@ -66,7 +65,6 @@
 					{#if visibleColumns.insuranceCompany}
 						<th class="th-base">보험회사</th>
 					{/if}
-					<th class="th-base">작업</th>
 				</tr>
 			</thead>
 			<tbody>
@@ -81,7 +79,10 @@
 							{#if visibleColumns.name}
 								<td class="td-sticky-1">
 									<div class="flex items-center justify-center">
-										<div class="relative inline-flex items-baseline">
+										<button
+											onclick={() => onEdit(member)}
+											class="relative inline-flex items-baseline text-blue-600 hover:text-blue-800 hover:underline cursor-pointer transition-colors"
+										>
 											{member.name}
 											{#if member.grade}
 												<img
@@ -91,7 +92,7 @@
 													title="{member.grade} 등급"
 												/>
 											{/if}
-										</div>
+										</button>
 									</div>
 								</td>
 							{/if}
@@ -130,24 +131,6 @@
 							{#if visibleColumns.insuranceCompany}
 								<td class="td-base">{member.insuranceCompany || '-'}</td>
 							{/if}
-							<td class="td-base">
-								<div class="flex justify-center gap-0.5">
-									<button
-										onclick={() => onEdit(member)}
-										class="rounded p-0.5 transition-colors hover:bg-blue-50"
-										title="수정"
-									>
-										<img src="/icons/edit-blue.svg" alt="Edit" class="h-4 w-4" />
-									</button>
-									<button
-										onclick={() => onDelete(member)}
-										class="rounded p-0.5 transition-colors hover:bg-red-50"
-										title="삭제"
-									>
-										<img src="/icons/trash-red.svg" alt="Delete" class="h-4 w-4" />
-									</button>
-								</div>
-							</td>
 						</tr>
 					{/each}
 				{/if}
