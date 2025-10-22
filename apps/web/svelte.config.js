@@ -8,5 +8,12 @@ export default {
 			binaryName: process.platform === 'win32' ? 'nanumpay.exe' : 'nanumpay'
 		})
 	},
-	vitePlugin: { inspector: true }
+	vitePlugin: { inspector: true },
+	onwarn: (warning, handler) => {
+		// a11y 경고 무시 (배포용)
+		if (warning.code.startsWith('a11y-')) return;
+		// CSS unused selector 경고 무시
+		if (warning.code === 'css-unused-selector') return;
+		handler(warning);
+	}
 };

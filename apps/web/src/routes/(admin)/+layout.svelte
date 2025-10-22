@@ -113,6 +113,9 @@
 		<div
 			class="fixed inset-0 bg-black/20 z-40 transition-opacity duration-300"
 			onclick={closeSidebar}
+			onkeydown={(e) => {
+				if (e.key === 'Escape') closeSidebar();
+			}}
 			role="button"
 			tabindex="-1"
 			aria-label="사이드바 닫기"
