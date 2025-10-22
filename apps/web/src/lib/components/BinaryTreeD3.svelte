@@ -39,6 +39,8 @@
 	let layoutNodes = [];
 	let layoutLinks = [];
 	let k = 1; // 휠 줌 상태(가로 간격 제어용)
+	let containerWidth = 0;  // 혼합 방식: 스크롤바를 위한 컨테이너 크기
+	let containerHeight = 0;
 
 	const PADDING = 24;
 	const ZOOM_MIN = 0.25;
@@ -189,14 +191,48 @@
 		const xmap = (x, depth) => (cx + (x - cx) * depthScale(depth) * s) * spreadX;
 		const ymap = (y) => y; // ★ 세로는 고정
 
-		layoutNodes = nodes.map((d) => ({
+		// 임시 좌표 계산
+		const tempNodes = nodes.map((d) => ({
 			x: xmap(d.x, d.depth),
 			y: ymap(d.y),
 			data: d.data
 		}));
+
+		// 혼합 방식: 스크롤바를 위한 컨테이너 크기 및 오프셋 계산
+		let offsetX = 0;
+		let offsetY = 0;
+		if (tempNodes.length > 0) {
+			const minX = Math.min(...tempNodes.map((n) => n.x - nodeWidth / 2));
+			const maxX = Math.max(...tempNodes.map((n) => n.x + nodeWidth / 2));
+			const minY = Math.min(...tempNodes.map((n) => n.y - nodeHeight / 2));
+			const maxY = Math.max(...tempNodes.map((n) => n.y + nodeHeight / 2));
+
+			// 컨테이너 크기
+			containerWidth = maxX - minX + PADDING * 2;
+			containerHeight = maxY - minY + PADDING * 2;
+
+			// 좌표 오프셋 (왼쪽 상단이 PADDING부터 시작하도록)
+			offsetX = -minX + PADDING;
+			offsetY = -minY + PADDING;
+		}
+
+		// 최종 노드 좌표 (오프셋 적용)
+		layoutNodes = tempNodes.map((n) => ({
+			x: n.x + offsetX,
+			y: n.y + offsetY,
+			data: n.data
+		}));
+
+		// 링크 좌표 (오프셋 적용)
 		layoutLinks = links.map((l) => ({
-			source: { x: xmap(l.source.x, l.source.depth), y: ymap(l.source.y) },
-			target: { x: xmap(l.target.x, l.target.depth), y: ymap(l.target.y) }
+			source: {
+				x: xmap(l.source.x, l.source.depth) + offsetX,
+				y: ymap(l.source.y) + offsetY
+			},
+			target: {
+				x: xmap(l.target.x, l.target.depth) + offsetX,
+				y: ymap(l.target.y) + offsetY
+			}
 		}));
 	}
 
@@ -554,7 +590,11 @@
 
 <div bind:this={wrapEl} class="tree-wrap" ondblclick={() => backToFull()}>
 	<!-- SVG와 HTML을 하나의 컨테이너로 묶음 (모바일 pinch-zoom 대응) -->
-	<div bind:this={transformContainerEl} class="transform-container">
+	<div
+		bind:this={transformContainerEl}
+		class="transform-container"
+		style="width: {containerWidth}px; height: {containerHeight}px; min-width: 100%; min-height: 100%;"
+	>
 		<!-- 링크 -->
 		<svg bind:this={svgEl} class="link-svg">
 			<g bind:this={gEl}>
@@ -629,16 +669,14 @@
 		height: 100%;
 		border: 1px solid #e5e7eb;
 		border-radius: 12px;
-		overflow: hidden;
+		overflow: auto; /* 혼합 방식: 스크롤바 표시 */
 		background: #fff;
 		cursor: grab;
 		touch-action: none;
 	}
 	.transform-container {
-		position: absolute;
-		inset: 0;
-		width: 100%;
-		height: 100%;
+		position: relative; /* 혼합 방식: 스크롤 가능하도록 relative 사용 */
+		/* width, height는 인라인 스타일로 동적 설정 */
 	}
 	.link-svg {
 		position: absolute;
