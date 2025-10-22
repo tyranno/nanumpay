@@ -101,7 +101,7 @@
 
 <div class="relative">
 	{#if label}
-		<label class="block text-xs font-medium text-gray-700 mb-1">
+		<label class="block text-xs font-medium text-gray-700 mb-0.5">
 			{label}
 			{#if required}
 				<span class="text-red-500">*</span>

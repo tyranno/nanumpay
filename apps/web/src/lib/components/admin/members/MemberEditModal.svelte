@@ -80,78 +80,78 @@
 	{onClose}
 >
 	{#if member}
-		<div class="grid grid-cols-2 gap-6">
+		<div class="grid grid-cols-2 gap-4">
 			<!-- 왼쪽: 사용자 기본 정보 -->
-			<div class="space-y-4">
-				<h4 class="text-sm font-semibold text-gray-900 border-b pb-2">기본 정보</h4>
+			<div class="space-y-3">
+				<h4 class="text-xs font-semibold text-gray-900 border-b pb-1.5">기본 정보</h4>
 
 				<div>
-					<label class="block text-sm font-medium text-gray-700 mb-1">성명</label>
+					<label class="block text-xs font-medium text-gray-700 mb-0.5">성명</label>
 					<input
 						type="text"
 						bind:value={member.name}
-						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+						class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
 					/>
 				</div>
 
 				<div>
-					<label class="block text-sm font-medium text-gray-700 mb-1">연락처</label>
+					<label class="block text-xs font-medium text-gray-700 mb-0.5">연락처</label>
 					<input
 						type="text"
 						bind:value={member.phone}
-						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+						class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
 					/>
 				</div>
 
 				<div>
-					<label class="block text-sm font-medium text-gray-700 mb-1">주민번호</label>
+					<label class="block text-xs font-medium text-gray-700 mb-0.5">주민번호</label>
 					<input
 						type="text"
 						bind:value={member.idNumber}
-						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+						class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
 					/>
 				</div>
 
 				<div>
-					<label class="block text-sm font-medium text-gray-700 mb-1">은행</label>
+					<label class="block text-xs font-medium text-gray-700 mb-0.5">은행</label>
 					<input
 						type="text"
 						bind:value={member.bank}
-						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+						class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
 					/>
 				</div>
 
 				<div>
-					<label class="block text-sm font-medium text-gray-700 mb-1">계좌번호</label>
+					<label class="block text-xs font-medium text-gray-700 mb-0.5">계좌번호</label>
 					<input
 						type="text"
 						bind:value={member.accountNumber}
-						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+						class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
 					/>
 				</div>
 				<div>
-					<label class="block text-sm font-medium text-gray-700 mb-1">보험상품명</label>
+					<label class="block text-xs font-medium text-gray-700 mb-0.5">보험상품명</label>
 					<input
 						type="text"
 						bind:value={member.insuranceProduct}
-						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+						class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
 					/>
 				</div>
 				<div>
-					<label class="block text-sm font-medium text-gray-700 mb-1">보험회사</label>
+					<label class="block text-xs font-medium text-gray-700 mb-0.5">보험회사</label>
 					<input
 						type="text"
 						bind:value={member.insuranceCompany}
-						class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+						class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
 					/>
 				</div>
 			</div>
 
 			<!-- 오른쪽: 판매인/설계사 정보 -->
-			<div class="space-y-4">
-				<h4 class="text-sm font-semibold text-gray-900 border-b pb-2">판매/설계 정보</h4>
+			<div class="space-y-3">
+				<h4 class="text-xs font-semibold text-gray-900 border-b pb-1.5">판매/설계 정보</h4>
 
-				<div class="grid grid-cols-2 gap-4">
+				<div class="grid grid-cols-2 gap-3">
 					<div>
 						<Autocomplete
 							label="판매인"
@@ -165,17 +165,17 @@
 						/>
 					</div>
 					<div>
-						<label class="block text-sm font-medium text-gray-700 mb-1">판매인 연락처</label>
+						<label class="block text-xs font-medium text-gray-700 mb-0.5">판매인 연락처</label>
 						<input
 							type="text"
 							bind:value={member.salespersonPhone}
-							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+							class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
 							readonly
 						/>
 					</div>
 				</div>
 
-				<div class="grid grid-cols-2 gap-4">
+				<div class="grid grid-cols-2 gap-3">
 					<div>
 						<Autocomplete
 							label="설계사"
@@ -189,11 +189,11 @@
 						/>
 					</div>
 					<div>
-						<label class="block text-sm font-medium text-gray-700 mb-1">설계사 연락처</label>
+						<label class="block text-xs font-medium text-gray-700 mb-0.5">설계사 연락처</label>
 						<input
 							type="text"
 							bind:value={member.plannerPhone}
-							class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+							class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
 							readonly
 						/>
 					</div>
@@ -209,33 +209,6 @@
 						onSelect={handleBranchSelect}
 					/>
 				</div>
-			</div>
-		</div>
-
-		<div class="mt-4 grid grid-cols-2 gap-4">
-			<div>
-				<label class="block text-sm font-medium text-gray-700 mb-1">상태</label>
-				<select
-					bind:value={member.status}
-					class="w-full px-3 py-2 border border-gray-300 rounded-md appearance-none bg-no-repeat"
-					style="background-image: url('/icons/chevron-down.svg'); background-position: right 0.5rem center; background-size: 1.5em 1.5em;"
-				>
-					<option value="active">활성</option>
-					<option value="inactive">비활성</option>
-					<option value="suspended">정지</option>
-				</select>
-			</div>
-
-			<div>
-				<label class="block text-sm font-medium text-gray-700 mb-1">산하정보 보기 권한</label>
-				<label class="flex items-center cursor-pointer">
-					<input
-						type="checkbox"
-						bind:checked={member.canViewSubordinates}
-						class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-					/>
-					<span class="ml-2 text-sm text-gray-700">산하정보 조회 허용</span>
-				</label>
 			</div>
 		</div>
 	{/if}
