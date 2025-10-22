@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
 	import GradeBadge from '$lib/components/GradeBadge.svelte';
-	import RevenueAdjustModal from './RevenueAdjustModal.svelte';
+	import GradePaymentAdjustModal from './GradePaymentAdjustModal.svelte';
 	import { revenueCardState } from '$lib/stores/dashboardStore';
 
 	// Store에서 초기값 가져오기
@@ -36,7 +36,7 @@
 	let isCurrentMonth = false;
 
 	// 모달 상태
-	let showRevenueModal = false;
+	let showGradePaymentModal = false;
 	let modalMonthKey = null;
 
 	onMount(() => {
@@ -162,20 +162,39 @@
 		}
 	}
 
-	function openRevenueModal() {
+	function openGradePaymentModal() {
 		const monthKey = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
 		modalMonthKey = monthKey;
-		showRevenueModal = true;
+		showGradePaymentModal = true;
 	}
 
-	function closeRevenueModal() {
-		showRevenueModal = false;
+	function closeGradePaymentModal() {
+		showGradePaymentModal = false;
 		modalMonthKey = null;
 	}
 
-	async function handleRevenueAdjusted() {
-		closeRevenueModal();
-		await loadData();
+	async function handleGradePaymentAdjusted(adjustments) {
+		try {
+			const response = await fetch('/api/admin/revenue/adjust-grade-payments', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					monthKey: modalMonthKey,
+					adjustments
+				})
+			});
+
+			if (response.ok) {
+				closeGradePaymentModal();
+				await loadData();
+			} else {
+				const error = await response.json();
+				alert('등급별 지급액 조정 실패: ' + (error.message || '알 수 없는 오류'));
+			}
+		} catch (error) {
+			console.error('등급별 지급액 조정 오류:', error);
+			alert('등급별 지급액 조정 중 오류가 발생했습니다.');
+		}
 	}
 
 	// 지급 기간 계산 (다음 달부터 3개월)
@@ -325,13 +344,13 @@
 							</div>
 							{#if isCurrentMonth}
 								<button
-									on:click={openRevenueModal}
-									class="ml-2 px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition"
+									on:click={openGradePaymentModal}
+									class="ml-2 px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition"
 								>
-									수동 설정
+									등급별 조정
 								</button>
 							{:else}
-								<span class="ml-2 text-xs text-gray-400">현재월만 설정 가능</span>
+								<span class="ml-2 text-xs text-gray-400">현재월만 조정 가능</span>
 							{/if}
 						</div>
 					</div>
@@ -374,7 +393,10 @@
 						<tbody>
 							{#each ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'] as grade}
 								{@const count = monthlyData.gradeDistribution?.[grade] || 0}
-								{@const perAmount = monthlyData.gradePayments?.[grade] || 0}
+								{@const originalAmount = monthlyData.gradePayments?.[grade] || 0}
+								{@const adjustedAmount = monthlyData.adjustedGradePayments?.[grade]?.perInstallment || null}
+								{@const perAmount = adjustedAmount || originalAmount}
+								{@const isAdjusted = adjustedAmount !== null && adjustedAmount !== originalAmount}
 								<tr class="hover:bg-gray-50">
 									<td class="border border-gray-300 px-2 py-0.5 text-center">
 										<GradeBadge {grade} size="sm" />
@@ -383,7 +405,16 @@
 										{count}
 									</td>
 									<td class="border border-gray-300 px-2 py-0.5 text-right text-sm">
-										{perAmount.toLocaleString()}
+										{#if isAdjusted}
+											<span class="text-gray-400 line-through text-xs">
+												{originalAmount.toLocaleString()}
+											</span>
+											<span class="text-orange-600 font-semibold ml-1">
+												{perAmount.toLocaleString()}
+											</span>
+										{:else}
+											{perAmount.toLocaleString()}
+										{/if}
 									</td>
 									<td class="border border-gray-300 px-2 py-0.5 text-right text-blue-600 text-sm">
 										{(perAmount * 10 * count).toLocaleString()}
@@ -503,12 +534,15 @@
 	</div>
 </div>
 
-<!-- 매출 수동 설정 모달 -->
-{#if showRevenueModal && modalMonthKey}
-	<RevenueAdjustModal
+<!-- 등급별 지급 총액 조정 모달 -->
+{#if showGradePaymentModal && modalMonthKey}
+	<GradePaymentAdjustModal
+		isOpen={showGradePaymentModal}
 		monthKey={modalMonthKey}
-		currentData={monthlyData}
-		on:close={closeRevenueModal}
-		on:adjusted={handleRevenueAdjusted}
+		gradeDistribution={monthlyData?.gradeDistribution || {}}
+		currentPayments={monthlyData?.gradePayments || {}}
+		adjustedPayments={monthlyData?.adjustedGradePayments || {}}
+		onClose={closeGradePaymentModal}
+		onSave={handleGradePaymentAdjusted}
 	/>
 {/if}

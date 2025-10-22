@@ -169,6 +169,62 @@ const monthlyRegistrationsSchema = new mongoose.Schema(
       F8: { type: Number, default: 0 }
     },
 
+    // 🆕 등급별 지급 총액 수동 조정 (관리자가 직접 설정)
+    adjustedGradePayments: {
+      type: {
+        F1: {
+          totalAmount: { type: Number, default: null },  // 총액
+          perInstallment: { type: Number, default: null }, // 10분할 금액
+          modifiedAt: { type: Date, default: null }
+        },
+        F2: {
+          totalAmount: { type: Number, default: null },
+          perInstallment: { type: Number, default: null },
+          modifiedAt: { type: Date, default: null }
+        },
+        F3: {
+          totalAmount: { type: Number, default: null },
+          perInstallment: { type: Number, default: null },
+          modifiedAt: { type: Date, default: null }
+        },
+        F4: {
+          totalAmount: { type: Number, default: null },
+          perInstallment: { type: Number, default: null },
+          modifiedAt: { type: Date, default: null }
+        },
+        F5: {
+          totalAmount: { type: Number, default: null },
+          perInstallment: { type: Number, default: null },
+          modifiedAt: { type: Date, default: null }
+        },
+        F6: {
+          totalAmount: { type: Number, default: null },
+          perInstallment: { type: Number, default: null },
+          modifiedAt: { type: Date, default: null }
+        },
+        F7: {
+          totalAmount: { type: Number, default: null },
+          perInstallment: { type: Number, default: null },
+          modifiedAt: { type: Date, default: null }
+        },
+        F8: {
+          totalAmount: { type: Number, default: null },
+          perInstallment: { type: Number, default: null },
+          modifiedAt: { type: Date, default: null }
+        }
+      },
+      default: () => ({
+        F1: { totalAmount: null, perInstallment: null, modifiedAt: null },
+        F2: { totalAmount: null, perInstallment: null, modifiedAt: null },
+        F3: { totalAmount: null, perInstallment: null, modifiedAt: null },
+        F4: { totalAmount: null, perInstallment: null, modifiedAt: null },
+        F5: { totalAmount: null, perInstallment: null, modifiedAt: null },
+        F6: { totalAmount: null, perInstallment: null, modifiedAt: null },
+        F7: { totalAmount: null, perInstallment: null, modifiedAt: null },
+        F8: { totalAmount: null, perInstallment: null, modifiedAt: null }
+      })
+    },
+
     // ⭐ Step 5: 월별 총계 (해당 월 귀속 계획 전체 합계)
     monthlyTotals: {
       type: {
