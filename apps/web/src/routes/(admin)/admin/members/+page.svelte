@@ -1016,12 +1016,14 @@
 	}
 
 	.db-compact-select {
-		@apply h-7 min-w-[100px] rounded border border-gray-300 px-2 py-0.5 text-xs focus:border-red-500 focus:outline-none;
-		line-height: 1.5;
+		@apply min-w-[100px] rounded border border-gray-300 px-2 py-1 text-xs focus:border-red-500 focus:outline-none;
+		height: 28px;
+		line-height: normal;
 	}
 
 	.db-compact-btn {
-		@apply h-7 whitespace-nowrap rounded bg-gray-600 px-3 py-0.5 text-xs text-white transition-colors hover:bg-gray-700 disabled:cursor-not-allowed disabled:bg-gray-400;
+		@apply whitespace-nowrap rounded bg-gray-600 px-3 py-1 text-xs text-white transition-colors hover:bg-gray-700 disabled:cursor-not-allowed disabled:bg-gray-400;
+		height: 28px;
 	}
 
 	.db-compact-btn-critical {
