@@ -64,7 +64,8 @@ async function buildTree(rootUserId, maxDepth) {
 	const visited = new Set([rootUserId.toString()]);
 	let currentLevel = [rootUserId];
 
-	for (let depth = 0; depth < maxDepth && currentLevel.length > 0; depth++) {
+	// maxDepth를 충분히 크게 설정하여 전체 트리 순회
+	while (currentLevel.length > 0) {
 		const nextLevel = [];
 		const children = await User.find({
 			parentId: { $in: currentLevel }
@@ -89,9 +90,7 @@ async function buildTree(rootUserId, maxDepth) {
 	users.forEach(u => userMap.set(u._id.toString(), u));
 
 	// 5. 재귀적으로 트리 구성 (메모리에서 처리)
-	function buildNode(userId, currentDepth = 0) {
-		if (currentDepth >= maxDepth) return null;
-
+	function buildNode(userId) {
 		const user = userMap.get(userId.toString());
 		if (!user) return null;
 
@@ -112,12 +111,12 @@ async function buildTree(rootUserId, maxDepth) {
 		const rightChild = children.find(c => c.position === 'R');
 
 		if (leftChild) {
-			const leftNode = buildNode(leftChild._id, currentDepth + 1);
+			const leftNode = buildNode(leftChild._id);
 			if (leftNode) node.left = leftNode;
 		}
 
 		if (rightChild) {
-			const rightNode = buildNode(rightChild._id, currentDepth + 1);
+			const rightNode = buildNode(rightChild._id);
 			if (rightNode) node.right = rightNode;
 		}
 
