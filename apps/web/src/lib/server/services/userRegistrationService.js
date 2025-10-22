@@ -411,7 +411,20 @@ export class UserRegistrationService {
 					console.log(`✅ PlannerAccount 자동 생성: ${plannerName} (초기 비밀번호: ${plannerPassword})`);
 				}
 
-				// v8.0: registrationNumber 계산
+				// v8.0: 이름 중복 체크 - 같은 이름은 등록 불가
+				const existingUserWithSameName = await User.findOne({
+					name: name,
+					userAccountId: { $ne: userAccount._id }
+				});
+
+				if (existingUserWithSameName) {
+					results.failed++;
+					results.errors.push(`행 ${row}: 이미 "${name}" 이름의 용역자가 존재합니다.`);
+					console.warn(`행 ${row} 실패: 이름 중복 (${name})`);
+					continue;
+				}
+
+				// v8.0: registrationNumber 계산 (같은 UserAccount의 재등록 순번)
 				const existingUsers = await User.find({ userAccountId: userAccount._id })
 					.sort({ registrationNumber: -1 })
 					.limit(1);
@@ -420,8 +433,8 @@ export class UserRegistrationService {
 					? existingUsers[0].registrationNumber + 1
 					: 1;
 
-				// v8.0: 표시 이름 생성 (홍길동, 홍길동2, 홍길동3)
-				const displayName = registrationNumber === 1 ? name : `${name}${registrationNumber}`;
+				// 이름은 그대로 사용 (숫자 붙이지 않음)
+				const displayName = name;
 
 				// 초기 등급 설정
 				const grade = 'F1';

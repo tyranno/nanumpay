@@ -9,7 +9,7 @@ export async function GET({ url, locals }) {
 
 		const userId = url.searchParams.get('userId');
 		const getRoots = url.searchParams.get('getRoots'); // 루트 목록만 가져오기
-		const depth = parseInt(url.searchParams.get('depth') || '7');
+		const depth = parseInt(url.searchParams.get('depth') || '999'); // 전체 트리 조회
 
 		// 루트 사용자 목록만 요청하는 경우
 		if (getRoots === 'true') {
