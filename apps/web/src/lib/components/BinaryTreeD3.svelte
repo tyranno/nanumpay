@@ -42,6 +42,7 @@
 	let containerWidth = 0;  // 혼합 방식: 스크롤바를 위한 컨테이너 크기
 	let containerHeight = 0;
 	let isLayouting = false; // 레이아웃 계산 중 플래그 (ResizeObserver 루프 방지)
+	let isRendered = false; // ⭐ 초기 렌더링 완료 플래그
 
 	const PADDING = 24;
 	const ZOOM_MIN = 0.25;
@@ -557,6 +558,9 @@
 		// 기준 배율(상대 스프레드 기준)
 		kFitBase = 1;
 
+		// ⭐ 렌더링 완료 (레이아웃 계산 및 위치 조정 완료)
+		isRendered = true;
+
 		// 리사이즈 (레이아웃 계산 중이면 무시하여 루프 방지)
 		ro = new ResizeObserver(() => {
 			if (isLayouting) return; // 레이아웃 중이면 무시
@@ -597,7 +601,7 @@
 	}
 </script>
 
-<div bind:this={wrapEl} class="tree-wrap" ondblclick={() => backToFull()}>
+<div bind:this={wrapEl} class="tree-wrap" class:rendered={isRendered} ondblclick={() => backToFull()}>
 	<!-- SVG와 HTML을 하나의 컨테이너로 묶음 (모바일 pinch-zoom 대응) -->
 	<div
 		bind:this={transformContainerEl}
@@ -681,6 +685,14 @@
 		background: #fff;
 		cursor: grab;
 		touch-action: none;
+		/* ⭐ 초기 렌더링 완료 전까지 완전히 숨김 */
+		opacity: 0;
+		visibility: hidden;
+		transition: opacity 0.05s ease-in;
+	}
+	.tree-wrap.rendered {
+		opacity: 1;
+		visibility: visible;
 	}
 	.transform-container {
 		position: relative; /* 혼합 방식: 스크롤 가능하도록 relative 사용 */

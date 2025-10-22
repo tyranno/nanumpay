@@ -104,7 +104,6 @@
 			if (treeCache.has(cacheKey)) {
 				console.log('📦 캐시에서 로드:', cacheKey);
 				treeData = treeCache.get(cacheKey);
-				await new Promise(resolve => setTimeout(resolve, 300));
 				isLoading = false;
 				return;
 			}
@@ -154,11 +153,8 @@
 			error = err.message;
 			treeData = null;
 		} finally {
-			await new Promise(resolve => setTimeout(resolve, 300));
 			isLoading = false;
-			setTimeout(() => {
-				isLoadingNewView = false;
-			}, 200);
+			isLoadingNewView = false;
 		}
 	}
 
@@ -225,17 +221,14 @@
 
 			isLoading = true;
 			treeData = null;
-			await new Promise(resolve => setTimeout(resolve, 50));
 
 			currentViewIndex = index;
 			treeData = targetView.treeData;
 			treeKey++;
 
-			await new Promise(resolve => setTimeout(resolve, 300));
 			isLoading = false;
 
 			if (treeComponent) {
-				await new Promise(resolve => setTimeout(resolve, 100));
 				treeComponent.backToFull();
 			}
 		}
