@@ -1,12 +1,11 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db.js';
-import { User } from '$lib/server/models/User.js';
-import { UserAccount } from '$lib/server/models/UserAccount.js';
-import { PlannerAccount } from '$lib/server/models/PlannerAccount.js';
-import { MonthlyRegistrations } from '$lib/server/models/MonthlyRegistrations.js';
-import { MonthlyTreeSnapshots } from '$lib/server/models/MonthlyTreeSnapshots.js';
-import { WeeklyPaymentPlans } from '$lib/server/models/WeeklyPaymentPlans.js';
-import { WeeklyPaymentSummary } from '$lib/server/models/WeeklyPaymentSummary.js';
+import User from '$lib/server/models/User.js';
+import UserAccount from '$lib/server/models/UserAccount.js';
+import PlannerAccount from '$lib/server/models/PlannerAccount.js';
+import MonthlyRegistrations from '$lib/server/models/MonthlyRegistrations.js';
+import WeeklyPaymentPlans from '$lib/server/models/WeeklyPaymentPlans.js';
+import WeeklyPaymentSummary from '$lib/server/models/WeeklyPaymentSummary.js';
 import bcrypt from 'bcryptjs';
 
 export async function POST({ request, locals }) {
@@ -17,7 +16,7 @@ export async function POST({ request, locals }) {
 		}
 
 		// 관리자 권한 확인
-		if (!locals.user || locals.user.role !== 'admin') {
+		if (!locals.user || locals.user.type !== 'admin') {
 			return json({ error: '관리자 권한이 필요합니다.' }, { status: 401 });
 		}
 
@@ -30,7 +29,6 @@ export async function POST({ request, locals }) {
 		await UserAccount.deleteMany({ role: { $ne: 'admin' } });
 		await PlannerAccount.deleteMany({});
 		await MonthlyRegistrations.deleteMany({});
-		await MonthlyTreeSnapshots.deleteMany({});
 		await WeeklyPaymentPlans.deleteMany({});
 		await WeeklyPaymentSummary.deleteMany({});
 
@@ -42,10 +40,10 @@ export async function POST({ request, locals }) {
 			const hashedPassword = await bcrypt.hash('admin1234!!', 10);
 			await UserAccount.create({
 				loginId: '관리자',
-				password: hashedPassword,
+				passwordHash: hashedPassword,
 				name: '시스템 관리자',
 				phone: '010-0000-0000',
-				role: 'admin'
+				type: 'admin'
 			});
 			console.log('[DB Initialize] 기본 관리자 계정 생성 완료');
 		}

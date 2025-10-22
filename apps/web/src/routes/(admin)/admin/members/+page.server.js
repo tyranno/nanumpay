@@ -1,9 +1,9 @@
 import { db } from '$lib/server/db.js';
-import { MonthlyRegistrations } from '$lib/server/models/MonthlyRegistrations.js';
-import { WeeklyPaymentPlans } from '$lib/server/models/WeeklyPaymentPlans.js';
-import { UserAccount } from '$lib/server/models/UserAccount.js';
-import { User } from '$lib/server/models/User.js';
-import { PlannerAccount } from '$lib/server/models/PlannerAccount.js';
+import MonthlyRegistrations from '$lib/server/models/MonthlyRegistrations.js';
+import WeeklyPaymentPlans from '$lib/server/models/WeeklyPaymentPlans.js';
+import UserAccount from '$lib/server/models/UserAccount.js';
+import User from '$lib/server/models/User.js';
+import PlannerAccount from '$lib/server/models/PlannerAccount.js';
 
 export async function load({ locals }) {
 	// 개발 환경 확인

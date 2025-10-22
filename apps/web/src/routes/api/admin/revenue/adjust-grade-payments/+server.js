@@ -1,12 +1,12 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db.js';
-import { MonthlyRegistrations } from '$lib/server/models/MonthlyRegistrations.js';
-import { WeeklyPaymentPlans } from '$lib/server/models/WeeklyPaymentPlans.js';
+import MonthlyRegistrations from '$lib/server/models/MonthlyRegistrations.js';
+import WeeklyPaymentPlans from '$lib/server/models/WeeklyPaymentPlans.js';
 
 export async function POST({ request, locals }) {
 	try {
 		// 관리자 권한 확인
-		if (!locals.user || locals.user.role !== 'admin') {
+		if (!locals.user || locals.user.type !== 'admin') {
 			return json({ error: '관리자 권한이 필요합니다.' }, { status: 401 });
 		}
 
