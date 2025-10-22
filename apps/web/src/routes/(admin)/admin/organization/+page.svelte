@@ -169,6 +169,20 @@
 			treeComponent.rerootByPath(targetPath);
 		}
 	}
+
+	// 이미지로 다운로드
+	async function downloadTree() {
+		if (!treeComponent) {
+			console.warn('트리 컴포넌트가 없습니다.');
+			return;
+		}
+
+		// 현재 루트 노드 이름으로 파일명 생성
+		const rootName = breadcrumbPath.length > 0 ? breadcrumbPath[breadcrumbPath.length - 1] : '전체';
+		const filename = `계층도_${rootName}_${new Date().toISOString().slice(0, 10)}.png`;
+
+		await treeComponent.downloadAsImage(filename);
+	}
 </script>
 
 <svelte:head>
@@ -194,6 +208,15 @@
 			/>
 			<button class="btn-search" disabled>
 				<img src="/icons/search.svg" alt="검색" class="btn-icon" />
+			</button>
+			<button
+				onclick={downloadTree}
+				class="btn-download"
+				title="계층도 이미지로 다운로드"
+				type="button"
+			>
+				<img src="/icons/download.svg" alt="다운로드" class="btn-icon" />
+				<span class="ml-1.5 text-sm">이미지 다운로드</span>
 			</button>
 
 			<!-- 검색 결과 드롭다운 -->
@@ -367,6 +390,10 @@
 
 	.btn-search:disabled {
 		@apply cursor-default opacity-50 hover:translate-y-0 hover:from-blue-500 hover:to-blue-700 hover:shadow-[0_1px_4px_rgba(0,123,255,0.3)];
+	}
+
+	.btn-download {
+		@apply flex h-7 flex-shrink-0 cursor-pointer items-center justify-center rounded border-none bg-gradient-to-br from-emerald-500 to-emerald-700 px-3 text-white shadow-[0_1px_4px_rgba(16,185,129,0.3)] transition-all hover:-translate-y-px hover:from-emerald-700 hover:to-emerald-900 hover:shadow-[0_2px_8px_rgba(16,185,129,0.4)] active:translate-y-0 active:shadow-[0_1px_3px_rgba(16,185,129,0.3)];
 	}
 
 	.btn-icon {

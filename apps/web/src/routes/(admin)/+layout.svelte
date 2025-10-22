@@ -108,6 +108,17 @@
 		</div>
 	</nav>
 
+	<!-- 사이드바 오버레이 (배경 클릭 시 닫기) -->
+	{#if sidebarOpen}
+		<div
+			class="fixed inset-0 bg-black/20 z-40 transition-opacity duration-300"
+			onclick={closeSidebar}
+			role="button"
+			tabindex="-1"
+			aria-label="사이드바 닫기"
+		></div>
+	{/if}
+
 	<!-- 사이드바 -->
 	<aside class="fixed top-0 right-0 h-full w-64 bg-white/95 backdrop-blur-sm shadow-xl z-50 transform transition-transform duration-300 {sidebarOpen ? 'translate-x-0' : 'translate-x-full'}">
 		<div class="flex flex-col h-full">

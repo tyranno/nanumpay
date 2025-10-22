@@ -320,6 +320,99 @@
 		rerootByPath(result.path);
 	}
 
+	// 트리를 이미지로 다운로드 (현재 확대 상태 그대로)
+	export async function downloadAsImage(filename = '계층도.png') {
+		if (!wrapEl || !svgEl || !nodeLayerEl) {
+			console.warn('[Tree] 트리 요소가 없습니다.');
+			return;
+		}
+
+		try {
+			// 1. 현재 transform 상태 가져오기
+			const transform = panzoomInstance ? panzoomInstance.getTransform() : { x: 0, y: 0, scale: 1 };
+
+			// 2. BBox 계산 (확대된 전체 트리 영역)
+			const bbox = getBBoxFallback();
+			if (!bbox) {
+				console.warn('[Tree] BBox를 계산할 수 없습니다.');
+				return;
+			}
+
+			// 3. 캔버스 생성 (여백 포함)
+			const padding = 40;
+			const canvasWidth = bbox.width + padding * 2;
+			const canvasHeight = bbox.height + padding * 2;
+
+			const canvas = document.createElement('canvas');
+			canvas.width = canvasWidth;
+			canvas.height = canvasHeight;
+			const ctx = canvas.getContext('2d');
+
+			// 4. 배경 흰색
+			ctx.fillStyle = '#ffffff';
+			ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+			// 5. 링크 그리기 (SVG path를 캔버스에 그리기)
+			ctx.strokeStyle = '#3b82f6';
+			ctx.lineWidth = 2;
+			layoutLinks.forEach((l) => {
+				const sx = l.source.x - bbox.x + padding;
+				const sy = l.source.y + nodeHeight / 2 - bbox.y + padding;
+				const tx = l.target.x - bbox.x + padding;
+				const ty = l.target.y - nodeHeight / 2 - bbox.y + padding;
+				const midY = (sy + ty) / 2;
+
+				ctx.beginPath();
+				ctx.moveTo(sx, sy);
+				ctx.bezierCurveTo(sx, midY, tx, midY, tx, ty);
+				ctx.stroke();
+			});
+
+			// 6. 노드 그리기
+			ctx.font = '14px sans-serif';
+			ctx.textAlign = 'center';
+			ctx.textBaseline = 'middle';
+
+			for (const n of layoutNodes) {
+				const x = n.x - nodeWidth / 2 - bbox.x + padding;
+				const y = n.y - nodeHeight / 2 - bbox.y + padding;
+
+				// 노드 박스
+				ctx.fillStyle = '#ffffff';
+				ctx.strokeStyle = '#3b82f6';
+				ctx.lineWidth = 2;
+				ctx.beginPath();
+				ctx.roundRect(x, y, nodeWidth, nodeHeight, 10);
+				ctx.fill();
+				ctx.stroke();
+
+				// 노드 텍스트
+				ctx.fillStyle = '#111827';
+				ctx.font = 'bold 14px sans-serif';
+				ctx.fillText(n.data.label, x + nodeWidth / 2, y + nodeHeight / 2);
+
+				// 등급 아이콘 (텍스트로 표시)
+				if (n.data.grade) {
+					ctx.font = '10px sans-serif';
+					ctx.fillStyle = '#6b7280';
+					ctx.fillText(`[${n.data.grade}]`, x + nodeWidth / 2, y + nodeHeight / 2 + 12);
+				}
+			}
+
+			// 7. 캔버스를 Blob으로 변환 후 다운로드
+			canvas.toBlob((blob) => {
+				const url = URL.createObjectURL(blob);
+				const a = document.createElement('a');
+				a.href = url;
+				a.download = filename;
+				a.click();
+				URL.revokeObjectURL(url);
+			});
+		} catch (err) {
+			console.error('[Tree] 이미지 다운로드 실패:', err);
+		}
+	}
+
 	// === Lifecycle ===
 	onMount(async () => {
 		if (!data) {
