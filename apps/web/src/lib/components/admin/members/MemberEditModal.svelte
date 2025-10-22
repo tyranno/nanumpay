@@ -209,6 +209,18 @@
 						onSelect={handleBranchSelect}
 					/>
 				</div>
+
+				<div>
+					<label class="block text-xs font-medium text-gray-700 mb-0.5">산하정보 보기 권한</label>
+					<label class="flex items-center cursor-pointer mt-1.5">
+						<input
+							type="checkbox"
+							bind:checked={member.canViewSubordinates}
+							class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+						/>
+						<span class="ml-2 text-sm text-gray-700">산하정보 조회 허용</span>
+					</label>
+				</div>
 			</div>
 		</div>
 	{/if}
