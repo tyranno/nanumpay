@@ -330,66 +330,127 @@
 					}
 				}
 
-				const response = await fetch('/api/admin/users/bulk', {
-					method: 'POST',
-					headers: {
-						'Content-Type': 'application/json'
-					},
-					body: JSON.stringify({
-						users: jsonData,
-						fileName: uploadFile.name  // 파일명 추가
-					})
-				});
+					const response = await fetch('/api/admin/users/bulk', {
+						method: 'POST',
+						headers: {
+							'Content-Type': 'application/json'
+						},
+						body: JSON.stringify({
+							users: jsonData,
+							fileName: file.name
+						})
+					});
 
-				const result = await response.json();
-				if (response.ok) {
-					notificationConfig = {
-						type: result.failed > 0 ? 'warning' : 'success',
-						title: '엑셀 업로드 완료',
-						message: `파일: ${uploadFile.name}\n총 ${result.created + result.failed}개 항목 중 ${result.created}명이 성공적으로 등록되었습니다.`,
-						results: {
+					const result = await response.json();
+					if (response.ok) {
+						resolve({
+							success: true,
+							fileName: file.name,
 							created: result.created,
 							failed: result.failed,
 							alerts: result.alerts,
 							errors: result.errors
-						},
-						details: []
-					};
-					notificationOpen = true;
-					showUploadModal = false;
-					uploadFile = null;
-					await loadMembers();
-				} else {
-					notificationConfig = {
-						type: 'error',
-						title: '업로드 실패',
-						message: result.error || '엑셀 파일 업로드 중 오류가 발생했습니다.',
-						results: null,
-						details: []
-					};
-					notificationOpen = true;
+						});
+					} else {
+						resolve({
+							success: false,
+							fileName: file.name,
+							error: result.error || '업로드 실패'
+						});
+					}
+				} catch (error) {
+					console.error('Excel upload error:', error);
+					resolve({
+						success: false,
+						fileName: file.name,
+						error: error.message
+					});
 				}
-			} catch (error) {
-				console.error('Excel upload error:', error);
-				notificationConfig = {
-					type: 'error',
-					title: '처리 오류',
-					message: '엑셀 파일 처리 중 오류가 발생했습니다.',
-					results: null,
-					details: [
-						{
-							type: 'error',
-							title: '오류 내용',
-							content: error.message
-						}
-					]
+			};
+
+			reader.onerror = () => {
+				reject(new Error(`${file.name} 파일 읽기 실패`));
+			};
+
+			reader.readAsArrayBuffer(file);
+		});
+	}
+
+	// 다중 파일 업로드 처리
+	async function handleExcelUpload() {
+		if (uploadFiles.length === 0) {
+			notificationConfig = {
+				type: 'warning',
+				title: '파일 선택',
+				message: '파일을 선택해주세요.',
+				results: null,
+				details: []
+			};
+			notificationOpen = true;
+			return;
+		}
+
+		isUploading = true;
+		const results = [];
+
+		try {
+			// 파일을 순차적으로 처리
+			for (let i = 0; i < uploadFiles.length; i++) {
+				const file = uploadFiles[i];
+
+				// 진행 상황 업데이트
+				uploadProgress = {
+					current: i + 1,
+					total: uploadFiles.length,
+					fileName: file.name
 				};
-				notificationOpen = true;
-			} finally {
-				isUploading = false;
+
+				const result = await processFile(file);
+				results.push(result);
 			}
-		};
-		reader.readAsArrayBuffer(uploadFile);
+
+			// 전체 결과 집계
+			const totalCreated = results.reduce((sum, r) => sum + (r.created || 0), 0);
+			const totalFailed = results.reduce((sum, r) => sum + (r.failed || 0), 0);
+			const failedFiles = results.filter(r => !r.success);
+
+			// 결과 표시
+			notificationConfig = {
+				type: failedFiles.length > 0 ? 'warning' : 'success',
+				title: '엑셀 업로드 완료',
+				message: `총 ${uploadFiles.length}개 파일 처리\n성공: ${totalCreated}명 등록, 실패: ${totalFailed}명`,
+				results: {
+					files: results,
+					totalCreated,
+					totalFailed
+				},
+				details: results.map(r => ({
+					type: r.success ? 'success' : 'error',
+					title: r.fileName,
+					content: r.success
+						? `등록: ${r.created}명, 실패: ${r.failed}명`
+						: `오류: ${r.error}`
+				}))
+			};
+			notificationOpen = true;
+			showUploadModal = false;
+			uploadFiles = [];
+			uploadProgress = null;
+			await loadMembers();
+		} catch (error) {
+			console.error('Multiple files upload error:', error);
+			notificationConfig = {
+				type: 'error',
+				title: '업로드 오류',
+				message: error.message,
+				results: null,
+				details: []
+			};
+			notificationOpen = true;
+		} finally {
+			isUploading = false;
+			uploadProgress = null;
+		}
 	}
 
 	function openEditModal(member) {
@@ -691,10 +752,12 @@
 	<ExcelUploadModal
 		isOpen={showUploadModal}
 		{isUploading}
-		bind:uploadFile
+		bind:uploadFiles
+		bind:uploadProgress
 		onClose={() => {
 			showUploadModal = false;
-			uploadFile = null;
+			uploadFiles = [];
+			uploadProgress = null;
 		}}
 		onFileSelect={handleFileSelect}
 		onUpload={handleExcelUpload}
