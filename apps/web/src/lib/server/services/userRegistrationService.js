@@ -93,7 +93,9 @@ export class UserRegistrationService {
 	}
 
 	/**
-	 * 1단계: 사전 검증
+	 * 1단계: 사전 검증 (⭐ 전체 검증 - 하나라도 실패하면 전체 중단)
+	 * - 필수 필드 검증
+	 * - 이름 중복 검증 (DB 조회)
 	 * - 판매인 검증
 	 * - 최상위 루트 1개 제한
 	 * - 순서 검증 (엑셀 내)
@@ -114,7 +116,8 @@ export class UserRegistrationService {
 			return '';
 		};
 
-		// 1차 패스: 모든 사용자 이름 수집
+		// 1차 패스: 모든 사용자 이름 수집 + 필수 필드 검증
+		const validUsers = [];
 		for (let i = 0; i < users.length; i++) {
 			const userData = users[i];
 
@@ -123,25 +126,69 @@ export class UserRegistrationService {
 				continue;
 			}
 
-			const name = getValue(userData, ['성명', '이름', 'name', '__EMPTY_2']);
+			const loginId = getValue(userData, ['ID', 'id', '__EMPTY_2', '__EMPTY_1']);
+			const name = getValue(userData, ['성명', '이름', 'name', '__EMPTY_3', '__EMPTY_2']);
+			const phone = getValue(userData, ['__EMPTY_4', '__EMPTY_3', '연락처', '전화번호', 'phone']);
+			const bank = getValue(userData, ['은행', 'bank', '__EMPTY_6', '__EMPTY_5']);
+			const accountNumber = getValue(userData, ['계좌번호', '계좌', 'accountNumber', '__EMPTY_7', '__EMPTY_6']);
+			const plannerName = getValue(userData, ['__EMPTY_10', '__EMPTY_9', '설계사', 'planner']);
+
 			if (!name) continue; // 빈 행 건너뛰기
 
+			// ⭐ 필수 필드 검증
+			if (!loginId) {
+				return {
+					isValid: false,
+					error: `엑셀 업로드 실패: 행 ${i + 1} (${name})에 ID가 없습니다.`,
+					details: 'ID는 필수 항목입니다.'
+				};
+			}
+
+			if (!plannerName) {
+				return {
+					isValid: false,
+					error: `엑셀 업로드 실패: 행 ${i + 1} (${name})에 설계사가 없습니다.`,
+					details: '설계사는 필수 항목입니다.'
+				};
+			}
+
+			// ⭐ ValidationService로 기본 검증 (연락처, 은행, 계좌번호 등)
+			const validation = await ValidationService.validateRegistration({
+				name,
+				phone,
+				bank,
+				accountNumber,
+				salesperson: getValue(userData, ['판매인', '추천인', 'salesperson', '__EMPTY_8', '__EMPTY_7'])
+			});
+
+			if (!validation.isValid) {
+				const errorMessages = validation.errors.map((e) => `${e.field}: ${e.message}`).join(', ');
+				return {
+					isValid: false,
+					error: `엑셀 업로드 실패: 행 ${i + 1} (${name}) 검증 실패 - ${errorMessages}`,
+					details: '모든 필수 항목을 올바르게 입력해주세요.'
+				};
+			}
+
+			// ⭐ 이름 중복 체크 (DB 조회)
+			const existingUserWithSameName = await User.findOne({ name: name });
+			if (existingUserWithSameName) {
+				return {
+					isValid: false,
+					error: `엑셀 업로드 실패: 행 ${i + 1}에서 이미 시스템에 등록된 이름 "${name}"이(가) 발견되었습니다.`,
+					details: '같은 이름의 용역자가 이미 존재합니다. 성명을 변경해주세요 (예: 홍길동2, 홍길동3).'
+				};
+			}
+
 			this.excelUserNames.add(name);
+			validUsers.push({ userData, name, loginId, row: i + 1 });
 		}
 
 		// 2차 패스: 판매인 검증
-		for (let i = 0; i < users.length; i++) {
-			const userData = users[i];
+		for (let i = 0; i < validUsers.length; i++) {
+			const { userData, name, row } = validUsers[i];
 
-			// v8.0: 헤더 행 건너뛰기 (ID 컬럼 추가로 인한 변경)
-			if (userData['용 역 자 관 리 명 부'] === '순번' || userData['__EMPTY_2'] === '성명') {
-				continue;
-			}
-
-			const name = getValue(userData, ['성명', '이름', 'name', '__EMPTY_2']);
-			if (!name) continue;
-
-			const salesperson = getValue(userData, ['판매인', '추천인', 'salesperson', '__EMPTY_7']);
+			const salesperson = getValue(userData, ['판매인', '추천인', 'salesperson', '__EMPTY_8', '__EMPTY_7']);
 
 			// 판매인 검증
 			if (!salesperson || salesperson === '-') {
@@ -150,7 +197,7 @@ export class UserRegistrationService {
 				if (rootCount > 1) {
 					return {
 						isValid: false,
-						error: `엑셀 업로드 실패: 최상위 루트(판매인 없음)는 1명만 가능합니다. 행 ${i + 1} (${name})에서 2번째 루트 발견.`,
+						error: `엑셀 업로드 실패: 최상위 루트(판매인 없음)는 1명만 가능합니다. 행 ${row} (${name})에서 2번째 루트 발견.`,
 						details: '판매인이 없거나 "-"인 사용자는 계층의 최상위 루트가 되며, 1명만 허용됩니다.'
 					};
 				}
@@ -168,7 +215,7 @@ export class UserRegistrationService {
 				if (!isInExcel && !existingSeller) {
 					return {
 						isValid: false,
-						error: `엑셀 업로드 실패: 행 ${i + 1} (${name})의 판매인 "${salesperson}"이(가) 시스템에 등록되어 있지 않으며, 엑셀 파일에도 없습니다.`,
+						error: `엑셀 업로드 실패: 행 ${row} (${name})의 판매인 "${salesperson}"이(가) 시스템에 등록되어 있지 않으며, 엑셀 파일에도 없습니다.`,
 						details:
 							'판매인은 이미 시스템에 등록된 용역자이거나, 같은 엑셀 파일 내에서 앞쪽에 위치한 사용자여야 합니다.'
 					};
@@ -177,17 +224,11 @@ export class UserRegistrationService {
 				// 엑셀 내에 있는 경우, 순서 확인 (판매인이 현재 사용자보다 앞에 있어야 함)
 				if (isInExcel) {
 					let sellerRowIndex = -1;
-					let currentRowIndex = -1;
+					let currentRowIndex = i;
 
-					for (let j = 0; j < users.length; j++) {
-						const checkUserData = users[j];
-						const checkName = getValue(checkUserData, ['성명', '이름', 'name', '__EMPTY_2']); // v8.0
-
-						if (checkName === salesperson) {
+					for (let j = 0; j < validUsers.length; j++) {
+						if (validUsers[j].name === salesperson) {
 							sellerRowIndex = j;
-						}
-						if (checkName === name) {
-							currentRowIndex = j;
 							break;
 						}
 					}
@@ -195,14 +236,14 @@ export class UserRegistrationService {
 					if (sellerRowIndex >= currentRowIndex) {
 						return {
 							isValid: false,
-							error: `엑셀 업로드 실패: 행 ${i + 1} (${name})의 판매인 "${salesperson}"이(가) 현재 행보다 뒤에 위치하거나 같은 행에 있습니다.`,
+							error: `엑셀 업로드 실패: 행 ${row} (${name})의 판매인 "${salesperson}"이(가) 현재 행보다 뒤에 위치하거나 같은 행에 있습니다.`,
 							details: '판매인은 엑셀 파일에서 현재 사용자보다 앞쪽에 위치해야 합니다.'
 						};
 					}
 				}
 			}
 
-			parsedUsers.push({ userData, row: i + 1 });
+			parsedUsers.push({ userData, row });
 		}
 
 		return {
@@ -344,22 +385,7 @@ export class UserRegistrationService {
 					continue;
 				}
 
-				// ValidationService로 등록 전 검증
-				const validation = await ValidationService.validateRegistration({
-					name,
-					phone,
-					bank,
-					accountNumber,
-					salesperson
-				});
-
-				if (!validation.isValid) {
-					results.failed++;
-					const errorMessages = validation.errors.map((e) => `${e.field}: ${e.message}`).join(', ');
-					results.errors.push(`행 ${row} (${name}): ${errorMessages}`);
-					console.warn(`행 ${row} 검증 실패: ${errorMessages}`);
-					continue;
-				}
+				// ⭐ validateUsers()에서 이미 검증 완료 - 여기서는 생성만 수행
 
 				// v8.0: UserAccount 생성 또는 조회
 				let userAccount = await UserAccount.findOne({ loginId: loginId.toLowerCase() });
@@ -411,18 +437,7 @@ export class UserRegistrationService {
 					console.log(`✅ PlannerAccount 자동 생성: ${plannerName} (초기 비밀번호: ${plannerPassword})`);
 				}
 
-				// v8.0: 이름 중복 체크 - 같은 이름은 등록 불가
-				const existingUserWithSameName = await User.findOne({
-					name: name,
-					userAccountId: { $ne: userAccount._id }
-				});
-
-				if (existingUserWithSameName) {
-					results.failed++;
-					results.errors.push(`행 ${row}: 이미 "${name}" 이름의 용역자가 존재합니다.`);
-					console.warn(`행 ${row} 실패: 이름 중복 (${name})`);
-					continue;
-				}
+				// ⭐ 이름 중복 체크는 validateUsers()에서 이미 완료
 
 				// v8.0: registrationNumber 계산 (같은 UserAccount의 재등록 순번)
 				const existingUsers = await User.find({ userAccountId: userAccount._id })
