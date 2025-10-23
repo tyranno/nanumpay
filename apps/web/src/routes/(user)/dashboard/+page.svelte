@@ -1,5 +1,6 @@
 <script>
 	import { onMount } from 'svelte';
+	import GradeBadge from '$lib/components/GradeBadge.svelte';
 
 	let userInfo = $state(null);
 	let allRegistrations = $state([]); // ⭐ v8.0: 모든 등록 정보
@@ -98,7 +99,7 @@
 	let periodSummary = $state({ totalAmount: 0, totalTax: 0, totalNet: 0 }); // ⭐ 기간 총액
 
 	$effect(() => {
-		// 주차별 그룹화
+		// 주차별 그룹화 + 사용자별 등급 집계
 		const grouped = new Map();
 		let periodTotal = 0;
 		let periodTax = 0;
@@ -112,7 +113,8 @@
 					weekDate: payment.weekDate,
 					weekNumber: payment.weekNumber,
 					users: [],
-					totalAmount: 0, // ⭐ 지급총액
+					userGrades: new Map(), // ⭐ 사용자별 등급 집계 (userId_regNum -> gradeCount)
+					totalAmount: 0,
 					totalTax: 0,
 					totalNet: 0
 				});
@@ -120,19 +122,33 @@
 
 			const group = grouped.get(weekKey);
 			group.users.push(payment);
-			group.totalAmount += payment.amount || 0; // ⭐ 지급총액 합산
+
+			// ⭐ 사용자별 등급 집계
+			const userKey = `${payment.userId}_${payment.registrationNumber}`;
+			if (!group.userGrades.has(userKey)) {
+				group.userGrades.set(userKey, {});
+			}
+			const gradeCount = group.userGrades.get(userKey);
+			gradeCount[payment.grade] = (gradeCount[payment.grade] || 0) + 1;
+
+			group.totalAmount += payment.amount || 0;
 			group.totalTax += payment.tax || 0;
 			group.totalNet += payment.netAmount || 0;
 
-			// ⭐ 전체 기간 총액 합산
 			periodTotal += payment.amount || 0;
 			periodTax += payment.tax || 0;
 			periodNet += payment.netAmount || 0;
 		}
 
-		// ⭐ 각 주차별로 사용자를 등록 차수(registrationNumber) 순으로 정렬
+		// ⭐ 각 사용자에게 등급 정보 추가
 		for (const group of grouped.values()) {
 			group.users.sort((a, b) => a.registrationNumber - b.registrationNumber);
+
+			// 각 payment에 해당 사용자의 등급 집계 정보 추가
+			for (const user of group.users) {
+				const userKey = `${user.userId}_${user.registrationNumber}`;
+				user.gradeCount = group.userGrades.get(userKey);
+			}
 		}
 
 		groupedPayments = Array.from(grouped.values());
@@ -427,28 +443,38 @@
 							</tr>
 						{:else}
 							{#each displayedPayments as weekGroup}
+								{@const userKeysShown = new Set()} <!-- ⭐ 이미 등급 표시한 사용자 추적 -->
 								{#each weekGroup.users as user, index}
 									{@const breakdown = calculateBreakdown(user.amount)}
+									{@const userKey = `${user.userId}_${user.registrationNumber}`}
+									{@const isFirstOccurrence = !userKeysShown.has(userKey)}
+									{@const _ = isFirstOccurrence ? userKeysShown.add(userKey) : null}
+
 									<tr class="hover:bg-gray-50">
 										{#if index === 0}
-											<!-- 첫 번째 행만 지급일, 지급총액 표시 (rowspan) -->
+											<!-- 첫 번째 행만 지급일 표시 (rowspan) -->
 											<td class="table-cell" rowspan={weekGroup.users.length}>
 												{formatDate(weekGroup.weekDate)}
 											</td>
 										{/if}
 										<td class="table-cell">{user.userName || '-'}</td>
+										<!-- ⭐ 등급: 같은 사용자의 첫 번째 행에만 표시 (중앙정렬) -->
 										<td class="table-cell">
-											<div class="flex items-center justify-center gap-1">
-												<img
-													src="/icons/{user.grade}.svg"
-													alt={user.grade}
-													class="h-5 w-5"
-													title="{user.grade} 등급"
-												/>
-											</div>
+											{#if isFirstOccurrence}
+												<div class="flex flex-wrap items-center justify-center gap-1">
+													{#each Object.entries(user.gradeCount).sort((a, b) => b[0].localeCompare(a[0])) as [grade, count]}
+														<div class="flex items-center gap-0.5">
+															<GradeBadge {grade} size="sm" />
+															{#if count > 1}
+																<span class="text-xs font-medium text-gray-600">x{count}</span>
+															{/if}
+														</div>
+													{/each}
+												</div>
+											{/if}
 										</td>
 										{#if index === 0}
-											<!-- ⭐ 지급총액: 첫 번째 행만 표시 (rowspan) -->
+											<!-- ⭐ 수령총액: 첫 번째 행만 표시 (rowspan) -->
 											<td class="table-cell text-right font-bold" rowspan={weekGroup.users.length}>
 												{formatAmount(weekGroup.totalAmount)}
 											</td>
@@ -460,7 +486,7 @@
 												({breakdown.영업.toLocaleString()}/{breakdown.홍보.toLocaleString()}/{breakdown.판촉.toLocaleString()})
 											</div>
 										</td>
-										<!-- ⭐ 세금, 실수령액도 개별 표시 -->
+										<!-- ⭐ 세금, 실수령액 -->
 										<td class="table-cell text-right">{formatAmount(user.tax)}</td>
 										<td class="table-cell text-right font-medium">{formatAmount(user.netAmount)}</td>
 									</tr>
