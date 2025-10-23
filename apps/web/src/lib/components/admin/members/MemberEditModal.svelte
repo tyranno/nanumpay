@@ -76,7 +76,7 @@
 	isOpen={isOpen && member}
 	title="회원 정보 수정"
 	icon="/icons/edit-blue.svg"
-	size="lg"
+	size="xl"
 	{onClose}
 >
 	{#if member}
@@ -85,13 +85,25 @@
 			<div class="space-y-3">
 				<h4 class="text-xs font-semibold text-gray-900 border-b pb-1.5">기본 정보</h4>
 
-				<div>
-					<label class="block text-xs font-medium text-gray-700 mb-0.5">성명</label>
-					<input
-						type="text"
-						bind:value={member.name}
-						class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-					/>
+				<div class="grid grid-cols-2 gap-3">
+					<div>
+						<label class="block text-xs font-medium text-gray-700 mb-0.5">성명</label>
+						<input
+							type="text"
+							bind:value={member.name}
+							class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+						/>
+					</div>
+					<div>
+						<label class="block text-xs font-medium text-gray-700 mb-0.5">계정 ID</label>
+						<input
+							type="text"
+							value={member.loginId || '-'}
+							class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md bg-gray-50 text-gray-600"
+							readonly
+							title="시스템에서 자동 생성된 로그인 ID"
+						/>
+					</div>
 				</div>
 
 				<div>
@@ -112,38 +124,41 @@
 					/>
 				</div>
 
-				<div>
-					<label class="block text-xs font-medium text-gray-700 mb-0.5">은행</label>
-					<input
-						type="text"
-						bind:value={member.bank}
-						class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-					/>
+				<div class="grid grid-cols-2 gap-3">
+					<div>
+						<label class="block text-xs font-medium text-gray-700 mb-0.5">은행</label>
+						<input
+							type="text"
+							bind:value={member.bank}
+							class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+						/>
+					</div>
+					<div>
+						<label class="block text-xs font-medium text-gray-700 mb-0.5">계좌번호</label>
+						<input
+							type="text"
+							bind:value={member.accountNumber}
+							class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+						/>
+					</div>
 				</div>
-
-				<div>
-					<label class="block text-xs font-medium text-gray-700 mb-0.5">계좌번호</label>
-					<input
-						type="text"
-						bind:value={member.accountNumber}
-						class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-					/>
-				</div>
-				<div>
-					<label class="block text-xs font-medium text-gray-700 mb-0.5">보험상품명</label>
-					<input
-						type="text"
-						bind:value={member.insuranceProduct}
-						class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-					/>
-				</div>
-				<div>
-					<label class="block text-xs font-medium text-gray-700 mb-0.5">보험회사</label>
-					<input
-						type="text"
-						bind:value={member.insuranceCompany}
-						class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-					/>
+				<div class="grid grid-cols-2 gap-3">
+					<div>
+						<label class="block text-xs font-medium text-gray-700 mb-0.5">보험상품명</label>
+						<input
+							type="text"
+							bind:value={member.insuranceProduct}
+							class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+						/>
+					</div>
+					<div>
+						<label class="block text-xs font-medium text-gray-700 mb-0.5">보험회사</label>
+						<input
+							type="text"
+							bind:value={member.insuranceCompany}
+							class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+						/>
+					</div>
 				</div>
 			</div>
 

@@ -43,7 +43,7 @@ export async function GET({ url, locals }) {
 
 		// ⭐ v8.0: 사용자 목록 조회 + UserAccount, PlannerAccount populate
 		const users = await User.find(query)
-			.populate('userAccountId', 'canViewSubordinates phone bank accountNumber idNumber')
+			.populate('userAccountId', 'loginId canViewSubordinates phone bank accountNumber idNumber')
 			.populate('plannerAccountId', 'name phone')
 			.select('-passwordHash')
 			.sort(sortOptions)
@@ -60,6 +60,7 @@ export async function GET({ url, locals }) {
 				leftCount: 0,
 				rightCount: 0,
 				// ⭐ v8.0: UserAccount 필드들
+				loginId: user.userAccountId?.loginId || '',
 				canViewSubordinates: user.userAccountId?.canViewSubordinates || false,
 				phone: user.userAccountId?.phone || '',
 				bank: user.userAccountId?.bank || '',
