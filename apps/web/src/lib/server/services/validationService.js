@@ -6,6 +6,22 @@
 import User from '../models/User.js';
 import logger from '../logger.js';
 
+// 필드명 한글 매핑
+const FIELD_LABELS = {
+	salesperson: '판매인',
+	name: '성명',
+	phone: '연락처',
+	idNumber: '주민번호',
+	bank: '은행',
+	accountNumber: '계좌번호',
+	branch: '지사',
+	agent: '설계사',
+	agentPhone: '설계사 연락처',
+	insuranceProduct: '보험상품명',
+	insuranceCompany: '보험회사',
+	system: '시스템'
+};
+
 class ValidationService {
 	/**
 	 * 용역자 등록 전 검증
@@ -108,7 +124,7 @@ class ValidationService {
 	static isValidPhoneNumber(phone) {
 		// 010-1234-5678 또는 01012345678 형식
 		const phoneRegex = /^(010|011|016|017|018|019)[-]?\d{3,4}[-]?\d{4}$/;
-		return phoneRegex.test(phone.replace(/[-\s]/g, ''));
+		return phoneRegex.test(phone);
 	}
 
 	/**
@@ -195,6 +211,15 @@ class ValidationService {
 		}
 
 		return { isValid: true };
+	}
+
+	/**
+	 * 필드명을 한글로 변환
+	 * @param {string} fieldName - 영문 필드명
+	 * @returns {string} 한글 필드명
+	 */
+	static getFieldLabel(fieldName) {
+		return FIELD_LABELS[fieldName] || fieldName;
 	}
 }
 

@@ -162,7 +162,9 @@ export class UserRegistrationService {
 			});
 
 			if (!validation.isValid) {
-				const errorMessages = validation.errors.map((e) => `${e.field}: ${e.message}`).join(', ');
+				const errorMessages = validation.errors
+					.map((e) => `${ValidationService.getFieldLabel(e.field)}: ${e.message}`)
+					.join(', ');
 				return {
 					isValid: false,
 					error: `엑셀 업로드 실패: 행 ${i + 1} (${name}) 검증 실패 - ${errorMessages}`,
