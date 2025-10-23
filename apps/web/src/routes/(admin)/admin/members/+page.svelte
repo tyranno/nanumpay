@@ -45,7 +45,8 @@
 	let showUploadModal = false;
 	let showAddModal = false;
 	let showEditModal = false;
-	let uploadFile = null;
+	let uploadFiles = [];  // 단일 → 복수로 변경
+	let uploadProgress = null;  // 진행 상황 추가
 	let editingMember = null;
 	let isUploading = false;
 
@@ -279,32 +280,21 @@
 	}
 
 
-	// 엑셀 파일 처리
+	// 엑셀 파일 처리 (다중 파일 지원)
 	function handleFileSelect(event) {
-		const file = event.target.files[0];
-		if (file) {
-			uploadFile = file;
+		const files = Array.from(event.target.files);
+		if (files.length > 0) {
+			// 파일명 순으로 정렬 (자연스러운 정렬)
+			uploadFiles = files.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
 		}
 	}
 
-	async function handleExcelUpload() {
-		if (!uploadFile) {
-			notificationConfig = {
-				type: 'warning',
-				title: '파일 선택',
-				message: '파일을 선택해주세요.',
-				results: null,
-				details: []
-			};
-			notificationOpen = true;
-			return;
-		}
-
-		isUploading = true;
-
-		const reader = new FileReader();
-		reader.onload = async (e) => {
-			try {
+	// 단일 파일 처리 함수
+	async function processFile(file) {
+		return new Promise((resolve, reject) => {
+			const reader = new FileReader();
+			reader.onload = async (e) => {
+				try {
 				const data = new Uint8Array(e.target.result);
 				const workbook = XLSX.read(data, { type: 'array' });
 				const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -345,7 +335,10 @@
 					headers: {
 						'Content-Type': 'application/json'
 					},
-					body: JSON.stringify({ users: jsonData })
+					body: JSON.stringify({
+						users: jsonData,
+						fileName: uploadFile.name  // 파일명 추가
+					})
 				});
 
 				const result = await response.json();
@@ -353,7 +346,7 @@
 					notificationConfig = {
 						type: result.failed > 0 ? 'warning' : 'success',
 						title: '엑셀 업로드 완료',
-						message: `총 ${result.created + result.failed}개 항목 중 ${result.created}명이 성공적으로 등록되었습니다.`,
+						message: `파일: ${uploadFile.name}\n총 ${result.created + result.failed}개 항목 중 ${result.created}명이 성공적으로 등록되었습니다.`,
 						results: {
 							created: result.created,
 							failed: result.failed,

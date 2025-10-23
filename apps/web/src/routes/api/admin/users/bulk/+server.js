@@ -15,17 +15,23 @@ export async function POST({ request, locals }) {
 	await db();
 
 	try {
-		const { users } = await request.json();
+		const { users, fileName } = await request.json();
 
 		// 데이터 형식 확인
 		if (!users || !Array.isArray(users)) {
 			return json({ error: '올바른 데이터 형식이 아닙니다.' }, { status: 400 });
 		}
 
+		// 파일명 로그 출력
+		if (fileName) {
+			console.log(`📁 엑셀 등록: ${fileName} (${users.length}명)`);
+		}
+
 		// 공통 등록 함수 호출
 		const results = await registerUsers(users, {
 			source: 'bulk',
-			admin: locals.user
+			admin: locals.user,
+			fileName: fileName  // 파일명 전달
 		});
 
 		return json({
