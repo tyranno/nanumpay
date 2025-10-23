@@ -120,7 +120,7 @@
 	{isOpen}
 	title="용역자 등록"
 	icon="/icons/user-plus.svg"
-	size="lg"
+	size="xl"
 	{onClose}
 >
 	<div class="grid grid-cols-2 gap-4">
