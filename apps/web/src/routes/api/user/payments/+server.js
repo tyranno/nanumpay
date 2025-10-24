@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db.js';
 import User from '$lib/server/models/User.js';
+import UserAccount from '$lib/server/models/UserAccount.js';
 import WeeklyPaymentPlans from '$lib/server/models/WeeklyPaymentPlans.js';
 
 export async function GET({ locals, url }) {
@@ -9,6 +10,11 @@ export async function GET({ locals, url }) {
 	}
 
 	await db();
+
+	// ⭐ 필터 파라미터 추출
+	const startMonth = url.searchParams.get('startMonth');
+	const endMonth = url.searchParams.get('endMonth');
+	const gradeFilter = url.searchParams.get('grade');
 
 	// ⭐ v8.0: JWT에서 primaryUserId 사용 (locals.user.id는 UserAccount._id)
 	const primaryUserId = locals.user.primaryUserId || locals.user.id;
@@ -51,7 +57,7 @@ export async function GET({ locals, url }) {
 	const thisMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
 
 	// ⭐ v8.0: 사용자별로 개별 행 생성 (합산하지 않음)
-	const paymentRows = [];
+	let paymentRows = [];
 	let thisWeekAmount = 0;
 	let thisWeekTax = 0;
 	let thisWeekNet = 0;
@@ -68,28 +74,70 @@ export async function GET({ locals, url }) {
 		userMap.set(user._id.toString(), user);
 	}
 
+	// ⭐ 주차별로 그룹화하여 등급별 빈도수와 금액 합산
+	const weekUserMap = new Map(); // key: "주차번호_사용자명"
+
+	// 주차번호에서 금요일 날짜 계산 (ISO 8601 week date)
+	function getFridayFromWeekNumber(weekNumberStr) {
+		// weekNumberStr 형식: "2025-W48"
+		const [year, week] = weekNumberStr.split('-W').map(Number);
+
+		// ISO 8601: 1월 4일이 포함된 주가 1주차
+		const jan4 = new Date(year, 0, 4);
+		const jan4Day = jan4.getDay() || 7; // 일요일=7
+		const firstMonday = new Date(jan4);
+		firstMonday.setDate(jan4.getDate() - jan4Day + 1);
+
+		// 해당 주의 월요일
+		const targetMonday = new Date(firstMonday);
+		targetMonday.setDate(firstMonday.getDate() + (week - 1) * 7);
+
+		// 금요일 = 월요일 + 4일
+		const friday = new Date(targetMonday);
+		friday.setDate(targetMonday.getDate() + 4);
+
+		return friday;
+	}
+
 	for (const plan of paymentPlans) {
 		const user = userMap.get(plan.userId);
 		if (!user) continue; // 사용자 정보 없으면 스킵
 
 		for (const installment of plan.installments) {
-			const weekDate = installment.scheduledDate || installment.weekDate;
-			const installmentDate = new Date(weekDate);
+			const weekNumber = installment.weekNumber; // "2025-W48"
 
-			// ⭐ v8.0: 각 사용자의 각 지급 건을 개별 행으로 추가
-			paymentRows.push({
-				weekDate: weekDate,
-				weekNumber: installment.weekNumber,
-				userId: plan.userId,
-				userName: user.name, // ⭐ 사용자 이름 추가
-				grade: plan.baseGrade,
-				registrationNumber: user.registrationNumber, // ⭐ 등록 차수 추가
-				amount: installment.installmentAmount || 0,
-				tax: installment.withholdingTax || 0,
-				netAmount: installment.netAmount || 0,
-				세금: installment.withholdingTax || 0, // 한글 필드 추가
-				실수령액: installment.netAmount || 0 // 한글 필드 추가
-			});
+			// 그룹 키: 주차번호_사용자명
+			const groupKey = `${weekNumber}_${user.name}`;
+
+			if (!weekUserMap.has(groupKey)) {
+				// 해당 주의 금요일 날짜 계산
+				const fridayDate = getFridayFromWeekNumber(weekNumber);
+
+				weekUserMap.set(groupKey, {
+					weekDate: fridayDate,
+					weekNumber: weekNumber,
+					userId: plan.userId,
+					userName: user.name,
+					registrationNumber: user.registrationNumber,
+					gradeCount: {}, // 등급별 빈도수
+					amount: 0,
+					tax: 0,
+					netAmount: 0
+				});
+			}
+
+			const group = weekUserMap.get(groupKey);
+
+			// 등급별 빈도수 증가
+			group.gradeCount[plan.baseGrade] = (group.gradeCount[plan.baseGrade] || 0) + 1;
+
+			// 금액 합산
+			group.amount += installment.installmentAmount || 0;
+			group.tax += installment.withholdingTax || 0;
+			group.netAmount += installment.netAmount || 0;
+
+			// 이번주/이번달 계산용 날짜
+			const installmentDate = installment.scheduledDate || installment.weekDate;
 
 			// 이번주 금액 계산 (총액/세금/실수령액)
 			if (installmentDate >= thisWeekStart && installmentDate <= thisWeekEnd) {
@@ -112,6 +160,34 @@ export async function GET({ locals, url }) {
 				upcomingNet += installment.netAmount || 0;
 			}
 		}
+	}
+
+	// Map을 배열로 변환
+	paymentRows = Array.from(weekUserMap.values());
+
+	// ⭐ 필터 적용
+	if (startMonth || endMonth || gradeFilter) {
+		paymentRows = paymentRows.filter((payment) => {
+			const paymentDate = new Date(payment.weekDate);
+			const paymentMonth = `${paymentDate.getFullYear()}-${String(paymentDate.getMonth() + 1).padStart(2, '0')}`;
+
+			// 시작 월 필터
+			if (startMonth && paymentMonth < startMonth) {
+				return false;
+			}
+
+			// 종료 월 필터
+			if (endMonth && paymentMonth > endMonth) {
+				return false;
+			}
+
+			// 등급 필터 (gradeCount에 해당 등급이 있는지 확인)
+			if (gradeFilter && !payment.gradeCount[gradeFilter]) {
+				return false;
+			}
+
+			return true;
+		});
 	}
 
 	// 날짜순 정렬 (최신순)
