@@ -249,7 +249,7 @@ async function findAdditionalPaymentTargets(promoted, registrationMonth) {
 					candidate.userId,
 					grade,
 					registrationMonth,
-					i
+					i // monthsBack parameter
 				);
 
 				if (target) {
@@ -269,10 +269,10 @@ async function findAdditionalPaymentTargets(promoted, registrationMonth) {
  * @param {string} userId
  * @param {string} grade
  * @param {string} revenueMonth - 매출 귀속 월 (현재 월)
- * @param {number} 추가지급단계 - 1차, 2차, 3차, ...
+ * @param {number} monthsBack - 몇 개월 전 대상자인지 (1, 2, 3, ...)
  * @returns {Promise<Object|null>}
  */
-async function checkAdditionalPaymentConditions(userId, grade, revenueMonth, 추가지급단계) {
+async function checkAdditionalPaymentConditions(userId, grade, revenueMonth, monthsBack) {
 	const user = await User.findById(userId);
 	if (!user) return null;
 
@@ -281,24 +281,35 @@ async function checkAdditionalPaymentConditions(userId, grade, revenueMonth, 추
 	// 등급 유지 확인
 	if (currentGrade !== grade) return null;
 
-	// 최대 횟수 확인
-	const maxInstallments = GRADE_LIMITS[grade]?.maxInstallments || 0;
-	const completedCount = await WeeklyPaymentPlans.countDocuments({
+	// ⭐ 추가지급단계 계산: 이 등급에서 이미 생성된 추가지급 개수 확인
+	const existingAdditionalPlans = await WeeklyPaymentPlans.find({
 		userId: userId,
-		planStatus: 'completed'
-	});
+		baseGrade: grade,
+		installmentType: 'additional'
+	}).sort({ 추가지급단계: -1 });
 
-	const activePlans = await WeeklyPaymentPlans.find({
-		userId: userId,
-		planStatus: 'active'
-	});
+	const currentAdditionalStage = existingAdditionalPlans.length > 0 
+		? existingAdditionalPlans[0].추가지급단계 
+		: 0;
 
-	let totalInstallments = completedCount * 10;
-	activePlans.forEach((plan) => {
-		totalInstallments += plan.completedInstallments || 0;
-	});
+	const nextAdditionalStage = currentAdditionalStage + 1;
 
-	if (totalInstallments >= maxInstallments) return null;
+	// ⭐ 등급별 최대 추가지급 횟수 확인
+	const maxAdditionalPayments = {
+		F1: 1, // 기본 10 + 추가 10 = 20회
+		F2: 2, // 기본 10 + 추가 20 = 30회
+		F3: 3, // 기본 10 + 추가 30 = 40회
+		F4: 3,
+		F5: 4, // 기본 10 + 추가 40 = 50회
+		F6: 4,
+		F7: 5, // 기본 10 + 추가 50 = 60회
+		F8: 5
+	};
+
+	const maxAllowed = maxAdditionalPayments[grade] || 0;
+
+	// 이미 최대 추가지급 횟수에 도달했으면 제외
+	if (nextAdditionalStage > maxAllowed) return null;
 
 	// F3+ 보험 확인
 	if (grade >= 'F3') {
@@ -306,12 +317,21 @@ async function checkAdditionalPaymentConditions(userId, grade, revenueMonth, 추
 		if (!insuranceActive) return null;
 	}
 
+	// ⭐ 이번 달에 이미 이 등급으로 추가지급 계획이 생성되었는지 확인 (중복 방지)
+	const alreadyCreated = await WeeklyPaymentPlans.findOne({
+		userId: userId,
+		baseGrade: grade,
+		revenueMonth: revenueMonth,
+		installmentType: 'additional'
+	});
+
+	if (alreadyCreated) return null;
+
 	return {
 		userId: userId,
 		userName: user.name,
 		grade: grade,
-		추가지급단계: 추가지급단계,
-		totalInstallments: totalInstallments,
+		추가지급단계: nextAdditionalStage,
 		type: 'additional'
 	};
 }

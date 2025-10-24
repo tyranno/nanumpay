@@ -267,9 +267,10 @@ async function createAdditionalPaymentPlan(userId, userName, grade, 추가지급
 async function terminateAdditionalPaymentPlans(userId, registrationMonth) {
   try {
 
-    // 승급 다음 달 계산 (예: 9월 승급 → 10월부터 중단)
+    // ⭐ v7.0: 승급 시 추가지급 계획 중단
+    // 승급 월의 다음 달부터 중단 (예: 9월 승급 → 10월 1일부터 중단)
     const [year, month] = registrationMonth.split('-').map(Number);
-    const stopDate = new Date(Date.UTC(year, month, 1));  // ⭐ UTC 기준 다음 달 1일
+    const stopDate = new Date(Date.UTC(year, month, 1));  // ⭐ 다음 달 1일
 
     // 모든 active 추가지급 계획 조회
     const plans = await WeeklyPaymentPlans.find({
@@ -284,23 +285,20 @@ async function terminateAdditionalPaymentPlans(userId, registrationMonth) {
     for (const plan of plans) {
 
       let hasCanceled = false;
-      let hasActive = false;
 
-      // 각 installment 확인
+      // 각 installment 확인 - 다음 달부터만 canceled로 변경
       for (const inst of plan.installments) {
         const instDate = new Date(inst.scheduledDate);
-
-        // 승급 다음 달 이후 installments만 canceled로 변경
+        
+        // ⭐ 승급 다음 달 이후만 중단 (승급 월은 지급)
         if (instDate >= stopDate && inst.status === 'pending') {
           inst.status = 'canceled';
           hasCanceled = true;
-        } else if (inst.status === 'pending') {
-          hasActive = true;
         }
       }
 
       if (hasCanceled) {
-        // 모든 installments가 canceled이거나 paid면 terminated
+        // 모든 installments 완료 확인
         const allDone = plan.installments.every(i =>
           i.status === 'canceled' || i.status === 'paid'
         );
@@ -314,7 +312,6 @@ async function terminateAdditionalPaymentPlans(userId, registrationMonth) {
           updateFields.planStatus = 'terminated';
           updateFields.terminatedBy = 'promotion_additional_stop';
           updateFields.terminatedAt = new Date();
-        } else {
         }
 
         await WeeklyPaymentPlans.updateOne(
@@ -323,8 +320,6 @@ async function terminateAdditionalPaymentPlans(userId, registrationMonth) {
           { strict: false }  // ⭐ 스키마 validation 우회
         );
         terminatedCount++;
-
-      } else {
       }
     }
 

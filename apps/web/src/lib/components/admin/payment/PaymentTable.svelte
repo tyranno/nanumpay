@@ -176,10 +176,10 @@
 									<td
 										class="td-amount"
 										title={payment?.installmentDetails
-											? payment.installmentDetails
-													.map((d) => `${d.revenueMonth} ${d.installmentNumber}회차`)
-													.join(', ')
-											: ''}
+						? payment.installmentDetails
+								.map((d) => `${d.revenueMonth} ${d.week}회차`)
+								.join(', ')
+						: ''}
 									>
 										{formatAmount(payment?.amount)}
 									</td>
