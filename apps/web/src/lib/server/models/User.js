@@ -200,6 +200,102 @@ userSchema.methods.findEmptyPosition = async function() {
 	return null;
 };
 
+// ⭐ Cascade 삭제: 사용자 삭제 시 자동으로 관련 데이터 정리
+userSchema.pre('findOneAndDelete', async function(next) {
+	try {
+		const docToDelete = await this.model.findOne(this.getQuery());
+		if (!docToDelete) return next();
+
+		console.log(`🗑️ Cascade 삭제 시작: ${docToDelete.name} (${docToDelete._id})`);
+
+		// 1. 부모의 자식 참조 제거
+		if (docToDelete.parentId) {
+			await this.model.updateOne(
+				{ _id: docToDelete.parentId },
+				{
+					$unset: docToDelete.position === 'L'
+						? { leftChildId: '' }
+						: { rightChildId: '' }
+				}
+			);
+			console.log(`  ✅ 부모의 자식 참조 제거 완료`);
+		}
+
+		// 2. ObjectId 기반 부모 참조도 제거 (이중 안전장치)
+		const updatedParents = await this.model.updateMany(
+			{
+				$or: [
+					{ leftChildId: docToDelete._id },
+					{ rightChildId: docToDelete._id }
+				]
+			},
+			{
+				$unset: {
+					leftChildId: '',
+					rightChildId: ''
+				}
+			}
+		);
+		if (updatedParents.modifiedCount > 0) {
+			console.log(`  ✅ ObjectId 기반 부모 참조 ${updatedParents.modifiedCount}건 제거`);
+		}
+
+		// 3. WeeklyPaymentPlans 삭제
+		const WeeklyPaymentPlans = mongoose.model('WeeklyPaymentPlans');
+		const deletedPlans = await WeeklyPaymentPlans.deleteMany({ userId: docToDelete._id });
+		console.log(`  ✅ 지급 계획 ${deletedPlans.deletedCount}건 삭제`);
+
+		// 4. MonthlyRegistrations에서 제거
+		const MonthlyRegistrations = mongoose.model('MonthlyRegistrations');
+		const updatedRegistrations = await MonthlyRegistrations.updateMany(
+			{},
+			{
+				$pull: {
+					registrations: { userId: docToDelete._id },
+					'paymentTargets.registrants': { userId: docToDelete._id },
+					'paymentTargets.promoted': { userId: docToDelete._id },
+					'paymentTargets.additionalPayments': { userId: docToDelete._id }
+				}
+			}
+		);
+		console.log(`  ✅ 월별 등록 ${updatedRegistrations.modifiedCount}건 업데이트`);
+
+		// 5. MonthlyTreeSnapshots에서 제거
+		const MonthlyTreeSnapshots = mongoose.model('MonthlyTreeSnapshots');
+		const updatedSnapshots = await MonthlyTreeSnapshots.updateMany(
+			{},
+			{
+				$pull: {
+					users: { userId: docToDelete._id }
+				}
+			}
+		);
+		console.log(`  ✅ 월별 스냅샷 ${updatedSnapshots.modifiedCount}건 업데이트`);
+
+		// 6. ⭐ UserAccount 정리: 이 User가 마지막이면 UserAccount도 삭제
+		if (docToDelete.userAccountId) {
+			const UserAccount = mongoose.model('UserAccount');
+			const remainingUsers = await this.model.countDocuments({
+				userAccountId: docToDelete.userAccountId,
+				_id: { $ne: docToDelete._id }
+			});
+
+			if (remainingUsers === 0) {
+				await UserAccount.findByIdAndDelete(docToDelete.userAccountId);
+				console.log(`  ✅ UserAccount 삭제 (연결된 User 0개)`);
+			} else {
+				console.log(`  ℹ️ UserAccount 유지 (연결된 User ${remainingUsers}개 남음)`);
+			}
+		}
+
+		console.log(`✅ Cascade 삭제 완료: ${docToDelete.name}`);
+		next();
+	} catch (error) {
+		console.error('❌ Cascade 삭제 실패:', error);
+		next(error);
+	}
+});
+
 // 모델 캐시 강제 삭제 (스키마 변경 시)
 if (mongoose.models.User) {
 	delete mongoose.models.User;

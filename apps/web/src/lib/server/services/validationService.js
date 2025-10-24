@@ -64,7 +64,7 @@ class ValidationService {
 				});
 
 				if (sponsor) {
-					// 좌우 자리 모두 차있는지 확인
+					// 좌우 자리 모두 차있는지 확인 (cascade 삭제로 필드가 항상 정확)
 					if (sponsor.leftChildId && sponsor.rightChildId) {
 						errors.push({
 							field: 'salesperson',

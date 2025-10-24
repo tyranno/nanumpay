@@ -57,6 +57,30 @@ const userAccountSchema = new mongoose.Schema({
 userAccountSchema.index({ loginId: 1 });
 userAccountSchema.index({ status: 1 });
 
+// ⭐ 삭제 방지: 연결된 User가 있으면 삭제 불가
+userAccountSchema.pre('findOneAndDelete', async function(next) {
+	try {
+		const docToDelete = await this.model.findOne(this.getQuery());
+		if (!docToDelete) return next();
+
+		// User 모델 동적 로드 (순환 참조 방지)
+		const User = mongoose.model('User');
+		const hasUsers = await User.exists({ userAccountId: docToDelete._id });
+
+		if (hasUsers) {
+			const error = new Error(`연결된 용역자가 있어 계정을 삭제할 수 없습니다 (${docToDelete.loginId})`);
+			error.name = 'ValidationError';
+			return next(error);
+		}
+
+		console.log(`🗑️ UserAccount 삭제: ${docToDelete.loginId}`);
+		next();
+	} catch (error) {
+		console.error('❌ UserAccount 삭제 검증 실패:', error);
+		next(error);
+	}
+});
+
 // 모델 캐시 강제 삭제 (스키마 변경 시)
 if (mongoose.models.UserAccount) {
 	delete mongoose.models.UserAccount;

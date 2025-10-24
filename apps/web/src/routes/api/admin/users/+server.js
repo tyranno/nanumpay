@@ -192,23 +192,15 @@ export async function DELETE({ request, locals }) {
 			}, { status: 400 });
 		}
 
-		// 사용자 삭제
+		// ⭐ Cascade 삭제: User 모델의 pre('findOneAndDelete') hook이 자동 처리
+		// - 부모의 자식 참조 제거 (parentId + ObjectId 기반)
+		// - WeeklyPaymentPlans 삭제
+		// - MonthlyRegistrations 업데이트
+		// - MonthlyTreeSnapshots 업데이트
 		const user = await User.findByIdAndDelete(userId);
 
 		if (!user) {
 			return json({ error: 'User not found' }, { status: 404 });
-		}
-
-		// 부모의 자식 참조 제거
-		if (user.parentId) {
-			await User.updateOne(
-				{ loginId: user.parentId },  // parentId는 loginId 문자열
-				{
-					$unset: user.position === 'L'
-						? { leftChildId: 1 }
-						: { rightChildId: 1 }
-				}
-			);
 		}
 
 		return json({ success: true });
