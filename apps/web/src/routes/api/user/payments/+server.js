@@ -33,11 +33,7 @@ export async function GET({ locals, url }) {
 	const allUserIds = allUsers.map(u => u._id.toString());
 
 	// ⭐ v8.0: 모든 User의 용역비 지급 계획 조회 (최신순)
-	// ⭐ terminated 상태 제외 (승급으로 중단된 추가지급 계획)
-	const paymentPlans = await WeeklyPaymentPlans.find({
-		userId: { $in: allUserIds },
-		planStatus: { $ne: 'terminated' } // terminated 제외
-	})
+	const paymentPlans = await WeeklyPaymentPlans.find({ userId: { $in: allUserIds } })
 		.sort({ createdAt: -1 })
 		.lean();
 

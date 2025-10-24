@@ -20,7 +20,8 @@
 	// 필터 상태
 	let filters = $state({
 		startMonth: currentMonth,
-		endMonth: currentMonth
+		endMonth: currentMonth,
+		grade: ''
 	});
 
 	// 페이지네이션 상태
@@ -64,8 +65,7 @@
 		// 필터만 추적
 		const startMonth = filters.startMonth;
 		const endMonth = filters.endMonth;
-
-		console.log('🔍 필터 적용:', { startMonth, endMonth, allPaymentsCount: allPayments.length });
+		const grade = filters.grade;
 
 		// ⭐ v8.0: 개별 행 필터링
 		const filtered = allPayments.filter((payment) => {
@@ -82,10 +82,14 @@
 				return false;
 			}
 
+			// ⭐ v8.0: 등급 필터 (단일 값)
+			if (grade && payment.grade !== grade) {
+				return false;
+			}
+
 			return true;
 		});
 
-		console.log('✅ 필터링 결과:', filtered.length, '건');
 		filteredPayments = filtered;
 		currentPage = 1;
 	});
@@ -172,6 +176,7 @@
 	function resetFilters() {
 		filters.startMonth = currentMonth;
 		filters.endMonth = currentMonth;
+		filters.grade = '';
 	}
 
 	// 날짜 포맷팅
@@ -197,6 +202,8 @@
 		};
 	}
 
+	// 등급 목록
+	const grades = ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'];
 </script>
 
 <svelte:head>
@@ -334,6 +341,20 @@
 							bind:value={filters.endMonth}
 							class="w-full rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
 						/>
+					</div>
+
+					<!-- 등급 -->
+					<div class="w-32">
+						<label class="mb-1 block text-xs font-medium text-gray-700">등급</label>
+						<select
+							bind:value={filters.grade}
+							class="w-full rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+						>
+							<option value="">전체</option>
+							{#each grades as grade}
+								<option value={grade}>{grade}</option>
+							{/each}
+						</select>
 					</div>
 
 					<!-- 초기화 아이콘 -->
