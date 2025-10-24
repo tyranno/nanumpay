@@ -12,6 +12,7 @@
 
 	// ⭐ View 관리
 	let maxDepth = 6; // 한 번에 볼 수 있는 최대 depth (기본값: 6)
+	let displayDepth = '6'; // UI에 표시되는 값 ('4'~'8', 'all')
 	let viewHistory = []; // { userId, nodeId, nodeName, treeData }
 	let treeCache = new Map(); // userId → treeData 캐시
 	let currentViewIndex = -1; // 현재 view 위치
@@ -234,6 +235,29 @@
 		}
 	}
 
+	// ⭐ 계층수 변경 핸들러
+	async function handleDepthChange() {
+		// displayDepth 값에 따라 maxDepth 업데이트
+		if (displayDepth === 'all') {
+			maxDepth = 99; // 전체 보기
+		} else {
+			maxDepth = parseInt(displayDepth);
+		}
+
+		console.log('🔄 계층수 변경:', displayDepth, '→', maxDepth);
+
+		// 캐시 초기화 (depth가 변경되었으므로)
+		treeCache.clear();
+
+		// 현재 view 재로드
+		const currentView = viewHistory[currentViewIndex];
+		if (currentView) {
+			await loadTreeData(currentView.userId, currentView.nodeName, false);
+		} else {
+			await loadTreeData();
+		}
+	}
+
 	// 이미지로 다운로드
 	async function downloadTree() {
 		if (!treeComponent) {
@@ -274,17 +298,22 @@
 				<img src="/icons/search.svg" alt="검색" class="btn-icon" />
 			</button>
 
-			<!-- ⭐ Depth 설정 (4~8 제한) -->
+			<!-- ⭐ Depth 설정 (4~8 + 전체) -->
 			<div class="flex items-center gap-2">
-				<label for="maxDepth" class="text-sm text-gray-700">표시 계층수:</label>
-				<input
-					id="maxDepth"
-					type="number"
-					bind:value={maxDepth}
-					min="4"
-					max="8"
-					class="w-16 rounded border-2 border-gray-200 px-2 py-1 text-sm"
-				/>
+				<label for="displayDepth" class="text-sm text-gray-700">표시 계층수:</label>
+				<select
+					id="displayDepth"
+					bind:value={displayDepth}
+					onchange={handleDepthChange}
+					class="h-7 rounded border-2 border-gray-200 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+				>
+					<option value="4">4단계</option>
+					<option value="5">5단계</option>
+					<option value="6">6단계</option>
+					<option value="7">7단계</option>
+					<option value="8">8단계</option>
+					<option value="all">전체</option>
+				</select>
 			</div>
 
 			<button
