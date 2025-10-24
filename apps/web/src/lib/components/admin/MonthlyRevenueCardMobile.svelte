@@ -193,6 +193,33 @@
 		await loadData();
 	}
 
+	// 총계 계산
+	let totalCount = 0;
+	let totalPerAmount = 0; // 1회 금액 합계
+	let totalAmount = 0; // 10회 총액 합계
+
+	$: if (monthlyData?.gradeDistribution && monthlyData?.gradePayments) {
+		totalCount = Object.values(monthlyData.gradeDistribution || {}).reduce((sum, count) => sum + count, 0);
+
+		// 1회 금액 합계와 10회 총액 합계 계산
+		const result = ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'].reduce((acc, grade) => {
+			const count = monthlyData.gradeDistribution?.[grade] || 0;
+			const perAmount = monthlyData.gradePayments?.[grade] || 0;
+
+			return {
+				perAmount: acc.perAmount + (perAmount * count), // 1회 금액 × 인원수
+				totalAmount: acc.totalAmount + (perAmount * 10 * count) // 10회 총액
+			};
+		}, { perAmount: 0, totalAmount: 0 });
+
+		totalPerAmount = result.perAmount;
+		totalAmount = result.totalAmount;
+	} else {
+		totalCount = 0;
+		totalPerAmount = 0;
+		totalAmount = 0;
+	}
+
 	// 지급 기간 계산 (다음 달부터 3개월)
 	function getPaymentPeriod(year, month) {
 		let startMonth = month + 1;
@@ -402,8 +429,26 @@
 									</td>
 								</tr>
 							{/each}
-						</tbody>
-					</table>
+					<!-- 총계 행 -->
+					<tr class="bg-gray-50 font-semibold">
+						<td class="border border-gray-300 px-2 py-1 text-center text-xs">
+							총계
+						</td>
+						<td class="border border-gray-300 px-2 py-1 text-center text-xs">
+							{totalCount}
+						</td>
+						<td class="border border-gray-300 px-2 py-1 text-right text-xs">
+							{(Math.floor(totalPerAmount / 100) * 100).toLocaleString()}
+						</td>
+						<td class="border border-gray-300 px-2 py-1 text-right text-xs text-blue-600">
+							{(Math.floor(totalAmount / 100) * 100).toLocaleString()}
+						</td>
+						<td class="border border-gray-300 px-2 py-1 text-center text-xs">
+							-
+						</td>
+					</tr>
+				</tbody>
+			</table>
 					<p class="mt-2 text-xs text-gray-600">💡 매출은 다음 달부터 10주간 지급됩니다</p>
 				</div>
 			</div>
