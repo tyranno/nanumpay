@@ -347,7 +347,11 @@ async function getRangePaymentsV5(startYear, startMonth, endYear, endMonth, page
 
 	// 검색 필터 적용
 	if (searchFilter.userName) {
-		allUsers = allUsers.filter(u => searchFilter.userName.$regex.test(u.name));
+		// ⭐ MongoDB $regex 객체에서 정규표현식 추출하여 사용
+		const searchRegex = searchFilter.userName.$regex 
+			? new RegExp(searchFilter.userName.$regex.source || searchFilter.userName.$regex, searchFilter.userName.$options || 'i')
+			: new RegExp(searchFilter.userName, 'i');
+		allUsers = allUsers.filter(u => searchRegex.test(u.name));
 		console.log(`[API 기간조회] 이름 검색 필터 적용 후 ${allUsers.length}명`);
 	}
 
