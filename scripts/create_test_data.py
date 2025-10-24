@@ -197,10 +197,14 @@ def find_parent_for_name(current_name):
     return parent
 
 
-def generate_person_data(name, counter):
+def generate_person_data(name, counter, account_id=None):
     """개인 데이터 자동 생성 - 판매인은 childData 기반으로 할당"""
     banks = ['KB국민은행', '신한은행', '우리은행', '하나은행', '농협은행', '기업은행', 'NH농협은행', '카카오뱅크', '토스뱅크']
-    
+
+    # account_id가 없으면 name을 사용
+    if account_id is None:
+        account_id = name
+
     # 판매인 찾기
     if name == '사장님':
         salesperson = '본인'  # 사장님은 루트이므로 본인
@@ -264,9 +268,54 @@ def generate_person_data(name, counter):
     # 설계사 이름 (좀 더 다양하게)
     designer_suffixes = ['설계', '매니저', '팀장', '과장', '대리', '주임', '실장', '부장']
     designer_name = f'{name[0]}{designer_suffixes[counter % len(designer_suffixes)]}'
-    
+
+    # ⭐ 보험 상품 및 회사 정보
+    insurance_products = [
+        '무배당 KB 5.10.10 플랜',
+        '(무) 하나로 든든한 내일',
+        '무배당 삼성화재 든든한 미래',
+        '무배당 메리츠 안심케어',
+        '무배당 DB손해보험 프리미엄',
+        '무배당 현대해상 평생케어',
+        '무배당 AIA 건강플랜',
+        '무배당 푸르덴셜 가족사랑',
+        '무배당 교보생명 안심보장',
+        '무배당 한화생명 든든플랜'
+    ]
+
+    insurance_companies = [
+        'KB손해보험',
+        '하나생명',
+        '삼성화재',
+        '메리츠화재',
+        'DB손해보험',
+        '현대해상',
+        'AIA생명',
+        '푸르덴셜생명',
+        '교보생명',
+        '한화생명'
+    ]
+
+    insurance_product = insurance_products[counter % len(insurance_products)]
+    insurance_company = insurance_companies[counter % len(insurance_companies)]
+
+    # ⭐ 지사명
+    branch_offices = [
+        '서울본사',
+        '강남지사',
+        '강북지사',
+        '분당지사',
+        '인천지사',
+        '경기지사',
+        '부산지사',
+        '대구지사',
+        '광주지사',
+        '대전지사'
+    ]
+    branch_office = branch_offices[counter % len(branch_offices)]
+
     return {
-        'user_id': name,
+        'user_id': account_id,  # ⭐ 계정ID (같은 계정은 같은 ID)
         'name': name,
         'phone': f'010-{phone_middle:04d}-{phone_last:04d}',
         'idNumber': id_number,
@@ -275,7 +324,10 @@ def generate_person_data(name, counter):
         'salesperson': salesperson,
         'branch': f'010-{branch_middle:04d}-{branch_last:04d}',
         'designer': designer_name,
-        'designer_phone': f'010-{designer_middle:04d}-{designer_last:04d}'
+        'designer_phone': f'010-{designer_middle:04d}-{designer_last:04d}',
+        'insurance_product': insurance_product,  # ⭐ 보험상품명
+        'insurance_company': insurance_company,  # ⭐ 보험회사
+        'branch_office': branch_office           # ⭐ 지사명
     }
 
 
@@ -329,9 +381,9 @@ def create_excel(filename, data_list, registration_month):
         ws.cell(row=row_num, column=10).value = person['branch']  # 연락처 (판매인)
         ws.cell(row=row_num, column=11).value = person['designer']  # 설계사
         ws.cell(row=row_num, column=12).value = person['designer_phone']  # 연락처 (설계사)
-        ws.cell(row=row_num, column=13).value = ''  # 보험상품명 (빈값)
-        ws.cell(row=row_num, column=14).value = ''  # 보험회사 (빈값)
-        ws.cell(row=row_num, column=15).value = registration_month  # 지사
+        ws.cell(row=row_num, column=13).value = person['insurance_product']  # ⭐ 보험상품명
+        ws.cell(row=row_num, column=14).value = person['insurance_company']  # ⭐ 보험회사
+        ws.cell(row=row_num, column=15).value = person['branch_office']  # ⭐ 지사명
     
     # 컬럼 너비 자동 조정
     for col in ws.columns:
@@ -354,17 +406,17 @@ def process_month_data(month_data, month_name):
     """월별 데이터 처리 - 튜플 데이터를 엑셀용 데이터로 변환"""
     result = []
     counter = len(childData)  # 현재까지 등록된 사람 수를 카운터로 사용
-    
-    for _, names in month_data:
+
+    for account_id, names in month_data:  # ⭐ account_id는 원본 계정명
         for name in names:
             # childData에 이미 있는 이름이면 건너뜀 (중복 방지)
             if name not in childData:
                 childData[name] = 0  # 새로운 이름을 childData에 추가
-            
-            person_data = generate_person_data(name, counter)
+
+            person_data = generate_person_data(name, counter, account_id)  # ⭐ account_id 전달
             result.append(person_data)
             counter += 1
-    
+
     return result
 
 
