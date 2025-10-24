@@ -53,6 +53,7 @@ export async function GET({ locals, url }) {
 		const treeNode = {
 			label: user.name,
 			level: user.grade,
+			grade: user.grade, // ⭐ BinaryTreeD3에서 grade 필드 사용
 			userId: user.loginId
 		};
 
