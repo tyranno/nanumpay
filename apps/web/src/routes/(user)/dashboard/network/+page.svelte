@@ -11,6 +11,10 @@
 	let treeComponent; // BinaryTreeD3 컴포넌트 참조
 	let error = null;
 
+	// ⭐ 계층수 설정
+	let maxDepth = 6; // 한 번에 볼 수 있는 최대 depth (기본값: 6)
+	let displayDepth = '6'; // UI에 표시되는 값 ('4'~'8', 'all')
+
 	// 노드 검색 관련
 	let searchQuery = '';
 	let searchResults = [];
@@ -85,6 +89,21 @@
 	// ⭐ v8.0: 권한 체크
 	let hasPermission = false;
 
+	// ⭐ 계층수 변경 핸들러
+	async function handleDepthChange() {
+		// displayDepth 값에 따라 maxDepth 업데이트
+		if (displayDepth === 'all') {
+			maxDepth = 99; // 전체 보기
+		} else {
+			maxDepth = parseInt(displayDepth);
+		}
+
+		console.log('🔄 계층수 변경:', displayDepth, '→', maxDepth);
+
+		// 트리 재로드
+		await loadTreeData();
+	}
+
 	// 트리 데이터 로드
 	async function loadTreeData() {
 		try {
@@ -96,10 +115,14 @@
 			const params = new URLSearchParams(window.location.search);
 			const targetUserId = params.get('userId');
 
-			// ⭐ userId 파라미터가 있으면 포함
-			const url = targetUserId
-				? `/api/user/tree?userId=${targetUserId}`
-				: '/api/user/tree';
+			// ⭐ depth 파라미터 추가
+			const urlParams = new URLSearchParams();
+			if (targetUserId) {
+				urlParams.append('userId', targetUserId);
+			}
+			urlParams.append('depth', maxDepth.toString());
+
+			const url = `/api/user/tree?${urlParams}`;
 			const response = await fetch(url);
 			const data = await response.json();
 
@@ -191,6 +214,20 @@
 			treeComponent.rerootByPath(targetPath);
 		}
 	}
+
+	// ⭐ 이미지로 다운로드
+	async function downloadTree() {
+		if (!treeComponent) {
+			console.warn('트리 컴포넌트가 없습니다.');
+			return;
+		}
+
+		// 현재 루트 노드 이름으로 파일명 생성
+		const rootName = breadcrumbPath.length > 0 ? breadcrumbPath[breadcrumbPath.length - 1] : '전체';
+		const filename = `계층도_${rootName}_${new Date().toISOString().slice(0, 10)}.png`;
+
+		await treeComponent.downloadAsImage(filename);
+	}
 </script>
 
 <svelte:head>
@@ -216,6 +253,34 @@
 			/>
 			<button class="btn-search" disabled>
 				<img src="/icons/search.svg" alt="검색" class="btn-icon" />
+			</button>
+
+			<!-- ⭐ Depth 설정 (4~8 + 전체) -->
+			<div class="flex items-center gap-2">
+				<label for="displayDepth" class="text-sm text-gray-700">표시 계층수:</label>
+				<select
+					id="displayDepth"
+					bind:value={displayDepth}
+					onchange={handleDepthChange}
+					class="h-8 w-24 rounded border-2 border-gray-200 px-2 py-0.5 text-sm focus:border-blue-500 focus:outline-none"
+				>
+					<option value="4">4단계</option>
+					<option value="5">5단계</option>
+					<option value="6">6단계</option>
+					<option value="7">7단계</option>
+					<option value="8">8단계</option>
+					<option value="all">전체</option>
+				</select>
+			</div>
+
+			<button
+				onclick={downloadTree}
+				class="btn-download"
+				title="계층도 이미지로 다운로드"
+				type="button"
+			>
+				<img src="/icons/download.svg" alt="다운로드" class="btn-icon" />
+				<span class="ml-1.5 text-sm">이미지 다운로드</span>
 			</button>
 
 			<!-- 검색 결과 드롭다운 -->
@@ -298,7 +363,7 @@
 					nodeHeight={50}
 					levelGapY={80}
 					siblingGapX={20}
-					maxDepth={7}
+					maxDepth={maxDepth}
 					topScale={0.3}
 					curveGamma={1.15}
 					onselect={handleSelect}
@@ -404,6 +469,10 @@
 
 	.btn-search:disabled {
 		@apply cursor-default opacity-50 hover:translate-y-0 hover:from-blue-500 hover:to-blue-700 hover:shadow-[0_1px_4px_rgba(0,123,255,0.3)];
+	}
+
+	.btn-download {
+		@apply flex h-7 flex-shrink-0 cursor-pointer items-center justify-center rounded border-none bg-gradient-to-br from-emerald-500 to-emerald-700 px-3 text-white shadow-[0_1px_4px_rgba(16,185,129,0.3)] transition-all hover:-translate-y-px hover:from-emerald-700 hover:to-emerald-900 hover:shadow-[0_2px_8px_rgba(16,185,129,0.4)] active:translate-y-0 active:shadow-[0_1px_3px_rgba(16,185,129,0.3)];
 	}
 
 	.btn-icon {

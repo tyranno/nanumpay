@@ -305,7 +305,7 @@
 					id="displayDepth"
 					bind:value={displayDepth}
 					onchange={handleDepthChange}
-					class="h-7 rounded border-2 border-gray-200 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+					class="h-8 w-24 rounded border-2 border-gray-200 px-2 py-0.5 text-sm focus:border-blue-500 focus:outline-none"
 				>
 					<option value="4">4단계</option>
 					<option value="5">5단계</option>
