@@ -407,17 +407,17 @@
 									<td class="border border-gray-300 px-2 py-0.5 text-right text-sm">
 										{#if isAdjusted}
 											<span class="text-gray-400 line-through text-xs">
-												{originalAmount.toLocaleString()}
+												{(Math.floor(originalAmount / 100) * 100).toLocaleString()}
 											</span>
 											<span class="text-orange-600 font-semibold ml-1">
-												{perAmount.toLocaleString()}
+												{(Math.floor(perAmount / 100) * 100).toLocaleString()}
 											</span>
 										{:else}
-											{perAmount.toLocaleString()}
+											{(Math.floor(perAmount / 100) * 100).toLocaleString()}
 										{/if}
 									</td>
 									<td class="border border-gray-300 px-2 py-0.5 text-right text-blue-600 text-sm">
-										{(perAmount * 10 * count).toLocaleString()}
+										{(Math.floor((perAmount * 10 * count) / 100) * 100).toLocaleString()}
 									</td>
 									<td class="border border-gray-300 px-2 py-0.5 text-center text-sm">
 										{getPaymentPeriod(selectedYear, selectedMonth)}

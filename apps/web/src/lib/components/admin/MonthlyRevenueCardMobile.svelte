@@ -392,10 +392,10 @@
 										{count}
 									</td>
 									<td class="border border-gray-300 px-2 py-1 text-right text-xs">
-										{perAmount.toLocaleString()}
+										{(Math.floor(perAmount / 100) * 100).toLocaleString()}
 									</td>
 									<td class="border border-gray-300 px-2 py-1 text-right text-xs text-blue-600">
-										{(perAmount * 10 * count).toLocaleString()}
+										{(Math.floor((perAmount * 10 * count) / 100) * 100).toLocaleString()}
 									</td>
 									<td class="border border-gray-300 px-2 py-1 text-center text-xs">
 										{getPaymentPeriod(selectedYear, selectedMonth)}
