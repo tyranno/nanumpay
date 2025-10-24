@@ -195,6 +195,7 @@ async function getSingleWeekPaymentsV5(year, month, week, page, limit, search, s
 		},
 		{
 			$addFields: {
+				registrationNumber: { $arrayElemAt: ['$userInfo.registrationNumber', 0] },
 				registrationDate: { $arrayElemAt: ['$userInfo.registrationDate', 0] },
 				createdAt: { $arrayElemAt: ['$userInfo.createdAt', 0] },
 				userObjectId: { $arrayElemAt: ['$userInfo._id', 0] },
@@ -221,7 +222,7 @@ async function getSingleWeekPaymentsV5(year, month, week, page, limit, search, s
 			}
 		}] : []),
 		{
-			$sort: { registrationDate: 1, createdAt: 1, userObjectId: 1 }
+			$sort: { userObjectId: 1 }
 		}
 	];
 
@@ -341,7 +342,7 @@ async function getRangePaymentsV5(startYear, startMonth, endYear, endMonth, page
 	let allUsers = await User.find({ isAdmin: { $ne: true } })
 		.populate('userAccountId') // UserAccount join
 		.populate('plannerAccountId') // PlannerAccount join
-		.sort({ registrationNumber: 1 }) // ⭐ 등록번호 순서대로
+		.sort({ _id: 1 }) // ⭐ 등록 순서대로 (_id는 생성 순서 보장)
 		.lean();
 	console.log(`[API 기간조회] 전체 용역자 ${allUsers.length}명 조회 (등록번호 순)`);
 
