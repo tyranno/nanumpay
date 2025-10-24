@@ -11,6 +11,7 @@ import requests
 import sys
 import json
 import subprocess
+import openpyxl
 from pathlib import Path
 
 BASE_URL = "http://localhost:3100"
@@ -45,21 +46,58 @@ def init_db(cookies):
         print(f"❌ DB 초기화 실패: {response.status_code}\n")
         return False
 
+def read_excel_to_json(file_path):
+    """엑셀 파일을 JSON 배열로 변환"""
+    wb = openpyxl.load_workbook(file_path)
+    ws = wb.active
+
+    # 헤더 추출
+    headers = []
+    for idx, cell in enumerate(ws[1]):
+        if cell.value:
+            headers.append(str(cell.value).strip())
+        else:
+            headers.append(None)
+
+    # 데이터 추출
+    data = []
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        row_data = {}
+        is_empty = True
+        for idx, value in enumerate(row):
+            if idx < len(headers):
+                if value is not None and str(value).strip():
+                    # 인덱스 기반 키 추가
+                    if idx == 0:
+                        index_key = '__EMPTY'
+                    else:
+                        index_key = f'__EMPTY_{idx}'
+                    row_data[index_key] = str(value).strip()
+                    # 헤더 키도 추가
+                    if headers[idx]:
+                        row_data[headers[idx]] = str(value).strip()
+                    is_empty = False
+        if not is_empty:
+            data.append(row_data)
+
+    return data
+
 def upload_month(cookies, month_file):
     """월별 데이터 업로드"""
     print(f"📤 {month_file} 업로드 중...")
 
-    # 엑셀 읽기 (간단히 requests로 multipart 업로드)
+    # 엑셀 읽기
     project_root = Path(__file__).parent.parent.parent
     file_path = project_root / f"test-data/test/{month_file}"
 
-    with open(file_path, 'rb') as f:
-        files = {'file': (month_file, f, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')}
-        response = requests.post(
-            f"{BASE_URL}/api/admin/users/bulk-excel",
-            files=files,
-            cookies=cookies
-        )
+    users_data = read_excel_to_json(file_path)
+
+    # JSON으로 전송
+    response = requests.post(
+        f"{BASE_URL}/api/admin/users/bulk",
+        json={"users": users_data},
+        cookies=cookies
+    )
 
     if response.status_code == 200:
         result = response.json()

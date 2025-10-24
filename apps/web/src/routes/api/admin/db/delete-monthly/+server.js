@@ -68,13 +68,31 @@ export async function POST({ request, locals }) {
 		// 1. 해당 월에 등록된 용역자 삭제 (cascade hook 작동하도록 개별 삭제)
 		// ⭐ deleteMany()는 pre hook을 호출하지 않으므로 findByIdAndDelete() 사용
 		let deletedUsersCount = 0;
+		const userAccountsToCheck = new Set();
 		for (const userId of userIds) {
 			const deleted = await User.findByIdAndDelete(userId);
 			if (deleted) {
+				if (deleted.userAccountId) {
+					userAccountsToCheck.add(deleted.userAccountId.toString());
+				}
 				deletedUsersCount++;
 			}
 		}
 		const deletedUsers = { deletedCount: deletedUsersCount };
+
+		// 1-1. ⭐ UserAccount 정리: 연결된 User가 모두 삭제되었으면 UserAccount도 삭제
+		const UserAccount = (await import('$lib/server/models/UserAccount.js')).default;
+		let deletedUserAccountsCount = 0;
+		for (const userAccountId of userAccountsToCheck) {
+			const remainingUsers = await User.countDocuments({ userAccountId });
+			if (remainingUsers === 0) {
+				await UserAccount.findByIdAndDelete(userAccountId);
+				deletedUserAccountsCount++;
+			}
+		}
+		if (deletedUserAccountsCount > 0) {
+			console.log(`[DB Delete] UserAccount ${deletedUserAccountsCount}개 삭제 (연결된 User 없음)`);
+		}
 
 		// 2. 해당 월에 등록된 설계사 삭제 (MonthlyRegistrations에 기록된 설계사만)
 		const deletedPlanners = await PlannerAccount.deleteMany({ _id: { $in: plannerIds } });

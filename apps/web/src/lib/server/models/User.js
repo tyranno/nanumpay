@@ -240,10 +240,46 @@ userSchema.pre('findOneAndDelete', async function(next) {
 			console.log(`  ✅ ObjectId 기반 부모 참조 ${updatedParents.modifiedCount}건 제거`);
 		}
 
-		// 3. WeeklyPaymentPlans 삭제
+		// 3. WeeklyPaymentPlans 삭제 및 영향받는 WeeklyPaymentSummary 정리
 		const WeeklyPaymentPlans = mongoose.model('WeeklyPaymentPlans');
+
+		// 먼저 이 사용자의 지급 계획이 속한 주차 목록 조회
+		const plansToDelete = await WeeklyPaymentPlans.find({ userId: docToDelete._id }).lean();
+		const affectedWeeks = new Set();
+		for (const plan of plansToDelete) {
+			if (plan.installments) {
+				for (const installment of plan.installments) {
+					if (installment.weekNumber) {
+						affectedWeeks.add(installment.weekNumber);
+					}
+				}
+			}
+		}
+
+		// 지급 계획 삭제
 		const deletedPlans = await WeeklyPaymentPlans.deleteMany({ userId: docToDelete._id });
 		console.log(`  ✅ 지급 계획 ${deletedPlans.deletedCount}건 삭제`);
+
+		// WeeklyPaymentSummary에서 이 사용자 제거 (영향받는 주차만)
+		if (affectedWeeks.size > 0) {
+			const WeeklyPaymentSummary = mongoose.model('WeeklyPaymentSummary');
+			for (const weekNumber of affectedWeeks) {
+				const summary = await WeeklyPaymentSummary.findOne({ weekNumber });
+				if (summary && summary.byGrade && summary.byGrade[docToDelete.grade]) {
+					// 해당 등급의 사용자 수 감소
+					summary.byGrade[docToDelete.grade].userCount = Math.max(
+						0,
+						(summary.byGrade[docToDelete.grade].userCount || 0) - 1
+					);
+					// 사용자 수가 0이면 등급 항목 제거
+					if (summary.byGrade[docToDelete.grade].userCount === 0) {
+						delete summary.byGrade[docToDelete.grade];
+					}
+					await summary.save();
+				}
+			}
+			console.log(`  ✅ WeeklyPaymentSummary ${affectedWeeks.size}개 주차 업데이트`);
+		}
 
 		// 4. MonthlyRegistrations에서 제거
 		const MonthlyRegistrations = mongoose.model('MonthlyRegistrations');
@@ -259,34 +295,6 @@ userSchema.pre('findOneAndDelete', async function(next) {
 			}
 		);
 		console.log(`  ✅ 월별 등록 ${updatedRegistrations.modifiedCount}건 업데이트`);
-
-		// 5. MonthlyTreeSnapshots에서 제거 (동적 import)
-		const { default: MonthlyTreeSnapshots } = await import('./MonthlyTreeSnapshots.js');
-		const updatedSnapshots = await MonthlyTreeSnapshots.updateMany(
-			{},
-			{
-				$pull: {
-					users: { userId: docToDelete._id }
-				}
-			}
-		);
-		console.log(`  ✅ 월별 스냅샷 ${updatedSnapshots.modifiedCount}건 업데이트`);
-
-		// 6. ⭐ UserAccount 정리: 이 User가 마지막이면 UserAccount도 삭제 (동적 import)
-		if (docToDelete.userAccountId) {
-			const { default: UserAccount } = await import('./UserAccount.js');
-			const remainingUsers = await this.model.countDocuments({
-				userAccountId: docToDelete.userAccountId,
-				_id: { $ne: docToDelete._id }
-			});
-
-			if (remainingUsers === 0) {
-				await UserAccount.findByIdAndDelete(docToDelete.userAccountId);
-				console.log(`  ✅ UserAccount 삭제 (연결된 User 0개)`);
-			} else {
-				console.log(`  ℹ️ UserAccount 유지 (연결된 User ${remainingUsers}개 남음)`);
-			}
-		}
 
 		console.log(`✅ Cascade 삭제 완료: ${docToDelete.name}`);
 		next();
