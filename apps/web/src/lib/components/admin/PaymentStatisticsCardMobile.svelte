@@ -432,7 +432,7 @@
 											{@const gradeData = getGradeDataForPeriod(grade, column)}
 											<td class="data-col">
 												<span class="text-xs"
-													>{Math.floor(gradeData.amount / 100) * 100.toLocaleString()}({gradeData.count})</span
+													>{(Math.floor(gradeData.amount / 100) * 100).toLocaleString()}({gradeData.count})</span
 												>
 											</td>
 										{/each}
@@ -452,7 +452,7 @@
 										})()}
 										<td class="data-col">
 											<span class="text-xs font-bold"
-												>{Math.floor(totalAmount / 100) * 100.toLocaleString()}({totalCount})</span
+												>{(Math.floor(totalAmount / 100) * 100).toLocaleString()}({totalCount})</span
 											>
 										</td>
 									{/each}
@@ -491,7 +491,7 @@
 											{@const gradeData = getGradeDataForPeriod(grade, column)}
 											<td class="data-col">
 												<span class="text-xs"
-													>{Math.floor(gradeData.amount / 100) * 100.toLocaleString()}({gradeData.count})</span
+													>{(Math.floor(gradeData.amount / 100) * 100).toLocaleString()}({gradeData.count})</span
 												>
 											</td>
 										{/each}
@@ -511,7 +511,7 @@
 										})()}
 										<td class="data-col">
 											<span class="text-xs font-bold"
-												>{Math.floor(totalAmount / 100) * 100.toLocaleString()}({totalCount})</span
+												>{(Math.floor(totalAmount / 100) * 100).toLocaleString()}({totalCount})</span
 											>
 										</td>
 									{/each}

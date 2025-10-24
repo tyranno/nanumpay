@@ -341,9 +341,9 @@ async function getRangePaymentsV5(startYear, startMonth, endYear, endMonth, page
 	let allUsers = await User.find({ isAdmin: { $ne: true } })
 		.populate('userAccountId') // UserAccount join
 		.populate('plannerAccountId') // PlannerAccount join
-		.sort({ registrationDate: 1, createdAt: 1 })
+		.sort({ registrationNumber: 1 }) // ⭐ 등록번호 순서대로
 		.lean();
-	console.log(`[API 기간조회] 전체 용역자 ${allUsers.length}명 조회 (등록일자 순)`);
+	console.log(`[API 기간조회] 전체 용역자 ${allUsers.length}명 조회 (등록번호 순)`);
 
 	// 검색 필터 적용
 	if (searchFilter.userName) {
