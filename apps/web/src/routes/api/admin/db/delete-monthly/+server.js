@@ -65,9 +65,16 @@ export async function POST({ request, locals }) {
 		console.log(`[DB Delete] ${monthKey} 등록 용역자: ${userIds.length}명 - ${userIds.join(', ')}`);
 		console.log(`[DB Delete] ${monthKey} 등록 설계사: ${plannerIds.length}명 - ${plannerIds.join(', ')}`);
 
-		// 1. 해당 월에 등록된 용역자 삭제 (UserAccount는 남김)
-		// userId는 실제로 User의 _id입니다
-		const deletedUsers = await User.deleteMany({ _id: { $in: userIds } });
+		// 1. 해당 월에 등록된 용역자 삭제 (cascade hook 작동하도록 개별 삭제)
+		// ⭐ deleteMany()는 pre hook을 호출하지 않으므로 findByIdAndDelete() 사용
+		let deletedUsersCount = 0;
+		for (const userId of userIds) {
+			const deleted = await User.findByIdAndDelete(userId);
+			if (deleted) {
+				deletedUsersCount++;
+			}
+		}
+		const deletedUsers = { deletedCount: deletedUsersCount };
 
 		// 2. 해당 월에 등록된 설계사 삭제 (MonthlyRegistrations에 기록된 설계사만)
 		const deletedPlanners = await PlannerAccount.deleteMany({ _id: { $in: plannerIds } });

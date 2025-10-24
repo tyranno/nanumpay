@@ -260,8 +260,8 @@ userSchema.pre('findOneAndDelete', async function(next) {
 		);
 		console.log(`  ✅ 월별 등록 ${updatedRegistrations.modifiedCount}건 업데이트`);
 
-		// 5. MonthlyTreeSnapshots에서 제거
-		const MonthlyTreeSnapshots = mongoose.model('MonthlyTreeSnapshots');
+		// 5. MonthlyTreeSnapshots에서 제거 (동적 import)
+		const { default: MonthlyTreeSnapshots } = await import('./MonthlyTreeSnapshots.js');
 		const updatedSnapshots = await MonthlyTreeSnapshots.updateMany(
 			{},
 			{
@@ -272,9 +272,9 @@ userSchema.pre('findOneAndDelete', async function(next) {
 		);
 		console.log(`  ✅ 월별 스냅샷 ${updatedSnapshots.modifiedCount}건 업데이트`);
 
-		// 6. ⭐ UserAccount 정리: 이 User가 마지막이면 UserAccount도 삭제
+		// 6. ⭐ UserAccount 정리: 이 User가 마지막이면 UserAccount도 삭제 (동적 import)
 		if (docToDelete.userAccountId) {
-			const UserAccount = mongoose.model('UserAccount');
+			const { default: UserAccount } = await import('./UserAccount.js');
 			const remainingUsers = await this.model.countDocuments({
 				userAccountId: docToDelete.userAccountId,
 				_id: { $ne: docToDelete._id }

@@ -21,8 +21,10 @@ ADMIN_PASSWORD = "admin1234!!"
 
 # 엑셀 파일 경로
 EXCEL_FILES = {
-    "7월": "test-data/7월_용역자명단_root.xlsx",
-    "8-9월": "test-data/8-9월_용역자명단_간단.xlsx"
+    "7월": "test-data/test/7월_용역자명단_간단.xlsx",
+    "8월": "test-data/test/8월_용역자명단_간단.xlsx",
+    "9월": "test-data/test/9월_용역자명단_간단.xlsx",
+    "10월": "test-data/test/10월_용역자명단_간단.xlsx"
 }
 
 def login_admin():
@@ -208,7 +210,7 @@ def main():
         print("🚀 전체 엑셀 업로드 테스트 시작")
         print("="*60 + "\n")
 
-        for file_key in ["7월", "8-9월"]:
+        for file_key in ["7월", "8월", "9월", "10월"]:
             file_path = project_root / EXCEL_FILES[file_key]
 
             if not file_path.exists():
