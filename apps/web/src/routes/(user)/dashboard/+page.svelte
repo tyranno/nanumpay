@@ -140,14 +140,38 @@
 			periodNet += payment.netAmount || 0;
 		}
 
-		// ⭐ 각 사용자에게 등급 정보 추가
+		// ⭐ 사용자별로 합산 (같은 사용자의 여러 등급 지급을 하나로)
 		for (const group of grouped.values()) {
-			group.users.sort((a, b) => a.registrationNumber - b.registrationNumber);
+			const userMap = new Map();
 
-			// 각 payment에 해당 사용자의 등급 집계 정보 추가
+			for (const payment of group.users) {
+				const userKey = `${payment.userId}_${payment.registrationNumber}`;
+
+				if (!userMap.has(userKey)) {
+					userMap.set(userKey, {
+						...payment,
+						gradeCount: {},
+						totalAmount: 0,
+						totalTax: 0,
+						totalNet: 0
+					});
+				}
+
+				const merged = userMap.get(userKey);
+				merged.gradeCount[payment.grade] = (merged.gradeCount[payment.grade] || 0) + 1;
+				merged.totalAmount += payment.amount || 0;
+				merged.totalTax += payment.tax || 0;
+				merged.totalNet += payment.netAmount || 0;
+			}
+
+			// 합산된 사용자 목록으로 교체 (registrationNumber 순 정렬)
+			group.users = Array.from(userMap.values()).sort((a, b) => a.registrationNumber - b.registrationNumber);
+
+			// 각 사용자의 amount, tax, netAmount를 합산된 값으로 업데이트
 			for (const user of group.users) {
-				const userKey = `${user.userId}_${user.registrationNumber}`;
-				user.gradeCount = group.userGrades.get(userKey);
+				user.amount = user.totalAmount;
+				user.tax = user.totalTax;
+				user.netAmount = user.totalNet;
 			}
 		}
 
@@ -443,12 +467,8 @@
 							</tr>
 						{:else}
 							{#each displayedPayments as weekGroup}
-								{@const userKeysShown = new Set()} <!-- ⭐ 이미 등급 표시한 사용자 추적 -->
 								{#each weekGroup.users as user, index}
 									{@const breakdown = calculateBreakdown(user.amount)}
-									{@const userKey = `${user.userId}_${user.registrationNumber}`}
-									{@const isFirstOccurrence = !userKeysShown.has(userKey)}
-									{@const _ = isFirstOccurrence ? userKeysShown.add(userKey) : null}
 
 									<tr class="hover:bg-gray-50">
 										{#if index === 0}
@@ -458,20 +478,18 @@
 											</td>
 										{/if}
 										<td class="table-cell">{user.userName || '-'}</td>
-										<!-- ⭐ 등급: 같은 사용자의 첫 번째 행에만 표시 (중앙정렬) -->
+										<!-- ⭐ 등급: 모든 사용자 표시 (이미 합산됨) -->
 										<td class="table-cell">
-											{#if isFirstOccurrence}
-												<div class="flex flex-wrap items-center justify-center gap-1">
-													{#each Object.entries(user.gradeCount).sort((a, b) => b[0].localeCompare(a[0])) as [grade, count]}
-														<div class="flex items-center gap-0.5">
-															<GradeBadge {grade} size="sm" />
-															{#if count > 1}
-																<span class="text-xs font-medium text-gray-600">x{count}</span>
-															{/if}
-														</div>
-													{/each}
-												</div>
-											{/if}
+											<div class="flex flex-wrap items-center justify-center gap-1">
+												{#each Object.entries(user.gradeCount || {}).sort((a, b) => b[0].localeCompare(a[0])) as [grade, count]}
+													<div class="flex items-center gap-0.5">
+														<GradeBadge {grade} size="sm" />
+														{#if count > 1}
+															<span class="text-xs font-medium text-gray-600">x{count}</span>
+														{/if}
+													</div>
+												{/each}
+											</div>
 										</td>
 										{#if index === 0}
 											<!-- ⭐ 수령총액: 첫 번째 행만 표시 (rowspan) -->
