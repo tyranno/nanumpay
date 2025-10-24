@@ -13,7 +13,7 @@
 	/** 타이틀바 아이콘 경로 (선택사항) */
 	export let icon = null;
 
-	/** 모달 크기: 'sm' | 'md' | 'lg' | 'xl' */
+	/** 모달 크기: 'xs' | 'sm' | 'md' | 'lg' | 'xl' */
 	export let size = "md";
 
 	/** 닫기 콜백 함수 */
@@ -24,18 +24,30 @@
 
 	// 크기별 max-width 매핑
 	const sizeMap = {
+		xs: 'max-w-xs',    // 384px
 		sm: 'max-w-sm',    // 640px
 		md: 'max-w-md',    // 768px
 		lg: 'max-w-lg',    // 896px
 		xl: 'max-w-2xl'    // 1024px
 	};
 
-	const maxWidth = sizeMap[size] || sizeMap.md;
+	// 크기별 본문 높이 매핑 (업로드 진행 시 컴팩트하게)
+	const bodyHeightMap = {
+		xs: 'max-h-32',    // 작게 (업로드 진행 중)
+		sm: 'max-h-none',  // 제한 없음
+		md: 'max-h-none',
+		lg: 'max-h-none',
+		xl: 'max-h-none'
+	};
+
+	// 반응형으로 maxWidth와 bodyHeight 계산
+	$: maxWidth = sizeMap[size] || sizeMap.md;
+	$: bodyHeight = bodyHeightMap[size] || bodyHeightMap.md;
 </script>
 
 {#if isOpen}
 	<div class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-		<div class="bg-white rounded-lg shadow-xl w-full {maxWidth} border border-gray-200 relative">
+		<div class="bg-white rounded-lg shadow-xl w-full {maxWidth} border border-gray-200 relative transition-all duration-300">
 			<!-- Windows 스타일 타이틀바 -->
 			<div class="bg-gradient-to-r from-blue-500 to-blue-600 px-3 py-1.5 flex items-center justify-between select-none rounded-t-lg">
 				<div class="flex items-center gap-2">
@@ -54,7 +66,7 @@
 			</div>
 
 			<!-- 본문 영역 -->
-			<div class="p-4">
+			<div class="p-4 {bodyHeight} overflow-y-auto">
 				<slot />
 			</div>
 
