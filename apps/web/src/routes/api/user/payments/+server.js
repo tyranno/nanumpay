@@ -130,6 +130,11 @@ export async function GET({ locals, url }) {
 
 			// 등급별 빈도수 증가
 			group.gradeCount[plan.baseGrade] = (group.gradeCount[plan.baseGrade] || 0) + 1;
+			
+			// ⭐ 등급 정보 추가 (필터링용 - 최고 등급 사용)
+			if (!group.grade || plan.baseGrade > group.grade) {
+				group.grade = plan.baseGrade;
+			}
 
 			// 금액 합산
 			group.amount += installment.installmentAmount || 0;

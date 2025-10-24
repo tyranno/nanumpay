@@ -82,8 +82,8 @@
 				return false;
 			}
 
-			// ⭐ v8.0: 등급 필터 (단일 값)
-			if (grade && payment.grade !== grade) {
+			// ⭐ v8.0: 등급 필터 (gradeCount에 해당 등급이 있는지 확인)
+			if (grade && !payment.gradeCount[grade]) {
 				return false;
 			}
 
@@ -129,7 +129,10 @@
 				group.userGrades.set(userKey, {});
 			}
 			const gradeCount = group.userGrades.get(userKey);
-			gradeCount[payment.grade] = (gradeCount[payment.grade] || 0) + 1;
+			// payment.gradeCount의 모든 등급을 집계
+			for (const [grade, count] of Object.entries(payment.gradeCount || {})) {
+				gradeCount[grade] = (gradeCount[grade] || 0) + count;
+			}
 
 			group.totalAmount += payment.amount || 0;
 			group.totalTax += payment.tax || 0;
@@ -158,7 +161,10 @@
 				}
 
 				const merged = userMap.get(userKey);
-				merged.gradeCount[payment.grade] = (merged.gradeCount[payment.grade] || 0) + 1;
+				// ⭐ payment.gradeCount의 모든 등급을 병합
+				for (const [grade, count] of Object.entries(payment.gradeCount || {})) {
+					merged.gradeCount[grade] = (merged.gradeCount[grade] || 0) + count;
+				}
 				merged.totalAmount += payment.amount || 0;
 				merged.totalTax += payment.tax || 0;
 				merged.totalNet += payment.netAmount || 0;
