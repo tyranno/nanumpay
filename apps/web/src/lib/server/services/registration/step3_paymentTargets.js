@@ -273,7 +273,7 @@ async function findAdditionalPaymentTargets(promoted, registrationMonth) {
  * @returns {Promise<Object|null>}
  */
 async function checkAdditionalPaymentConditions(userId, grade, revenueMonth, monthsBack) {
-	const user = await User.findById(userId).populate('userAccountId', 'insuranceAmount');
+	const user = await User.findById(userId);
 	if (!user) return null;
 
 	const currentGrade = user.grade;
@@ -319,7 +319,7 @@ async function checkAdditionalPaymentConditions(userId, grade, revenueMonth, mon
 			F7: 100000, F8: 100000
 		};
 
-		const insuranceAmount = user.userAccountId?.insuranceAmount || 0;
+		const insuranceAmount = user.insuranceAmount || 0;
 		const requiredAmount = requiredAmounts[grade] || 0;
 
 		if (insuranceAmount < requiredAmount) {

@@ -129,7 +129,8 @@ export async function PUT({ request, locals }) {
 		}
 		if (updateData.insuranceAmount !== undefined) {
 			userAccountFields.insuranceAmount = updateData.insuranceAmount;
-			delete updateData.insuranceAmount;
+			// ⭐ insuranceAmount는 User에도 필요하므로 delete하지 않음
+			// delete updateData.insuranceAmount;
 		}
 
 		// User 업데이트
@@ -155,6 +156,8 @@ export async function PUT({ request, locals }) {
 				{ $set: userAccountFields },
 				{ new: true }
 			);
+
+			// ⭐ insuranceAmount는 이미 User.findByIdAndUpdate에서 업데이트됨
 		}
 
 		return json({ user });
