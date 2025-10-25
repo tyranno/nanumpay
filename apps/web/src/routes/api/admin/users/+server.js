@@ -43,7 +43,7 @@ export async function GET({ url, locals }) {
 
 		// ⭐ v8.0: 사용자 목록 조회 + UserAccount, PlannerAccount populate
 		const users = await User.find(query)
-			.populate('userAccountId', 'loginId canViewSubordinates phone bank accountNumber idNumber')
+			.populate('userAccountId', 'loginId canViewSubordinates phone bank accountNumber idNumber insuranceAmount')
 			.populate('plannerAccountId', 'name phone')
 			.select('-passwordHash')
 			.sort(sortOptions)
@@ -66,6 +66,7 @@ export async function GET({ url, locals }) {
 				bank: user.userAccountId?.bank || '',
 				accountNumber: user.userAccountId?.accountNumber || '',
 				idNumber: user.userAccountId?.idNumber || '',
+				insuranceAmount: user.userAccountId?.insuranceAmount || 0,
 				// ⭐ v8.0: PlannerAccount 필드들
 				planner: user.plannerAccountId?.name || '',
 				plannerPhone: user.plannerAccountId?.phone || ''
@@ -108,7 +109,7 @@ export async function PUT({ request, locals }) {
 		const canViewSubordinates = updateData.canViewSubordinates;
 		delete updateData.canViewSubordinates;
 
-		// ⭐ v8.0: UserAccount 관련 필드 분리 (phone, bank, accountNumber, idNumber)
+		// ⭐ v8.0: UserAccount 관련 필드 분리 (phone, bank, accountNumber, idNumber, insuranceAmount)
 		const userAccountFields = {};
 		if (updateData.phone !== undefined) {
 			userAccountFields.phone = updateData.phone;
@@ -125,6 +126,10 @@ export async function PUT({ request, locals }) {
 		if (updateData.idNumber !== undefined) {
 			userAccountFields.idNumber = updateData.idNumber;
 			delete updateData.idNumber;
+		}
+		if (updateData.insuranceAmount !== undefined) {
+			userAccountFields.insuranceAmount = updateData.insuranceAmount;
+			delete updateData.insuranceAmount;
 		}
 
 		// User 업데이트

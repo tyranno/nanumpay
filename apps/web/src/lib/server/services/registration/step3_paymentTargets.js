@@ -273,7 +273,7 @@ async function findAdditionalPaymentTargets(promoted, registrationMonth) {
  * @returns {Promise<Object|null>}
  */
 async function checkAdditionalPaymentConditions(userId, grade, revenueMonth, monthsBack) {
-	const user = await User.findById(userId);
+	const user = await User.findById(userId).populate('userAccountId', 'insuranceAmount');
 	if (!user) return null;
 
 	const currentGrade = user.grade;
@@ -288,8 +288,8 @@ async function checkAdditionalPaymentConditions(userId, grade, revenueMonth, mon
 		installmentType: 'additional'
 	}).sort({ 추가지급단계: -1 });
 
-	const currentAdditionalStage = existingAdditionalPlans.length > 0 
-		? existingAdditionalPlans[0].추가지급단계 
+	const currentAdditionalStage = existingAdditionalPlans.length > 0
+		? existingAdditionalPlans[0].추가지급단계
 		: 0;
 
 	const nextAdditionalStage = currentAdditionalStage + 1;
@@ -311,10 +311,20 @@ async function checkAdditionalPaymentConditions(userId, grade, revenueMonth, mon
 	// 이미 최대 추가지급 횟수에 도달했으면 제외
 	if (nextAdditionalStage > maxAllowed) return null;
 
-	// F3+ 보험 확인
+	// F3+ 보험 확인 (UserAccount.insuranceAmount 기준)
 	if (grade >= 'F3') {
-		const insuranceActive = user.insuranceSettings?.maintained || false;
-		if (!insuranceActive) return null;
+		const requiredAmounts = {
+			F3: 50000, F4: 50000,
+			F5: 70000, F6: 70000,
+			F7: 100000, F8: 100000
+		};
+
+		const insuranceAmount = user.userAccountId?.insuranceAmount || 0;
+		const requiredAmount = requiredAmounts[grade] || 0;
+
+		if (insuranceAmount < requiredAmount) {
+			return null; // 보험 금액 부족 → 추가지급 생성 안 함
+		}
 	}
 
 	// ⭐ 이번 달에 이미 이 등급으로 추가지급 계획이 생성되었는지 확인 (중복 방지)

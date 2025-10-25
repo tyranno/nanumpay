@@ -241,36 +241,23 @@
 					/>
 				</div>
 
-				<!-- 추가 보험 정보 (F3+ 필수) -->
-				{#if member.grade && ['F3', 'F4', 'F5', 'F6', 'F7', 'F8'].includes(member.grade)}
-					<div class="border border-gray-200 rounded p-2">
-						<div class="flex items-center justify-between gap-2">
-							<div class="flex items-center gap-1.5">
-								<svg class="w-3.5 h-3.5 text-amber-600" fill="currentColor" viewBox="0 0 20 20">
-									<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
-								</svg>
-								<span class="text-xs font-medium text-amber-700">추가 보험 (필수)</span>
-								{#if member.grade === 'F3' || member.grade === 'F4'}
-									<span class="text-xs text-amber-600">최소 5만원</span>
-								{:else if member.grade === 'F5' || member.grade === 'F6'}
-									<span class="text-xs text-amber-600">최소 7만원</span>
-								{:else if member.grade === 'F7' || member.grade === 'F8'}
-									<span class="text-xs text-amber-600">최소 10만원</span>
-								{/if}
-							</div>
-							<div class="flex items-center gap-1">
-								<input
-									type="text"
-									value={insuranceAmountDisplay}
-									oninput={handleInsuranceAmountInput}
-									placeholder="0"
-									class="w-28 px-2 py-1 text-xs text-right border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-								/>
-								<span class="text-xs text-gray-600">원</span>
-							</div>
-						</div>
+				<!-- 추가 보험 금액 -->
+				<div>
+					<label class="block text-xs font-medium text-gray-700 mb-0.5">추가 보험 금액</label>
+					<div class="flex items-center gap-1">
+						<input
+							type="text"
+							value={insuranceAmountDisplay}
+							oninput={handleInsuranceAmountInput}
+							placeholder="0"
+							class="flex-1 px-2 py-1.5 text-sm text-right border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+						/>
+						<span class="text-sm text-gray-600">원</span>
 					</div>
-				{/if}
+					<p class="text-xs text-gray-500 mt-0.5">
+						💡 F3/F4: 5만원, F5/F6: 7만원, F7/F8: 10만원 이상 시 추가지급
+					</p>
+				</div>
 
 				<div>
 					<label class="block text-xs font-medium text-gray-700 mb-0.5">산하정보 보기 권한</label>
