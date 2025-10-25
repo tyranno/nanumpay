@@ -240,48 +240,7 @@ userSchema.pre('findOneAndDelete', async function(next) {
 			console.log(`  ✅ ObjectId 기반 부모 참조 ${updatedParents.modifiedCount}건 제거`);
 		}
 
-		// 3. WeeklyPaymentPlans 삭제 및 영향받는 WeeklyPaymentSummary 정리
-		const WeeklyPaymentPlans = mongoose.model('WeeklyPaymentPlans');
-
-		// 먼저 이 사용자의 지급 계획이 속한 주차 목록 조회
-		const plansToDelete = await WeeklyPaymentPlans.find({ userId: docToDelete._id }).lean();
-		const affectedWeeks = new Set();
-		for (const plan of plansToDelete) {
-			if (plan.installments) {
-				for (const installment of plan.installments) {
-					if (installment.weekNumber) {
-						affectedWeeks.add(installment.weekNumber);
-					}
-				}
-			}
-		}
-
-		// 지급 계획 삭제
-		const deletedPlans = await WeeklyPaymentPlans.deleteMany({ userId: docToDelete._id });
-		console.log(`  ✅ 지급 계획 ${deletedPlans.deletedCount}건 삭제`);
-
-		// WeeklyPaymentSummary에서 이 사용자 제거 (영향받는 주차만)
-		if (affectedWeeks.size > 0) {
-			const WeeklyPaymentSummary = mongoose.model('WeeklyPaymentSummary');
-			for (const weekNumber of affectedWeeks) {
-				const summary = await WeeklyPaymentSummary.findOne({ weekNumber });
-				if (summary && summary.byGrade && summary.byGrade[docToDelete.grade]) {
-					// 해당 등급의 사용자 수 감소
-					summary.byGrade[docToDelete.grade].userCount = Math.max(
-						0,
-						(summary.byGrade[docToDelete.grade].userCount || 0) - 1
-					);
-					// 사용자 수가 0이면 등급 항목 제거
-					if (summary.byGrade[docToDelete.grade].userCount === 0) {
-						delete summary.byGrade[docToDelete.grade];
-					}
-					await summary.save();
-				}
-			}
-			console.log(`  ✅ WeeklyPaymentSummary ${affectedWeeks.size}개 주차 업데이트`);
-		}
-
-		// 4. MonthlyRegistrations에서 제거
+		// 3. MonthlyRegistrations에서 제거
 		const MonthlyRegistrations = mongoose.model('MonthlyRegistrations');
 		const updatedRegistrations = await MonthlyRegistrations.updateMany(
 			{},

@@ -5,6 +5,7 @@ import WeeklyPaymentPlans from '$lib/server/models/WeeklyPaymentPlans.js';
 import WeeklyPaymentSummary from '$lib/server/models/WeeklyPaymentSummary.js';
 import User from '$lib/server/models/User.js';
 import PlannerAccount from '$lib/server/models/PlannerAccount.js';
+import { processUserRegistration } from '$lib/server/services/registrationService.js';
 
 export async function POST({ request, locals }) {
 	try {
@@ -65,7 +66,45 @@ export async function POST({ request, locals }) {
 		console.log(`[DB Delete] ${monthKey} 등록 용역자: ${userIds.length}명 - ${userIds.join(', ')}`);
 		console.log(`[DB Delete] ${monthKey} 등록 설계사: ${plannerIds.length}명 - ${plannerIds.join(', ')}`);
 
-		// 1. 해당 월에 등록된 용역자 삭제 (cascade hook 작동하도록 개별 삭제)
+		// ⭐ 방법1: 삭제 전 승급자의 canceled 추가지급 복원
+		const promotedUsers = monthlyReg?.paymentTargets?.promoted || [];
+		const promotedUserIds = promotedUsers.map(p => p.userId);
+		if (promotedUserIds.length > 0) {
+			console.log(`[DB Delete] ${monthKey} 승급자 ${promotedUserIds.length}명의 canceled 추가지급 복원 시도...`);
+
+			// 승급자들의 모든 추가지급 계획 중 canceled된 회차 복원
+			const restored = await WeeklyPaymentPlans.updateMany(
+				{
+					userId: { $in: promotedUserIds },
+					installmentType: 'additional',
+					'installments.status': 'canceled'
+				},
+				{
+					$set: { 'installments.$[elem].status': 'pending' }
+				},
+				{
+					arrayFilters: [{ 'elem.status': 'canceled' }]
+				}
+			);
+			console.log(`[DB Delete] ${monthKey} 승급자 canceled → pending 복원: ${restored.modifiedCount}건`);
+		}
+
+		// 1. 해당 월 승급자의 새 등급 지급 계획 삭제 (createdBy: 'promotion', revenueMonth: monthKey)
+		const deletedPromotionPlans = await WeeklyPaymentPlans.deleteMany({
+			userId: { $in: promotedUserIds },
+			createdBy: 'promotion',
+			revenueMonth: monthKey
+		});
+		if (deletedPromotionPlans.deletedCount > 0) {
+			console.log(`[DB Delete] 승급자 새 등급 지급 계획 ${deletedPromotionPlans.deletedCount}건 삭제`);
+		}
+
+		// 3. 해당 월에 등록된 용역자의 모든 지급 계획 삭제 (User 삭제 전에!)
+		// ⭐ User cascade hook에서는 지급 계획을 삭제하지 않으므로 여기서 먼저 삭제
+		const deletedUserPlans = await WeeklyPaymentPlans.deleteMany({ userId: { $in: userIds } });
+		console.log(`[DB Delete] 신규 용역자 지급 계획 ${deletedUserPlans.deletedCount}건 삭제`);
+
+		// 4. 해당 월에 등록된 용역자 삭제 (cascade hook 작동하도록 개별 삭제)
 		// ⭐ deleteMany()는 pre hook을 호출하지 않으므로 findByIdAndDelete() 사용
 		let deletedUsersCount = 0;
 		const userAccountsToCheck = new Set();
@@ -80,7 +119,7 @@ export async function POST({ request, locals }) {
 		}
 		const deletedUsers = { deletedCount: deletedUsersCount };
 
-		// 1-1. ⭐ UserAccount 정리: 연결된 User가 모두 삭제되었으면 UserAccount도 삭제
+		// 5. ⭐ UserAccount 정리: 연결된 User가 모두 삭제되었으면 UserAccount도 삭제
 		const UserAccount = (await import('$lib/server/models/UserAccount.js')).default;
 		let deletedUserAccountsCount = 0;
 		for (const userAccountId of userAccountsToCheck) {
@@ -94,33 +133,97 @@ export async function POST({ request, locals }) {
 			console.log(`[DB Delete] UserAccount ${deletedUserAccountsCount}개 삭제 (연결된 User 없음)`);
 		}
 
-		// 2. 해당 월에 등록된 설계사 삭제 (MonthlyRegistrations에 기록된 설계사만)
-		const deletedPlanners = await PlannerAccount.deleteMany({ _id: { $in: plannerIds } });
+		// 6. 설계사 정리: 다른 용역자에 등록되어 있으면 유지, 없으면 삭제
+		let deletedPlannersCount = 0;
+		for (const plannerId of plannerIds) {
+			// 이 설계사가 다른 용역자에도 등록되어 있는지 확인
+			const remainingUsers = await User.countDocuments({ plannerId });
+			if (remainingUsers === 0) {
+				await PlannerAccount.findByIdAndDelete(plannerId);
+				deletedPlannersCount++;
+			}
+		}
+		if (deletedPlannersCount > 0) {
+			console.log(`[DB Delete] PlannerAccount ${deletedPlannersCount}개 삭제 (연결된 User 없음)`);
+		}
+		const deletedPlanners = { deletedCount: deletedPlannersCount };
 
-		// 3. 월별 등록 데이터 삭제
+		// 7. 월별 등록 데이터 삭제
 		const deletedRegistrations = await MonthlyRegistrations.deleteOne({ monthKey });
 
-		// 4. 해당 월의 지급 계획 삭제 (revenueMonth 기준)
-		const deletedPlans = await WeeklyPaymentPlans.deleteMany({ revenueMonth: monthKey });
+		// 8. 해당 월 매출분 지급 계획 삭제 (추가지급 등 남은 것)
+		// ⭐ revenueMonth 기준으로 삭제 (위에서 이미 삭제한 것 제외하고 남은 것만)
+		const deletedRevenueMonthPlans = await WeeklyPaymentPlans.deleteMany({ revenueMonth: monthKey });
+		console.log(`[DB Delete] 매출월 지급 계획 ${deletedRevenueMonthPlans.deletedCount}건 삭제 (추가지급 등)`);
 
-		// 6. 해당 월의 주간 지급 요약 삭제
+		// 9. 해당 월의 주간 지급 요약 삭제
 		const deletedSummaries = await WeeklyPaymentSummary.deleteMany({ monthKey });
+
+		const totalDeletedPlans =
+			deletedUserPlans.deletedCount +
+			(deletedPromotionPlans?.deletedCount || 0) +
+			deletedRevenueMonthPlans.deletedCount;
 
 		console.log(`[DB Delete] 삭제 완료:
 			- 용역자: ${deletedUsers.deletedCount}건
+			- 지급 계획 총: ${totalDeletedPlans}건
+			  ∟ 신규 용역자: ${deletedUserPlans.deletedCount}건
+			  ∟ 승급자 새 등급: ${deletedPromotionPlans?.deletedCount || 0}건
+			  ∟ 매출월 기준: ${deletedRevenueMonthPlans.deletedCount}건
 			- 설계사: ${deletedPlanners.deletedCount}건
 			- 월별 등록: ${deletedRegistrations.deletedCount}건
-			- 지급 계획: ${deletedPlans.deletedCount}건
 			- 주간 요약: ${deletedSummaries.deletedCount}건
 		`);
+
+		// 10. ⭐ 삭제 후 바로 이전 월 재처리 (배치 프로세싱)
+		let reprocessedMonth = null;
+		const [year, month] = monthKey.split('-').map(Number);
+		const previousMonth = month === 1 ? 12 : month - 1;
+		const previousYear = month === 1 ? year - 1 : year;
+		const previousMonthKey = `${previousYear}-${String(previousMonth).padStart(2, '0')}`;
+
+		const previousMonthReg = await MonthlyRegistrations.findOne({ monthKey: previousMonthKey });
+
+		if (previousMonthReg && previousMonthReg.registrations && previousMonthReg.registrations.length > 0) {
+			console.log(`[DB Delete] 이전 월(${previousMonthKey}) 재처리 시작...`);
+
+			try {
+				// ⭐ 등록자 + 승급자 + 추가지급 대상자 모두 재처리
+				const userIds = new Set();
+
+				// 등록자
+				if (previousMonthReg.registrations) {
+					previousMonthReg.registrations.forEach(r => userIds.add(r.userId));
+				}
+
+				// 승급자
+				if (previousMonthReg.paymentTargets?.promoted) {
+					previousMonthReg.paymentTargets.promoted.forEach(p => userIds.add(p.userId));
+				}
+
+				// 추가지급 대상자 (이전 월 등록자들 - 복원 대상!)
+				if (previousMonthReg.paymentTargets?.additionalPayments) {
+					previousMonthReg.paymentTargets.additionalPayments.forEach(a => userIds.add(a.userId));
+				}
+
+				// ⭐ processUserRegistration 호출 (배치 프로세싱)
+				await processUserRegistration(Array.from(userIds));
+
+				reprocessedMonth = previousMonthKey;
+				console.log(`[DB Delete] 이전 월(${previousMonthKey}) 재처리 완료 (${userIds.size}명)`);
+			} catch (reprocessError) {
+				console.error(`[DB Delete] 이전 월 재처리 실패:`, reprocessError);
+			}
+		}
 
 		return json({
 			success: true,
 			deletedUsers: deletedUsers.deletedCount,
 			deletedPlanners: deletedPlanners.deletedCount,
 			deletedRegistrations: deletedRegistrations.deletedCount,
-			deletedPlans: deletedPlans.deletedCount,
-			deletedSummaries: deletedSummaries.deletedCount
+			deletedPlans: totalDeletedPlans,
+			deletedSummaries: deletedSummaries.deletedCount,
+			reprocessedMonth
 		});
 	} catch (error) {
 		console.error('Delete monthly data error:', error);

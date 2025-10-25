@@ -183,9 +183,12 @@ export async function executeStep4(promoted, targets, gradePayments, monthlyReg,
  */
 async function createAdditionalPaymentPlan(userId, userName, grade, 추가지급단계, revenueMonth, gradePayments) {
   try {
+    console.log(`[createAdditionalPaymentPlan] ${userName} - grade:${grade}, 단계:${추가지급단계}, 매출월:${revenueMonth}`);
+
     // 1. 지급액 계산 (10분할)
     const baseAmount = gradePayments[grade] || 0;
     if (baseAmount === 0) {
+      console.log(`[createAdditionalPaymentPlan] ${userName} - baseAmount가 0이라 계획 생성 안 함`);
       return null;
     }
 
@@ -250,9 +253,11 @@ async function createAdditionalPaymentPlan(userId, userName, grade, 추가지급
 
     await newPlan.save();
 
+    console.log(`[createAdditionalPaymentPlan] ${userName} - 계획 생성 완료`);
     return newPlan;
 
   } catch (error) {
+    console.error(`[createAdditionalPaymentPlan] ${userName} - 오류:`, error);
     return null;
   }
 }
