@@ -5,7 +5,8 @@ export default {
 		adapter: adapter({
 			out: 'dist',
 			target: process.platform === 'win32' ? 'windows-x64' : 'linux-x64',
-			binaryName: process.platform === 'win32' ? 'nanumpay.exe' : 'nanumpay'
+			binaryName: process.platform === 'win32' ? 'nanumpay.exe' : 'nanumpay',
+			external: ['bcrypt']
 		})
 	},
 	vitePlugin: { inspector: true },
