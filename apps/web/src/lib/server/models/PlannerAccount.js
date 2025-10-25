@@ -26,6 +26,18 @@ const plannerAccountSchema = new mongoose.Schema({
 		type: String,
 		required: true
 	},
+	email: {
+		type: String,
+		default: ''
+	},
+	address: {
+		type: String,
+		default: ''
+	},
+	workplace: {
+		type: String,
+		default: ''
+	},
 	// 상태 관리
 	status: {
 		type: String,

@@ -4,13 +4,13 @@
 	import { plannerPaymentService } from '$lib/services/plannerPaymentService';
 	import PaymentHeader from '$lib/components/planner/PaymentHeader.svelte';
 	import PaymentTable from '$lib/components/planner/PaymentTable.svelte';
+	import PlannerSettingsModal from '$lib/components/planner/PlannerSettingsModal.svelte';
 
 	// 설계사 정보 상태
 	let plannerInfo = null;
 	let contractStats = null;
 	let paymentSummary = null;
-	let isEditingPhone = false;
-	let newPhone = '';
+	let isSettingsModalOpen = false;
 
 	// 지급명부 상태 변수
 	let paymentList = [];
@@ -137,31 +137,14 @@
 		}
 	}
 
-	// 전화번호 업데이트
-	async function updatePhone() {
-		try {
-			const response = await fetch('/api/planner/update-phone', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ phone: newPhone })
-			});
-
-			if (response.ok) {
-				plannerInfo.phone = newPhone;
-				isEditingPhone = false;
-				alert('전화번호가 수정되었습니다.');
-			} else {
-				alert('전화번호 수정에 실패했습니다.');
-			}
-		} catch (error) {
-			console.error('전화번호 수정 오류:', error);
-			alert('전화번호 수정 중 오류가 발생했습니다.');
-		}
+	// 설정 모달 열기
+	function openSettingsModal() {
+		isSettingsModalOpen = true;
 	}
 
-	function cancelEditPhone() {
-		newPhone = plannerInfo?.phone || '';
-		isEditingPhone = false;
+	// 설정 업데이트 핸들러
+	function handleSettingsUpdated(updatedInfo) {
+		plannerInfo = { ...plannerInfo, ...updatedInfo };
 	}
 
 	onMount(async () => {
@@ -175,10 +158,6 @@
 		if (infoRes.ok) plannerInfo = await infoRes.json();
 		if (statsRes.ok) contractStats = await statsRes.json();
 		if (summaryRes.ok) paymentSummary = await summaryRes.json();
-
-		if (plannerInfo) {
-			newPhone = plannerInfo.phone || '';
-		}
 
 		// 지급명부 데이터 로드
 		loadPaymentData();
@@ -204,42 +183,16 @@
 			<div class="rounded border border-indigo-200 bg-indigo-50 p-2">
 				<div class="mb-2 flex items-center justify-between border-b border-indigo-200 pb-2">
 					<span class="text-xs font-semibold text-indigo-700">이름</span>
-					<span class="text-sm font-medium text-indigo-900">{plannerInfo?.name || '-'}</span>
+					<button
+						onclick={openSettingsModal}
+						class="text-sm font-medium text-indigo-600 underline decoration-dotted underline-offset-2 transition-colors hover:text-indigo-800"
+					>
+						{plannerInfo?.name || '-'}
+					</button>
 				</div>
-				<div class="mb-2 flex items-center justify-between border-b border-indigo-200 pb-2">
+					<div class="mb-2 flex items-center justify-between border-b border-indigo-200 pb-2">
 					<span class="text-xs font-semibold text-indigo-700">전화번호</span>
-					{#if isEditingPhone}
-						<div class="flex gap-1">
-							<input
-								type="tel"
-								bind:value={newPhone}
-								class="w-32 rounded border border-indigo-300 px-2 py-1 text-xs"
-								placeholder="010-0000-0000"
-							/>
-							<button
-								onclick={updatePhone}
-								class="rounded bg-indigo-600 px-2 py-1 text-xs text-white hover:bg-indigo-700"
-							>
-								저장
-							</button>
-							<button
-								onclick={cancelEditPhone}
-								class="rounded bg-gray-400 px-2 py-1 text-xs text-white hover:bg-gray-500"
-							>
-								취소
-							</button>
-						</div>
-					{:else}
-						<div class="flex items-center gap-1">
-							<span class="text-sm font-medium text-indigo-900">{plannerInfo?.phone || '-'}</span>
-							<button
-								onclick={() => (isEditingPhone = true)}
-								class="rounded bg-indigo-600 px-2 py-1 text-xs text-white hover:bg-indigo-700"
-							>
-								수정
-							</button>
-						</div>
-					{/if}
+					<span class="text-sm font-medium text-indigo-900">{plannerInfo?.phone || '-'}</span>
 				</div>
 				<div class="flex items-center justify-between">
 					<span class="text-xs font-semibold text-indigo-700">총 계약 건수</span>
@@ -252,7 +205,7 @@
 		<div class="rounded-lg bg-gradient-to-br from-green-50 to-emerald-100 p-3 shadow-md">
 			<div class="mb-2 flex items-center justify-between">
 				<div class="flex items-center gap-2">
-					<img src="/icons/money.svg" alt="용역비" class="h-5 w-5 text-emerald-700" />
+					<img src="/icons/total-budget.svg" alt="용역비 총액" class="h-6 w-6" />
 					<h3 class="text-base font-bold text-emerald-900">용역비 총액</h3>
 				</div>
 			</div>
@@ -331,6 +284,14 @@
 		/>
 	</div>
 </div>
+
+<!-- 설정 모달 -->
+<PlannerSettingsModal
+	isOpen={isSettingsModalOpen}
+	{plannerInfo}
+	onClose={() => (isSettingsModalOpen = false)}
+	onUpdated={handleSettingsUpdated}
+/>
 
 <style>
 	.container {

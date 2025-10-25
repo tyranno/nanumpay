@@ -13,7 +13,7 @@ export async function GET({ locals }) {
 	try {
 		// 설계사 정보 조회
 		const planner = await PlannerAccount.findById(locals.user.id)
-			.select('name phone loginId');
+			.select('name phone loginId email address workplace');
 
 		if (!planner) {
 			return json({ error: '설계사 정보를 찾을 수 없습니다.' }, { status: 404 });
@@ -23,7 +23,10 @@ export async function GET({ locals }) {
 			id: planner._id,
 			loginId: planner.loginId,
 			name: planner.name,
-			phone: planner.phone
+			phone: planner.phone,
+			email: planner.email || '',
+			address: planner.address || '',
+			workplace: planner.workplace || ''
 		});
 	} catch (error) {
 		console.error('설계사 정보 조회 오류:', error);
