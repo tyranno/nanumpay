@@ -70,9 +70,12 @@ def analyze_october_payments(data):
     print("💰 용역비 요약")
     print("="*80)
     summary = data["summary"]
-    print(f"이번주 지급액: {summary['thisWeek']['amount']:,}원 (세금: {summary['thisWeek']['tax']:,}원, 실수령: {summary['thisWeek']['net']:,}원)")
-    print(f"이번달 지급액: {summary['thisMonth']['amount']:,}원 (세금: {summary['thisMonth']['tax']:,}원, 실수령: {summary['thisMonth']['net']:,}원)")
-    print(f"지급 예정액: {summary['upcoming']['amount']:,}원 (세금: {summary['upcoming']['tax']:,}원, 실수령: {summary['upcoming']['net']:,}원)")
+    print(f"💵 이번주 지급액 ({summary['thisWeek'].get('date', 'N/A')} 금요일)")
+    print(f"   {summary['thisWeek']['amount']:,}원 (세금: {summary['thisWeek']['tax']:,}원, 실수령: {summary['thisWeek']['net']:,}원)")
+    print(f"📈 누적 수령액 (지금까지 받은 총액)")
+    print(f"   {summary['totalPaid']['amount']:,}원 (세금: {summary['totalPaid']['tax']:,}원, 실수령: {summary['totalPaid']['net']:,}원)")
+    print(f"📅 남은 예정액 (앞으로 받을 총액)")
+    print(f"   {summary['upcoming']['amount']:,}원 (세금: {summary['upcoming']['tax']:,}원, 실수령: {summary['upcoming']['net']:,}원)")
 
     print("\n" + "="*80)
     print("📊 10월 주차별 지급 내역 (2025-W40 ~ 2025-W44)")

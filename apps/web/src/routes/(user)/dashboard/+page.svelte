@@ -303,37 +303,37 @@
 
 			<!-- 용역비 요약 카드 -->
 			<div class="rounded-lg bg-gradient-to-br from-green-50 to-emerald-100 p-3 shadow-md">
-				<div class="mb-2 flex items-center gap-2">
-					<img src="/icons/money.svg" alt="용역비" class="h-5 w-5" />
-					<h3 class="text-base font-bold text-emerald-900">용역비 요약</h3>
+				<div class="mb-2">
+					<h3 class="text-base font-bold text-emerald-900">💰 용역비 요약</h3>
 				</div>
-				<table class="w-full text-xs">
+				<table class="w-full">
 					<thead>
 						<tr class="border-b border-emerald-300">
-							<th class="py-1 text-left font-semibold text-emerald-700">구분</th>
-							<th class="py-1 text-right font-semibold text-emerald-700">총액</th>
-							<th class="py-1 text-right font-semibold text-emerald-700">세금</th>
-							<th class="py-1 text-right font-semibold text-emerald-700">실수령</th>
+							<th class="py-1 text-left text-xs font-semibold text-emerald-700">구분</th>
+							<th class="py-1 text-right text-xs font-semibold text-emerald-700">총액</th>
+							<th class="py-1 text-right text-xs font-semibold text-emerald-700">실수령</th>
 						</tr>
 					</thead>
 					<tbody>
 						<tr class="border-b border-emerald-200">
-							<td class="py-1 font-semibold text-emerald-700">이번주</td>
-							<td class="py-1 text-right text-emerald-600">{formatAmount(paymentSummary?.thisWeek?.amount)}</td>
-							<td class="py-1 text-right text-emerald-600">{formatAmount(paymentSummary?.thisWeek?.tax)}</td>
-							<td class="py-1 text-right font-bold text-emerald-900">{formatAmount(paymentSummary?.thisWeek?.net)}</td>
+							<td class="py-1.5 text-sm font-semibold text-emerald-700">
+								💵 이번주 지급액
+								{#if paymentSummary?.thisWeek?.date}
+									<span class="ml-1 text-xs text-gray-500">({formatDate(paymentSummary.thisWeek.date)})</span>
+								{/if}
+							</td>
+							<td class="py-1.5 text-right text-base font-bold text-emerald-900">{formatAmount(paymentSummary?.thisWeek?.amount)}</td>
+							<td class="py-1.5 text-right text-base font-bold text-blue-600">{formatAmount(paymentSummary?.thisWeek?.net)}</td>
 						</tr>
 						<tr class="border-b border-emerald-200">
-							<td class="py-1 font-semibold text-emerald-700">이번달</td>
-							<td class="py-1 text-right text-emerald-600">{formatAmount(paymentSummary?.thisMonth?.amount)}</td>
-							<td class="py-1 text-right text-emerald-600">{formatAmount(paymentSummary?.thisMonth?.tax)}</td>
-							<td class="py-1 text-right font-bold text-emerald-900">{formatAmount(paymentSummary?.thisMonth?.net)}</td>
+							<td class="py-1.5 text-xs font-semibold text-emerald-700">📈 누적 수령액</td>
+							<td class="py-1.5 text-right text-xs text-emerald-700">{formatAmount(paymentSummary?.totalPaid?.amount)}</td>
+							<td class="py-1.5 text-right text-xs font-semibold text-green-600">{formatAmount(paymentSummary?.totalPaid?.net)}</td>
 						</tr>
 						<tr>
-							<td class="py-1 font-semibold text-emerald-700">수령예정</td>
-							<td class="py-1 text-right text-emerald-600">{formatAmount(paymentSummary?.upcoming?.amount)}</td>
-							<td class="py-1 text-right text-emerald-600">{formatAmount(paymentSummary?.upcoming?.tax)}</td>
-							<td class="py-1 text-right font-bold text-emerald-900">{formatAmount(paymentSummary?.upcoming?.net)}</td>
+							<td class="py-1.5 text-xs font-semibold text-emerald-700">📅 남은 예정액</td>
+							<td class="py-1.5 text-right text-xs text-emerald-700">{formatAmount(paymentSummary?.upcoming?.amount)}</td>
+							<td class="py-1.5 text-right text-xs font-semibold text-purple-600">{formatAmount(paymentSummary?.upcoming?.net)}</td>
 						</tr>
 					</tbody>
 				</table>
@@ -342,16 +342,16 @@
 
 		<!-- 용역비 수령 내역 테이블 -->
 		<div class="overflow-hidden rounded-lg bg-white shadow">
-			<div class="border-b border-gray-200 bg-gray-50 px-4 py-5">
+			<!-- 제목 -->
+			<div class="border-b border-gray-200 bg-gray-50 px-4 py-3">
 				<div class="flex items-center gap-2">
 					<img src="/icons/receipt.svg" alt="용역비" class="h-5 w-5" />
 					<h3 class="text-base font-bold text-gray-900">용역비 수령 내역</h3>
 				</div>
-				<p class="mt-1 text-sm text-gray-600">주차별 용역비 수령 내역입니다</p>
 			</div>
 
 			<!-- 검색 필터 -->
-			<div class="border-b border-gray-200 bg-white px-4 py-4">
+			<div class="border-b border-gray-200 bg-white px-4 py-3">
 				<div class="flex items-end gap-3">
 					<!-- 시작 월 -->
 					<div class="w-40">
@@ -372,60 +372,24 @@
 							class="w-full rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
 						/>
 					</div>
-
-					<!-- 등급 -->
-					<div class="w-32">
-						<label class="mb-1 block text-xs font-medium text-gray-700">등급</label>
-						<select
-							bind:value={filters.grade}
-							class="w-full rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
-						>
-							<option value="">전체</option>
-							{#each grades as grade}
-								<option value={grade}>{grade}</option>
-							{/each}
-						</select>
-					</div>
-
-					<!-- 초기화 아이콘 -->
-					<button
-						onclick={resetFilters}
-						class="rounded-md border border-gray-300 bg-white p-1 text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-700"
-						title="초기화"
-					>
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							fill="none"
-							viewBox="0 0 24 24"
-							stroke="currentColor"
-							class="h-4 w-4"
-						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-							/>
-						</svg>
-					</button>
 				</div>
 
 				<!-- ⭐ 기간 총액 정보 -->
-				<div class="mt-4 rounded-md bg-blue-50 p-3">
-					<div class="flex items-center justify-between text-sm">
-						<span class="font-semibold text-blue-900">선택 기간 총액:</span>
+				<div class="mt-3 rounded-md bg-blue-50 p-3">
+					<div class="flex items-center justify-between">
+						<span class="text-sm font-semibold text-blue-900">선택 기간 총액:</span>
 						<div class="flex gap-6">
 							<div class="text-right">
 								<div class="text-xs text-blue-700">수령총액</div>
-								<div class="font-bold text-blue-900">{formatAmount(periodSummary.totalAmount)}</div>
+								<div class="text-base font-bold text-blue-900">{formatAmount(periodSummary.totalAmount)}</div>
 							</div>
 							<div class="text-right">
 								<div class="text-xs text-blue-700">세금</div>
-								<div class="font-medium text-blue-900">{formatAmount(periodSummary.totalTax)}</div>
+								<div class="text-sm font-medium text-blue-900">{formatAmount(periodSummary.totalTax)}</div>
 							</div>
 							<div class="text-right">
 								<div class="text-xs text-blue-700">실수령액</div>
-								<div class="font-bold text-blue-900">{formatAmount(periodSummary.totalNet)}</div>
+								<div class="text-base font-bold text-blue-600">{formatAmount(periodSummary.totalNet)}</div>
 							</div>
 						</div>
 					</div>
@@ -459,7 +423,7 @@
 							<th class="table-header">이름</th>
 							<th class="table-header">등급</th>
 							<th class="table-header">수령총액</th>
-							<th class="table-header">수령액(영업/홍보/판촉)</th>
+							<th class="table-header">수령액<span class="text-xs">(영업/홍보/판촉)</span></th>
 							<th class="table-header">세금</th>
 							<th class="table-header">실수령액</th>
 						</tr>

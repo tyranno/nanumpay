@@ -61,7 +61,10 @@
 				</div>
 				<div class="flex items-center gap-3">
 					{#if data.user}
-						<span class="text-sm text-gray-700 hidden sm:inline">{data.user.name}님</span>
+						<div class="flex items-center gap-1.5">
+							<img src="/icons/planner-purple.svg" alt="설계사" class="h-4 w-4" />
+							<span class="text-sm text-gray-700 hidden sm:inline">{data.user.name} 님</span>
+						</div>
 					{/if}
 					<!-- 로그아웃 아이콘 버튼 -->
 					<button

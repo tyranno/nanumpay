@@ -47,7 +47,7 @@ export async function GET({ locals, url }) {
 		.sort({ createdAt: -1 })
 		.lean();
 
-	// 이번주/이번달 계산을 위한 날짜
+	// 이번주 금요일 계산 (지급일)
 	const now = new Date();
 	const thisWeekStart = new Date(now);
 	thisWeekStart.setDate(now.getDate() - now.getDay()); // 이번 주 일요일
@@ -57,18 +57,19 @@ export async function GET({ locals, url }) {
 	thisWeekEnd.setDate(thisWeekStart.getDate() + 6); // 이번 주 토요일
 	thisWeekEnd.setHours(23, 59, 59, 999);
 
-	const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-	const thisMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+	// 이번 주 금요일 날짜 (용역자가 받을 날짜)
+	const thisWeekFriday = new Date(thisWeekStart);
+	thisWeekFriday.setDate(thisWeekStart.getDate() + 5); // 금요일
 
 	// ⭐ v8.0: 사용자별로 개별 행 생성 (합산하지 않음)
 	let paymentRows = [];
 	let thisWeekAmount = 0;
 	let thisWeekTax = 0;
 	let thisWeekNet = 0;
-	let thisMonthAmount = 0;
-	let thisMonthTax = 0;
-	let thisMonthNet = 0;
-	let upcomingAmount = 0;
+	let totalPaidAmount = 0;  // ⭐ 지금까지 받은 총액
+	let totalPaidTax = 0;
+	let totalPaidNet = 0;
+	let upcomingAmount = 0;   // ⭐ 앞으로 받을 총액
 	let upcomingTax = 0;
 	let upcomingNet = 0;
 
@@ -148,25 +149,25 @@ export async function GET({ locals, url }) {
 			group.tax += installment.withholdingTax || 0;
 			group.netAmount += installment.netAmount || 0;
 
-			// 이번주/이번달 계산용 날짜
+			// 날짜 기준 계산
 			const installmentDate = installment.scheduledDate || installment.weekDate;
 
-			// 이번주 금액 계산 (총액/세금/실수령액)
+			// ⭐ 1. 이번주 금요일 받을 금액 (이번주만, 상태 무관)
 			if (installmentDate >= thisWeekStart && installmentDate <= thisWeekEnd) {
 				thisWeekAmount += installment.installmentAmount || 0;
 				thisWeekTax += installment.withholdingTax || 0;
 				thisWeekNet += installment.netAmount || 0;
 			}
 
-			// 이번달 금액 계산 (총액/세금/실수령액)
-			if (installmentDate >= thisMonthStart && installmentDate <= thisMonthEnd) {
-				thisMonthAmount += installment.installmentAmount || 0;
-				thisMonthTax += installment.withholdingTax || 0;
-				thisMonthNet += installment.netAmount || 0;
+			// ⭐ 2. 누적 수령액 (과거 전체, 상태 무관)
+			if (installmentDate < thisWeekStart) {
+				totalPaidAmount += installment.installmentAmount || 0;
+				totalPaidTax += installment.withholdingTax || 0;
+				totalPaidNet += installment.netAmount || 0;
 			}
 
-			// 이번주 포함 지급 예정액 (pending만) (총액/세금/실수령액)
-			if (installment.status === 'pending' && installmentDate >= thisWeekStart) {
+			// ⭐ 3. 남은 예정액 (미래만, 상태 무관)
+			if (installmentDate > thisWeekEnd) {
 				upcomingAmount += installment.installmentAmount || 0;
 				upcomingTax += installment.withholdingTax || 0;
 				upcomingNet += installment.netAmount || 0;
@@ -228,16 +229,17 @@ export async function GET({ locals, url }) {
 		})),
 		summary: {
 			thisWeek: {
+				date: thisWeekFriday.toISOString().split('T')[0], // ⭐ 이번 주 금요일 날짜
 				amount: thisWeekAmount,
 				tax: thisWeekTax,
 				net: thisWeekNet
 			},
-			thisMonth: {
-				amount: thisMonthAmount,
-				tax: thisMonthTax,
-				net: thisMonthNet
+			totalPaid: {  // ⭐ 변경: thisMonth → totalPaid (지금까지 받은 총액)
+				amount: totalPaidAmount,
+				tax: totalPaidTax,
+				net: totalPaidNet
 			},
-			upcoming: {
+			upcoming: {   // ⭐ 앞으로 받을 총액
 				amount: upcomingAmount,
 				tax: upcomingTax,
 				net: upcomingNet
