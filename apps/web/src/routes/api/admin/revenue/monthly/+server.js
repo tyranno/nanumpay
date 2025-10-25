@@ -114,8 +114,11 @@ export async function GET({ url, locals }) {
 					F8: monthlyReg.gradePayments?.F8 || 0
 				},
 
-				// 지급 상태
-				paymentStatus,
+				// 등급별 조정 지급액
+			adjustedGradePayments: monthlyReg.adjustedGradePayments || {},
+
+			// 지급 상태
+			paymentStatus,
 
 				// 매출 변경 이력
 				revenueChangeHistory: monthlyReg.revenueChangeHistory || [],

@@ -1,13 +1,18 @@
 <script>
+	import { onMount } from 'svelte';
 	import WindowsModal from '$lib/components/WindowsModal.svelte';
 
 	export let isOpen = false;
 	export let monthKey = '';
-	export let gradeDistribution = {};
-	export let currentPayments = {};
-	export let adjustedPayments = {};
 	export let onClose = () => {};
 	export let onSave = () => {};
+
+	// 데이터 상태
+	let isLoading = true;
+	let monthlyData = null;
+	let gradeDistribution = {};
+	let currentPayments = {};
+	let adjustedPayments = {};
 
 	// 등급별 조정 데이터
 	let adjustments = {
@@ -21,21 +26,34 @@
 		F8: { totalAmount: '', perInstallment: 0, hasUsers: false }
 	};
 
-	// 등급별 기본 지급액 (참고용)
-	const basePayments = {
-		F1: 240000,
-		F2: 810000,
-		F3: 1890000,
-		F4: 3240000,
-		F5: 5400000,
-		F6: 8100000,
-		F7: 12150000,
-		F8: 16200000
-	};
+	// Modal이 열릴 때마다 데이터 로드
+	$: if (isOpen && monthKey) {
+		loadMonthlyData();
+	}
 
-	// Modal이 열릴 때 데이터 초기화
-	$: if (isOpen) {
-		initializeData();
+	async function loadMonthlyData() {
+		try {
+			isLoading = true;
+			console.log(`[GradePaymentAdjustModal] 데이터 로드 시작: ${monthKey}`);
+
+			const response = await fetch(`/api/admin/revenue/monthly?monthKey=${monthKey}`);
+			if (response.ok) {
+				monthlyData = await response.json();
+				gradeDistribution = monthlyData.gradeDistribution || {};
+				currentPayments = monthlyData.gradePayments || {};
+				adjustedPayments = monthlyData.adjustedGradePayments || {};
+
+				console.log(`[GradePaymentAdjustModal] adjustedGradePayments:`, adjustedPayments);
+
+				initializeData();
+			} else {
+				console.error('Failed to load monthly data');
+			}
+		} catch (error) {
+			console.error('Error loading monthly data:', error);
+		} finally {
+			isLoading = false;
+		}
 	}
 
 	function initializeData() {
@@ -51,6 +69,9 @@
 				// 100원 단위로 절삭하여 저장
 				const rounded = Math.floor(Number(adjustedPayments[grade].totalAmount) / 100) * 100;
 				totalAmount = rounded.toString();
+				console.log(`[GradePaymentAdjustModal] ${grade} 조정값 복원: ${totalAmount}`);
+			} else {
+				console.log(`[GradePaymentAdjustModal] ${grade} 조정값 없음`);
 			}
 
 			adjustments[grade] = {
@@ -97,11 +118,6 @@
 		}
 	}
 
-	// 포커스 시 콤마 제거
-	function handleTotalAmountFocus(grade) {
-		// 숫자만 남기고 편집 가능하게
-	}
-
 	// 금액 표시용 (콤마 포함)
 	function getDisplayAmount(amount) {
 		if (!amount && amount !== 0) return '';
@@ -120,7 +136,7 @@
 				if (totalAmount > 0) {
 					result[grade] = {
 						totalAmount: totalAmount,
-						perInstallment: Math.floor(totalAmount / 10)
+						perInstallment: Math.floor(totalAmount / 10 / 100) * 100  // 100원 단위 절삭
 					};
 				} else {
 					// 0 이하면 자동 계산으로
@@ -142,31 +158,6 @@
 		handleClose();
 	}
 
-	// 자동 계산으로 복귀 (모든 등급)
-	function handleResetToAuto() {
-		if (!confirm('모든 등급의 수동 설정을 초기화하고 자동 계산으로 복귀하시겠습니까?')) {
-			return;
-		}
-
-		const grades = ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'];
-		grades.forEach(grade => {
-			adjustments[grade].totalAmount = '';
-			adjustments[grade].perInstallment = 0;
-		});
-		adjustments = { ...adjustments };
-
-		// 즉시 저장
-		const result = {};
-		grades.forEach(grade => {
-			result[grade] = {
-				totalAmount: null,
-				perInstallment: null
-			};
-		});
-		onSave(result);
-		handleClose();
-	}
-
 	// 특정 등급만 자동 계산으로 복귀
 	function handleResetGradeToAuto(grade) {
 		adjustments[grade].totalAmount = '';
@@ -176,17 +167,6 @@
 
 	// 닫기
 	function handleClose() {
-		// 초기화
-		adjustments = {
-			F1: { totalAmount: '', perInstallment: 0, hasUsers: false },
-			F2: { totalAmount: '', perInstallment: 0, hasUsers: false },
-			F3: { totalAmount: '', perInstallment: 0, hasUsers: false },
-			F4: { totalAmount: '', perInstallment: 0, hasUsers: false },
-			F5: { totalAmount: '', perInstallment: 0, hasUsers: false },
-			F6: { totalAmount: '', perInstallment: 0, hasUsers: false },
-			F7: { totalAmount: '', perInstallment: 0, hasUsers: false },
-			F8: { totalAmount: '', perInstallment: 0, hasUsers: false }
-		};
 		onClose();
 	}
 
@@ -195,13 +175,6 @@
 		if (!amount && amount !== 0) return '-';
 		const rounded = Math.floor(Number(amount) / 100) * 100;
 		return rounded.toLocaleString();
-	}
-
-	// 초기화
-	function handleReset(grade) {
-		adjustments[grade].totalAmount = '';
-		adjustments[grade].perInstallment = 0;
-		adjustments = { ...adjustments };
 	}
 </script>
 
@@ -212,108 +185,135 @@
 	size="lg"
 	onClose={handleClose}
 >
-	<div class="modal-content">
-		<div class="info-box">
-			<p class="info-title">📊 {monthKey} 등급별 지급 총액 조정</p>
-			<p class="info-desc">
-				각 등급의 지급 총액을 직접 설정할 수 있습니다. 총액을 입력하면 10분할 금액이 자동으로 계산됩니다. 비워두면 자동 계산됩니다.
-			</p>
+	{#if isLoading}
+		<div class="loading-container">
+			<div class="loading-text">데이터 로딩 중...</div>
 		</div>
+	{:else}
+		<div class="modal-content">
+			<!-- 정보 박스 -->
+			<div class="info-box">
+				<p class="info-title">📊 {monthKey} 등급별 지급 총액 조정</p>
+				<p class="info-description">
+					각 등급의 지급 총액을 직접 설정할 수 있습니다. 총액을 입력하면 10분할 금액이 자동으로 계산됩니다. 비워두면 자동 계산됩니다.
+				</p>
+			</div>
 
-		<div class="table-container">
-			<table class="adjustment-table">
-				<thead>
-					<tr>
-						<th>등급</th>
-						<th>인원</th>
-						<th>모드</th>
-						<th>기본 총액</th>
-						<th>조정 총액</th>
-						<th>10분할금</th>
-					</tr>
-				</thead>
-				<tbody>
-					{#each ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'] as grade}
-						{@const isManual = adjustedPayments?.[grade]?.totalAmount !== null && adjustedPayments?.[grade]?.totalAmount !== undefined}
-						{@const hasInput = adjustments[grade].totalAmount && adjustments[grade].totalAmount !== ''}
-						{@const baseAmount = currentPayments?.[grade] || 0}
-						{@const displayAmount = adjustments[grade].perInstallment > 0
-							? adjustments[grade].perInstallment
-							: Math.floor(baseAmount / 10 / 100) * 100}
-						<tr class:manual-mode={isManual}>
-							<td class="grade-cell">{grade}</td>
-							<td class="count-cell">
-								{adjustments[grade].userCount || 0}명
-							</td>
-							<td class="mode-cell">
-								<label class="switch">
-									<input
-										type="checkbox"
-										checked={hasInput}
-										onchange={() => {
-											if (hasInput) {
-												handleResetGradeToAuto(grade);
-											}
-										}}
-									/>
-									<span class="slider"></span>
-								</label>
-								<span class="mode-label">{hasInput ? '수동' : '자동'}</span>
-							</td>
-							<td class="amount-cell">
-								{formatAmount(currentPayments?.[grade] || 0)}원
-							</td>
-							<td class="input-cell">
-								<input
-									type="text"
-									value={getDisplayAmount(adjustments[grade].totalAmount)}
-									oninput={(e) => handleTotalAmountInput(grade, e)}
-									onblur={() => handleTotalAmountBlur(grade)}
-									class="amount-input"
-								/>
-							</td>
-							<td class="amount-cell">
-								{#if displayAmount > 0}
-									{formatAmount(displayAmount)}원
-								{:else}
-									0원
-								{/if}
-							</td>
+			<!-- 테이블 -->
+			<div class="table-container">
+				<table class="adjustment-table">
+					<thead>
+						<tr>
+							<th class="th-cell">등급</th>
+							<th class="th-cell">인원</th>
+							<th class="th-cell">모드</th>
+							<th class="th-cell">기본 총액</th>
+							<th class="th-cell">조정 총액</th>
+							<th class="th-cell">10분할금</th>
 						</tr>
-					{/each}
-				</tbody>
-			</table>
-		</div>
+					</thead>
+					<tbody>
+						{#each ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'] as grade}
+							{@const isManual = adjustedPayments?.[grade]?.totalAmount !== null && adjustedPayments?.[grade]?.totalAmount !== undefined}
+							{@const hasInput = adjustments[grade].totalAmount && adjustments[grade].totalAmount !== ''}
+							{@const baseAmount = currentPayments?.[grade] || 0}
+							{@const displayAmount = adjustments[grade].perInstallment > 0
+								? adjustments[grade].perInstallment
+								: Math.floor(baseAmount / 10 / 100) * 100}
+							<tr class="table-row {isManual ? 'manual-mode' : ''}">
+								<td class="td-grade">{grade}</td>
+								<td class="td-count">
+									{adjustments[grade].userCount || 0}명
+								</td>
+								<td class="td-mode">
+									<label class="switch">
+										<input
+											type="checkbox"
+											checked={hasInput}
+											onchange={() => {
+												if (hasInput) {
+													handleResetGradeToAuto(grade);
+												}
+											}}
+										/>
+										<span class="slider"></span>
+									</label>
+									<span class="mode-label">{hasInput ? '수동' : '자동'}</span>
+								</td>
+								<td class="td-amount">
+									{formatAmount(currentPayments?.[grade] || 0)}원
+								</td>
+								<td class="td-input">
+									<input
+										type="text"
+										value={getDisplayAmount(adjustments[grade].totalAmount)}
+										oninput={(e) => handleTotalAmountInput(grade, e)}
+										onblur={() => handleTotalAmountBlur(grade)}
+										class="amount-input"
+									/>
+								</td>
+								<td class="td-amount">
+									{#if displayAmount > 0}
+										{formatAmount(displayAmount)}원
+									{:else}
+										0원
+									{/if}
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
 
-		<div class="summary-box">
-			<p class="summary-title">💡 참고사항</p>
-			<ul class="summary-list">
-				<li><strong>수동 모드</strong>: 입력한 금액으로 지급계획이 생성/업데이트됩니다</li>
-				<li><strong>자동 모드</strong>: 매출과 등급 분포에 따라 자동으로 계산됩니다</li>
-				<li>자동 복귀 시 해당 월의 모든 지급계획이 재계산됩니다</li>
-				<li>인원이 0명인 등급도 미리 조정 가능합니다 (수동 모드)</li>
-				<li>10분할금은 총액 ÷ 10으로 자동 계산됩니다</li>
-			</ul>
+			<!-- 참고사항 -->
+			<div class="notice-box">
+				<p class="notice-title">💡 참고사항</p>
+				<ul class="notice-list">
+					<li class="notice-item"><strong>수동 모드</strong>: 입력한 금액으로 지급계획이 생성/업데이트됩니다</li>
+					<li class="notice-item"><strong>자동 모드</strong>: 매출과 등급 분포에 따라 자동으로 계산됩니다</li>
+					<li class="notice-item">자동 복귀 시 해당 월의 모든 지급계획이 재계산됩니다</li>
+					<li class="notice-item">인원이 0명인 등급도 미리 조정 가능합니다 (수동 모드)</li>
+					<li class="notice-item">10분할금은 총액 ÷ 10으로 자동 계산됩니다</li>
+				</ul>
+			</div>
 		</div>
-	</div>
+	{/if}
 
 	<svelte:fragment slot="footer">
-		<button onclick={handleClose} class="btn-modal-cancel">
-			취소
-		</button>
-		<button onclick={handleSave} class="btn-modal-primary">
-			저장
-		</button>
+		{#if !isLoading}
+			<button onclick={handleClose} class="btn-cancel">
+				취소
+			</button>
+			<button onclick={handleSave} class="btn-save">
+				저장
+			</button>
+		{/if}
 	</svelte:fragment>
 </WindowsModal>
 
 <style>
+	@reference "$lib/../app.css";
+
+	/* Loading */
+	.loading-container {
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		min-height: 300px;
+	}
+
+	.loading-text {
+		color: #64748b;
+	}
+
+	/* Modal Content */
 	.modal-content {
 		padding: 8px;
 	}
 
+	/* Info Box */
 	.info-box {
-		background: #f0f9ff;
+		background-color: #eff6ff;
 		border: 1px solid #bfdbfe;
 		border-radius: 6px;
 		padding: 8px 10px;
@@ -323,16 +323,17 @@
 	.info-title {
 		font-size: 13px;
 		font-weight: 600;
-		color: #1e40af;
-		margin-bottom: 3px;
+		color: #1e3a8a;
+		margin-bottom: 2px;
 	}
 
-	.info-desc {
+	.info-description {
 		font-size: 11px;
-		color: #64748b;
+		color: #475569;
 		line-height: 1.4;
 	}
 
+	/* Table */
 	.table-container {
 		overflow-x: auto;
 		margin-bottom: 10px;
@@ -345,61 +346,168 @@
 	}
 
 	.adjustment-table thead {
-		background: #f8fafc;
+		background-color: #f8fafc;
 	}
 
-	.adjustment-table th {
-		padding: 4px 3px;
+	.th-cell {
+		padding: 4px;
 		text-align: left;
 		font-weight: 600;
 		color: #475569;
 		border-bottom: 2px solid #e2e8f0;
 		white-space: nowrap;
-		line-height: 1.2;
 	}
 
-	.adjustment-table tbody tr {
-		border-bottom: 1px solid #e2e8f0;
+	.table-row {
 		height: 28px;
+		border-bottom: 1px solid #e2e8f0;
 	}
 
-	.adjustment-table tbody tr:hover {
-		background: #f8fafc;
+	.table-row:hover {
+		background-color: #f8fafc;
 	}
 
-	.adjustment-table tbody tr.manual-mode {
-		background: #fef3c7;
+	.table-row.manual-mode {
+		background-color: #fef3c7;
 	}
 
-	.adjustment-table tbody tr.manual-mode:hover {
-		background: #fef08a;
+	.table-row.manual-mode:hover {
+		background-color: #fde68a;
 	}
 
-	.adjustment-table td {
-		padding: 2px 3px;
-		line-height: 1.2;
-	}
-
-	.grade-cell {
+	.td-grade {
+		padding: 2px 4px;
 		font-weight: 600;
 		color: #1e293b;
 		width: 40px;
 		min-width: 40px;
 	}
 
-	.count-cell {
+	.td-count {
+		padding: 2px 4px;
 		text-align: center;
-		color: #64748b;
+		color: #475569;
 		width: 50px;
 		min-width: 50px;
 	}
 
-	.mode-cell {
+	.td-mode {
+		padding: 2px 4px;
 		text-align: center;
 		width: 70px;
 		min-width: 70px;
 	}
 
+	.td-amount {
+		padding: 2px 4px;
+		text-align: right;
+		font-family: monospace;
+		color: #334155;
+		width: 80px;
+		min-width: 80px;
+		font-size: 11px;
+	}
+
+	.td-input {
+		padding: 2px 4px;
+		width: 80px;
+		min-width: 80px;
+	}
+
+	.mode-label {
+		font-size: 9px;
+		color: #475569;
+		vertical-align: middle;
+		display: inline-block;
+		min-width: 24px;
+	}
+
+	.amount-input {
+		width: 100%;
+		padding: 2px 6px;
+		border: 1px solid #cbd5e1;
+		border-radius: 4px;
+		font-size: 11px;
+		text-align: right;
+		font-family: monospace;
+		height: 22px;
+	}
+
+	.amount-input:focus {
+		outline: none;
+		border-color: #3b82f6;
+		box-shadow: 0 0 0 2px #dbeafe;
+	}
+
+	/* Notice Box */
+	.notice-box {
+		background-color: #fffbeb;
+		border: 1px solid #fde68a;
+		border-radius: 6px;
+		padding: 8px 10px;
+	}
+
+	.notice-title {
+		font-size: 12px;
+		font-weight: 600;
+		color: #78350f;
+		margin-bottom: 4px;
+	}
+
+	.notice-list {
+		list-style: none;
+		padding: 0;
+		margin: 0;
+	}
+
+	.notice-item {
+		font-size: 11px;
+		color: #78350f;
+		padding-left: 12px;
+		position: relative;
+		margin-bottom: 2px;
+	}
+
+	.notice-item::before {
+		content: '•';
+		position: absolute;
+		left: 4px;
+	}
+
+	/* Buttons */
+	.btn-cancel {
+		padding: 8px 16px;
+		font-size: 13px;
+		color: #475569;
+		background-color: white;
+		border: 1px solid #e2e8f0;
+		border-radius: 6px;
+		cursor: pointer;
+		transition: all 0.2s;
+	}
+
+	.btn-cancel:hover {
+		background-color: #f8fafc;
+		border-color: #cbd5e1;
+	}
+
+	.btn-save {
+		padding: 8px 16px;
+		font-size: 13px;
+		color: white;
+		background-color: #3b82f6;
+		border: 1px solid #3b82f6;
+		border-radius: 6px;
+		cursor: pointer;
+		transition: all 0.2s;
+	}
+
+	.btn-save:hover {
+		background-color: #2563eb;
+		border-color: #2563eb;
+	}
+
+	/* Toggle Switch */
 	.switch {
 		position: relative;
 		display: inline-block;
@@ -446,111 +554,5 @@
 	input:checked + .slider:before {
 		background-color: #f59e0b;
 		transform: translateX(16px);
-	}
-
-	.mode-label {
-		font-size: 9px;
-		color: #64748b;
-		vertical-align: middle;
-		display: inline-block;
-		min-width: 24px;
-	}
-
-	.amount-cell {
-		text-align: right;
-		font-family: monospace;
-		color: #334155;
-		width: 80px;
-		min-width: 80px;
-		font-size: 11px;
-	}
-
-	.input-cell {
-		width: 80px;
-		min-width: 80px;
-	}
-
-	.amount-input {
-		width: 100%;
-		padding: 3px 5px;
-		border: 1px solid #cbd5e1;
-		border-radius: 3px;
-		font-size: 11px;
-		text-align: right;
-		font-family: monospace;
-		height: 22px;
-		line-height: 1;
-	}
-
-	.amount-input:focus {
-		outline: none;
-		border-color: #3b82f6;
-		box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
-	}
-
-	.summary-box {
-		background: #fefce8;
-		border: 1px solid #fde68a;
-		border-radius: 6px;
-		padding: 8px 10px;
-	}
-
-	.summary-title {
-		font-size: 12px;
-		font-weight: 600;
-		color: #a16207;
-		margin-bottom: 5px;
-	}
-
-	.summary-list {
-		list-style: none;
-		padding: 0;
-		margin: 0;
-	}
-
-	.summary-list li {
-		font-size: 11px;
-		color: #854d0e;
-		padding-left: 12px;
-		position: relative;
-		margin-bottom: 2px;
-	}
-
-	.summary-list li::before {
-		content: '•';
-		position: absolute;
-		left: 4px;
-	}
-
-	.btn-modal-cancel {
-		padding: 8px 16px;
-		font-size: 13px;
-		color: #64748b;
-		background: white;
-		border: 1px solid #e2e8f0;
-		border-radius: 6px;
-		cursor: pointer;
-		transition: all 0.2s;
-	}
-
-	.btn-modal-cancel:hover {
-		background: #f8fafc;
-		border-color: #cbd5e1;
-	}
-
-	.btn-modal-primary {
-		padding: 8px 16px;
-		font-size: 13px;
-		color: white;
-		background: #3b82f6;
-		border: 1px solid #3b82f6;
-		border-radius: 6px;
-		cursor: pointer;
-		transition: all 0.2s;
-	}
-
-	.btn-modal-primary:hover {
-		background: #2563eb;
-		border-color: #2563eb;
 	}
 </style>

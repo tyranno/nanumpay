@@ -586,9 +586,6 @@
 	<GradePaymentAdjustModal
 		isOpen={showGradePaymentModal}
 		monthKey={modalMonthKey}
-		gradeDistribution={monthlyData?.gradeDistribution || {}}
-		currentPayments={monthlyData?.gradePayments || {}}
-		adjustedPayments={monthlyData?.adjustedGradePayments || {}}
 		onClose={closeGradePaymentModal}
 		onSave={handleGradePaymentAdjusted}
 	/>

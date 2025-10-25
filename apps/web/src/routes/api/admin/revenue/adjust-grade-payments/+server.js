@@ -32,11 +32,15 @@ export async function POST({ request, locals }) {
 
 		for (const grade of grades) {
 			if (adjustments[grade]) {
-				adjustedGradePayments[grade] = {
-					totalAmount: adjustments[grade].totalAmount,
-					perInstallment: adjustments[grade].perInstallment,
-					modifiedAt: new Date()
-				};
+			// perInstallment는 서버에서 계산 (100원 단위 절삭)
+			const totalAmount = adjustments[grade].totalAmount;
+			const perInstallment = totalAmount ? Math.floor(totalAmount / 10 / 100) * 100 : null;
+
+			adjustedGradePayments[grade] = {
+				totalAmount: totalAmount,
+				perInstallment: perInstallment,
+				modifiedAt: new Date()
+			};
 			} else if (monthlyData.adjustedGradePayments?.[grade]) {
 				// 기존 조정값 유지
 				adjustedGradePayments[grade] = monthlyData.adjustedGradePayments[grade];
