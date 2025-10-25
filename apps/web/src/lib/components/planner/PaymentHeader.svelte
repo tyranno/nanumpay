@@ -393,7 +393,7 @@
 			<div class="grid grid-cols-[repeat(auto-fit,minmax(100px,1fr))] gap-2.5">
 				<div class="summary-card-desktop">
 					<div class="summary-label-desktop">총 지급액</div>
-					<div class="summary-value-desktop text-gray-800">{formatAmount(grandTotal.amount)}원</div>
+					<div class="summary-value-desktop text-emerald-900">{formatAmount(grandTotal.amount)}원</div>
 				</div>
 				<div class="summary-card-desktop">
 					<div class="summary-label-desktop">총 원천징수</div>
@@ -401,7 +401,7 @@
 				</div>
 				<div class="summary-card-desktop">
 					<div class="summary-label-desktop">총 실지급액</div>
-					<div class="summary-value-desktop text-green-600">{formatAmount(grandTotal.net)}원</div>
+					<div class="summary-value-desktop text-blue-600">{formatAmount(grandTotal.net)}원</div>
 				</div>
 				<div class="summary-card-desktop">
 					<div class="summary-label-desktop">지급 대상</div>
@@ -578,11 +578,11 @@
 	}
 
 	.summary-label-desktop {
-		@apply mb-0.5 text-[10px] font-medium text-gray-500;
+		@apply mb-0.5 text-xs font-medium text-gray-500;
 	}
 
 	.summary-value-desktop {
-		@apply whitespace-nowrap text-[13px] font-bold;
+		@apply whitespace-nowrap text-lg font-bold;
 	}
 
 	.search-container-desktop {

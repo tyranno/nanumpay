@@ -391,15 +391,15 @@
 
 	.grand-total-row td {
 		@apply border-b border-r border-gray-300;
-		@apply whitespace-nowrap p-1.5 text-center text-sm font-bold;
+		@apply whitespace-nowrap p-1.5 pr-3 text-sm font-bold;
 	}
 
 	.grand-total-label {
-		@apply bg-purple-200 text-purple-900;
+		@apply bg-purple-200 pl-1.5 text-center text-purple-900;
 	}
 
 	.grand-total-value {
-		@apply bg-purple-100 pr-3 text-right text-purple-900;
+		@apply bg-purple-100 text-right text-purple-900;
 	}
 
 	.grand-total-tax {
