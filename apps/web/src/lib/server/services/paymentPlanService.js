@@ -482,9 +482,9 @@ function getFirstFridayOfMonth(monthKey) {
 export async function checkAndCreateAdditionalPlan(completedPlan) {
   try {
 
-    // User 모델에서 최신 등급 및 보험 정보 조회
+    // User 모델에서 최신 등급 및 보험 정보 조회 (UserAccount populate)
     const User = mongoose.model('User');
-    const user = await User.findOne({ loginId: completedPlan.userId });
+    const user = await User.findOne({ loginId: completedPlan.userId }).populate('userAccountId', 'insuranceAmount');
 
     if (!user) {
       return null;
@@ -506,8 +506,16 @@ export async function checkAndCreateAdditionalPlan(completedPlan) {
     }
 
     // 3. 보험 확인 (F3 이상은 보험 필수)
-    if (user.grade >= 'F3' && !user.insuranceActive) {
-      return null;
+    if (user.grade >= 'F3') {
+      const requiredAmounts = {
+        F3: 50000, F4: 50000,
+        F5: 70000, F6: 70000,
+        F7: 100000, F8: 100000
+      };
+      const insuranceAmount = user.userAccountId?.insuranceAmount || 0;
+      if (insuranceAmount < requiredAmounts[user.grade]) {
+        return null;  // 보험 조건 미충족
+      }
     }
 
     // 4. 완료 매출월 계산 (10회차의 실제 지급일 또는 예정일)

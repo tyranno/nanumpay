@@ -65,8 +65,8 @@ export async function processWeeklyPayments(date = new Date()) {
       const installment = plan.getInstallmentByDate(paymentDate);
       if (!installment) continue;
 
-      // 사용자 정보 조회
-      const user = await User.findById(plan.userId);
+      // 사용자 정보 조회 (UserAccount populate)
+      const user = await User.findById(plan.userId).populate('userAccountId', 'insuranceAmount');
       if (!user) {
         console.log(`사용자 ${plan.userId} 없음`);
         continue;
@@ -194,20 +194,13 @@ async function checkInsuranceCondition(user, grade) {
     F7: 100000, F8: 100000
   };
 
-  // 관리자가 설정한 보험 정보 확인
-  const insuranceSettings = user.insuranceSettings;
+  // UserAccount에서 보험 금액 조회
+  const insuranceAmount = user.userAccountId?.insuranceAmount || 0;
 
-  if (!insuranceSettings || !insuranceSettings.maintained) {
+  if (insuranceAmount < requiredAmounts[grade]) {
     return {
       skip: true,
-      reason: 'insurance_not_maintained'
-    };
-  }
-
-  if (insuranceSettings.amount < requiredAmounts[grade]) {
-    return {
-      skip: true,
-      reason: `insufficient_insurance_amount: ${insuranceSettings.amount} < ${requiredAmounts[grade]}`
+      reason: `insufficient_insurance_amount: ${insuranceAmount} < ${requiredAmounts[grade]}`
     };
   }
 
@@ -309,114 +302,6 @@ async function getConfirmedGradeForPayment(userId, revenueMonth) {
   // MonthlyTreeSnapshots 제거로 인해 null 반환
   // 호출부에서 plan.baseGrade를 fallback으로 사용
   return null;
-}
-
-/**
- * v6.0: 과거 지급 일괄 처리 (개발용)
- * 오늘 이전의 모든 pending 지급을 자동으로 처리
- */
-export async function processAllPastPayments() {
-  try {
-    console.log('\n=== 과거 지급 일괄 처리 시작 ===');
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    // 1. 오늘보다 이전의 pending 지급 모두 찾기
-    const pastPayments = await WeeklyPaymentPlans.aggregate([
-      {
-        $match: {
-          'installments.status': 'pending',
-          'installments.scheduledDate': { $lt: today },
-          planStatus: 'active'
-        }
-      },
-      { $unwind: '$installments' },
-      {
-        $match: {
-          'installments.status': 'pending',
-          'installments.scheduledDate': { $lt: today }
-        }
-      },
-      {
-        $group: {
-          _id: '$installments.weekNumber',
-          scheduledDate: { $first: '$installments.scheduledDate' }
-        }
-      },
-      { $sort: { scheduledDate: 1 } }  // 오래된 것부터
-    ]);
-
-    console.log(`  처리할 과거 주차: ${pastPayments.length}개`);
-
-    if (pastPayments.length === 0) {
-      console.log('  과거 미처리 지급이 없습니다.');
-      return {
-        success: true,
-        message: '과거 미처리 지급이 없습니다',
-        processedWeeks: 0
-      };
-    }
-
-    // 2. 주차별로 순차 처리
-    const results = [];
-    for (const week of pastPayments) {
-      console.log(`\n  [${week._id}] 주차 지급 처리 중...`);
-
-      // 해당 주차의 금요일 날짜로 processWeeklyPayments 호출
-      // 금요일 체크를 우회하기 위해 날짜를 해당 주의 금요일로 조정
-      const friday = getFridayOfWeek(week.scheduledDate);
-
-      try {
-        const result = await processWeeklyPayments(friday);
-        results.push({
-          weekNumber: week._id,
-          success: true,
-          processedCount: result.processedCount,
-          totalAmount: result.totalAmount
-        });
-        console.log(`  [${week._id}] 처리 완료: ${result.processedCount}건`);
-      } catch (error) {
-        console.error(`  [${week._id}] 처리 실패:`, error);
-        results.push({
-          weekNumber: week._id,
-          success: false,
-          error: error.message
-        });
-      }
-    }
-
-    // 3. 처리 요약
-    const successCount = results.filter(r => r.success).length;
-    const totalProcessed = results.filter(r => r.success).reduce((sum, r) => sum + r.processedCount, 0);
-
-    console.log('\n=== 과거 지급 일괄 처리 완료 ===');
-    console.log(`  성공: ${successCount}/${pastPayments.length} 주차`);
-    console.log(`  총 처리 건수: ${totalProcessed}건`);
-
-    return {
-      success: true,
-      processedWeeks: successCount,
-      totalPayments: totalProcessed,
-      details: results
-    };
-
-  } catch (error) {
-    console.error('과거 지급 일괄 처리 실패:', error);
-    throw error;
-  }
-}
-
-/**
- * 해당 날짜가 속한 주의 금요일 찾기
- */
-function getFridayOfWeek(date) {
-  const d = new Date(date);
-  const dayOfWeek = d.getDay();  // 0(일) ~ 6(토)
-  const diff = 5 - dayOfWeek;  // 금요일(5)까지의 차이
-  d.setDate(d.getDate() + diff);
-  d.setHours(0, 0, 0, 0);
-  return d;
 }
 
 /**

@@ -1,5 +1,5 @@
 import { json } from '@sveltejs/kit';
-import PaymentScheduler from '$lib/server/services/paymentScheduler.js';
+import { processWeeklyPayments } from '$lib/server/services/weeklyPaymentService.js';
 import { connectDB } from '$lib/server/db.js';
 
 /** @type {import('./$types').RequestHandler} */
@@ -7,16 +7,18 @@ export async function POST({ request }) {
 	await connectDB();
 
 	try {
-		const { year, month, week } = await request.json();
+		const { date } = await request.json();
 
-		console.log('[API] 수동 지급 실행 요청:', { year, month, week });
+		console.log('[API] 수동 지급 실행 요청:', { date });
 
-		// 수동으로 금요일 지급 실행
-		await PaymentScheduler.executeManualPayment();
+		// 지정된 날짜로 지급 처리 (날짜 없으면 오늘)
+		const paymentDate = date ? new Date(date) : new Date();
+		const result = await processWeeklyPayments(paymentDate);
 
 		return json({
 			success: true,
-			message: '금요일 자동 지급이 수동으로 실행되었습니다.'
+			message: '지급 처리가 완료되었습니다.',
+			result
 		});
 
 	} catch (error) {
