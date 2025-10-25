@@ -43,6 +43,23 @@ export async function POST({ request, cookies }) {
 		return json({ message: '아이디 또는 비밀번호가 일치하지 않습니다.' }, { status: 401 });
 	}
 
+	// 암호 강제 변경 체크 (용역자, 설계사만)
+	let requirePasswordChange = false;
+	if (accountType === 'user' || accountType === 'planner') {
+		// 1. 암호가 전화번호와 동일한지 체크
+		const phone = account.phone || '';
+		const isPasswordSameAsPhone = await bcrypt.compare(phone, account.passwordHash);
+		
+		// 2. 암호 복잡도 체크 (10자 이상, 대소문자+숫자+특수문자)
+		const isWeakPassword = password.length < 10 ||
+			!/[A-Z]/.test(password) ||
+			!/[a-z]/.test(password) ||
+			!/[0-9]/.test(password) ||
+			!/[!@#$%^&*()_+\-=\[\]{};':"\|,.<>\/?]/.test(password);
+
+		requirePasswordChange = isPasswordSameAsPhone || isWeakPassword;
+	}
+
 	// v8.0: UserAccount 로그인 시 primaryUser 조회
 	let primaryUser = null;
 	let allUsers = [];
@@ -123,7 +140,8 @@ export async function POST({ request, cookies }) {
 		accountType,
 		userType: accountType, // 하위 호환성을 위해 userType도 추가
 		redirect: accountType === 'admin' ? '/admin' :
-		         accountType === 'planner' ? '/planner' : '/dashboard'
+		         accountType === 'planner' ? '/planner' : '/dashboard',
+		requirePasswordChange // 암호 변경 강제 플래그
 	};
 
 	// v8.0: UserAccount 로그인 시 primaryUser 및 모든 등록 정보 반환

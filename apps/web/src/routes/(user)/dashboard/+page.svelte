@@ -53,6 +53,18 @@
 			} else {
 				throw new Error('용역비 정보가 없습니다.');
 			}
+
+			// 암호 변경 필요 여부 체크 (세션 스토리지)
+			const requirePasswordChange = sessionStorage.getItem('requirePasswordChange');
+			if (requirePasswordChange === 'true') {
+				sessionStorage.removeItem('requirePasswordChange');
+				isProfileModalOpen = true;
+				// UserProfileModal에 암호 탭으로 전환하라는 신호 보내기
+				setTimeout(() => {
+					const event = new CustomEvent('force-password-tab');
+					window.dispatchEvent(event);
+				}, 100);
+			}
 		} catch (err) {
 			console.error('❌ Error loading payments:', err);
 			error = err.message;

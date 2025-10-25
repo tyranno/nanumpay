@@ -32,6 +32,11 @@
 			const data = await response.json();
 
 			if (response.ok) {
+				// 암호 변경 필요 여부를 sessionStorage에 저장
+				if (data.requirePasswordChange) {
+					sessionStorage.setItem('requirePasswordChange', 'true');
+				}
+
 				// 서버에서 반환한 userType에 따라 리다이렉션
 				if (data.userType === 'admin') {
 					goto('/admin', { replaceState: true });

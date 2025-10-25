@@ -159,6 +159,18 @@
 		if (statsRes.ok) contractStats = await statsRes.json();
 		if (summaryRes.ok) paymentSummary = await summaryRes.json();
 
+		// 암호 변경 필요 여부 체크 (세션 스토리지)
+		const requirePasswordChange = sessionStorage.getItem('requirePasswordChange');
+		if (requirePasswordChange === 'true') {
+			sessionStorage.removeItem('requirePasswordChange');
+			isSettingsModalOpen = true;
+			// PlannerSettingsModal에 암호 탭으로 전환하라는 신호 보내기
+			setTimeout(() => {
+				const event = new CustomEvent('force-password-tab');
+				window.dispatchEvent(event);
+			}, 100);
+		}
+
 		// 지급명부 데이터 로드
 		loadPaymentData();
 	});

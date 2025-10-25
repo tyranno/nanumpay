@@ -1,5 +1,6 @@
 <script>
 	import WindowsModal from '$lib/components/WindowsModal.svelte';
+	import { onMount, onDestroy } from 'svelte';
 
 	// Props
 	let { isOpen = false, onClose = () => {} } = $props();
@@ -54,6 +55,20 @@
 			newPassword = '';
 			confirmPassword = '';
 		}
+	});
+
+	// 암호 강제 변경 이벤트 리스너
+	function handleForcePasswordTab() {
+		activeTab = 'password';
+		errorMessage = '보안을 위해 암호를 변경해주세요. (최소 10자, 대소문자+숫자+특수문자 포함)';
+	}
+
+	onMount(() => {
+		window.addEventListener('force-password-tab', handleForcePasswordTab);
+	});
+
+	onDestroy(() => {
+		window.removeEventListener('force-password-tab', handleForcePasswordTab);
 	});
 
 	async function loadProfile() {
