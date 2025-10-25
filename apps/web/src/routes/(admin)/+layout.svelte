@@ -64,6 +64,15 @@
 		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 			<div class="flex justify-between h-16">
 				<div class="flex items-center gap-2">
+					<!-- 햄버거 메뉴 버튼 -->
+					<button
+						onclick={toggleSidebar}
+						class="p-2 rounded-lg bg-gradient-to-br from-gray-50 to-gray-100 hover:from-gray-100 hover:to-gray-200 transition-all shadow-sm hover:shadow-md"
+						title="메뉴"
+						type="button"
+					>
+						<img src="/icons/menu-gray.svg" alt="메뉴" class="h-5 w-5 filter-gray" />
+					</button>
 					{#if $page.url.pathname !== '/admin'}
 						<button
 							onclick={goBack}
@@ -94,15 +103,6 @@
 					>
 						<img src="/icons/logout-red.svg" alt="로그아웃" class="h-5 w-5 filter-red-icon" />
 					</button>
-					<!-- 햄버거 메뉴 버튼 -->
-					<button
-						onclick={toggleSidebar}
-						class="p-2 rounded-lg bg-gradient-to-br from-gray-50 to-gray-100 hover:from-gray-100 hover:to-gray-200 transition-all shadow-sm hover:shadow-md"
-						title="메뉴"
-						type="button"
-					>
-						<img src="/icons/menu-gray.svg" alt="메뉴" class="h-6 w-6 filter-gray" />
-					</button>
 				</div>
 			</div>
 		</div>
@@ -123,7 +123,7 @@
 	{/if}
 
 	<!-- 사이드바 -->
-	<aside class="fixed top-0 right-0 h-full w-64 bg-white/95 backdrop-blur-sm shadow-xl z-50 transform transition-transform duration-300 {sidebarOpen ? 'translate-x-0' : 'translate-x-full'}">
+	<aside class="fixed top-0 left-0 h-full w-64 bg-white/95 backdrop-blur-sm shadow-xl z-50 transform transition-transform duration-300 {sidebarOpen ? 'translate-x-0' : '-translate-x-full'}">
 		<div class="flex flex-col h-full">
 			<!-- 사이드바 헤더 -->
 			<div class="flex items-center justify-between p-4 border-b border-gray-200">
@@ -183,8 +183,28 @@
 						</div>
 						<span class="text-sm font-medium text-gray-900">용역자 산하정보</span>
 					</button>
+
+					<button
+						onclick={() => navigateTo('/admin/settings')}
+						class="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-amber-50 transition-colors group"
+						type="button"
+					>
+						<div class="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
+							<img src="/icons/settings-gray.svg" alt="설정" class="h-5 w-5 filter-gray" />
+						</div>
+						<span class="text-sm font-medium text-gray-900">설정</span>
+					</button>
 				</div>
 			</nav>
+
+			<!-- Copyright 오버레이 -->
+			<div class="border-t border-gray-200 p-4 bg-gradient-to-b from-transparent to-gray-50">
+				<div class="text-center text-xs text-gray-500 leading-relaxed">
+					<p class="font-medium text-gray-600 mb-1">용역관리시스템</p>
+					<p>&copy; 2025 나눔에셋</p>
+					<p class="mt-1 text-gray-400">All rights reserved</p>
+				</div>
+			</div>
 		</div>
 	</aside>
 

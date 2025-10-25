@@ -79,6 +79,7 @@
 						name="loginId"
 						type="text"
 						required
+						autocomplete="username"
 						bind:value={loginId}
 						class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
 						placeholder="아이디를 입력하세요"
@@ -95,6 +96,7 @@
 						name="password"
 						type={showPassword ? 'text' : 'password'}
 						required
+						autocomplete="current-password"
 						bind:value={password}
 						class="block w-full px-3 py-2 pr-10 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
 						placeholder="비밀번호를 입력하세요"
