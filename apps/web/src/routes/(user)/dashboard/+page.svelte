@@ -1,6 +1,7 @@
 <script>
 	import { onMount } from 'svelte';
 	import GradeBadge from '$lib/components/GradeBadge.svelte';
+	import UserProfileModal from '$lib/components/user/UserProfileModal.svelte';
 
 	let userInfo = $state(null);
 	let allRegistrations = $state([]); // ⭐ v8.0: 모든 등록 정보
@@ -234,6 +235,13 @@
 
 	// 등급 목록
 	const grades = ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'];
+
+	// 프로필 모달 상태
+	let isProfileModalOpen = $state(false);
+
+	function openProfileModal() {
+		isProfileModalOpen = true;
+	}
 </script>
 
 <svelte:head>
@@ -261,12 +269,12 @@
 						<img src="/icons/user.svg" alt="사용자" class="h-5 w-5 text-indigo-700" />
 						<h3 class="text-base font-bold text-indigo-900">내 정보</h3>
 					</div>
-					<a
-						href="/dashboard/profile"
-						class="text-xs text-indigo-600 underline hover:text-indigo-800"
-					>
-						상세보기
-					</a>
+					<button
+					onclick={openProfileModal}
+					class="text-xs text-indigo-600 underline decoration-dotted underline-offset-2 transition-colors hover:text-indigo-800"
+				>
+					상세보기
+				</button>
 				</div>
 
 				<!-- ⭐ v8.0: 여러 등록 정보 표시 -->
@@ -522,6 +530,12 @@
 		</div>
 	</div>
 {/if}
+
+<!-- 프로필 모달 -->
+<UserProfileModal
+	isOpen={isProfileModalOpen}
+	onClose={() => (isProfileModalOpen = false)}
+/>
 
 <style>
 	@reference "$lib/../app.css";
