@@ -15,7 +15,7 @@ export default defineConfig(({ mode }) => {
 		},
 		build: {
 			rollupOptions: {
-				external: ['@capacitor/storage', 'bcrypt']
+				external: ['@capacitor/storage']
 			}
 		}
 	};

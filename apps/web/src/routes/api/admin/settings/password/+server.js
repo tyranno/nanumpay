@@ -1,5 +1,5 @@
 import { json } from '@sveltejs/kit';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import { Admin } from '$lib/server/models/Admin.js';
 
 // PUT: 관리자 암호 변경
