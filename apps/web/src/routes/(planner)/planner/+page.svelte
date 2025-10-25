@@ -38,6 +38,8 @@
 			const result = await plannerPaymentService.loadPaymentData({
 				filterType: filterState.filterType,
 				selectedDate: filterState.selectedDate,
+				selectedYear: filterState.selectedYear,
+				selectedMonth: filterState.selectedMonth,
 				startYear: filterState.startYear,
 				startMonth: filterState.startMonth,
 				endYear: filterState.endYear,

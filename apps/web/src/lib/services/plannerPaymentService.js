@@ -12,6 +12,8 @@ export const plannerPaymentService = {
 		const {
 			filterType,
 			selectedDate,
+			selectedYear,
+			selectedMonth,
 			startYear,
 			startMonth,
 			endYear,
@@ -25,12 +27,17 @@ export const plannerPaymentService = {
 
 		try {
 			if (filterType === 'date') {
-				return await this.loadSingleDatePayments({
-					selectedDate,
+				// ⭐ 주간 선택: selectedYear/selectedMonth를 사용하여 해당 월 전체 조회
+				return await this.loadPeriodPayments({
+					startYear: selectedYear,
+					startMonth: selectedMonth,
+					endYear: selectedYear,
+					endMonth: selectedMonth,
 					page,
 					limit,
 					searchQuery,
-					searchCategory
+					searchCategory,
+					periodType: 'weekly' // 주간 보기로 강제
 				});
 			} else {
 				return await this.loadPeriodPayments({
