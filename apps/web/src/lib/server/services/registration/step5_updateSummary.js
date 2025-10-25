@@ -50,15 +50,17 @@ export async function executeStep5(plans, registrationMonth) {
 
   // 첫 금요일 찾기
   let firstFriday = new Date(nextMonthStart);
-  const dayOfWeek = firstFriday.getDay();
+  const dayOfWeek = firstFriday.getUTCDay();
   const daysUntilFriday = (5 - dayOfWeek + 7) % 7;
-  firstFriday.setDate(firstFriday.getDate() + daysUntilFriday);
+  // ⭐ UTC 메소드 사용 (타임존 문제 방지)
+  firstFriday.setUTCDate(firstFriday.getUTCDate() + daysUntilFriday);
 
   // 10주간의 금요일 날짜 리스트 생성
   const fridayDates = [];
   for (let i = 0; i < 10; i++) {
     const friday = new Date(firstFriday);
-    friday.setDate(friday.getDate() + (i * 7));
+    // ⭐ UTC 메소드 사용 (타임존 문제 방지)
+    friday.setUTCDate(friday.getUTCDate() + (i * 7));
     fridayDates.push(friday);
   }
 

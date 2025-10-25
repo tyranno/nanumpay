@@ -207,7 +207,8 @@ async function createAdditionalPaymentPlan(userId, userName, grade, 추가지급
     const installments = [];
     for (let i = 0; i < 10; i++) {
       const paymentDate = new Date(firstPaymentDate);
-      paymentDate.setDate(paymentDate.getDate() + (i * 7));  // 매주 금요일
+      // ⭐ UTC 메소드 사용 (타임존 문제 방지)
+      paymentDate.setUTCDate(paymentDate.getUTCDate() + (i * 7));  // 매주 금요일
 
       installments.push({
         week: i + 1,

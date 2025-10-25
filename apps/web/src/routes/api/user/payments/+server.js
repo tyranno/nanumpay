@@ -39,7 +39,11 @@ export async function GET({ locals, url }) {
 	const allUserIds = allUsers.map(u => u._id.toString());
 
 	// ⭐ v8.0: 모든 User의 용역비 지급 계획 조회 (최신순)
-	const paymentPlans = await WeeklyPaymentPlans.find({ userId: { $in: allUserIds } })
+	// ⭐ 중요: terminated, canceled 상태 제외!
+	const paymentPlans = await WeeklyPaymentPlans.find({
+		userId: { $in: allUserIds },
+		planStatus: { $nin: ['terminated', 'canceled'] } // ⭐ 승급으로 종료되거나 취소된 계획 제외
+	})
 		.sort({ createdAt: -1 })
 		.lean();
 
@@ -104,6 +108,9 @@ export async function GET({ locals, url }) {
 		if (!user) continue; // 사용자 정보 없으면 스킵
 
 		for (const installment of plan.installments) {
+			// ⭐ v8.0: canceled 상태는 제외 (승급으로 중단된 추가지급분)
+			if (installment.status === 'canceled') continue;
+
 			const weekNumber = installment.weekNumber; // "2025-W48"
 
 			// 그룹 키: 주차번호_사용자명

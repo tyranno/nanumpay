@@ -63,7 +63,8 @@ export async function createInitialPaymentPlan(userId, userName, grade, registra
     const installments = [];
     for (let i = 1; i <= totalInstallments; i++) {
       const scheduledDate = new Date(startDate);
-      scheduledDate.setDate(scheduledDate.getDate() + (i - 1) * 7); // 매주 금요일
+      // ⭐ UTC 메소드 사용하여 날짜 계산 (타임존 문제 방지)
+      scheduledDate.setUTCDate(scheduledDate.getUTCDate() + (i - 1) * 7); // 매주 금요일
 
       installments.push({
         week: i,
@@ -163,7 +164,8 @@ export async function createPromotionPaymentPlan(userId, userName, newGrade, pro
     const installments = [];
     for (let i = 1; i <= totalInstallments; i++) {
       const scheduledDate = new Date(startDate);
-      scheduledDate.setDate(scheduledDate.getDate() + (i - 1) * 7);
+      // ⭐ UTC 메소드 사용하여 날짜 계산 (타임존 문제 방지)
+      scheduledDate.setUTCDate(scheduledDate.getUTCDate() + (i - 1) * 7);
 
       installments.push({
         week: i,
@@ -218,7 +220,8 @@ export async function createAdditionalPaymentPlan(userId, userName, grade, baseR
   try {
     // 마지막 지급일 다음 금요일부터 시작
     const startDate = new Date(lastCompletedWeek);
-    startDate.setDate(startDate.getDate() + 7);
+    // ⭐ UTC 메소드 사용 (타임존 문제 방지)
+    startDate.setUTCDate(startDate.getUTCDate() + 7);
 
     // 추가 지급 가능 횟수 계산
     const maxCount = MAX_INSTALLMENTS[grade];
@@ -251,7 +254,8 @@ export async function createAdditionalPaymentPlan(userId, userName, grade, baseR
     const installments = [];
     for (let i = 11; i <= maxCount; i++) {
       const scheduledDate = new Date(startDate);
-      scheduledDate.setDate(scheduledDate.getDate() + (i - 11) * 7);
+      // ⭐ UTC 메소드 사용하여 날짜 계산 (타임존 문제 방지)
+      scheduledDate.setUTCDate(scheduledDate.getUTCDate() + (i - 11) * 7);
 
       installments.push({
         week: i,
@@ -468,9 +472,10 @@ function getFirstFridayOfMonth(monthKey) {
   const firstDay = new Date(year, month - 1, 1);  // month는 1-based
 
   // 첫 금요일 찾기
-  const dayOfWeek = firstDay.getDay();
+  const dayOfWeek = firstDay.getUTCDay();
   const daysUntilFriday = (5 - dayOfWeek + 7) % 7 || 7;
-  firstDay.setDate(firstDay.getDate() + daysUntilFriday);
+  // ⭐ UTC 메소드 사용 (타임존 문제 방지)
+  firstDay.setUTCDate(firstDay.getUTCDate() + daysUntilFriday);
 
   return firstDay;
 }
@@ -546,13 +551,15 @@ export async function checkAndCreateAdditionalPlan(completedPlan) {
     // 6. 추가 10회 계획 생성
     const nextGeneration = completedPlan.generation + 1;
     const startDate = WeeklyPaymentPlans.getNextFriday(completionDate);
-    startDate.setDate(startDate.getDate() + 7); // 완료일 다음주 금요일
+    // ⭐ UTC 메소드 사용 (타임존 문제 방지)
+    startDate.setUTCDate(startDate.getUTCDate() + 7); // 완료일 다음주 금요일
 
 
     const installments = [];
     for (let i = 1; i <= 10; i++) {
       const scheduledDate = new Date(startDate);
-      scheduledDate.setDate(scheduledDate.getDate() + (i - 1) * 7);
+      // ⭐ UTC 메소드 사용 (타임존 문제 방지)
+      scheduledDate.setUTCDate(scheduledDate.getUTCDate() + (i - 1) * 7);
 
       installments.push({
         week: i,
