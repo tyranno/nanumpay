@@ -33,3 +33,6 @@ apps/web/scripts/*.js
 # Work logs
 work_logs/
 .serena
+
+# Backup binary (large file)
+apps/backup/build/
