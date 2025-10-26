@@ -39,6 +39,9 @@ export const paymentPageFilterState = writable({
 	// 컬럼 표시 설정
 	showTaxColumn: true, // 원천징수 컬럼 표시
 	showNetColumn: true, // 실지급액 컬럼 표시
+	showPlannerColumn: true, // 설계자 컬럼 표시 (관리자 전용)
+	showBankColumn: true, // 은행 컬럼 표시
+	showAccountColumn: true, // 계좌번호 컬럼 표시
 	// 검색 관련
 	searchQuery: '', // 검색어
 	searchCategory: 'name' // 'name' | 'planner'

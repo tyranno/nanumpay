@@ -1,6 +1,8 @@
 import WeeklyPaymentPlans from '$lib/server/models/WeeklyPaymentPlans.js';
 import WeeklyPaymentSummary from '$lib/server/models/WeeklyPaymentSummary.js';
 import User from '$lib/server/models/User.js';
+import PlannerAccount from '$lib/server/models/PlannerAccount.js';
+import UserAccount from '$lib/server/models/UserAccount.js';
 import { getFridaysInMonth } from '$lib/utils/fridayWeekCalculator.js';
 
 /**
@@ -149,7 +151,9 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
 				registrationDate: { $arrayElemAt: ['$userInfo.registrationDate', 0] },
 				createdAt: { $arrayElemAt: ['$userInfo.createdAt', 0] },
 				userObjectId: { $arrayElemAt: ['$userInfo._id', 0] },
-				plannerAccountId: { $arrayElemAt: ['$userInfo.plannerAccountId', 0] }
+				plannerAccountId: { $arrayElemAt: ['$userInfo.plannerAccountId', 0] },
+				bank: { $arrayElemAt: ['$userInfo.bank', 0] },
+				accountNumber: { $arrayElemAt: ['$userInfo.accountNumber', 0] }
 			}
 		},
 		{
@@ -201,8 +205,8 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
 	// 5. 사용자 상세 정보 추가
 	const userIds = userPayments.map(p => p._id);
 	const users = await User.find({ _id: { $in: userIds } })
-		.populate('userAccountId')
 		.populate('plannerAccountId')
+		.populate('userAccountId')
 		.lean();
 	const userMap = new Map(users.map(u => [u._id.toString(), u]));
 
@@ -296,8 +300,8 @@ export async function getRangePayments(startYear, startMonth, endYear, endMonth,
 		userQuery.plannerAccountId = plannerAccountId;
 	}
 	let allUsers = await User.find(userQuery)
-		.populate('userAccountId')
 		.populate('plannerAccountId')
+		.populate('userAccountId')
 		.sort({ _id: 1 })
 		.lean();
 	console.log(`[공용서비스] 전체 용역자 ${allUsers.length}명 조회${plannerAccountId ? ' (설계사 필터 적용)' : ''}`);
@@ -370,8 +374,8 @@ export async function getRangePayments(startYear, startMonth, endYear, endMonth,
 		const payments = allUsers.map(user => {
 			const userId = user._id.toString();
 			const payment = paymentMap.get(userId);
-			const userAccount = user.userAccountId || {};
 			const plannerAccount = user.plannerAccountId || {};
+			const userAccount = user.userAccountId || {};
 
 			return {
 				userId: userId,

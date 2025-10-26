@@ -30,6 +30,14 @@
 
 	onMount(() => {
 		checkScreenSize();
+		
+		// 모바일에서는 은행/계좌번호 기본 숨김
+		if (isMobile && browser) {
+			showBankColumn = false;
+			showAccountColumn = false;
+			updateStore();
+		}
+		
 		window.addEventListener('resize', checkScreenSize);
 		return () => {
 			window.removeEventListener('resize', checkScreenSize);
@@ -49,6 +57,8 @@
 	let itemsPerPage = $paymentPageFilterState.itemsPerPage;
 	let showTaxColumn = $paymentPageFilterState.showTaxColumn;
 	let showNetColumn = $paymentPageFilterState.showNetColumn;
+	let showBankColumn = $paymentPageFilterState.showBankColumn;
+	let showAccountColumn = $paymentPageFilterState.showAccountColumn;
 	let searchQuery = $paymentPageFilterState.searchQuery;
 	let searchCategory = $paymentPageFilterState.searchCategory;
 
@@ -65,6 +75,8 @@
 		itemsPerPage,
 		showTaxColumn,
 		showNetColumn,
+		showBankColumn,
+		showAccountColumn,
 		searchQuery,
 		searchCategory,
 		updateStore());
@@ -84,6 +96,8 @@
 				itemsPerPage,
 				showTaxColumn,
 				showNetColumn,
+				showBankColumn,
+				showAccountColumn,
 				searchQuery,
 				searchCategory
 			});
@@ -286,6 +300,14 @@
 
 			<div class="flex items-center gap-2">
 				<label class="checkbox-label-mobile">
+					<input type="checkbox" bind:checked={showBankColumn} class="h-3 w-3" />
+					<span>은행</span>
+				</label>
+				<label class="checkbox-label-mobile">
+					<input type="checkbox" bind:checked={showAccountColumn} class="h-3 w-3" />
+					<span>계좌</span>
+				</label>
+				<label class="checkbox-label-mobile">
 					<input type="checkbox" bind:checked={showTaxColumn} class="h-3 w-3" />
 					<span>원천</span>
 				</label>
@@ -444,6 +466,14 @@
 
 		<!-- 컬럼 표시 토글 -->
 		<div class="toggle-container">
+			<label class="toggle-label">
+				<input type="checkbox" bind:checked={showBankColumn} class="checkbox-desktop" />
+				<span>은행</span>
+			</label>
+			<label class="toggle-label">
+				<input type="checkbox" bind:checked={showAccountColumn} class="checkbox-desktop" />
+				<span>계좌번호</span>
+			</label>
 			<label class="toggle-label">
 				<input type="checkbox" bind:checked={showTaxColumn} class="checkbox-desktop" />
 				<span>원천징수</span>

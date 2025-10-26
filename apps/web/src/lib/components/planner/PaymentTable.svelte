@@ -20,8 +20,14 @@
 	// Store에서 컬럼 표시 설정 가져오기
 	$: showTaxColumn = $paymentPageFilterState.showTaxColumn;
 	$: showNetColumn = $paymentPageFilterState.showNetColumn;
+	$: showBankColumn = $paymentPageFilterState.showBankColumn;
+	$: showAccountColumn = $paymentPageFilterState.showAccountColumn;
 	$: periodType = $paymentPageFilterState.periodType;
 	$: filterType = $paymentPageFilterState.filterType;
+
+	// Sticky 컬럼 위치 계산
+	$: bankLeft = 180; // 순번(60) + 성명(120) = 180
+	$: accountLeft = showBankColumn ? 280 : 180; // 은행 표시 여부에 따라 위치 변경
 
 	// 금액 포맷
 	function formatAmount(amount) {
@@ -76,8 +82,12 @@
 					<tr>
 						<th rowspan="2" class="th-base th-sticky-0">순번</th>
 						<th rowspan="2" class="th-base th-sticky-1">성명</th>
-						<th rowspan="2" class="th-base">은행</th>
-						<th rowspan="2" class="th-base">계좌번호</th>
+						{#if showBankColumn}
+							<th rowspan="2" class="th-base th-sticky-2">은행</th>
+						{/if}
+						{#if showAccountColumn}
+							<th rowspan="2" class="th-base th-sticky-3" style="left: {accountLeft}px;">계좌번호</th>
+						{/if}
 						{#if filterType === 'period'}
 							{@const colCount = 1 + (showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0)}
 							<th colspan={colCount} class="th-week">기간 합계</th>
@@ -129,8 +139,12 @@
 										</div>
 									</div>
 								</td>
-								<td class="td-base">{user.bank}</td>
-						<td class="td-base">{user.accountNumber}</td>
+								{#if showBankColumn}
+									<td class="td-sticky-2">{user.bank}</td>
+								{/if}
+								{#if showAccountColumn}
+									<td class="td-sticky-3" style="left: {accountLeft}px;">{user.accountNumber}</td>
+								{/if}
 						
 						<!-- 기간 합계 컬럼 (filterType === 'period'일 때만) -->
 						{#if filterType === 'period'}
@@ -186,7 +200,8 @@
 					{:else}
 					{@const colsPerWeek = 1 + (showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0)}
 					{@const periodCols = filterType === 'period' ? colsPerWeek : 0}
-					{@const totalCols = 4 + periodCols + weeklyColumns.length * colsPerWeek}
+					{@const fixedCols = 2 + (showBankColumn ? 1 : 0) + (showAccountColumn ? 1 : 0)}
+					{@const totalCols = fixedCols + periodCols + weeklyColumns.length * colsPerWeek}
 					<tr>
 						<td colspan={totalCols} class="empty-state">
 							데이터가 없습니다
@@ -196,8 +211,9 @@
 				
 				<!-- 총금액 행 -->
 				{#if paymentList.length > 0}
+					{@const labelColspan = 2 + (showBankColumn ? 1 : 0) + (showAccountColumn ? 1 : 0)}
 					<tr class="grand-total-row">
-						<td colspan="4" class="grand-total-label">총금액</td>
+						<td colspan={labelColspan} class="grand-total-label">총금액</td>
 						{#if filterType === 'period'}
 							<td class="grand-total-value">{formatAmount(grandTotal.amount)}</td>
 							{#if showTaxColumn}
@@ -313,6 +329,14 @@
 		@apply sticky left-[60px] z-[19] min-w-[120px];
 	}
 
+	.th-sticky-2 {
+		@apply sticky left-[180px] z-[18] min-w-[100px];
+	}
+
+	.th-sticky-3 {
+		@apply sticky left-[280px] z-[17] min-w-[150px];
+	}
+
 	/* 데이터 행 */
 	.data-row:hover td {
 		@apply bg-black/[0.02];
@@ -346,6 +370,26 @@
 	}
 
 	.data-row:hover .td-sticky-1 {
+		@apply bg-black/[0.02];
+	}
+
+	.td-sticky-2 {
+		@apply sticky left-[180px] z-[8] bg-white;
+		@apply border-b border-r border-gray-300;
+		@apply whitespace-nowrap p-1.5 text-center text-sm;
+	}
+
+	.data-row:hover .td-sticky-2 {
+		@apply bg-black/[0.02];
+	}
+
+	.td-sticky-3 {
+		@apply sticky left-[280px] z-[7] bg-white;
+		@apply border-b border-r border-gray-300;
+		@apply whitespace-nowrap p-1.5 text-center text-sm;
+	}
+
+	.data-row:hover .td-sticky-3 {
 		@apply bg-black/[0.02];
 	}
 
@@ -410,8 +454,8 @@
 		@apply border-l;
 	}
 
-	/* 총금액 행에 sticky 적용 */
-	.grand-total-row .grand-total-label:first-child {
-		@apply sticky left-0 z-10;
+	/* 총금액 레이블 sticky */
+	.grand-total-label {
+		@apply sticky left-0 z-10 bg-purple-200;
 	}
 </style>
