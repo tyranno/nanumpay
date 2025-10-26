@@ -1,0 +1,16 @@
+{
+  "name": "nanumpay-backup",
+  "version": "1.0.0",
+  "description": "NanumPay MongoDB Backup System",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "bun src/index.js",
+    "build": "bun build --compile --outfile build/nanumpay-backup src/index.js"
+  },
+  "dependencies": {
+    "mongoose": "^8.0.0",
+    "aws-sdk": "^2.1500.0",
+    "ftp": "^0.3.10"
+  }
+}

@@ -37,9 +37,10 @@ const etcDir = path.join(pkgDir, 'etc', 'nanumpay');
 const sysdDir = path.join(pkgDir, 'etc', 'systemd', 'system');
 const dbDir = path.join(optDir, 'db');
 const toolsDir = path.join(optDir, 'tools');
+const binDir = path.join(optDir, 'bin');
 
 fs.rmSync(stage, { recursive: true, force: true });
-[debian, optDir, etcDir, sysdDir, dbDir, toolsDir].forEach((d) =>
+[debian, optDir, etcDir, sysdDir, dbDir, toolsDir, binDir].forEach((d) =>
 	fs.mkdirSync(d, { recursive: true })
 );
 
@@ -75,6 +76,36 @@ if (!fs.existsSync(linuxInitShSrc)) {
 const linuxInitShDst = path.join(toolsDir, 'db_init.sh');
 fs.copyFileSync(linuxInitShSrc, linuxInitShDst);
 fs.chmodSync(linuxInitShDst, 0o755);
+
+// 4-1) 백업 앱 빌드 및 복사
+const backupAppDir = path.join(ROOT, '..', '..', 'backup');
+const backupBuildScript = path.join(backupAppDir, 'build.sh');
+const backupBinary = path.join(backupAppDir, 'build', 'nanumpay-backup');
+
+console.log('[backup] 백업 앱 빌드 시작...');
+if (fs.existsSync(backupBuildScript)) {
+	try {
+		cp.execFileSync('bash', [backupBuildScript], {
+			cwd: backupAppDir,
+			stdio: 'inherit'
+		});
+
+		if (fs.existsSync(backupBinary)) {
+			const backupDst = path.join(binDir, 'nanumpay-backup');
+			fs.copyFileSync(backupBinary, backupDst);
+			fs.chmodSync(backupDst, 0o755);
+			console.log('[backup] ✅ 백업 앱 포함 완료');
+		} else {
+			console.error('[backup] ❌ 백업 앱 빌드 실패: 실행 파일 없음');
+			process.exit(1);
+		}
+	} catch (error) {
+		console.error('[backup] ❌ 백업 앱 빌드 실패:', error.message);
+		process.exit(1);
+	}
+} else {
+	console.warn('[backup] ⚠️  백업 앱 빌드 스크립트 없음 (건너뜀)');
+}
 
 // 5) systemd 서비스
 const service = `[Unit]
@@ -157,6 +188,14 @@ set -e
 id -u nanumpay >/dev/null 2>&1 || adduser --system --group --no-create-home nanumpay
 chown -R nanumpay:nanumpay /opt/nanumpay
 
+# 백업 디렉토리 생성 및 권한 설정
+mkdir -p /opt/nanumpay/backups
+mkdir -p /opt/nanumpay/logs
+chown -R nanumpay:nanumpay /opt/nanumpay/backups
+chown -R nanumpay:nanumpay /opt/nanumpay/logs
+chmod 755 /opt/nanumpay/backups
+chmod 755 /opt/nanumpay/logs
+
 # systemd 등록
 systemctl daemon-reload
 systemctl enable nanumpay.service
@@ -177,6 +216,12 @@ else
     echo "Please install MongoDB and run: sudo /opt/nanumpay/tools/db_init.sh"
 fi
 
+# 백업 앱 확인
+if [ -f "/opt/nanumpay/bin/nanumpay-backup" ]; then
+    echo "Backup system installed: /opt/nanumpay/bin/nanumpay-backup"
+    echo "Configure backup settings in admin panel"
+fi
+
 # 서비스 시작
 systemctl restart nanumpay.service || systemctl start nanumpay.service
 `;
@@ -185,6 +230,12 @@ fs.chmodSync(path.join(debian, 'postinst'), 0o755);
 
 const prerm = `#!/bin/bash
 set -e
+
+# 백업 crontab 정리
+echo "Cleaning up backup crontab entries..."
+crontab -u nanumpay -l 2>/dev/null | grep -v '/opt/nanumpay/bin/nanumpay-backup' | crontab -u nanumpay - 2>/dev/null || true
+
+# 서비스 중지
 systemctl stop nanumpay.service || true
 systemctl disable nanumpay.service || true
 systemctl daemon-reload || true
