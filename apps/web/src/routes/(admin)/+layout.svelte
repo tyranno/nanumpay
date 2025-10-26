@@ -174,17 +174,6 @@
 					</button>
 
 					<button
-						onclick={() => navigateTo('/admin/organization')}
-						class="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-purple-50 transition-colors group"
-						type="button"
-					>
-						<div class="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
-							<img src="/icons/organization-purple.svg" alt="조직도" class="h-5 w-5 filter-purple-icon" />
-						</div>
-						<span class="text-sm font-medium text-gray-900">용역자 산하정보</span>
-					</button>
-
-					<button
 						onclick={() => navigateTo('/admin/planner-commission')}
 						class="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-indigo-50 transition-colors group"
 						type="button"
@@ -193,6 +182,17 @@
 							<img src="/icons/money-blue.svg" alt="설계사 수당" class="h-5 w-5 filter-blue-icon" />
 						</div>
 						<span class="text-sm font-medium text-gray-900">설계사 수당 지급명부</span>
+					</button>
+
+					<button
+						onclick={() => navigateTo('/admin/organization')}
+						class="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-purple-50 transition-colors group"
+						type="button"
+					>
+						<div class="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
+							<img src="/icons/organization-purple.svg" alt="조직도" class="h-5 w-5 filter-purple-icon" />
+						</div>
+						<span class="text-sm font-medium text-gray-900">용역자 산하정보</span>
 					</button>
 
 					<button

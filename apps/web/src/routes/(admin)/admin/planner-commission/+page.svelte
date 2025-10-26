@@ -999,4 +999,57 @@
 	.empty-message {
 		@apply border-b border-l border-r border-gray-300 bg-white py-10 text-center italic text-gray-600;
 	}
+
+	/* 페이지네이션 */
+	.pagination {
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		gap: 5px;
+		padding: 15px 20px;
+		background: white;
+		border-top: 1px solid #e5e7eb;
+	}
+
+	.pagination-btn {
+		padding: 6px 12px;
+		background: white;
+		border: 1px solid #d1d5db;
+		border-radius: 4px;
+		cursor: pointer;
+		font-size: 13px;
+		transition: all 0.15s;
+		color: #374151;
+		font-weight: 400;
+		min-width: 38px;
+		height: 38px;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.pagination-btn:hover:not(:disabled) {
+		background: #f3f4f6;
+		border-color: #9ca3af;
+	}
+
+	.pagination-btn:disabled {
+		opacity: 0.4;
+		cursor: not-allowed;
+		background: white;
+		color: #9ca3af;
+	}
+
+	.pagination-btn.active {
+		background: #3b82f6;
+		color: white;
+		border-color: #3b82f6;
+		font-weight: 500;
+	}
+
+	.pagination-dots {
+		padding: 0 5px;
+		color: #9ca3af;
+		font-size: 14px;
+	}
 </style>

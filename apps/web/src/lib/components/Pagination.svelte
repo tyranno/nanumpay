@@ -22,7 +22,18 @@
 	// 표시할 페이지 번호들을 계산
 	$: pageNumbers = (() => {
 		const pages = [];
-		
+
+		if (totalPages <= 0) {
+			// 페이지가 없으면 빈 배열
+			return pages;
+		}
+
+		if (totalPages === 1) {
+			// 페이지가 1개면 1만 표시
+			pages.push(1);
+			return pages;
+		}
+
 		if (totalPages <= 7) {
 			// 7페이지 이하면 모두 표시
 			for (let i = 1; i <= totalPages; i++) {
@@ -31,25 +42,29 @@
 		} else {
 			// 7페이지 초과: 첫 페이지, 마지막 페이지, 현재 페이지 주변만 표시
 			pages.push(1);
-			
+
 			if (currentPage > 4) {
 				pages.push('...');
 			}
-			
+
 			const start = Math.max(2, currentPage - 2);
 			const end = Math.min(totalPages - 1, currentPage + 2);
-			
+
 			for (let i = start; i <= end; i++) {
-				pages.push(i);
+				if (i > 1 && i < totalPages) {
+					pages.push(i);
+				}
 			}
-			
+
 			if (currentPage < totalPages - 3) {
 				pages.push('...');
 			}
-			
-			pages.push(totalPages);
+
+			if (totalPages > 1) {
+				pages.push(totalPages);
+			}
 		}
-		
+
 		return pages;
 	})();
 </script>
@@ -59,6 +74,7 @@
 		onclick={() => goToPage(currentPage - 1)}
 		disabled={currentPage === 1}
 		class="page-button"
+		title="이전 페이지"
 	>
 		이전
 	</button>
@@ -83,12 +99,13 @@
 		onclick={() => goToPage(currentPage + 1)}
 		disabled={currentPage === totalPages}
 		class="page-button"
+		title="다음 페이지"
 	>
 		다음
 	</button>
 
 	<div class="page-info">
-		총 {totalItems}개 중 {(currentPage - 1) * itemsPerPage + 1}-{Math.min(currentPage * itemsPerPage, totalItems)}개 표시
+		총 {totalItems?.toLocaleString()}개 중 {((currentPage - 1) * itemsPerPage + 1).toLocaleString()}-{Math.min(currentPage * itemsPerPage, totalItems).toLocaleString()}개 표시
 	</div>
 </div>
 
@@ -97,68 +114,84 @@
 		display: flex;
 		justify-content: center;
 		align-items: center;
-		gap: 10px;
-		padding: 20px;
-		background: #f8f9fa;
-		border-top: 1px solid #ddd;
+		gap: 5px;
+		padding: 15px 20px;
+		background: white;
+		border-top: 1px solid #e5e7eb;
 	}
 
 	.page-button {
-		padding: 8px 16px;
+		padding: 6px 12px;
 		background: white;
-		border: 1px solid #ddd;
+		border: 1px solid #d1d5db;
 		border-radius: 4px;
 		cursor: pointer;
-		font-size: 14px;
-		transition: all 0.2s;
+		font-size: 13px;
+		transition: all 0.15s;
+		color: #374151;
+		font-weight: 400;
+		min-width: 60px;
 	}
 
 	.page-button:hover:not(:disabled) {
-		background: #e9ecef;
+		background: #f9fafb;
+		border-color: #9ca3af;
 	}
 
 	.page-button:disabled {
-		opacity: 0.5;
+		opacity: 0.4;
 		cursor: not-allowed;
+		background: white;
+		color: #9ca3af;
 	}
 
 	.page-numbers {
 		display: flex;
 		align-items: center;
 		gap: 5px;
+		margin: 0 10px;
 	}
 
 	.page-number {
-		min-width: 36px;
-		height: 36px;
+		min-width: 38px;
+		height: 38px;
 		padding: 0;
 		background: white;
-		border: 1px solid #ddd;
+		border: 1px solid #d1d5db;
 		border-radius: 4px;
 		cursor: pointer;
 		font-size: 14px;
-		transition: all 0.2s;
+		transition: all 0.15s;
+		color: #374151;
+		font-weight: 400;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
 	}
 
 	.page-number:hover {
-		background: #e9ecef;
+		background: #f3f4f6;
+		border-color: #9ca3af;
 	}
 
 	.page-number.active {
-		background: #007bff;
+		background: #3b82f6;
 		color: white;
-		border-color: #007bff;
+		border-color: #3b82f6;
+		font-weight: 500;
 	}
 
 	.page-dots {
-		padding: 0 8px;
-		color: #999;
+		padding: 0 5px;
+		color: #9ca3af;
+		font-size: 14px;
 	}
 
 	.page-info {
 		margin-left: 20px;
-		font-size: 14px;
-		color: #666;
+		font-size: 13px;
+		color: #6b7280;
+		white-space: nowrap;
 	}
 
 	/* 반응형: 모바일 */
