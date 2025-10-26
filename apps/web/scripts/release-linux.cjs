@@ -349,13 +349,13 @@ echo -e "\${GREEN}✓\${NC} DEB 파일 발견: $(basename "$DEB_FILE")"
 echo ""
 
 # 1. 시스템 업데이트
-echo -e "\${BLUE}[1/3]\${NC} 패키지 목록 업데이트 중..."
+echo -e "\${BLUE}[1/4]\${NC} 패키지 목록 업데이트 중..."
 apt-get update -qq
 
 # 2. 필수 의존성 확인 및 설치
-echo -e "\${BLUE}[2/3]\${NC} 필수 의존성 확인 중..."
+echo -e "\${BLUE}[2/4]\${NC} 필수 의존성 확인 중..."
 
-REQUIRED_PACKAGES="nginx adduser systemd bash"
+REQUIRED_PACKAGES="nginx adduser systemd bash curl gnupg lsb-release"
 MISSING_PACKAGES=""
 
 for pkg in $REQUIRED_PACKAGES; do
@@ -374,8 +374,32 @@ else
 fi
 echo ""
 
-# 3. Nanumpay 패키지 설치
-echo -e "\${BLUE}[3/3]\${NC} Nanumpay 패키지 설치 중..."
+# 3. MongoDB 설치 확인
+echo -e "\${BLUE}[3/4]\${NC} MongoDB 설치 확인 중..."
+
+if ! command -v mongod >/dev/null 2>&1; then
+    echo -e "\${YELLOW}   MongoDB가 설치되어 있지 않습니다. 설치를 진행합니다...\${NC}"
+
+    curl -fsSL https://pgp.mongodb.com/server-8.0.asc | gpg -o /usr/share/keyrings/mongodb-server-8.0.gpg --dearmor
+    echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-8.0.gpg ] https://repo.mongodb.org/apt/ubuntu \$(lsb_release -cs)/mongodb-org/8.0 multiverse" | tee /etc/apt/sources.list.d/mongodb-org-8.0.list
+
+    apt-get update -qq
+    apt-get install -y mongodb-org mongosh
+
+    systemctl start mongod
+    systemctl enable mongod
+
+    echo -e "\${GREEN}✓\${NC} MongoDB 설치 및 시작 완료"
+else
+    echo -e "\${GREEN}✓\${NC} MongoDB가 이미 설치되어 있습니다"
+    if ! systemctl is-active --quiet mongod; then
+        systemctl start mongod
+    fi
+fi
+echo ""
+
+# 4. Nanumpay 패키지 설치
+echo -e "\${BLUE}[4/4]\${NC} Nanumpay 패키지 설치 중..."
 
 # 기존 패키지가 설치되어 있는지 확인
 if dpkg -l | grep -q "^ii.*nanumpay"; then

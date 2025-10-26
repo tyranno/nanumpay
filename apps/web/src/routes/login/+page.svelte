@@ -94,7 +94,7 @@
 <div class="min-h-screen flex items-center justify-center bg-gray-50">
 	<div class="max-w-md w-full space-y-8">
 		<div>
-			<div class="flex flex-col items-center justify-center gap-2">
+			<div class="flex items-center justify-center gap-3">
 				<img src="/logo.png" alt="나눔에셋" class="h-20 w-20" />
 				<h1 class="text-4xl font-bold text-blue-600">나눔에셋</h1>
 			</div>
