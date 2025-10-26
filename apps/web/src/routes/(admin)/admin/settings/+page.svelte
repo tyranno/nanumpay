@@ -254,6 +254,58 @@
 			isSubmitting = false;
 		}
 	}
+
+	// 백업 실행 상태
+	let isBackupRunning = $state(false);
+	let backupMessage = $state('');
+
+	async function handleExecuteBackup() {
+		errorMessage = '';
+		successMessage = '';
+		backupMessage = '';
+		isBackupRunning = true;
+
+		try {
+			backupMessage = '백업을 실행 중입니다... (최대 5분 소요)';
+
+			const response = await fetch('/api/admin/backup/execute', {
+				method: 'POST'
+			});
+
+			const data = await response.json();
+
+			if (!response.ok) {
+				throw new Error(data.message || '백업 실행에 실패했습니다.');
+			}
+
+			if (data.success && data.backupFile) {
+				backupMessage = '백업 완료! 다운로드를 시작합니다...';
+
+				// 다운로드 시작
+				const downloadUrl = `/api/admin/backup/download?file=${encodeURIComponent(data.backupFile.filename)}`;
+				const a = document.createElement('a');
+				a.href = downloadUrl;
+				a.download = data.backupFile.filename;
+				document.body.appendChild(a);
+				a.click();
+				document.body.removeChild(a);
+
+				successMessage = `백업이 완료되고 다운로드되었습니다: ${data.backupFile.filename}`;
+				backupMessage = '';
+				setTimeout(() => {
+					successMessage = '';
+				}, 5000);
+			} else {
+				throw new Error('백업 파일 정보를 받지 못했습니다.');
+			}
+		} catch (err) {
+			console.error('❌ Error executing backup:', err);
+			errorMessage = err.message;
+			backupMessage = '';
+		} finally {
+			isBackupRunning = false;
+		}
+	}
 </script>
 
 <svelte:head>
@@ -485,12 +537,28 @@
 							</div>
 							<div class="rounded-lg border p-3">
 								<div class="flex items-center justify-between mb-3">
-									<p class="font-medium text-gray-900">자동 백업</p>
+									<div class="flex items-center gap-3">
+										<p class="font-medium text-gray-900">자동 백업</p>
+										<button
+											type="button"
+											onclick={handleExecuteBackup}
+											disabled={isBackupRunning}
+											class="px-3 py-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 disabled:bg-gray-400 rounded transition-colors"
+										>
+											{isBackupRunning ? '백업 중...' : '즉시 백업 및 다운로드'}
+										</button>
+									</div>
 									<label class="toggle-switch">
 										<input type="checkbox" bind:checked={systemSettings.backup.enabled} />
 										<span class="toggle-slider"></span>
 									</label>
 								</div>
+								
+								{#if backupMessage}
+									<div class="mb-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm text-blue-700">
+										{backupMessage}
+									</div>
+								{/if}
 
 								{#if systemSettings.backup.enabled}
 									<div class="space-y-2 pl-3 border-l-2 border-blue-200">
