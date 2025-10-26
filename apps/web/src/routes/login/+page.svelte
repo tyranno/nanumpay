@@ -60,11 +60,9 @@
 <div class="min-h-screen flex items-center justify-center bg-gray-50">
 	<div class="max-w-md w-full space-y-8">
 		<div>
-			<div class="text-center">
-				<img src="/logo.png" alt="나눔에셋" class="h-20 w-20 mx-auto mb-4" />
-				<h1 class="text-4xl font-bold text-blue-600 mb-2">나눔에셋</h1>
-				<h2 class="text-2xl font-medium text-gray-700">Nanumpay System</h2>
-				<p class="mt-2 text-sm text-gray-600">통합 관리 시스템</p>
+			<div class="flex items-center justify-center gap-4">
+				<img src="/logo.png" alt="나눔에셋" class="h-20 w-20" />
+				<h1 class="text-4xl font-bold text-blue-600">나눔에셋</h1>
 			</div>
 		</div>
 
