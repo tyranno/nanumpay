@@ -235,13 +235,13 @@
 		return amount.toLocaleString() + '원';
 	}
 
-	// ⭐ 지급액 내역 계산 (50:25:25)
+	// ⭐ 지급액 내역 계산 (50:25:25, 100원 단위 절삭)
 	function calculateBreakdown(amount) {
 		if (!amount) return { 영업: 0, 홍보: 0, 판촉: 0 };
 		return {
-			영업: Math.round(amount * 0.5),
-			홍보: Math.round(amount * 0.25),
-			판촉: Math.round(amount * 0.25)
+			영업: Math.floor((amount * 0.5) / 100) * 100,
+			홍보: Math.floor((amount * 0.25) / 100) * 100,
+			판촉: Math.floor((amount * 0.25) / 100) * 100
 		};
 	}
 
@@ -439,19 +439,24 @@
 				<table class="min-w-full divide-y divide-gray-200">
 					<thead class="bg-gray-50">
 						<tr>
-							<th class="table-header">수령일</th>
-							<th class="table-header">이름</th>
-							<th class="table-header">등급</th>
-							<th class="table-header">수령총액</th>
-							<th class="table-header">수령액<span class="text-xs">(영업/홍보/판촉)</span></th>
-							<th class="table-header">세금</th>
-							<th class="table-header">실수령액</th>
+							<th class="table-header" rowspan="2">수령일</th>
+							<th class="table-header" rowspan="2">이름</th>
+							<th class="table-header" rowspan="2">등급</th>
+							<th class="table-header" colspan="4">수령액</th>
+							<th class="table-header" rowspan="2">세금</th>
+							<th class="table-header" rowspan="2">실수령액</th>
+						</tr>
+						<tr>
+							<th class="table-header">영업</th>
+							<th class="table-header">홍보</th>
+							<th class="table-header">판촉</th>
+							<th class="table-header">총액</th>
 						</tr>
 					</thead>
 					<tbody class="divide-y divide-gray-200 bg-white">
 						{#if displayedPayments.length === 0}
 							<tr>
-								<td colspan="7" class="px-6 py-8 text-center text-sm text-gray-500">
+								<td colspan="9" class="px-6 py-8 text-center text-sm text-gray-500">
 									지급 내역이 없습니다
 								</td>
 							</tr>
@@ -481,19 +486,11 @@
 												{/each}
 											</div>
 										</td>
-										{#if index === 0}
-											<!-- ⭐ 수령총액: 첫 번째 행만 표시 (rowspan) -->
-											<td class="table-cell text-right font-bold" rowspan={weekGroup.users.length}>
-												{formatAmount(weekGroup.totalAmount)}
-											</td>
-										{/if}
-										<!-- ⭐ 지급액: 2줄 (총합 + 내역) -->
-										<td class="table-cell text-right">
-											<div class="font-medium">{formatAmount(user.amount)}</div>
-											<div class="text-xs text-gray-600">
-												({breakdown.영업.toLocaleString()}/{breakdown.홍보.toLocaleString()}/{breakdown.판촉.toLocaleString()})
-											</div>
-										</td>
+										<!-- ⭐ 영업/홍보/판촉/총액 -->
+										<td class="table-cell text-right">{breakdown.영업.toLocaleString()}원</td>
+										<td class="table-cell text-right">{breakdown.홍보.toLocaleString()}원</td>
+										<td class="table-cell text-right">{breakdown.판촉.toLocaleString()}원</td>
+										<td class="table-cell text-right font-medium">{formatAmount(user.amount)}</td>
 										<!-- ⭐ 세금, 실수령액 -->
 										<td class="table-cell text-right">{formatAmount(user.tax)}</td>
 										<td class="table-cell text-right font-medium">{formatAmount(user.netAmount)}</td>
