@@ -23,4 +23,6 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 logs/
 .stage
-release
+release/*
+!release/install.sh
+!release/README.md
