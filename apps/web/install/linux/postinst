@@ -20,6 +20,15 @@ fi
 chown -R $USER:$USER "$LOGDIR"
 chmod 755 "$LOGDIR"
 
+# 백업 디렉토리 생성 및 권한 설정
+BACKUPDIR=/opt/$APP/backups
+if [ ! -d "$BACKUPDIR" ]; then
+  mkdir -p "$BACKUPDIR"
+  echo "Created backup directory: $BACKUPDIR"
+fi
+chown -R $USER:$USER "$BACKUPDIR"
+chmod 755 "$BACKUPDIR"
+
 # systemd 유닛 설치/리로드/활성화/시작
 systemctl daemon-reload
 systemctl enable ${APP}.service
