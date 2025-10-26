@@ -34,19 +34,8 @@ export async function POST({ request, locals }) {
 
 		console.log('[DB Initialize] 모든 데이터 삭제 완료');
 
-		// 2. 기본 관리자 확인 및 생성
-		const adminExists = await UserAccount.findOne({ loginId: '관리자' });
-		if (!adminExists) {
-			const hashedPassword = await bcrypt.hash('admin1234!!', 10);
-			await UserAccount.create({
-				loginId: '관리자',
-				passwordHash: hashedPassword,
-				name: '시스템 관리자',
-				phone: '010-0000-0000',
-				type: 'admin'
-			});
-			console.log('[DB Initialize] 기본 관리자 계정 생성 완료');
-		}
+		// v8.0: Admin 컬렉션은 db_init.sh에서 별도 관리
+		// UserAccount에 관리자 생성하지 않음
 
 		console.log('[DB Initialize] 데이터베이스 초기화 완료');
 
