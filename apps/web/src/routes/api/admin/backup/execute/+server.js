@@ -64,7 +64,8 @@ export async function POST({ locals }) {
 				env: {
 					...process.env,
 					MONGODB_URI: process.env.MONGODB_URI || 'mongodb://localhost:27017/nanumpay',
-					BACKUP_PATH: backupDir
+					BACKUP_PATH: backupDir,
+					FORCE_BACKUP: 'true' // 웹 UI에서 즉시 백업 버튼 클릭 시 강제 실행
 				}
 			});
 			stdout = result.stdout;

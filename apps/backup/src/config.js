@@ -62,10 +62,17 @@ export async function getBackupConfig() {
 
     const backup = admin.systemSettings.backup;
 
-    // 백업 활성화 확인
-    if (!backup.enabled) {
+    // 강제 백업 모드 확인 (웹 UI "즉시 백업" 버튼용)
+    const forceBackup = process.env.FORCE_BACKUP === 'true';
+
+    // 백업 활성화 확인 (강제 모드가 아닐 때만)
+    if (!forceBackup && !backup.enabled) {
       console.log('ℹ️  백업이 비활성화되어 있습니다.');
       return null;
+    }
+
+    if (forceBackup) {
+      console.log('🔥 강제 백업 모드 활성화');
     }
 
     // 기존 UI 구조를 백업 앱이 사용하는 구조로 변환
