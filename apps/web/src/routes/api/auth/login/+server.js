@@ -9,7 +9,7 @@ import PlannerAccount from '$lib/server/models/PlannerAccount.js'; // v8.0
 import { JWT_SECRET, JWT_EXPIRES, JWT_REFRESH_EXPIRES } from '$env/static/private';
 
 export async function POST({ request, cookies }) {
-	const { loginId, password } = await request.json();
+	const { loginId, password, userType } = await request.json();
 
 	if (!loginId || !password) {
 		return json({ message: '아이디와 비밀번호를 입력해주세요.' }, { status: 400 });
@@ -17,30 +17,65 @@ export async function POST({ request, cookies }) {
 
 	await db();
 
-	// v8.0: 3-Collection Sequential Check
-	// 1) Admin
-	let account = await Admin.findOne({ loginId: loginId.toLowerCase() });
-	let accountType = 'admin';
+	let account = null;
+	let accountType = null;
 
-	// 2) UserAccount
-	if (!account) {
-		account = await UserAccount.findOne({ loginId: loginId.toLowerCase() });
-		accountType = 'user';
-	}
+	// userType이 지정된 경우 해당 타입만 확인
+	if (userType) {
+		if (userType === 'admin') {
+			account = await Admin.findOne({ loginId: loginId.toLowerCase() });
+			accountType = 'admin';
+		} else if (userType === 'user') {
+			account = await UserAccount.findOne({ loginId: loginId.toLowerCase() });
+			accountType = 'user';
+		} else if (userType === 'planner') {
+			account = await PlannerAccount.findOne({ name: loginId });  // PlannerAccount는 name 필드 사용
+			accountType = 'planner';
+		}
 
-	// 3) PlannerAccount
-	if (!account) {
-		account = await PlannerAccount.findOne({ loginId });
-		accountType = 'planner';
-	}
+		if (!account) {
+			return json({ message: '아이디 또는 비밀번호가 일치하지 않습니다.' }, { status: 401 });
+		}
 
-	if (!account) {
-		return json({ message: '아이디 또는 비밀번호가 일치하지 않습니다.' }, { status: 401 });
-	}
+		const validPassword = await bcrypt.compare(password, account.passwordHash);
+		if (!validPassword) {
+			return json({ message: '아이디 또는 비밀번호가 일치하지 않습니다.' }, { status: 401 });
+		}
+	} else {
+		// userType이 없는 경우: 모든 컬렉션 확인
+		const [adminAccount, userAccount, plannerAccount] = await Promise.all([
+			Admin.findOne({ loginId: loginId.toLowerCase() }),
+			UserAccount.findOne({ loginId: loginId.toLowerCase() }),
+			PlannerAccount.findOne({ name: loginId })  // PlannerAccount는 name 필드 사용
+		]);
 
-	const validPassword = await bcrypt.compare(password, account.passwordHash);
-	if (!validPassword) {
-		return json({ message: '아이디 또는 비밀번호가 일치하지 않습니다.' }, { status: 401 });
+		// 비밀번호가 맞는 계정들만 필터링
+		const validAccounts = [];
+		if (adminAccount && await bcrypt.compare(password, adminAccount.passwordHash)) {
+			validAccounts.push({ account: adminAccount, type: 'admin' });
+		}
+		if (userAccount && await bcrypt.compare(password, userAccount.passwordHash)) {
+			validAccounts.push({ account: userAccount, type: 'user' });
+		}
+		if (plannerAccount && await bcrypt.compare(password, plannerAccount.passwordHash)) {
+			validAccounts.push({ account: plannerAccount, type: 'planner' });
+		}
+
+		if (validAccounts.length === 0) {
+			return json({ message: '아이디 또는 비밀번호가 일치하지 않습니다.' }, { status: 401 });
+		}
+
+		// 여러 계정이 발견된 경우
+		if (validAccounts.length > 1) {
+			return json({
+				multipleAccounts: true,
+				availableTypes: validAccounts.map(v => v.type)
+			});
+		}
+
+		// 단일 계정인 경우
+		account = validAccounts[0].account;
+		accountType = validAccounts[0].type;
 	}
 
 	// 암호 강제 변경 체크 (용역자, 설계사만)

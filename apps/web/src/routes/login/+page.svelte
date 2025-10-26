@@ -9,6 +9,11 @@
 	let errorMessage = '';
 	let showPassword = false;
 
+	// 여러 계정 타입이 있을 때 선택 UI 표시
+	let showAccountTypeSelection = false;
+	let availableTypes = [];
+	let selectedType = '';
+
 	// 로그인 페이지 진입 시 클라이언트 저장소 정리
 	onMount(() => {
 		localStorage.clear();
@@ -17,21 +22,45 @@
 
 	async function handleSubmit(e) {
 		e.preventDefault();
+
+		// 선택 UI가 표시된 상태면 선택된 타입으로 재로그인
+		if (showAccountTypeSelection) {
+			showAccountTypeSelection = false;
+		}
+
 		isLoading = true;
 		errorMessage = '';
 
 		try {
+			const requestBody = { loginId, password };
+
+			// 계정 타입이 선택된 경우 포함
+			if (selectedType) {
+				requestBody.userType = selectedType;
+			}
+
 			const response = await fetch('/api/auth/login', {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json'
 				},
-				body: JSON.stringify({ loginId, password })
+				body: JSON.stringify(requestBody)
 			});
 
 			const data = await response.json();
 
 			if (response.ok) {
+				// 여러 계정 타입이 있는 경우
+				if (data.multipleAccounts && data.availableTypes) {
+					showAccountTypeSelection = true;
+					availableTypes = data.availableTypes;
+					selectedType = data.availableTypes[0]; // 첫 번째를 기본 선택
+					errorMessage = '';
+					isLoading = false;
+					return;
+				}
+
+				// 단일 계정이거나 타입이 선택된 경우 - 로그인 성공
 				// 암호 변경 필요 여부를 sessionStorage에 저장
 				if (data.requirePasswordChange) {
 					sessionStorage.setItem('requirePasswordChange', 'true');
@@ -41,7 +70,6 @@
 				if (data.userType === 'admin') {
 					goto('/admin', { replaceState: true });
 				} else if (data.userType === 'planner') {
-					// 설계사는 설계사 전용 대시보드로
 					goto('/planner', { replaceState: true });
 				} else {
 					goto('/dashboard', { replaceState: true });
@@ -55,12 +83,18 @@
 			isLoading = false;
 		}
 	}
+
+	// 계정 타입 선택 후 다시 로그인
+	function handleTypeSelection() {
+		showAccountTypeSelection = false;
+		handleSubmit(new Event('submit'));
+	}
 </script>
 
 <div class="min-h-screen flex items-center justify-center bg-gray-50">
 	<div class="max-w-md w-full space-y-8">
 		<div>
-			<div class="flex items-center justify-center gap-4">
+			<div class="flex flex-col items-center justify-center gap-2">
 				<img src="/logo.png" alt="나눔에셋" class="h-20 w-20" />
 				<h1 class="text-4xl font-bold text-blue-600">나눔에셋</h1>
 			</div>
@@ -122,6 +156,32 @@
 			{#if errorMessage}
 				<div class="text-sm text-red-600 text-center">
 					{errorMessage}
+				</div>
+			{/if}
+
+			{#if showAccountTypeSelection}
+				<div class="p-3 bg-blue-50 border border-blue-200 rounded-md">
+					<div class="flex items-center gap-3">
+						<label class="text-sm font-medium text-gray-700 whitespace-nowrap">
+							로그인 유형:
+						</label>
+						<div class="flex gap-3 flex-1">
+							{#each availableTypes as type}
+								<label class="flex items-center cursor-pointer">
+									<input
+										type="radio"
+										name="accountType"
+										value={type}
+										bind:group={selectedType}
+										class="h-4 w-4 text-blue-600 focus:ring-blue-500"
+									/>
+									<span class="ml-1.5 text-sm text-gray-700">
+										{type === 'admin' ? '관리자' : type === 'planner' ? '설계자' : '사용자'}
+									</span>
+								</label>
+							{/each}
+						</div>
+					</div>
 				</div>
 			{/if}
 
