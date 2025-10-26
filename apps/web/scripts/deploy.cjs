@@ -42,10 +42,13 @@ function validateConfig() {
 	console.log('✅ 배포 설정 검증 완료');
 }
 
-// 최신 .deb 파일 찾기
-function findLatestDeb() {
-	const files = fs.readdirSync(RELEASE_DIR)
-		.filter(f => f.endsWith('.deb') && f.startsWith('nanumpay'))
+// 최신 릴리스 폴더 찾기 (타임스탬프 폴더)
+function findLatestRelease() {
+	const dirs = fs.readdirSync(RELEASE_DIR)
+		.filter(f => {
+			const fullPath = path.join(RELEASE_DIR, f);
+			return fs.statSync(fullPath).isDirectory();
+		})
 		.map(f => ({
 			name: f,
 			path: path.join(RELEASE_DIR, f),
@@ -53,14 +56,28 @@ function findLatestDeb() {
 		}))
 		.sort((a, b) => b.mtime - a.mtime);
 
-	if (files.length === 0) {
-		console.error('❌ .deb 파일을 찾을 수 없습니다.');
+	if (dirs.length === 0) {
+		console.error('❌ 릴리스 폴더를 찾을 수 없습니다.');
 		console.error('   먼저 `pnpm release:linux` 명령을 실행하여 패키지를 생성하세요.');
 		process.exit(1);
 	}
 
-	const latest = files[0];
-	console.log(`📦 최신 .deb 파일: ${latest.name}`);
+	const latest = dirs[0];
+
+	// install.sh 확인
+	const installScript = path.join(latest.path, 'install.sh');
+	if (!fs.existsSync(installScript)) {
+		console.error(`❌ install.sh가 없습니다: ${latest.name}`);
+		process.exit(1);
+	}
+
+	// README.md 확인
+	const readme = path.join(latest.path, 'README.md');
+	if (!fs.existsSync(readme)) {
+		console.warn(`⚠️  README.md가 없습니다: ${latest.name}`);
+	}
+
+	console.log(`📦 최신 릴리스 폴더: ${latest.name}`);
 	return latest;
 }
 
@@ -85,17 +102,26 @@ function testSSHConnection() {
 	}
 }
 
-// .deb 파일 업로드
-function uploadDeb(debFile) {
-	console.log(`📤 .deb 파일 업로드 중: ${debFile.name}`);
+// 릴리스 폴더 업로드 (DEB + install.sh + README.md)
+function uploadRelease(release) {
+	console.log(`📤 릴리스 패키지 업로드 중: ${release.name}`);
 
-	const remotePath = `~/nanumpay/${debFile.name}`;
+	const remotePath = `~/nanumpay-release`;
 
 	try {
-		cp.execSync(`scp -i "${SSH_KEY}" -o StrictHostKeyChecking=no "${debFile.path}" ${PROD_USER}@${PROD_SERVER}:${remotePath}`, {
+		// 원격 디렉토리 생성 및 기존 파일 정리
+		cp.execSync(`ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no ${PROD_USER}@${PROD_SERVER} "rm -rf ${remotePath} && mkdir -p ${remotePath}"`, {
 			stdio: 'inherit'
 		});
-		console.log('✅ 파일 업로드 완료');
+
+		// 릴리스 폴더 전체 업로드
+		cp.execSync(`scp -i "${SSH_KEY}" -o StrictHostKeyChecking=no -r "${release.path}"/* ${PROD_USER}@${PROD_SERVER}:${remotePath}/`, {
+			stdio: 'inherit'
+		});
+		console.log('✅ 릴리스 패키지 업로드 완료');
+		console.log('   - DEB 파일');
+		console.log('   - install.sh');
+		console.log('   - README.md');
 		return remotePath;
 	} catch (error) {
 		console.error('❌ 파일 업로드 실패');
@@ -104,90 +130,47 @@ function uploadDeb(debFile) {
 	}
 }
 
-// 기존 서비스 중지 및 패키지 설치
+// install.sh를 사용한 자동 설치
 function installPackage(remotePath) {
-	console.log('🔧 서비스 중지 및 패키지 설치 중...');
+	console.log('🔧 install.sh를 사용하여 자동 설치 중...');
 
 	const commands = [
-		'# nanumpay 디렉토리 생성',
-		'mkdir -p ~/nanumpay',
+		'# 릴리스 디렉토리로 이동',
+		`cd ${remotePath}`,
 		'',
-		'# 기존 서비스 중지 (있는 경우)',
-		'sudo systemctl stop nanumpay.service || true',
-		'sudo systemctl disable nanumpay.service || true',
-		'',
-		'# 기존 패키지 제거 (있는 경우)',
-		'sudo dpkg -r nanumpay || true',
-		'',
-		'# MongoDB 설치 확인 및 설치',
+		'# MongoDB 설치 확인 (install.sh 실행 전)',
 		'echo "🗄️ MongoDB 설치 확인 중..."',
 		'if ! command -v mongod >/dev/null 2>&1; then',
 		'  echo "MongoDB가 설치되어 있지 않습니다. 설치를 진행합니다..."',
-		'  # MongoDB 공식 GPG 키 추가',
-		'  curl -fsSL https://pgp.mongodb.com/server-7.0.asc | sudo gpg -o /usr/share/keyrings/mongodb-server-7.0.gpg --dearmor',
-		'  # MongoDB 저장소 추가',
-		'  echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list',
-		'  # 패키지 목록 업데이트',
+		'  curl -fsSL https://pgp.mongodb.com/server-8.0.asc | sudo gpg -o /usr/share/keyrings/mongodb-server-8.0.gpg --dearmor',
+		'  echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-8.0.gpg ] https://repo.mongodb.org/apt/ubuntu $(lsb_release -cs)/mongodb-org/8.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-8.0.list',
 		'  sudo apt-get update',
-		'  # MongoDB 설치',
-		'  sudo apt-get install -y mongodb-org',
-		'  # MongoDB 서비스 시작 및 활성화',
+		'  sudo apt-get install -y mongodb-org mongosh',
 		'  sudo systemctl start mongod',
 		'  sudo systemctl enable mongod',
 		'  echo "✅ MongoDB 설치 및 시작 완료"',
 		'else',
 		'  echo "✅ MongoDB가 이미 설치되어 있습니다"',
-		'  # MongoDB 서비스 상태 확인 및 시작',
 		'  if ! sudo systemctl is-active --quiet mongod; then',
 		'    echo "MongoDB 서비스를 시작합니다..."',
 		'    sudo systemctl start mongod',
 		'  fi',
 		'fi',
 		'',
-		'# 새 패키지 설치',
-		`sudo dpkg -i ${remotePath}`,
+		'# install.sh 실행 (자동으로 nginx, 의존성, nanumpay 설치)',
+		'echo "📦 install.sh 실행 중..."',
+		'sudo bash install.sh',
 		'',
-		'# 의존성 문제 해결 (있는 경우)',
-		'sudo apt-get install -f -y',
-		'',
-		'# 방화벽 설정 확인 및 포트 열기',
-		'echo "🔥 방화벽 설정 확인 중..."',
+		'# 방화벽 설정 (포트 80, 3100)',
+		'echo "🔥 방화벽 설정 중..."',
 		'if command -v ufw >/dev/null 2>&1; then',
-		'  # UFW가 설치되어 있는 경우',
 		'  UFW_STATUS=$(sudo ufw status | head -1)',
-		'  echo "방화벽 상태: $UFW_STATUS"',
 		'  if echo "$UFW_STATUS" | grep -q "Status: active"; then',
-		'    # UFW가 활성화된 경우 포트 3100 확인',
-		'    if ! sudo ufw status | grep -q "3100"; then',
-		'      echo "포트 3100을 방화벽에서 허용합니다..."',
-		'      sudo ufw allow 3100/tcp',
-		'      echo "✅ 포트 3100 허용 완료"',
-		'    else',
-		'      echo "✅ 포트 3100이 이미 허용되어 있습니다"',
-		'    fi',
-		'  else',
-		'    echo "ℹ️ UFW가 비활성화되어 있습니다"',
+		'    sudo ufw allow 80/tcp || true',
+		'    sudo ufw allow 3100/tcp || true',
+		'    echo "✅ 포트 80, 3100 허용 완료"',
 		'  fi',
-		'else',
-		'  echo "ℹ️ UFW가 설치되어 있지 않습니다"',
 		'fi',
-		'',
-		'# iptables 확인 (추가 보안)',
-		'if command -v iptables >/dev/null 2>&1; then',
-		'  echo "📋 현재 iptables 규칙 확인..."',
-		'  sudo iptables -L INPUT -n | grep -q ":3100" || echo "⚠️  iptables에서 포트 3100 규칙을 확인하세요"',
-		'fi',
-		'',
-		'# 서비스 상태 확인',
-		'echo "📊 서비스 상태 확인..."',
-		'echo "🗄️ MongoDB 상태:"',
-		'sudo systemctl status mongod --no-pager -l || echo "MongoDB 상태 확인 실패"',
-		'echo ""',
-		'echo "🚀 NanumPay 서비스 상태:"',
-		'sudo systemctl status nanumpay.service --no-pager -l || echo "NanumPay 서비스 상태 확인 실패"',
-		'',
-		'# 임시 파일 정리',
-		`rm -f ${remotePath}`,
 		'',
 		'echo "✅ 배포 완료!"'
 	];
@@ -212,41 +195,55 @@ function verifyDeployment() {
 	console.log('🔍 배포 상태 확인 중...');
 
 	try {
-		const result = cp.execSync(`ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no ${PROD_USER}@${PROD_SERVER} "curl -s -o /dev/null -w '%{http_code}' http://localhost:${PROD_PORT} || echo 'CURL_FAILED'"`, {
+		// 포트 80 (Nginx) 확인
+		const port80Result = cp.execSync(`ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no ${PROD_USER}@${PROD_SERVER} "curl -s -o /dev/null -w '%{http_code}' http://localhost || echo 'CURL_FAILED'"`, {
 			stdio: ['ignore', 'pipe', 'ignore'],
 			encoding: 'utf8'
 		}).trim();
 
-		if (result === '200') {
-			console.log('✅ 서비스가 정상적으로 실행 중입니다');
-			console.log(`🌐 서비스 URL: http://${PROD_SERVER}:${PROD_PORT}`);
+		// 포트 3100 (Nanumpay) 확인
+		const port3100Result = cp.execSync(`ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no ${PROD_USER}@${PROD_SERVER} "curl -s -o /dev/null -w '%{http_code}' http://localhost:${PROD_PORT} || echo 'CURL_FAILED'"`, {
+			stdio: ['ignore', 'pipe', 'ignore'],
+			encoding: 'utf8'
+		}).trim();
 
-			// 외부 접속 테스트
-			console.log('🌍 외부 접속 테스트 중...');
-			try {
-				const externalTest = cp.execSync(`curl -s -o /dev/null -w '%{http_code}' --connect-timeout 10 http://${PROD_SERVER}:${PROD_PORT} || echo 'EXTERNAL_FAILED'`, {
-					stdio: ['ignore', 'pipe', 'ignore'],
-					encoding: 'utf8',
-					timeout: 15000
-				}).trim();
+		console.log('');
+		console.log('📊 서비스 상태:');
 
-				if (externalTest === '200') {
-					console.log('✅ 외부에서 접속 가능합니다');
-				} else if (externalTest === 'EXTERNAL_FAILED') {
-					console.warn('⚠️  외부 접속 실패 - 방화벽/보안그룹 확인 필요');
-					console.warn(`   AWS EC2인 경우 보안 그룹에서 포트 ${PROD_PORT}을 허용하세요`);
-				} else {
-					console.warn(`⚠️  외부 접속 응답 코드: ${externalTest}`);
-				}
-			} catch (error) {
-				console.warn('⚠️  외부 접속 테스트 실패 - 방화벽 설정을 확인하세요');
-			}
-
-		} else if (result === 'CURL_FAILED') {
-			console.warn('⚠️  서버 내부 curl 명령이 실패했습니다. 서비스 로그를 확인하세요.');
+		if (port80Result === '200' || port80Result === '302') {
+			console.log('✅ Nginx (포트 80): 정상');
 		} else {
-			console.warn(`⚠️  HTTP 응답 코드: ${result}`);
+			console.warn(`⚠️  Nginx (포트 80): 응답 코드 ${port80Result}`);
 		}
+
+		if (port3100Result === '200' || port3100Result === '302') {
+			console.log('✅ Nanumpay (포트 3100): 정상');
+		} else {
+			console.warn(`⚠️  Nanumpay (포트 3100): 응답 코드 ${port3100Result}`);
+		}
+
+		// 외부 접속 테스트 (포트 80)
+		console.log('');
+		console.log('🌍 외부 접속 테스트 중...');
+		try {
+			const externalTest80 = cp.execSync(`curl -s -o /dev/null -w '%{http_code}' --connect-timeout 10 http://${PROD_SERVER} || echo 'EXTERNAL_FAILED'`, {
+				stdio: ['ignore', 'pipe', 'ignore'],
+				encoding: 'utf8',
+				timeout: 15000
+			}).trim();
+
+			if (externalTest80 === '200' || externalTest80 === '302') {
+				console.log('✅ 외부에서 포트 80 접속 가능');
+			} else if (externalTest80 === 'EXTERNAL_FAILED') {
+				console.warn('⚠️  외부 접속 실패 - 방화벽/보안그룹 확인 필요');
+				console.warn('   AWS EC2인 경우 보안 그룹에서 포트 80을 허용하세요');
+			} else {
+				console.warn(`⚠️  외부 접속 응답 코드: ${externalTest80}`);
+			}
+		} catch (error) {
+			console.warn('⚠️  외부 접속 테스트 실패 - 방화벽 설정을 확인하세요');
+		}
+
 	} catch (error) {
 		console.warn('⚠️  상태 확인 중 오류 발생 (정상적일 수 있음)');
 	}
@@ -254,14 +251,16 @@ function verifyDeployment() {
 	console.log('');
 	console.log('📋 수동 확인 명령어:');
 	console.log(`ssh -i "${SSH_KEY}" ${PROD_USER}@${PROD_SERVER}`);
+	console.log('sudo systemctl status nginx');
+	console.log('sudo systemctl status nanumpay');
 	console.log('sudo systemctl status mongod');
-	console.log('sudo systemctl status nanumpay.service');
-	console.log('sudo journalctl -u nanumpay.service -f');
-	console.log('mongo --eval "db.adminCommand(\'listCollections\')"');
+	console.log('sudo journalctl -u nanumpay -f');
+	console.log('sudo nginx -t');
 	console.log('sudo ufw status');
 	console.log('');
 	console.log('🔗 브라우저에서 확인:');
-	console.log(`http://${PROD_SERVER}:${PROD_PORT}`);
+	console.log(`http://${PROD_SERVER} (포트 80 - Nginx)`);
+	console.log(`http://${PROD_SERVER}:${PROD_PORT} (포트 3100 - 직접)`);
 }
 
 // 메인 함수
@@ -273,16 +272,16 @@ function main() {
 		// 1. 설정 검증
 		validateConfig();
 
-		// 2. 최신 .deb 파일 찾기
-		const debFile = findLatestDeb();
+		// 2. 최신 릴리스 폴더 찾기
+		const release = findLatestRelease();
 
 		// 3. SSH 연결 테스트
 		testSSHConnection();
 
-		// 4. .deb 파일 업로드
-		const remotePath = uploadDeb(debFile);
+		// 4. 릴리스 패키지 업로드 (DEB + install.sh + README.md)
+		const remotePath = uploadRelease(release);
 
-		// 5. 패키지 설치
+		// 5. install.sh를 사용한 자동 설치
 		installPackage(remotePath);
 
 		// 6. 배포 상태 확인
@@ -290,6 +289,12 @@ function main() {
 
 		console.log('');
 		console.log('🎉 배포가 성공적으로 완료되었습니다!');
+		console.log('');
+		console.log('📋 배포된 내용:');
+		console.log(`   - 릴리스: ${release.name}`);
+		console.log('   - Nginx (포트 80)');
+		console.log('   - Nanumpay (포트 3100)');
+		console.log('   - MongoDB');
 
 	} catch (error) {
 		console.error('❌ 배포 실패:', error.message);

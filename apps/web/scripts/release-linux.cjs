@@ -35,12 +35,13 @@ const debian = path.join(pkgDir, 'DEBIAN');
 const optDir = path.join(pkgDir, 'opt', 'nanumpay');
 const etcDir = path.join(pkgDir, 'etc', 'nanumpay');
 const sysdDir = path.join(pkgDir, 'etc', 'systemd', 'system');
+const nginxAvailableDir = path.join(pkgDir, 'etc', 'nginx', 'sites-available');
 const dbDir = path.join(optDir, 'db');
 const toolsDir = path.join(optDir, 'tools');
 const binDir = path.join(optDir, 'bin');
 
 fs.rmSync(stage, { recursive: true, force: true });
-[debian, optDir, etcDir, sysdDir, dbDir, toolsDir, binDir].forEach((d) =>
+[debian, optDir, etcDir, sysdDir, nginxAvailableDir, dbDir, toolsDir, binDir].forEach((d) =>
 	fs.mkdirSync(d, { recursive: true })
 );
 
@@ -107,6 +108,15 @@ if (fs.existsSync(backupBuildScript)) {
 	console.warn('[backup] ⚠️  백업 앱 빌드 스크립트 없음 (건너뜀)');
 }
 
+// 4-2) Nginx 설정 파일 복사
+const nginxConfigSrc = path.join(ROOT, 'install', 'linux', 'nginx', 'nanumpay');
+if (fs.existsSync(nginxConfigSrc)) {
+	fs.copyFileSync(nginxConfigSrc, path.join(nginxAvailableDir, 'nanumpay'));
+	console.log('[nginx] ✅ Nginx 설정 파일 포함 완료');
+} else {
+	console.warn('[nginx] ⚠️  Nginx 설정 파일 없음 (건너뜀)');
+}
+
 // 5) systemd 서비스
 const service = `[Unit]
 Description=Nanumpay EXE service
@@ -133,7 +143,7 @@ Section: web
 Priority: optional
 Architecture: amd64
 Maintainer: Nanum Asset <support@nanumasset.example>
-Depends: adduser, systemd, bash
+Depends: adduser, systemd, bash, nginx
 Recommends: mongosh, apache2-utils | whois
 Description: Nanumpay (SvelteKit) single-binary service
  Nanumpay allowance app packaged as a single executable.
@@ -144,6 +154,7 @@ fs.writeFileSync(path.join(debian, 'control'), control);
 fs.writeFileSync(
 	path.join(debian, 'conffiles'),
 	`/etc/nanumpay/nanumpay.env
+/etc/nginx/sites-available/nanumpay
 `
 );
 
@@ -222,6 +233,40 @@ if [ -f "/opt/nanumpay/bin/nanumpay-backup" ]; then
     echo "Configure backup settings in admin panel"
 fi
 
+# Nginx 설정 (필수 의존성이므로 항상 실행)
+echo "Configuring Nginx reverse proxy..."
+
+# Nginx 기본 사이트 비활성화 (nanumpay가 포트 80을 사용하도록)
+if [ -L "/etc/nginx/sites-enabled/default" ]; then
+    echo "Disabling Nginx default site..."
+    rm -f /etc/nginx/sites-enabled/default
+fi
+
+# sites-enabled 심볼릭 링크 생성
+if [ -f "/etc/nginx/sites-available/nanumpay" ]; then
+    # 기존 심볼릭 링크 제거 (있으면)
+    rm -f /etc/nginx/sites-enabled/nanumpay
+
+    # 새 심볼릭 링크 생성
+    ln -s /etc/nginx/sites-available/nanumpay /etc/nginx/sites-enabled/nanumpay
+
+    # Nginx 설정 테스트
+    if nginx -t 2>&1 | grep -q "successful"; then
+        echo "Nginx configuration valid - reloading..."
+        systemctl reload nginx || systemctl restart nginx
+        echo "✅ Nginx reverse proxy configured"
+        echo "   → Access: http://localhost (port 80)"
+        echo "   → Backend: http://localhost:3100"
+    else
+        echo "⚠️  Nginx configuration test failed - please check manually"
+        echo "   → Run: sudo nginx -t"
+        rm -f /etc/nginx/sites-enabled/nanumpay
+    fi
+else
+    echo "⚠️  Nginx config file missing: /etc/nginx/sites-available/nanumpay"
+    echo "   → Please check package installation"
+fi
+
 # 서비스 시작
 systemctl restart nanumpay.service || systemctl start nanumpay.service
 `;
@@ -235,6 +280,15 @@ set -e
 echo "Cleaning up backup crontab entries..."
 crontab -u nanumpay -l 2>/dev/null | grep -v '/opt/nanumpay/bin/nanumpay-backup' | crontab -u nanumpay - 2>/dev/null || true
 
+# Nginx 설정 제거
+if [ -L "/etc/nginx/sites-enabled/nanumpay" ]; then
+    echo "Removing Nginx configuration..."
+    rm -f /etc/nginx/sites-enabled/nanumpay
+    if command -v nginx >/dev/null 2>&1; then
+        systemctl reload nginx || systemctl restart nginx || true
+    fi
+fi
+
 # 서비스 중지
 systemctl stop nanumpay.service || true
 systemctl disable nanumpay.service || true
@@ -243,12 +297,218 @@ systemctl daemon-reload || true
 fs.writeFileSync(path.join(debian, 'prerm'), prerm);
 fs.chmodSync(path.join(debian, 'prerm'), 0o755);
 
-// 9) .deb 생성
-const outDir = path.join(ROOT, 'release');
-fs.mkdirSync(outDir, { recursive: true });
-const debOut = path.join(outDir, `nanumpay_${version}-${stamp}_amd64.deb`);
+// 9) .deb 생성 - 타임스탬프 폴더에 저장
+const releaseBase = path.join(ROOT, 'release');
+const releaseDir = path.join(releaseBase, `${version}-${stamp}`);
+fs.mkdirSync(releaseDir, { recursive: true });
+
+const debOut = path.join(releaseDir, `nanumpay_${version}-${stamp}_amd64.deb`);
 
 cp.execFileSync('dpkg-deb', ['--build', pkgDir, debOut], { stdio: 'inherit' });
 console.log(`[deb] ${debOut}`);
+
+// 10) install.sh 생성
+const installScriptDst = path.join(releaseDir, 'install.sh');
+const installScript = `#!/bin/bash
+
+# Nanumpay 설치 스크립트
+# 필요한 의존성을 먼저 확인하고 DEB 패키지를 설치합니다
+
+set -e
+
+# 색상 정의
+RED='\\033[0;31m'
+GREEN='\\033[0;32m'
+YELLOW='\\033[1;33m'
+BLUE='\\033[0;34m'
+NC='\\033[0m' # No Color
+
+echo "========================================="
+echo "  Nanumpay 설치 스크립트"
+echo "========================================="
+echo ""
+
+# Root 권한 확인
+if [ "$EUID" -ne 0 ]; then
+    echo -e "\${RED}❌ 이 스크립트는 root 권한이 필요합니다.\${NC}"
+    echo -e "\${YELLOW}   sudo ./install.sh 로 실행해주세요\${NC}"
+    exit 1
+fi
+
+# 현재 디렉토리에서 DEB 파일 찾기
+SCRIPT_DIR="$(cd "$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
+DEB_FILE=$(ls -t "$SCRIPT_DIR"/nanumpay_*.deb 2>/dev/null | head -1)
+
+if [ -z "$DEB_FILE" ]; then
+    echo -e "\${RED}❌ DEB 파일을 찾을 수 없습니다\${NC}"
+    echo -e "\${YELLOW}   이 스크립트를 DEB 파일과 같은 디렉토리에 두고 실행하세요\${NC}"
+    exit 1
+fi
+
+echo -e "\${GREEN}✓\${NC} DEB 파일 발견: $(basename "$DEB_FILE")"
+echo ""
+
+# 1. 시스템 업데이트
+echo -e "\${BLUE}[1/3]\${NC} 패키지 목록 업데이트 중..."
+apt-get update -qq
+
+# 2. 필수 의존성 확인 및 설치
+echo -e "\${BLUE}[2/3]\${NC} 필수 의존성 확인 중..."
+
+REQUIRED_PACKAGES="nginx adduser systemd bash"
+MISSING_PACKAGES=""
+
+for pkg in $REQUIRED_PACKAGES; do
+    if ! dpkg -l | grep -q "^ii  $pkg"; then
+        MISSING_PACKAGES="$MISSING_PACKAGES $pkg"
+    fi
+done
+
+if [ -n "$MISSING_PACKAGES" ]; then
+    echo -e "\${YELLOW}   설치 필요:\$MISSING_PACKAGES\${NC}"
+    echo -e "\${BLUE}   의존성 패키지 설치 중...\${NC}"
+    apt-get install -y $MISSING_PACKAGES
+    echo -e "\${GREEN}✓\${NC} 의존성 패키지 설치 완료"
+else
+    echo -e "\${GREEN}✓\${NC} 모든 의존성이 이미 설치되어 있습니다"
+fi
+echo ""
+
+# 3. Nanumpay 패키지 설치
+echo -e "\${BLUE}[3/3]\${NC} Nanumpay 패키지 설치 중..."
+
+# 기존 패키지가 설치되어 있는지 확인
+if dpkg -l | grep -q "^ii.*nanumpay"; then
+    INSTALLED_VERSION=$(dpkg -l | grep "^ii.*nanumpay" | awk '{print $3}')
+    echo -e "\${YELLOW}   기존 버전이 설치되어 있습니다: $INSTALLED_VERSION\${NC}"
+    echo -e "\${BLUE}   기존 패키지 제거 중...\${NC}"
+    apt-get remove -y nanumpay
+fi
+
+# DEB 패키지 설치
+echo -e "\${BLUE}   DEB 패키지 설치 중...\${NC}"
+if apt install -y "$DEB_FILE"; then
+    echo -e "\${GREEN}✓\${NC} Nanumpay 설치 완료!"
+else
+    echo -e "\${RED}❌ 설치 실패\${NC}"
+    exit 1
+fi
+
+echo ""
+echo "========================================="
+echo -e "\${GREEN}  설치 완료!\${NC}"
+echo "========================================="
+echo ""
+
+# 서비스 상태 확인
+if systemctl is-active --quiet nanumpay; then
+    echo -e "\${GREEN}✓\${NC} Nanumpay 서비스가 실행 중입니다"
+else
+    echo -e "\${YELLOW}⚠\${NC} Nanumpay 서비스가 실행되지 않고 있습니다"
+    echo -e "\${BLUE}   시작 명령: sudo systemctl start nanumpay\${NC}"
+fi
+
+if systemctl is-active --quiet nginx; then
+    echo -e "\${GREEN}✓\${NC} Nginx가 실행 중입니다"
+else
+    echo -e "\${YELLOW}⚠\${NC} Nginx가 실행되지 않고 있습니다"
+    echo -e "\${BLUE}   시작 명령: sudo systemctl start nginx\${NC}"
+fi
+
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo -e "\${BLUE}접속 정보:\${NC}"
+echo "  URL: http://localhost"
+echo "  관리자: http://localhost/admin"
+echo "  계정: 관리자 / admin1234!!"
+echo ""
+echo -e "\${BLUE}서비스 관리:\${NC}"
+echo "  상태: sudo systemctl status nanumpay"
+echo "  시작: sudo systemctl start nanumpay"
+echo "  중지: sudo systemctl stop nanumpay"
+echo "  재시작: sudo systemctl restart nanumpay"
+echo "  로그: sudo journalctl -u nanumpay -f"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+echo -e "\${GREEN}브라우저에서 http://localhost 로 접속하세요!\${NC}"
+echo ""
+`;
+fs.writeFileSync(installScriptDst, installScript);
+fs.chmodSync(installScriptDst, 0o755);
+console.log(`[install.sh] ${installScriptDst}`);
+
+// 11) README.md 생성
+const readmeDst = path.join(releaseDir, 'README.md');
+const readmeContent = `# Nanumpay 설치 가이드
+
+## 📦 패키지 내용
+
+- \`nanumpay_${version}-${stamp}_amd64.deb\` - Nanumpay 메인 패키지
+- \`install.sh\` - 자동 설치 스크립트 (권장)
+- \`README.md\` - 이 파일
+
+---
+
+## 🚀 설치 방법
+
+### 방법 1: 자동 설치 스크립트 (권장)
+
+\`\`\`bash
+sudo ./install.sh
+\`\`\`
+
+### 방법 2: apt 사용
+
+\`\`\`bash
+sudo apt install ./nanumpay_*.deb
+\`\`\`
+
+### 방법 3: dpkg 사용
+
+\`\`\`bash
+sudo dpkg -i nanumpay_*.deb
+sudo apt-get install -f
+\`\`\`
+
+---
+
+## 📋 필수 요구사항
+
+### 자동 설치되는 항목
+- **nginx** - 웹 서버 (포트 80)
+- adduser, systemd, bash
+
+### 별도 설치 필요
+- **MongoDB** - 데이터베이스 (localhost:27017)
+
+---
+
+## ✅ 설치 후
+
+브라우저에서 접속:
+- **URL**: http://localhost
+- **관리자**: http://localhost/admin
+- **계정**: 관리자 / admin1234!!
+
+서비스 관리:
+\`\`\`bash
+sudo systemctl status nanumpay
+sudo systemctl restart nanumpay
+sudo journalctl -u nanumpay -f
+\`\`\`
+
+---
+
+**버전**: ${version}-${stamp}
+**© 2024 나눔에셋 (Nanum Asset)**
+`;
+fs.writeFileSync(readmeDst, readmeContent);
+console.log(`[README.md] ${readmeDst}`);
+
+console.log(`\n✅ 릴리스 패키지 생성 완료: ${releaseDir}`);
+console.log(`   - nanumpay_${version}-${stamp}_amd64.deb`);
+console.log(`   - install.sh`);
+console.log(`   - README.md`);
+
 if (seedPass)
-	console.log(`[seed] admin password baked at build-time (hash ${seedHash ? 'yes' : 'no'}).`);
+	console.log(`\n[seed] admin password baked at build-time (hash ${seedHash ? 'yes' : 'no'}).`);
