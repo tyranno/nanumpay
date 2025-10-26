@@ -245,23 +245,25 @@
 {:else}
 	<!-- 비밀번호 확인 모달 -->
 	<WindowsModal isOpen={showPasswordPrompt} title="비밀번호 확인" icon="/icons/lock.svg" size="sm" onClose={cancelPasswordPrompt}>
-		<p class="mb-4 text-sm text-gray-600">정보를 편집하려면 비밀번호를 입력해주세요.</p>
+		<div class="h-[120px]">
+			<p class="mb-4 text-sm text-gray-600">정보를 편집하려면 비밀번호를 입력해주세요.</p>
 
-		{#if verifyError}
-			<div class="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-600">
-				{verifyError}
-			</div>
-		{/if}
+			{#if verifyError}
+				<div class="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-600">
+					{verifyError}
+				</div>
+			{/if}
 
-		<input
-			type="password"
-			bind:value={verifyPassword}
-			placeholder="비밀번호 입력"
-			class="mb-4 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-			onkeydown={(e) => {
-				if (e.key === 'Enter') verifyPasswordAndEnterEdit();
-			}}
-		/>
+			<input
+				type="password"
+				bind:value={verifyPassword}
+				placeholder="비밀번호 입력"
+				class="mb-4 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+				onkeydown={(e) => {
+					if (e.key === 'Enter') verifyPasswordAndEnterEdit();
+				}}
+			/>
+		</div>
 
 		<svelte:fragment slot="footer">
 			<button

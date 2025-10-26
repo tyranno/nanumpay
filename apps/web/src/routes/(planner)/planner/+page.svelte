@@ -1,141 +1,13 @@
 <script>
 	import { onMount } from 'svelte';
-	import { paymentPageFilterState } from '$lib/stores/dashboardStore';
-	import { plannerPaymentService } from '$lib/services/plannerPaymentService';
-	import PaymentHeader from '$lib/components/planner/PaymentHeader.svelte';
-	import PaymentTable from '$lib/components/planner/PaymentTable.svelte';
 	import PlannerSettingsModal from '$lib/components/planner/PlannerSettingsModal.svelte';
+	import PlannerInfoCard from '$lib/components/planner/PlannerInfoCard.svelte';
+	import PaymentSummaryCard from '$lib/components/planner/PaymentSummaryCard.svelte';
+	import CommissionSummaryCard from '$lib/components/planner/CommissionSummaryCard.svelte';
+	import PaymentListCard from '$lib/components/planner/PaymentListCard.svelte';
 
-	// 설계사 정보 상태
-	let plannerInfo = null;
-	let contractStats = null;
-	let paymentSummary = null;
+	// 설정 모달 상태
 	let isSettingsModalOpen = false;
-
-	// 지급명부 상태 변수
-	let paymentList = [];
-	let filteredPaymentList = [];
-	let weeklyColumns = [];
-	let isLoading = false;
-	let error = '';
-	let currentPage = 1;
-	let totalPages = 1;
-	let totalPaymentTargets = 0;
-	let apiGrandTotal = null;
-	let weeklyTotals = {};
-	let monthlyTotals = {};
-
-	// Store 구독
-	$: filterState = $paymentPageFilterState;
-
-	// 데이터 로드
-	async function loadPaymentData(page = 1) {
-		isLoading = true;
-		error = '';
-		currentPage = page;
-
-		try {
-			const result = await plannerPaymentService.loadPaymentData({
-				filterType: filterState.filterType,
-				selectedDate: filterState.selectedDate,
-				selectedYear: filterState.selectedYear,
-				selectedMonth: filterState.selectedMonth,
-				startYear: filterState.startYear,
-				startMonth: filterState.startMonth,
-				endYear: filterState.endYear,
-				endMonth: filterState.endMonth,
-				page,
-				limit: filterState.itemsPerPage,
-				searchQuery: filterState.searchQuery,
-				searchCategory: filterState.searchCategory,
-				periodType: filterState.periodType
-			});
-
-			paymentList = result.paymentList;
-			filteredPaymentList = result.paymentList;
-			weeklyColumns = result.weeklyColumns;
-			totalPages = result.totalPages;
-			totalPaymentTargets = result.totalPaymentTargets;
-			apiGrandTotal = result.apiGrandTotal;
-			weeklyTotals = result.weeklyTotals || {};
-			monthlyTotals = result.monthlyTotals || {};
-		} catch (err) {
-			console.error('Error loading payment data:', err);
-			error = err.message;
-		} finally {
-			isLoading = false;
-		}
-	}
-
-	// 페이지 변경
-	function goToPage(page) {
-		if (page >= 1 && page <= totalPages) {
-			loadPaymentData(page);
-		}
-	}
-
-	// 검색 핸들러
-	function handleSearch() {
-		loadPaymentData(1);
-	}
-
-	// 페이지당 항목 수 변경
-	function handleItemsPerPageChange() {
-		loadPaymentData(1);
-	}
-
-	// 필터 타입 변경
-	function handleFilterTypeChange() {
-		loadPaymentData();
-	}
-
-	// 기간 변경
-	function handlePeriodChange() {
-		if (filterState.filterType === 'period') {
-			loadPaymentData(1);
-		}
-	}
-
-	// grandTotal을 reactive 변수로 계산
-	$: grandTotal = apiGrandTotal ? {
-		amount: apiGrandTotal.totalAmount || 0,
-		tax: apiGrandTotal.totalTax || 0,
-		net: apiGrandTotal.totalNet || 0
-	} : { amount: 0, tax: 0, net: 0 };
-
-	// 금액 포맷
-	function formatAmount(amount) {
-		if (!amount && amount !== 0) return '-';
-		return amount.toLocaleString() + '원';
-	}
-
-	// 엑셀 다운로드
-	async function handleExcelExport() {
-		try {
-			const { PaymentExcelExporter } = await import('$lib/utils/paymentExcelExporter.js');
-
-			const exporter = new PaymentExcelExporter({
-				filterType: filterState.filterType,
-				selectedDate: filterState.selectedDate,
-				startYear: filterState.startYear,
-				startMonth: filterState.startMonth,
-				endYear: filterState.endYear,
-				endMonth: filterState.endMonth,
-				periodType: filterState.periodType,
-				showTaxColumn: filterState.showTaxColumn,
-				showNetColumn: filterState.showNetColumn,
-				searchQuery: filterState.searchQuery,
-				searchCategory: filterState.searchCategory,
-				plannerName: plannerInfo?.name || '',
-				isPlanner: true
-			});
-
-			await exporter.export(filteredPaymentList, weeklyColumns, apiGrandTotal);
-		} catch (err) {
-			console.error('엑셀 내보내기 오류:', err);
-			alert('엑셀 파일 생성 중 오류가 발생했습니다.');
-		}
-	}
 
 	// 설정 모달 열기
 	function openSettingsModal() {
@@ -144,21 +16,10 @@
 
 	// 설정 업데이트 핸들러
 	function handleSettingsUpdated(updatedInfo) {
-		plannerInfo = { ...plannerInfo, ...updatedInfo };
+		console.log('설정 업데이트:', updatedInfo);
 	}
 
 	onMount(async () => {
-		// 설계사 기본 정보 로드
-		const [infoRes, statsRes, summaryRes] = await Promise.all([
-			fetch('/api/planner/info'),
-			fetch('/api/planner/contract-stats'),
-			fetch('/api/planner/payment-summary')
-		]);
-
-		if (infoRes.ok) plannerInfo = await infoRes.json();
-		if (statsRes.ok) contractStats = await statsRes.json();
-		if (summaryRes.ok) paymentSummary = await summaryRes.json();
-
 		// 암호 변경 필요 여부 체크 (세션 스토리지)
 		const requirePasswordChange = sessionStorage.getItem('requirePasswordChange');
 		if (requirePasswordChange === 'true') {
@@ -170,9 +31,6 @@
 				window.dispatchEvent(event);
 			}, 100);
 		}
-
-		// 지급명부 데이터 로드
-		loadPaymentData();
 	});
 </script>
 
@@ -183,124 +41,20 @@
 <div class="container">
 	<!-- 카드 1 & 2: 설계사 정보 + 용역비 총액 -->
 	<div class="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-		<!-- 카드 1: 설계사 정보 -->
-		<div class="rounded-lg bg-gradient-to-br from-blue-50 to-indigo-100 p-3 shadow-md">
-			<div class="mb-2 flex items-center justify-between">
-				<div class="flex items-center gap-2">
-					<img src="/icons/user.svg" alt="설계사" class="h-5 w-5 text-indigo-700" />
-					<h3 class="text-base font-bold text-indigo-900">설계사 정보</h3>
-				</div>
-			</div>
-
-			<div class="rounded border border-indigo-200 bg-indigo-50 p-2">
-				<div class="mb-2 flex items-center justify-between border-b border-indigo-200 pb-2">
-					<span class="text-xs font-semibold text-indigo-700">이름</span>
-					<button
-						onclick={openSettingsModal}
-						class="text-sm font-medium text-indigo-600 underline decoration-dotted underline-offset-2 transition-colors hover:text-indigo-800"
-					>
-						{plannerInfo?.name || '-'}
-					</button>
-				</div>
-					<div class="mb-2 flex items-center justify-between border-b border-indigo-200 pb-2">
-					<span class="text-xs font-semibold text-indigo-700">전화번호</span>
-					<span class="text-sm font-medium text-indigo-900">{plannerInfo?.phone || '-'}</span>
-				</div>
-				<div class="flex items-center justify-between">
-					<span class="text-xs font-semibold text-indigo-700">총 계약 건수</span>
-					<span class="text-lg font-bold text-indigo-900">{contractStats?.totalContracts || 0}건</span>
-				</div>
-			</div>
-		</div>
-
-		<!-- 카드 2: 용역비 총액 -->
-		<div class="rounded-lg bg-gradient-to-br from-green-50 to-emerald-100 p-3 shadow-md">
-			<div class="mb-2 flex items-center justify-between">
-				<div class="flex items-center gap-2">
-					<img src="/icons/total-budget.svg" alt="용역비 총액" class="h-6 w-6" />
-					<h3 class="text-base font-bold text-emerald-900">용역비 총액</h3>
-				</div>
-			</div>
-
-			<div class="rounded border border-emerald-200 bg-emerald-50 p-2">
-				<table class="w-full">
-					<thead>
-						<tr class="border-b border-emerald-300">
-							<th class="py-1 text-left text-xs font-semibold text-emerald-700">구분</th>
-							<th class="py-1 text-right text-xs font-semibold text-emerald-700">총액</th>
-							<th class="py-1 text-right text-xs font-semibold text-emerald-700">실수령</th>
-						</tr>
-					</thead>
-					<tbody>
-						<tr class="border-b border-emerald-200">
-							<td class="py-1.5 text-sm font-semibold text-emerald-700">
-								이번주 지급액
-								{#if paymentSummary?.thisWeek?.date}
-									<span class="ml-1 text-xs text-gray-500">({paymentSummary.thisWeek.date})</span>
-								{/if}
-							</td>
-							<td class="py-1.5 text-right text-base font-bold text-emerald-900">{formatAmount(paymentSummary?.thisWeek?.amount)}</td>
-							<td class="py-1.5 text-right text-base font-bold text-blue-600">{formatAmount(paymentSummary?.thisWeek?.net)}</td>
-						</tr>
-						<tr class="border-b border-emerald-200">
-							<td class="py-1.5 text-xs font-semibold text-emerald-700">누적 지급액</td>
-							<td class="py-1.5 text-right text-xs text-emerald-700">{formatAmount(paymentSummary?.totalPaid?.amount)}</td>
-							<td class="py-1.5 text-right text-xs font-semibold text-green-600">{formatAmount(paymentSummary?.totalPaid?.net)}</td>
-						</tr>
-						<tr>
-							<td class="py-1.5 text-xs font-semibold text-emerald-700">남은 예정액</td>
-							<td class="py-1.5 text-right text-xs text-emerald-700">{formatAmount(paymentSummary?.upcoming?.amount)}</td>
-							<td class="py-1.5 text-right text-xs font-semibold text-purple-600">{formatAmount(paymentSummary?.upcoming?.net)}</td>
-						</tr>
-					</tbody>
-				</table>
-			</div>
-		</div>
+		<PlannerInfoCard onOpenSettings={openSettingsModal} />
+		<PaymentSummaryCard />
 	</div>
 
-	<!-- 카드 3: 용역비 지급명부 -->
-	<div class="rounded-lg bg-white p-4 shadow-md">
-		<h2 class="mb-3 text-lg font-bold text-gray-900">용역비 지급명부</h2>
+	<!-- 카드 3: 설계사 수당 내역 -->
+	<CommissionSummaryCard />
 
-		<PaymentHeader
-			{isLoading}
-			isProcessingPast={false}
-			{grandTotal}
-			{totalPaymentTargets}
-			hasData={filteredPaymentList.length > 0}
-			onFilterChange={handleFilterTypeChange}
-			onPeriodChange={handlePeriodChange}
-			onDateChange={() => loadPaymentData()}
-			onSearch={handleSearch}
-			onItemsPerPageChange={handleItemsPerPageChange}
-			onExport={handleExcelExport}
-			hidePastProcessButton={true}
-			hideExportButton={false}
-			onProcessPast={() => {}}
-		/>
-
-		<PaymentTable
-			{paymentList}
-			{filteredPaymentList}
-			{weeklyColumns}
-			{isLoading}
-			{error}
-			{currentPage}
-			{totalPages}
-			{totalPaymentTargets}
-			itemsPerPage={filterState.itemsPerPage}
-			onPageChange={goToPage}
-			{grandTotal}
-			{weeklyTotals}
-			{monthlyTotals}
-		/>
-	</div>
+	<!-- 카드 4: 용역비 지급명부 -->
+	<PaymentListCard />
 </div>
 
 <!-- 설정 모달 -->
 <PlannerSettingsModal
 	isOpen={isSettingsModalOpen}
-	{plannerInfo}
 	onClose={() => (isSettingsModalOpen = false)}
 	onUpdated={handleSettingsUpdated}
 />

@@ -33,15 +33,19 @@
 	// 암호 강제 변경 이벤트 리스너
 	function handleForcePasswordTab() {
 		activeTab = 'password';
-		errorMessage = '보안을 위해 암호를 변경해주세요. (최소 10자, 대소문자+숫자+특수문자 포함)';
+		errorMessage = '보안을 위해 암호를 변경해주세요.';
 	}
 
 	onMount(() => {
-		window.addEventListener('force-password-tab', handleForcePasswordTab);
+		if (typeof window !== 'undefined') {
+			window.addEventListener('force-password-tab', handleForcePasswordTab);
+		}
 	});
 
 	onDestroy(() => {
-		window.removeEventListener('force-password-tab', handleForcePasswordTab);
+		if (typeof window !== 'undefined') {
+			window.removeEventListener('force-password-tab', handleForcePasswordTab);
+		}
 	});
 
 	// plannerInfo 변경 시 초기화
@@ -147,7 +151,7 @@
 </script>
 
 <WindowsModal {isOpen} title="설계사 설정" icon="/icons/settings-white.svg" size="md" {onClose} showFooter={false}>
-	<div class="h-[306px] flex flex-col">
+	<div class="h-[340px] flex flex-col">
 	<!-- Tabs -->
 	<div class="mb-1.5 flex border-b border-gray-200 flex-shrink-0">
 		<button

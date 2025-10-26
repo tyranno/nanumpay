@@ -219,7 +219,7 @@
 	{onClose}
 	showFooter={false}
 >
-	<div class="h-[450px] flex flex-col">
+	<div class="h-[470px] flex flex-col">
 		<!-- Tabs -->
 		<div class="mb-2 flex border-b border-gray-200 flex-shrink-0">
 			<button class="tab {activeTab === 'info' ? 'active' : ''}" onclick={() => (activeTab = 'info')}>
