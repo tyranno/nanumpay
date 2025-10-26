@@ -48,18 +48,16 @@ export async function executeStep5(plans, registrationMonth) {
   const [year, month] = registrationMonth.split('-').map(Number);
   const nextMonthStart = new Date(year, month, 1);  // 다음 달 1일
 
-  // 첫 금요일 찾기
+  // 첫 금요일 찾기 (UTC 기준)
   let firstFriday = new Date(nextMonthStart);
   const dayOfWeek = firstFriday.getUTCDay();
   const daysUntilFriday = (5 - dayOfWeek + 7) % 7;
-  // ⭐ UTC 메소드 사용 (타임존 문제 방지)
   firstFriday.setUTCDate(firstFriday.getUTCDate() + daysUntilFriday);
 
-  // 10주간의 금요일 날짜 리스트 생성
+  // 10주간의 금요일 날짜 리스트 생성 (UTC 기준)
   const fridayDates = [];
   for (let i = 0; i < 10; i++) {
     const friday = new Date(firstFriday);
-    // ⭐ UTC 메소드 사용 (타임존 문제 방지)
     friday.setUTCDate(friday.getUTCDate() + (i * 7));
     fridayDates.push(friday);
   }
@@ -74,10 +72,11 @@ export async function executeStep5(plans, registrationMonth) {
     const monthKey = WeeklyPaymentSummary.generateMonthKey(friday);
 
     // 해당 주차에 지급될 모든 계획 조회 (상태 무관, terminated 제외)
+    // ⭐ UTC 기준으로 날짜 범위 설정 (타임존 문제 방지)
     const fridayStart = new Date(friday);
-    fridayStart.setHours(0, 0, 0, 0);
+    fridayStart.setUTCHours(0, 0, 0, 0);
     const fridayEnd = new Date(friday);
-    fridayEnd.setHours(23, 59, 59, 999);
+    fridayEnd.setUTCHours(23, 59, 59, 999);
 
     const plansForWeek = await WeeklyPaymentPlans.find({
       'installments': {
@@ -106,10 +105,14 @@ export async function executeStep5(plans, registrationMonth) {
     for (const plan of plansForWeek) {
       const grade = plan.baseGrade;
 
-      // 해당 금요일의 installment 찾기
+      // 해당 금요일의 installment 찾기 (UTC 날짜 비교)
       const inst = plan.installments.find(i => {
         const instDate = new Date(i.scheduledDate);
-        return instDate.toDateString() === friday.toDateString();
+        return (
+          instDate.getUTCFullYear() === friday.getUTCFullYear() &&
+          instDate.getUTCMonth() === friday.getUTCMonth() &&
+          instDate.getUTCDate() === friday.getUTCDate()
+        );
       });
 
       if (inst && inst.status !== 'canceled') {  // ⭐ canceled 제외
