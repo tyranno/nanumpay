@@ -1,6 +1,8 @@
 import jwt from 'jsonwebtoken';
 import { JWT_SECRET, JWT_EXPIRES } from '$env/static/private';
 import { redirect } from '@sveltejs/kit';
+import { Admin } from '$lib/server/models/Admin.js';
+import { connectDB } from '$lib/server/db.js';
 
 /** @type {import('@sveltejs/kit').Handle} */
 export async function handle({ event, resolve }) {
@@ -82,9 +84,32 @@ export async function handle({ event, resolve }) {
 		}
 	}
 
+	// 유지보수 모드 체크
+	if (event.url.pathname !== '/maintenance' &&
+	    !event.url.pathname.startsWith('/api/maintenance/status') &&
+	    !event.url.pathname.startsWith('/api/auth/') &&
+	    event.url.pathname !== '/login') {
+		try {
+			await connectDB();
+			const admin = await Admin.findOne().select('systemSettings.maintenanceMode');
+			const isMaintenanceMode = admin?.systemSettings?.maintenanceMode || false;
+
+			if (isMaintenanceMode) {
+				// 관리자가 아니면 유지보수 페이지로 리다이렉트
+				if (event.locals.user?.type !== 'admin') {
+					throw redirect(302, '/maintenance');
+				}
+			}
+		} catch (error) {
+			// DB 연결 오류 등은 무시하고 계속 진행
+			if (error.status === 302) throw error;
+			console.error('[Hooks] 유지보수 모드 체크 오류:', error);
+		}
+	}
+
 	// 보호된 경로 체크
 	const protectedRoutes = ['/dashboard', '/admin', '/planner'];
-	const publicRoutes = ['/login', '/', '/api/auth/login', '/api/auth/refresh'];
+	const publicRoutes = ['/login', '/', '/api/auth/login', '/api/auth/refresh', '/maintenance', '/api/maintenance/status'];
 
 	const isProtectedRoute = protectedRoutes.some(route => event.url.pathname.startsWith(route));
 	const isPublicRoute = publicRoutes.some(route => event.url.pathname.startsWith(route));

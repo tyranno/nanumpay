@@ -134,14 +134,23 @@ export async function POST({ request, cookies }) {
 		await PlannerAccount.updateOne({ _id: account._id }, { updatedAt: new Date() });
 	}
 
+	// 유지보수 모드 확인
+	let isMaintenanceMode = false;
+	if (accountType !== 'admin') {
+		const adminAccount = await Admin.findOne().select('systemSettings.maintenanceMode');
+		isMaintenanceMode = adminAccount?.systemSettings?.maintenanceMode || false;
+	}
+
 	// v8.0: 응답 데이터
 	const response = {
 		success: true,
 		accountType,
 		userType: accountType, // 하위 호환성을 위해 userType도 추가
-		redirect: accountType === 'admin' ? '/admin' :
-		         accountType === 'planner' ? '/planner' : '/dashboard',
-		requirePasswordChange // 암호 변경 강제 플래그
+		redirect: isMaintenanceMode ? '/maintenance' :
+		         (accountType === 'admin' ? '/admin' :
+		          accountType === 'planner' ? '/planner' : '/dashboard'),
+		requirePasswordChange, // 암호 변경 강제 플래그
+		maintenanceMode: isMaintenanceMode // 유지보수 모드 상태
 	};
 
 	// v8.0: UserAccount 로그인 시 primaryUser 및 모든 등록 정보 반환
