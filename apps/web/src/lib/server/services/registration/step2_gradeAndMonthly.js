@@ -10,6 +10,8 @@
 
 import { recalculateAllGrades } from '../gradeCalculation.js';
 import MonthlyRegistrations from '../../models/MonthlyRegistrations.js';
+import PlannerCommission from '../../models/PlannerCommission.js';
+import PlannerAccount from '../../models/PlannerAccount.js';
 
 /**
  * Step 2 실행
@@ -101,6 +103,9 @@ export async function executeStep2(users) {
 	// 2-8. 저장
 	await monthlyReg.save();
 
+	// 2-9. 설계사 수당 통계 업데이트
+	await updatePlannerCommissions(users, registrationMonth);
+
 	// console.log(`\nSTEP2  [${registrationMonth} 월별 인원 현황]`);
 	// console.log(`  - 전체 등록자: ${monthlyReg.registrationCount}명`);
 	// // 등록자 이름 출력
@@ -121,4 +126,103 @@ export async function executeStep2(users) {
 		monthlyReg,
 		registrationMonth
 	};
+}
+
+/**
+ * 설계사 수당 통계 업데이트
+ *
+ * @param {Array} users - 이번 배치 등록자 배열
+ * @param {string} registrationMonth - 귀속월 (YYYY-MM)
+ */
+async function updatePlannerCommissions(users, registrationMonth) {
+	console.log(`\n💰 [Step2-9] 설계사 수당 통계 업데이트: ${registrationMonth}`);
+	console.log(`  📋 전달된 사용자: ${users.length}명`);
+
+	// 설계사별로 그룹화
+	const plannerMap = new Map();
+
+	for (const user of users) {
+		console.log(`  👤 ${user.name}: plannerAccountId = ${user.plannerAccountId}`);
+
+		if (!user.plannerAccountId) {
+			console.log(`  ⚠️ 설계사 정보 없음: ${user.name} (${user._id})`);
+			continue;
+		}
+
+		const plannerIdStr = user.plannerAccountId.toString();
+
+		if (!plannerMap.has(plannerIdStr)) {
+			plannerMap.set(plannerIdStr, []);
+		}
+
+		plannerMap.get(plannerIdStr).push(user);
+	}
+
+	console.log(`  📊 설계사 수: ${plannerMap.size}명`);
+
+	// 각 설계사별로 PlannerCommission 업데이트
+	for (const [plannerIdStr, plannerUsers] of plannerMap.entries()) {
+		try {
+			// 설계사 정보 조회
+			const plannerAccount = await PlannerAccount.findById(plannerIdStr);
+			if (!plannerAccount) {
+				console.log(`  ⚠️ 설계사 계정 없음: ${plannerIdStr}`);
+				continue;
+			}
+
+			// PlannerCommission 찾기 또는 생성
+			let commission = await PlannerCommission.findOne({
+				plannerAccountId: plannerIdStr,
+				revenueMonth: registrationMonth
+			});
+
+			if (!commission) {
+				commission = new PlannerCommission({
+					plannerAccountId: plannerIdStr,
+					plannerName: plannerAccount.name,
+					revenueMonth: registrationMonth,
+					users: []  // ⭐ 명시적으로 초기화
+				});
+			}
+
+			// users 배열이 undefined면 초기화
+			if (!commission.users) {
+				commission.users = [];
+			}
+
+			// 용역자 추가
+			for (const user of plannerUsers) {
+				const userIdStr = user._id.toString();
+
+				// 중복 확인
+				const exists = commission.users.some(u => u.userId === userIdStr);
+				if (!exists) {
+					commission.users.push({
+						userId: userIdStr,
+						userName: user.name,
+						registrationDate: user.registrationDate || user.createdAt,
+						revenue: 1000000,
+						commission: 100000
+					});
+
+					console.log(`  ✅ ${plannerAccount.name} ← ${user.name} (수당: 100,000원)`);
+				}
+			}
+
+			// 통계 재계산
+			commission.totalUsers = commission.users.length;
+			commission.totalRevenue = commission.users.reduce((sum, u) => sum + (u.revenue || 0), 0);
+			commission.totalCommission = commission.users.reduce((sum, u) => sum + (u.commission || 0), 0);
+
+			// 저장
+			await commission.save();
+
+			console.log(`  💰 ${plannerAccount.name} 총 수당: ${commission.totalCommission.toLocaleString()}원 (${commission.totalUsers}명)`);
+
+		} catch (error) {
+			console.error(`  ❌ 설계사 수당 업데이트 실패 (${plannerIdStr}):`, error.message);
+		}
+	}
+
+	console.log(`✅ [Step2-9] 설계사 수당 통계 업데이트 완료\n`);
 }
