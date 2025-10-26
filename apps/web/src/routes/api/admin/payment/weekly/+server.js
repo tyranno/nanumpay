@@ -1,5 +1,4 @@
 import { json } from '@sveltejs/kit';
-import { json } from '@sveltejs/kit';
 import { connectDB } from '$lib/server/db.js';
 import { getSingleWeekPayments, getRangePayments } from '$lib/server/services/paymentListService.js';
 
