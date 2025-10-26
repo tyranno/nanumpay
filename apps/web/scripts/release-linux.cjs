@@ -79,7 +79,7 @@ fs.copyFileSync(linuxInitShSrc, linuxInitShDst);
 fs.chmodSync(linuxInitShDst, 0o755);
 
 // 4-1) 백업 앱 빌드 및 복사
-const backupAppDir = path.join(ROOT, '..', '..', 'backup');
+const backupAppDir = path.join(ROOT, '..', 'backup');
 const backupBuildScript = path.join(backupAppDir, 'build.sh');
 const backupBinary = path.join(backupAppDir, 'build', 'nanumpay-backup');
 
