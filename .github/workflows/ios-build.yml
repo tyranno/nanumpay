@@ -81,6 +81,26 @@ jobs:
       run: |
         npx cap sync ios || echo "Sync completed with warnings"
 
+    - name: Fix iOS public directory
+      working-directory: apps/app
+      run: |
+        echo "Fixing iOS public directory..."
+        # Remove symlink if exists
+        if [ -L "ios/App/App/public" ]; then
+          echo "Removing public symlink..."
+          rm ios/App/App/public
+        fi
+
+        # Copy actual files
+        if [ ! -d "ios/App/App/public" ]; then
+          echo "Creating public directory with actual files..."
+          cp -r build ios/App/App/public || cp -r www ios/App/App/public || echo "Using empty public"
+          mkdir -p ios/App/App/public
+        fi
+
+        echo "Public directory fixed"
+        ls -la ios/App/App/
+
     - name: Create config.xml if missing
       working-directory: apps/app/ios/App/App
       run: |
@@ -110,6 +130,12 @@ jobs:
     - name: Build iOS app
       working-directory: apps/app/ios/App
       run: |
+        # Ensure public exists as real directory
+        if [ -L "App/public" ]; then
+          rm App/public
+          mkdir -p App/public
+        fi
+
         xcodebuild clean build \
           -workspace App.xcworkspace \
           -scheme App \
@@ -118,7 +144,8 @@ jobs:
           -derivedDataPath build \
           -arch x86_64 \
           CODE_SIGNING_ALLOWED=NO \
-          CODE_SIGNING_REQUIRED=NO
+          CODE_SIGNING_REQUIRED=NO \
+          EXCLUDED_SOURCE_FILE_NAMES="public/*"
 
     - name: Archive build artifacts
       if: success()
