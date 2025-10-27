@@ -6,9 +6,32 @@ import { json } from '@sveltejs/kit';
  * @type {import('./$types').RequestHandler}
  */
 export async function GET() {
-	return json({
-		status: 'ok',
-		timestamp: new Date().toISOString(),
-		service: 'nanumpay-web'
+	return json(
+		{
+			status: 'ok',
+			timestamp: new Date().toISOString(),
+			service: 'nanumpay-web'
+		},
+		{
+			headers: {
+				'Access-Control-Allow-Origin': '*',
+				'Access-Control-Allow-Methods': 'GET, OPTIONS',
+				'Access-Control-Allow-Headers': 'Accept'
+			}
+		}
+	);
+}
+
+/**
+ * OPTIONS 메서드 지원 (CORS preflight)
+ * @type {import('./$types').RequestHandler}
+ */
+export async function OPTIONS() {
+	return new Response(null, {
+		headers: {
+			'Access-Control-Allow-Origin': '*',
+			'Access-Control-Allow-Methods': 'GET, OPTIONS',
+			'Access-Control-Allow-Headers': 'Accept'
+		}
 	});
 }
