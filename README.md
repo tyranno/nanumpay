@@ -112,6 +112,29 @@ pnpm app:build:android:release
 
 ---
 
+## 🚀 CI/CD (GitHub Actions)
+
+### 자동 빌드
+- **Android**: Push to main → APK 자동 빌드
+- **iOS**: Push to main → iOS 앱 자동 빌드 (macOS runner)
+
+### 수동 실행
+GitHub Actions 탭에서 "Run workflow" 클릭
+
+### 빌드 상태
+![Android Build](https://github.com/tyranno/nanumpay/actions/workflows/android-build.yml/badge.svg)
+![iOS Build](https://github.com/tyranno/nanumpay/actions/workflows/ios-build.yml/badge.svg)
+
+## 📱 모바일 앱 빌드
+
+### Android (Linux/Windows/Mac)
+- 로컬 빌드 가능: `pnpm app:build:android`
+- 자세한 가이드: [apps/app/BUILD_README.md](apps/app/BUILD_README.md)
+
+### iOS (Mac 필요)
+- 클라우드 빌드 권장 (Appflow, EAS Build)
+- 자세한 가이드: [apps/app/IOS_BUILD_GUIDE.md](apps/app/IOS_BUILD_GUIDE.md)
+
 ## 📖 추가 정보
 
 - 공통 개발 도구(Prettier, ESLint 등)는 루트에서 관리

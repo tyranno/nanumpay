@@ -29,3 +29,4 @@ vite.config.ts.timestamp-*
 /android/.gradle
 /android/app/build
 /android/capacitor-cordova-android-plugins
+build-outputs
