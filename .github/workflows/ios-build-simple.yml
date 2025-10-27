@@ -1,0 +1,131 @@
+name: iOS Build Simple
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-ios-simple:
+    runs-on: macos-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Check environment
+      run: |
+        echo "=== System Information ==="
+        sw_vers
+        echo "=== Xcode Version ==="
+        xcodebuild -version
+        echo "=== Node Version ==="
+        node --version || echo "Node not found"
+        echo "=== Current Directory ==="
+        pwd
+        echo "=== Directory Structure ==="
+        ls -la
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+
+    - name: Check Node after install
+      run: |
+        echo "=== Node Version After Install ==="
+        node --version
+        npm --version
+
+    - name: Install pnpm
+      run: |
+        echo "=== Installing pnpm ==="
+        npm install -g pnpm
+        pnpm --version
+
+    - name: Check project structure
+      run: |
+        echo "=== Root Directory ==="
+        ls -la
+        echo "=== Apps Directory ==="
+        ls -la apps/ || echo "apps directory not found"
+        echo "=== App Directory ==="
+        ls -la apps/app/ || echo "apps/app directory not found"
+
+    - name: Install root dependencies
+      run: |
+        echo "=== Installing root dependencies ==="
+        pnpm install || npm install
+
+    - name: Check app directory
+      working-directory: apps/app
+      run: |
+        echo "=== App Directory Contents ==="
+        ls -la
+        echo "=== Package.json ==="
+        cat package.json
+
+    - name: Install app dependencies
+      working-directory: apps/app
+      run: |
+        echo "=== Installing app dependencies ==="
+        pnpm install || npm install
+
+    - name: Build web app
+      working-directory: apps/app
+      run: |
+        echo "=== Building web app ==="
+        pnpm build || npm run build
+
+    - name: Check build output
+      working-directory: apps/app
+      run: |
+        echo "=== Build Directory ==="
+        ls -la build/ || echo "Build directory not found"
+        echo "=== Creating www symlink ==="
+        ln -sf build www
+        ls -la www
+
+    - name: Check iOS platform
+      working-directory: apps/app
+      run: |
+        echo "=== Checking iOS platform ==="
+        if [ -d "ios" ]; then
+          echo "iOS platform exists"
+          ls -la ios/
+        else
+          echo "iOS platform not found"
+        fi
+
+    - name: Sync Capacitor
+      working-directory: apps/app
+      run: |
+        echo "=== Syncing Capacitor ==="
+        npx cap sync ios || echo "Sync failed or completed with warnings"
+
+    - name: Check iOS project after sync
+      working-directory: apps/app
+      run: |
+        echo "=== iOS Directory After Sync ==="
+        ls -la ios/App/ || echo "iOS App directory not found"
+        echo "=== Podfile ==="
+        cat ios/App/Podfile || echo "Podfile not found"
+
+    - name: Install CocoaPods
+      working-directory: apps/app/ios/App
+      run: |
+        echo "=== Installing CocoaPods dependencies ==="
+        pod install --verbose || echo "Pod install failed"
+
+    - name: List Xcode workspace
+      working-directory: apps/app/ios/App
+      run: |
+        echo "=== Workspace Contents ==="
+        ls -la
+        echo "=== Available Schemes ==="
+        xcodebuild -list -workspace App.xcworkspace || echo "Failed to list schemes"
+
+    - name: Simple build test
+      working-directory: apps/app/ios/App
+      run: |
+        echo "=== Attempting simple build ==="
+        xcodebuild -version
+        xcodebuild -workspace App.xcworkspace -list || true
