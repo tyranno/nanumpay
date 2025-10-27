@@ -55,14 +55,20 @@ pnpm --filter nanumpay-web dev
 cd apps/app
 pnpm run dev
 
+# Android 환경 구축 (최초 1회)
+pnpm app:setup
+
+# Android Debug APK 빌드
+pnpm app:build:android
+
+# Android Release APK 빌드
+pnpm app:build:android:release
+
 # Capacitor 동기화
-pnpm --filter nanumpay-app cap:sync
+pnpm cap:sync
 
-# Android 빌드
-pnpm --filter nanumpay-app cap:android
-
-# iOS 빌드
-pnpm --filter nanumpay-app cap:ios
+# Android Studio 열기
+pnpm cap:android
 ```
 
 ---
@@ -77,14 +83,21 @@ pnpm --filter nanumpay-web build
 
 - `apps/web/build/` 또는 `dist/` 에 결과물이 생성됩니다.
 
-### App (Static + Capacitor Wrapper)
+### App (Android APK 빌드)
 
 ```bash
-pnpm --filter nanumpay-app build
-pnpm --filter nanumpay-app cap:sync
+# Android 빌드 환경 구축 (최초 1회)
+pnpm app:setup
+
+# Debug APK 빌드
+pnpm app:build:android
+
+# Release APK 빌드
+pnpm app:build:android:release
 ```
 
-- Android/iOS 프로젝트로 연결 후 빌드 가능
+- APK 파일 위치: `apps/app/build-outputs/nanumpay-debug-latest.apk`
+- 자세한 빌드 가이드: [apps/app/BUILD_README.md](apps/app/BUILD_README.md)
 
 ---
 

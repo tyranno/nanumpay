@@ -19,7 +19,15 @@
     "build:app": "pnpm --filter nanumpay-app build",
     "cap:sync": "pnpm --filter nanumpay-app cap:sync",
     "cap:android": "pnpm --filter nanumpay-app cap:android",
-    "cap:ios": "pnpm --filter nanumpay-app cap:ios"
+    "cap:ios": "pnpm --filter nanumpay-app cap:ios",
+    "android:setup": "cd apps/app && ./setup-android-env.sh",
+    "android:build": "cd apps/app && ./auto-build.sh",
+    "android:build:debug": "cd apps/app && ./auto-build.sh debug",
+    "android:build:release": "cd apps/app && ./auto-build.sh release",
+    "android:clean": "cd apps/app/android && ./gradlew clean",
+    "app:setup": "pnpm android:setup",
+    "app:build:android": "pnpm android:build:debug",
+    "app:build:android:release": "pnpm android:build:release"
   },
   "devDependencies": {
     "form-data": "^4.0.4",

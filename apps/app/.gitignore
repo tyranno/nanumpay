@@ -21,3 +21,11 @@ Thumbs.db
 # Vite
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Android Build
+/build-outputs
+/www
+/android/local.properties
+/android/.gradle
+/android/app/build
+/android/capacitor-cordova-android-plugins

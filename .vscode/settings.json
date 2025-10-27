@@ -37,6 +37,7 @@
     "a11y-click-events-have-key-events": "ignore",
     "a11y_no_static_element_interactions": "ignore",
     "a11y_no_noninteractive_tabindex": "ignore",
-    "a11y_label_has_associated_control": "ignore"
+    "a11y_label_has_associated_control": "ignore",
+    "ignore a11y_consider_explicit_label": "ignore"
   }
 }

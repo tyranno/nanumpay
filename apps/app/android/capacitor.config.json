@@ -1,0 +1,8 @@
+{
+  "appId": "com.nanumpay.app",
+  "appName": "NanumPay",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  }
+}
