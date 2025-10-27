@@ -2,29 +2,49 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { browser } from '$app/environment';
+	import { DEFAULT_SERVER_URL } from '$lib/config.js';
+	import { checkServerConnection } from '$lib/server-check.js';
 
-	let isLoading = true;
+	let isChecking = true;
 
 	onMount(async () => {
 		if (browser) {
-			// Capacitor Storage 로드
-			const { Storage } = await import('@capacitor/storage');
-
-			// 저장된 서버 주소 확인
-			const { value } = await Storage.get({ key: 'serverUrl' });
-
-			if (value) {
-				// 이미 서버 주소가 있으면 바로 해당 웹으로 이동
-				window.location.href = value;
-			} else {
-				// 서버 주소 없으면 설정 화면으로 이동
-				goto('/app-setup');
-			}
+			await initializeApp();
 		}
-		isLoading = false;
 	});
+
+	async function initializeApp() {
+		// Capacitor Preferences 로드
+		const { Preferences } = await import('@capacitor/preferences');
+
+		// 저장된 서버 주소 확인
+		const { value } = await Preferences.get({ key: 'serverUrl' });
+
+		let urlToCheck = value || DEFAULT_SERVER_URL;
+
+		// 서버 연결 확인
+		const result = await checkServerConnection(urlToCheck);
+
+		if (result.success) {
+			// 연결 성공 - 저장되지 않았다면 저장
+			if (!value) {
+				await Preferences.set({ key: 'serverUrl', value: DEFAULT_SERVER_URL });
+			}
+
+			// 웹 서버로 완전히 이동
+			window.location.href = result.url;
+		} else {
+			// 연결 실패 - 설정 화면으로 이동
+			const errorMsg = result.error || '서버에 연결할 수 없습니다';
+			goto('/app-setup?error=' + encodeURIComponent(errorMsg));
+		}
+	}
 </script>
 
-{#if isLoading}
-	<div class="flex h-screen items-center justify-center text-gray-500">Loading...</div>
-{/if}
+<div class="flex h-screen flex-col items-center justify-center gap-4 text-gray-500">
+	<div class="text-lg font-semibold">NanumPay</div>
+	{#if isChecking}
+		<div class="text-sm">서버 연결 확인 중...</div>
+		<div class="h-1 w-32 animate-pulse rounded-full bg-blue-500"></div>
+	{/if}
+</div>
