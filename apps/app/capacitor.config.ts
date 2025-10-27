@@ -5,7 +5,12 @@ const config: CapacitorConfig = {
   appName: 'NanumPay',
   webDir: 'build',
   server: {
-    androidScheme: 'https'
+    // HTTP 허용 (개발 환경)
+    androidScheme: 'http',
+    // cleartext HTTP 트래픽 허용
+    cleartext: true,
+    // 외부 네트워크 접근 허용
+    allowNavigation: ['*']
   }
 };
 

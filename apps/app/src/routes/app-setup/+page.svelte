@@ -10,6 +10,11 @@
 	let errorMessage = '';
 	let isChecking = false;
 	let successMessage = '';
+	let debugInfo = [];
+
+	function addDebug(msg) {
+		debugInfo = [...debugInfo, `[${new Date().toLocaleTimeString()}] ${msg}`];
+	}
 
 	onMount(async () => {
 		if (browser) {
@@ -32,43 +37,60 @@
 	});
 
 	async function testConnection() {
+		addDebug('연결 테스트 시작');
 		if (!serverUrl) {
 			errorMessage = 'URL을 입력해주세요';
+			addDebug('에러: URL 미입력');
 			return;
 		}
 
+		addDebug(`테스트할 URL: ${serverUrl}`);
 		errorMessage = '';
 		successMessage = '';
 		isChecking = true;
 
+		addDebug('서버 연결 확인 중...');
 		const result = await checkServerConnection(serverUrl);
 		isChecking = false;
 
+		addDebug(`연결 결과: ${result.success ? '성공' : '실패'}`);
+		addDebug(`result 객체: ${JSON.stringify(result)}`);
 		if (result.success) {
 			successMessage = '서버 연결 성공!';
+			addDebug('✅ 서버 연결 성공!');
 		} else {
 			errorMessage = result.error || '서버에 연결할 수 없습니다';
+			addDebug(`❌ 에러 메시지: ${result.error || '없음'}`);
+			addDebug(`❌ URL: ${result.url || '없음'}`);
 		}
 	}
 
 	async function saveUrl() {
+		addDebug('저장 및 접속 시작');
 		if (!serverUrl) {
 			errorMessage = 'URL을 입력해주세요';
+			addDebug('에러: URL 미입력');
 			return;
 		}
 
+		addDebug(`저장할 URL: ${serverUrl}`);
 		// 서버 연결 테스트
 		errorMessage = '';
 		successMessage = '';
 		isChecking = true;
 
+		addDebug('서버 연결 확인 중...');
 		const result = await checkServerConnection(serverUrl);
 		isChecking = false;
 
+		addDebug(`연결 결과: ${result.success ? '성공' : '실패'}`);
+		addDebug(`result 객체: ${JSON.stringify(result)}`);
 		if (result.success) {
 			// 저장
+			addDebug('Preferences에 URL 저장 중...');
 			await Preferences.set({ key: 'serverUrl', value: serverUrl });
 			successMessage = '저장되었습니다. 접속 중...';
+			addDebug('✅ 저장 완료, 메인 페이지로 이동');
 
 			// 잠시 후 메인 페이지로 이동
 			setTimeout(() => {
@@ -76,6 +98,8 @@
 			}, 500);
 		} else {
 			errorMessage = result.error || '서버에 연결할 수 없습니다';
+			addDebug(`❌ 에러 메시지: ${result.error || '없음'}`);
+			addDebug(`❌ URL: ${result.url || '없음'}`);
 		}
 	}
 </script>
@@ -131,5 +155,17 @@
 		<div class="text-center text-xs text-gray-500">
 			기본 서버 주소: {DEFAULT_SERVER_URL}
 		</div>
+
+		<!-- 디버그 정보 -->
+		{#if debugInfo.length > 0}
+			<div class="mt-4 w-full max-w-md rounded border border-gray-300 bg-gray-50 p-3">
+				<div class="mb-2 text-xs font-bold text-gray-700">🐛 디버그 로그</div>
+				<div class="max-h-32 overflow-y-auto space-y-1 text-xs font-mono">
+					{#each debugInfo as info}
+						<div class="text-gray-600">{info}</div>
+					{/each}
+				</div>
+			</div>
+		{/if}
 	</div>
 </div>

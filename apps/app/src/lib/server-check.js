@@ -58,21 +58,31 @@ export async function checkServerConnection(url) {
 		} catch (fetchError) {
 			clearTimeout(timeoutId);
 			console.error('[Health Check] fetch 에러:', fetchError);
+			console.error('[Health Check] 에러 이름:', fetchError.name);
+			console.error('[Health Check] 에러 메시지:', fetchError.message);
+			console.error('[Health Check] 에러 타입:', typeof fetchError);
 
 			if (fetchError.name === 'AbortError') {
 				console.log('[Health Check] 실패: 타임아웃');
 				return {
 					success: false,
 					url: serverUrl.toString(),
-					error: '서버 응답 시간 초과'
+					error: '서버 응답 시간 초과 (10초)'
 				};
 			}
 
-			console.log('[Health Check] 실패: 연결 불가');
+			// 더 자세한 에러 정보 수집
+			const errorDetails = {
+				name: fetchError.name || 'Unknown',
+				message: fetchError.message || '알 수 없는 오류',
+				type: fetchError.constructor?.name || typeof fetchError
+			};
+
+			console.log('[Health Check] 실패: 연결 불가', errorDetails);
 			return {
 				success: false,
 				url: serverUrl.toString(),
-				error: '서버에 연결할 수 없습니다: ' + fetchError.message
+				error: `연결 실패 [${errorDetails.name}]: ${errorDetails.message}`
 			};
 		}
 	} catch (error) {
