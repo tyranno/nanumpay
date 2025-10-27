@@ -86,14 +86,13 @@ jobs:
       run: |
         if [ ! -f "config.xml" ]; then
           echo "Creating config.xml..."
-          cat > config.xml << 'EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<widget version="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0">
-  <access origin="*" />
-  <content src="index.html" />
-  <name>NanumPay</name>
-</widget>
-EOF
+          echo '<?xml version="1.0" encoding="UTF-8"?>' > config.xml
+          echo '<widget version="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0">' >> config.xml
+          echo '  <access origin="*" />' >> config.xml
+          echo '  <content src="index.html" />' >> config.xml
+          echo '  <name>NanumPay</name>' >> config.xml
+          echo '</widget>' >> config.xml
+          echo "config.xml created"
         else
           echo "config.xml already exists"
         fi
