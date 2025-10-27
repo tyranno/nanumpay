@@ -6,18 +6,22 @@ import { CONNECTION_TIMEOUT } from './config.js';
  * @returns {Promise<{success: boolean, url: string, error?: string, data?: any}>}
  */
 export async function checkServerConnection(url) {
+	console.log('[Health Check] 시작:', url);
 	try {
 		// URL 형식 검증
 		const serverUrl = new URL(url);
+		console.log('[Health Check] URL 파싱 성공:', serverUrl.toString());
 
 		// Health Check API 엔드포인트
 		const healthCheckUrl = new URL('/api/health', serverUrl);
+		console.log('[Health Check] API URL:', healthCheckUrl.toString());
 
 		// fetch로 서버 응답 확인 (타임아웃 설정)
 		const controller = new AbortController();
 		const timeoutId = setTimeout(() => controller.abort(), CONNECTION_TIMEOUT);
 
 		try {
+			console.log('[Health Check] fetch 시작...');
 			const response = await fetch(healthCheckUrl.toString(), {
 				method: 'GET',
 				signal: controller.signal,
@@ -27,12 +31,15 @@ export async function checkServerConnection(url) {
 			});
 
 			clearTimeout(timeoutId);
+			console.log('[Health Check] 응답 받음:', response.status, response.ok);
 
 			if (response.ok) {
 				const data = await response.json();
+				console.log('[Health Check] 응답 데이터:', data);
 
 				// Health Check API 응답 검증
 				if (data.status === 'ok') {
+					console.log('[Health Check] 성공!');
 					return {
 						success: true,
 						url: serverUrl.toString(),
@@ -41,6 +48,7 @@ export async function checkServerConnection(url) {
 				}
 			}
 
+			console.log('[Health Check] 실패: 응답 오류');
 			return {
 				success: false,
 				url: serverUrl.toString(),
@@ -49,8 +57,10 @@ export async function checkServerConnection(url) {
 
 		} catch (fetchError) {
 			clearTimeout(timeoutId);
+			console.error('[Health Check] fetch 에러:', fetchError);
 
 			if (fetchError.name === 'AbortError') {
+				console.log('[Health Check] 실패: 타임아웃');
 				return {
 					success: false,
 					url: serverUrl.toString(),
@@ -58,13 +68,15 @@ export async function checkServerConnection(url) {
 				};
 			}
 
+			console.log('[Health Check] 실패: 연결 불가');
 			return {
 				success: false,
 				url: serverUrl.toString(),
-				error: '서버에 연결할 수 없습니다'
+				error: '서버에 연결할 수 없습니다: ' + fetchError.message
 			};
 		}
 	} catch (error) {
+		console.error('[Health Check] URL 파싱 에러:', error);
 		return {
 			success: false,
 			url,
