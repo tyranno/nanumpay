@@ -2,12 +2,27 @@ name: iOS Build
 
 on:
   workflow_dispatch:  # 수동 실행
-  push:
-    branches:
-      - main
-    paths:
-      - 'apps/app/**'
-      - '.github/workflows/ios-build.yml'
+    inputs:
+      build_type:
+        description: '빌드 타입'
+        required: true
+        default: 'debug'
+        type: choice
+        options:
+          - debug
+          - release
+      deploy_testflight:
+        description: 'TestFlight 배포'
+        required: false
+        default: false
+        type: boolean
+
+  # push 시 자동 빌드는 주석 처리 (필요시 활성화)
+  # push:
+  #   branches:
+  #     - main
+  #   paths:
+  #     - 'apps/app/**'
 
 jobs:
   build-ios:
