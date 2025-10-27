@@ -6,7 +6,8 @@
 set -e
 
 # 설정
-PROJECT_ROOT="/home/doowon/project/my/nanumpay/apps/app"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$SCRIPT_DIR"
 BUILD_OUTPUT_DIR="$PROJECT_ROOT/build-outputs"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 LOG_FILE="$BUILD_OUTPUT_DIR/build_$TIMESTAMP.log"
@@ -77,6 +78,14 @@ pnpm build 2>&1 | tee -a "$LOG_FILE"
 # 4. Capacitor 동기화
 log_info "Capacitor Android 동기화..."
 npx cap sync android 2>&1 | tee -a "$LOG_FILE"
+
+# 4.5. Capacitor 버그 수정 (cdvPluginPostBuildExtras)
+if [ -f "android/capacitor-cordova-android-plugins/build.gradle" ]; then
+    if ! grep -q "cdvPluginPostBuildExtras = \[\]" "android/capacitor-cordova-android-plugins/build.gradle"; then
+        log_info "Capacitor 빌드 스크립트 버그 수정 중..."
+        sed -i '/cordovaAndroidVersion/a\    cdvPluginPostBuildExtras = []' android/capacitor-cordova-android-plugins/build.gradle
+    fi
+fi
 
 # 5. Android 디렉토리 존재 확인
 if [ ! -d "android" ]; then
