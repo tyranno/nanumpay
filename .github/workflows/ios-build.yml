@@ -81,6 +81,23 @@ jobs:
       run: |
         npx cap sync ios || echo "Sync completed with warnings"
 
+    - name: Create config.xml if missing
+      working-directory: apps/app/ios/App/App
+      run: |
+        if [ ! -f "config.xml" ]; then
+          echo "Creating config.xml..."
+          cat > config.xml << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<widget version="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0">
+  <access origin="*" />
+  <content src="index.html" />
+  <name>NanumPay</name>
+</widget>
+EOF
+        else
+          echo "config.xml already exists"
+        fi
+
     - name: Install CocoaPods dependencies
       working-directory: apps/app/ios/App
       run: |
