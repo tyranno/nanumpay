@@ -36,3 +36,5 @@ work_logs/
 
 # Backup binary (large file)
 apps/backup/build/
+# Build outputs
+apps/app/build-outputs/
