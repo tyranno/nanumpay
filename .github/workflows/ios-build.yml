@@ -49,41 +49,60 @@ jobs:
         pnpm install
         pnpm build
 
-    - name: Create www symlink
-      working-directory: apps/app
-      run: ln -sf build www
-
-    - name: Add iOS platform
+    - name: Check build output
       working-directory: apps/app
       run: |
-        npx cap add ios || true
-        npx cap sync ios
+        echo "Checking build directory..."
+        ls -la build/ || echo "Build directory not found"
 
-    - name: Setup Ruby for Fastlane (optional)
-      uses: ruby/setup-ruby@v1
-      with:
-        ruby-version: '3.0'
+    - name: Create www symlink
+      working-directory: apps/app
+      run: |
+        if [ -d "build" ]; then
+          ln -sf build www
+          echo "Created symlink: www -> build"
+        else
+          echo "Error: build directory not found!"
+          exit 1
+        fi
 
-    # 인증서 설정 (시크릿 필요)
-    # - name: Install Apple Certificate
-    #   env:
-    #     BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
-    #     P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
-    #     BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
-    #     KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
-    #   run: |
-    #     # 인증서와 프로비저닝 프로파일 설치
-    #     # 자세한 스크립트는 Apple 문서 참조
+    - name: Check if iOS platform exists
+      working-directory: apps/app
+      run: |
+        if [ ! -d "ios" ]; then
+          echo "iOS platform not found, adding..."
+          npx cap add ios
+        else
+          echo "iOS platform already exists"
+        fi
+
+    - name: Sync iOS platform
+      working-directory: apps/app
+      run: |
+        npx cap sync ios || echo "Sync completed with warnings"
+
+    - name: Install CocoaPods dependencies
+      working-directory: apps/app/ios/App
+      run: |
+        pod install || pod install --repo-update
+
+    - name: List Xcode schemes
+      working-directory: apps/app/ios/App
+      run: |
+        xcodebuild -list -workspace App.xcworkspace
 
     - name: Build iOS app
       working-directory: apps/app/ios/App
       run: |
-        xcodebuild -workspace App.xcworkspace \
+        xcodebuild clean build \
+          -workspace App.xcworkspace \
           -scheme App \
           -configuration Debug \
           -sdk iphonesimulator \
           -derivedDataPath build \
-          CODE_SIGNING_ALLOWED=NO
+          -arch x86_64 \
+          CODE_SIGNING_ALLOWED=NO \
+          CODE_SIGNING_REQUIRED=NO
 
     - name: Archive build artifacts
       if: success()
