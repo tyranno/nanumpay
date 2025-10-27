@@ -1,0 +1,61 @@
+name: iOS Test Minimal
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-minimal:
+    runs-on: macos-latest
+
+    steps:
+    - name: Test echo
+      run: echo "Starting workflow..."
+
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: List root files
+      run: ls -la
+
+    - name: Check apps directory
+      run: |
+        if [ -d "apps" ]; then
+          echo "apps directory exists"
+          ls -la apps/
+        else
+          echo "ERROR: apps directory not found!"
+          exit 1
+        fi
+
+    - name: Check app directory
+      run: |
+        if [ -d "apps/app" ]; then
+          echo "apps/app directory exists"
+          ls -la apps/app/
+        else
+          echo "ERROR: apps/app directory not found!"
+          exit 1
+        fi
+
+    - name: Check package.json
+      run: |
+        if [ -f "package.json" ]; then
+          echo "Root package.json found"
+          cat package.json | head -20
+        else
+          echo "ERROR: package.json not found!"
+          exit 1
+        fi
+
+    - name: Setup Node.js 20
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Check Node
+      run: |
+        node --version || echo "Node not installed"
+        npm --version || echo "npm not installed"
+
+    - name: Final message
+      run: echo "Basic checks completed"
