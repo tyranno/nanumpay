@@ -3,7 +3,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 const config: CapacitorConfig = {
   appId: 'com.nanumpay.app',
   appName: 'NanumPay',
-  webDir: 'www',
+  webDir: 'build',
   server: {
     androidScheme: 'https'
   }
