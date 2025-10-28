@@ -155,17 +155,5 @@
 		<div class="text-center text-xs text-gray-500">
 			기본 서버 주소: {DEFAULT_SERVER_URL}
 		</div>
-
-		<!-- 디버그 정보 -->
-		{#if debugInfo.length > 0}
-			<div class="mt-4 w-full max-w-md rounded border border-gray-300 bg-gray-50 p-3">
-				<div class="mb-2 text-xs font-bold text-gray-700">🐛 디버그 로그</div>
-				<div class="max-h-32 overflow-y-auto space-y-1 text-xs font-mono">
-					{#each debugInfo as info}
-						<div class="text-gray-600">{info}</div>
-					{/each}
-				</div>
-			</div>
-		{/if}
 	</div>
 </div>
