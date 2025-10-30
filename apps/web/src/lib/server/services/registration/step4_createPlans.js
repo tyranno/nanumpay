@@ -75,18 +75,22 @@ export async function executeStep4(promoted, targets, gradePayments, monthlyReg,
       }
 
     } else {
-      // 미승급 경우: F1 Initial 계획만
+      // 미승급 경우: 현재 등급으로 Initial 계획 생성
+
+      // ⭐ User 모델에서 실제 등급 확인
+      const user = await User.findById(userId);
+      const currentGrade = user?.grade || 'F1';
 
       const initialPlan = await createInitialPaymentPlan(
         userId,
         userName,
-        'F1',
+        currentGrade,  // ⭐ 실제 등급 사용
         registrationDate
       );
       registrantPlans.push({
         userId,
         type: 'initial',
-        grade: 'F1',
+        grade: currentGrade,  // ⭐ 실제 등급 사용
         plan: initialPlan._id
       });
     }
