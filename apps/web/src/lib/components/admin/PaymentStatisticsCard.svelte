@@ -323,6 +323,7 @@
 							<thead>
 								<tr class="header-row-1">
 									<th class="sticky-col">등급</th>
+									<th class="sticky-col-total">총액</th>
 									{#each periodColumns as column}
 										<th class="period-header">{column.label}</th>
 									{/each}
@@ -330,9 +331,16 @@
 							</thead>
 							<tbody>
 								{#each ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'] as grade}
+									{@const gradeTotalAmount = periodColumns.reduce((sum, column) => {
+										const gradeData = getGradeDataForPeriod(grade, column);
+										return sum + gradeData.amount;
+									}, 0)}
 									<tr class="data-row">
 										<td class="sticky-col">
 											<GradeBadge {grade} size="sm" />
+										</td>
+										<td class="sticky-col-total text-right text-blue-900 font-bold">
+											{(Math.floor(gradeTotalAmount / 100) * 100).toLocaleString()}
 										</td>
 										{#each periodColumns as column}
 											{@const gradeData = getGradeDataForPeriod(grade, column)}
@@ -342,23 +350,36 @@
 										{/each}
 									</tr>
 								{/each}
-								<tr class="total-row">
-									<td class="sticky-col">합계</td>
-									{#each periodColumns as column}
-										{@const totalCount = getTotalTargetsForRange(column.data)}
-										{@const totalAmount = (() => {
-											let sum = 0;
-											['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'].forEach(g => {
-												const data = getGradeDataForPeriod(g, column);
-												sum += data.amount;
-											});
-											return sum;
-										})()}
-										<td class="data-col text-center">
-											{(Math.floor(totalAmount / 100) * 100).toLocaleString()}
+								{#each [1] as _}
+									{@const grandTotalAmount = periodColumns.reduce((sum, column) => {
+										let colSum = 0;
+										['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'].forEach(g => {
+											const data = getGradeDataForPeriod(g, column);
+											colSum += data.amount;
+										});
+										return sum + colSum;
+									}, 0)}
+									<tr class="total-row">
+										<td class="sticky-col">합계</td>
+										<td class="sticky-col-total text-right text-blue-900 font-bold">
+											{(Math.floor(grandTotalAmount / 100) * 100).toLocaleString()}
 										</td>
-									{/each}
-								</tr>
+										{#each periodColumns as column}
+											{@const totalCount = getTotalTargetsForRange(column.data)}
+											{@const totalAmount = (() => {
+												let sum = 0;
+												['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'].forEach(g => {
+													const data = getGradeDataForPeriod(g, column);
+													sum += data.amount;
+												});
+												return sum;
+											})()}
+											<td class="data-col text-center">
+												{(Math.floor(totalAmount / 100) * 100).toLocaleString()}
+											</td>
+										{/each}
+									</tr>
+								{/each}
 							</tbody>
 						</table>
 					</div>
@@ -372,6 +393,7 @@
 								<!-- 2단 헤더: 월 + 주차 -->
 								<tr class="header-row-1">
 									<th rowspan="2" class="sticky-col">등급</th>
+									<th rowspan="2" class="sticky-col-total">총액</th>
 									{#each monthGroups as group}
 										<th colspan={group.weeks.length} class="month-header">{group.monthLabel}</th>
 									{/each}
@@ -384,9 +406,16 @@
 							</thead>
 							<tbody>
 								{#each ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'] as grade}
+									{@const gradeTotalAmount = periodColumns.reduce((sum, column) => {
+										const gradeData = getGradeDataForPeriod(grade, column);
+										return sum + gradeData.amount;
+									}, 0)}
 									<tr class="data-row">
 										<td class="sticky-col">
 											<GradeBadge {grade} size="sm" />
+										</td>
+										<td class="sticky-col-total text-right text-blue-900 font-bold">
+											{(Math.floor(gradeTotalAmount / 100) * 100).toLocaleString()}
 										</td>
 										{#each periodColumns as column}
 											{@const gradeData = getGradeDataForPeriod(grade, column)}
@@ -396,23 +425,36 @@
 										{/each}
 									</tr>
 								{/each}
-								<tr class="total-row">
-									<td class="sticky-col">합계</td>
-									{#each periodColumns as column}
-										{@const totalCount = column.data.userCount || 0}
-										{@const totalAmount = (() => {
-											let sum = 0;
-											['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'].forEach(g => {
-												const data = getGradeDataForPeriod(g, column);
-												sum += data.amount;
-											});
-											return sum;
-										})()}
-										<td class="data-col text-center">
-											{(Math.floor(totalAmount / 100) * 100).toLocaleString()}({totalCount})
+								{#each [1] as _}
+									{@const grandTotalAmount = periodColumns.reduce((sum, column) => {
+										let colSum = 0;
+										['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'].forEach(g => {
+											const data = getGradeDataForPeriod(g, column);
+											colSum += data.amount;
+										});
+										return sum + colSum;
+									}, 0)}
+									<tr class="total-row">
+										<td class="sticky-col">합계</td>
+										<td class="sticky-col-total text-right text-blue-900 font-bold">
+											{(Math.floor(grandTotalAmount / 100) * 100).toLocaleString()}
 										</td>
-									{/each}
-								</tr>
+										{#each periodColumns as column}
+											{@const totalCount = column.data.userCount || 0}
+											{@const totalAmount = (() => {
+												let sum = 0;
+												['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'].forEach(g => {
+													const data = getGradeDataForPeriod(g, column);
+													sum += data.amount;
+												});
+												return sum;
+											})()}
+											<td class="data-col text-center">
+												{(Math.floor(totalAmount / 100) * 100).toLocaleString()}({totalCount})
+											</td>
+										{/each}
+									</tr>
+								{/each}
 							</tbody>
 						</table>
 					</div>
@@ -480,6 +522,31 @@
 	.total-row .sticky-col {
 		background: #f3f4f6 !important;
 		font-weight: bold;
+	}
+
+	/* 고정 컬럼 (총액) */
+	.sticky-col-total {
+		position: sticky !important;
+		left: 80px;
+		z-index: 10;
+		background: white !important;
+		font-weight: 600;
+		min-width: 120px;
+		width: 120px;
+	}
+
+	.header-row-1 .sticky-col-total {
+		background: #f3f4f6 !important;
+		z-index: 20;
+	}
+
+	.total-row .sticky-col-total {
+		background: #f3f4f6 !important;
+		font-weight: bold;
+	}
+
+	.data-row:hover .sticky-col-total {
+		background: #f9fafb !important;
 	}
 
 	/* 데이터 컬럼 */

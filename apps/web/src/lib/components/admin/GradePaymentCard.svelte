@@ -444,6 +444,7 @@
 									<!-- 주간 뷰 또는 기간 선택 시 -->
 									<tr class="header-row-1">
 										<th rowspan="2" class="sticky-col">등급</th>
+										<th rowspan="2" class="sticky-col-total">총액</th>
 										{#each periodColumns as column}
 											<th colspan="2" class="period-header">{column.label}</th>
 										{/each}
@@ -487,9 +488,16 @@
 								{:else}
 									<!-- 주간 뷰 또는 기간 선택 시 -->
 									{#each ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'] as grade}
+										{@const gradeTotalAmount = periodColumns.reduce((sum, column) => {
+											const gradeData = getGradeDataForPeriod(grade, column);
+											return sum + gradeData.amount;
+										}, 0)}
 										<tr class="data-row">
 											<td class="sticky-col">
 												<GradeBadge {grade} size="sm" />
+											</td>
+											<td class="sticky-col-total text-right text-blue-900 font-bold">
+												{gradeTotalAmount.toLocaleString()}
 											</td>
 											{#each periodColumns as column}
 												{@const gradeData = getGradeDataForPeriod(grade, column)}
@@ -504,6 +512,15 @@
 									{/each}
 									<tr class="total-row">
 										<td class="sticky-col">합계</td>
+										{@const grandTotalAmount = periodColumns.reduce((sum, column) => {
+											const totalAmount = column.type === 'monthly'
+												? column.data.effectiveRevenue || 0
+												: column.data.totalAmount || 0;
+											return sum + totalAmount;
+										}, 0)}
+										<td class="sticky-col-total text-right text-blue-900 font-bold">
+											{grandTotalAmount.toLocaleString()}
+										</td>
 										{#each periodColumns as column}
 											{@const totalCount = column.type === 'monthly'
 												? getTotalTargetsForRange(column.data)
@@ -597,6 +614,31 @@
 	.total-row .sticky-col {
 		background: #f3f4f6 !important;
 		font-weight: bold;
+	}
+
+	/* 고정 컬럼 (총액) */
+	.sticky-col-total {
+		position: sticky !important;
+		left: 80px;
+		z-index: 10;
+		background: white !important;
+		font-weight: 600;
+		min-width: 120px;
+		width: 120px;
+	}
+
+	.header-row-1 .sticky-col-total {
+		background: #f3f4f6 !important;
+		z-index: 20;
+	}
+
+	.total-row .sticky-col-total {
+		background: #f3f4f6 !important;
+		font-weight: bold;
+	}
+
+	.data-row:hover .sticky-col-total {
+		background: #f9fafb !important;
 	}
 
 	/* 데이터 컬럼 */
