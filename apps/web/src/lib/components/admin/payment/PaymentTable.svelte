@@ -18,6 +18,7 @@
 	export let monthlyTotals = {}; // 월별 총계 (API에서 받은 전체 데이터)
 
 	// Store에서 컬럼 표시 설정 가져오기
+	$: showGradeInfoColumn = $paymentPageFilterState.showGradeInfoColumn; // ⭐ 신규
 	$: showTaxColumn = $paymentPageFilterState.showTaxColumn;
 	$: showNetColumn = $paymentPageFilterState.showNetColumn;
 	$: showPlannerColumn = $paymentPageFilterState.showPlannerColumn;
@@ -130,17 +131,16 @@
 							<th rowspan="2" class="th-base th-sticky-4" style="left: {accountLeft}px;">계좌번호</th>
 						{/if}
 						{#if filterType === 'period'}
-					<th colspan={2 + (showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0)} class="th-total">기간 합계</th>
+					<th colspan={1 + (showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0)} class="th-total">기간 합계</th>
 				{/if}
 				{#each weeklyColumns as week}
-					<th colspan={2 + (showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0)} class="th-week">{week.label}</th>
+					<th colspan={(showGradeInfoColumn ? 1 : 0) + 1 + (showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0)} class="th-week period-border">{week.label}</th>
 						{/each}
 					</tr>
 					<!-- 두 번째 헤더 행 -->
 					<tr>
-						{#if filterType === 'period'}
-					<th class="th-sub th-total-sub th-grade-info">등급(회수)</th>
-					<th class="th-sub th-total-sub">지급액</th>
+					{#if filterType === 'period'}
+				<th class="th-sub th-total-sub">지급액</th>
 					{#if showTaxColumn}
 						<th class="th-sub th-total-sub th-tax">원천징수(3.3%)</th>
 					{/if}
@@ -149,8 +149,10 @@
 					{/if}
 				{/if}
 				{#each weeklyColumns as week}
-					<th class="th-sub th-grade-info">등급(회수)</th>
-					<th class="th-sub">지급액</th>
+					{#if showGradeInfoColumn}
+						<th class="th-sub th-grade-info">등급(회수)</th>
+					{/if}
+					<th class="th-sub{showGradeInfoColumn ? '' : ' period-border'}">지급액</th>
 							{#if showTaxColumn}
 								<th class="th-sub th-tax">원천징수(3.3%)</th>
 							{/if}
@@ -192,7 +194,6 @@
 								{/if}
 								<!-- 기간 합계 (기간 선택일 때만) -->
 				{#if filterType === 'period'}
-					<td class="td-total td-grade-info">{userTotal.gradeInfo || '-'}</td>
 					<td class="td-total">{formatAmount(userTotal.totalAmount)}</td>
 					{#if showTaxColumn}
 						<td class="td-total td-tax">{formatAmount(userTotal.totalTax)}</td>
@@ -207,11 +208,13 @@
 											? `month_${week.month}`
 											: `${week.year}_${week.month}_${week.week}`}
 									{@const payment = user.payments[key]}
-				<td class="td-grade-info">
-					{payment?.gradeInfo || '-'}
-				</td>
+				{#if showGradeInfoColumn}
+					<td class="td-grade-info">
+						{payment?.gradeInfo || '-'}
+					</td>
+				{/if}
 				<td
-					class="td-amount"
+					class="td-amount{showGradeInfoColumn ? '' : ' period-border'}"
 					title={payment?.installmentDetails
 			? payment.installmentDetails
 				.map((d) => `${d.revenueMonth} ${d.week}회차`)
@@ -236,7 +239,6 @@
 						<td colspan={labelColspan} class="grand-total-label">총금액</td>
 							<!-- 기간 합계 컬럼 -->
 			{#if filterType === 'period'}
-				<td class="grand-total-value">-</td>
 				<td class="grand-total-value">{formatAmount(grandTotal.amount)}</td>
 				{#if showTaxColumn}
 					<td class="grand-total-value grand-total-tax">{formatAmount(grandTotal.tax)}</td>
@@ -248,8 +250,10 @@
 			<!-- 주차별/월별 총계 컬럼 -->
 			{#each weeklyColumns as column}
 				{@const columnTotal = getColumnTotal(column)}
-				<td class="grand-total-value">-</td>
-				<td class="grand-total-value">{formatAmount(columnTotal.totalAmount)}</td>
+				{#if showGradeInfoColumn}
+					<td class="grand-total-value period-border">-</td>
+				{/if}
+				<td class="grand-total-value{showGradeInfoColumn ? '' : ' period-border'}">{formatAmount(columnTotal.totalAmount)}</td>
 								{#if showTaxColumn}
 									<td class="grand-total-value grand-total-tax">{formatAmount(columnTotal.totalTax)}</td>
 								{/if}
@@ -260,7 +264,7 @@
 						</tr>
 					{:else}
 					{@const fixedCols = 2 + (showPlannerColumn ? 1 : 0) + (showBankColumn ? 1 : 0) + (showAccountColumn ? 1 : 0)}
-					{@const colsPerWeek = 2 + (showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0)}
+					{@const colsPerWeek = (showGradeInfoColumn ? 1 : 0) + 1 + (showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0)}
 					{@const periodCols = filterType === 'period' ? colsPerWeek : 0}
 					{@const totalCols = fixedCols + periodCols + weeklyColumns.length * colsPerWeek}
 					<tr>
@@ -511,14 +515,17 @@
 
 	/* 등급(회수) 셀 */
 	.th-grade-info {
-		@apply bg-indigo-100 min-w-[120px];
+		@apply bg-indigo-100;
 		@apply font-semibold text-indigo-800;
+		@apply min-w-[80px] max-w-[100px];
+		border-left: 2px solid #3b82f6 !important; /* ⭐ 파란색 경계선 (2px) */
 	}
 
 	.td-grade-info {
 		@apply border-b border-r border-gray-300 bg-indigo-50;
 		@apply whitespace-nowrap p-1.5 text-center text-xs;
 		@apply text-indigo-700 font-medium;
+		border-left: 2px solid #3b82f6 !important; /* ⭐ 파란색 경계선 (2px) */
 	}
 
 	.data-row:hover .td-grade-info {
@@ -532,6 +539,11 @@
 
 	.data-row:hover .td-total.td-grade-info {
 		@apply bg-purple-100;
+	}
+
+	/* 기간 경계선 */
+	.period-border {
+		border-left: 2px solid #3b82f6 !important; /* ⭐ 파란색 경계선 (2px) */
 	}
 
 	/* 등급 아이콘 */

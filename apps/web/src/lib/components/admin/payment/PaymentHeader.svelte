@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
 	import { paymentPageFilterState } from '$lib/stores/dashboardStore';
+	import PaymentColumnSettingsModal from './PaymentColumnSettingsModal.svelte';
 
 	// Props
 	export let isLoading = false;
@@ -55,6 +56,7 @@
 	let endYear = $paymentPageFilterState.endYear;
 	let endMonth = $paymentPageFilterState.endMonth;
 	let itemsPerPage = $paymentPageFilterState.itemsPerPage;
+	let showGradeInfoColumn = $paymentPageFilterState.showGradeInfoColumn; // ⭐ 신규
 	let showTaxColumn = $paymentPageFilterState.showTaxColumn;
 	let showNetColumn = $paymentPageFilterState.showNetColumn;
 	let showPlannerColumn = $paymentPageFilterState.showPlannerColumn;
@@ -62,6 +64,10 @@
 	let showAccountColumn = $paymentPageFilterState.showAccountColumn;
 	let searchQuery = $paymentPageFilterState.searchQuery;
 	let searchCategory = $paymentPageFilterState.searchCategory;
+
+	// 컬럼 설정 모달 상태
+	let showColumnSettings = false;
+	let tempSettings = {};
 
 	// Store 업데이트
 	$: (filterType,
@@ -74,6 +80,7 @@
 		endYear,
 		endMonth,
 		itemsPerPage,
+		showGradeInfoColumn, // ⭐ 신규
 		showTaxColumn,
 		showNetColumn,
 		showPlannerColumn,
@@ -96,6 +103,7 @@
 				endYear,
 				endMonth,
 				itemsPerPage,
+				showGradeInfoColumn, // ⭐ 신규
 				showTaxColumn,
 				showNetColumn,
 				showPlannerColumn,
@@ -146,6 +154,32 @@
 	function formatAmount(amount) {
 		if (!amount && amount !== 0) return '-';
 		return amount.toLocaleString();
+	}
+
+	// 컬럼 설정 모달 핸들러
+	function handleShowAllColumns() {
+		tempSettings = {
+			showGradeInfoColumn: true,
+			showPlannerColumn: true,
+			showBankColumn: true,
+			showAccountColumn: true,
+			showTaxColumn: true,
+			showNetColumn: true
+		};
+	}
+
+	function handleApplyColumnSettings() {
+		showGradeInfoColumn = tempSettings.showGradeInfoColumn;
+		showPlannerColumn = tempSettings.showPlannerColumn;
+		showBankColumn = tempSettings.showBankColumn;
+		showAccountColumn = tempSettings.showAccountColumn;
+		showTaxColumn = tempSettings.showTaxColumn;
+		showNetColumn = tempSettings.showNetColumn;
+		showColumnSettings = false;
+	}
+
+	function handleCloseColumnSettings() {
+		showColumnSettings = false;
 	}
 </script>
 
@@ -485,29 +519,24 @@
 			</select>
 		</label>
 
-		<!-- 컬럼 표시 토글 -->
-		<div class="toggle-container">
-			<label class="toggle-label">
-				<input type="checkbox" bind:checked={showPlannerColumn} class="checkbox-desktop" />
-				<span>설계자</span>
-			</label>
-			<label class="toggle-label">
-				<input type="checkbox" bind:checked={showBankColumn} class="checkbox-desktop" />
-				<span>은행</span>
-			</label>
-			<label class="toggle-label">
-				<input type="checkbox" bind:checked={showAccountColumn} class="checkbox-desktop" />
-				<span>계좌번호</span>
-			</label>
-			<label class="toggle-label">
-				<input type="checkbox" bind:checked={showTaxColumn} class="checkbox-desktop" />
-				<span>원천징수</span>
-			</label>
-			<label class="toggle-label">
-				<input type="checkbox" bind:checked={showNetColumn} class="checkbox-desktop" />
-				<span>실지급액</span>
-			</label>
-		</div>
+		<!-- 컬럼 설정 버튼 -->
+		<button
+			onclick={() => {
+				tempSettings = {
+					showGradeInfoColumn,
+					showPlannerColumn,
+					showBankColumn,
+					showAccountColumn,
+					showTaxColumn,
+					showNetColumn
+				};
+				showColumnSettings = !showColumnSettings;
+			}}
+			class="btn-settings"
+			title="컬럼 설정"
+		>
+			<img src="/icons/settings.svg" alt="Settings" class="h-4 w-4" />
+		</button>
 
 		<!-- Excel Export 버튼 -->
 		{#if hasData}
@@ -517,6 +546,15 @@
 		{/if}
 	</div>
 {/if}
+
+<!-- 컬럼 설정 모달 -->
+<PaymentColumnSettingsModal
+	isOpen={showColumnSettings}
+	bind:tempSettings
+	onClose={handleCloseColumnSettings}
+	onShowAll={handleShowAllColumns}
+	onApply={handleApplyColumnSettings}
+/>
 
 <style>
 	@reference "$lib/../app.css";
@@ -678,5 +716,9 @@
 
 	.btn-gradient-green {
 		@apply flex h-7 flex-shrink-0 cursor-pointer items-center justify-center rounded border-none bg-gradient-to-br from-green-500 to-green-700 px-2 text-white shadow-[0_1px_4px_rgba(40,167,69,0.3)] transition-all hover:-translate-y-px hover:from-green-700 hover:to-green-900 hover:shadow-[0_2px_8px_rgba(40,167,69,0.4)] active:translate-y-0 active:shadow-[0_1px_3px_rgba(40,167,69,0.3)];
+	}
+
+	.btn-settings {
+		@apply flex h-7 flex-shrink-0 cursor-pointer items-center justify-center rounded border-2 border-gray-300 bg-white px-2 transition-all hover:border-blue-500 hover:bg-blue-50 active:bg-blue-100;
 	}
 </style>
