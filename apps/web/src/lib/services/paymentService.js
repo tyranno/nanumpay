@@ -56,14 +56,17 @@ export const paymentService = {
 	async loadSingleDatePayments(params) {
 		const { selectedDate, page, limit, searchQuery, searchCategory } = params;
 
-		const [year, month] = selectedDate.split('-');
+		// ⭐ 금요일 기준 주차 계산 (월경계 처리)
 		const weekInfo = getWeekOfMonthByFriday(new Date(selectedDate));
-		const week = weekInfo.week;
+		
+		if (!weekInfo) {
+			throw new Error('주차 계산 실패');
+		}
 
 		const queryParams = new URLSearchParams({
-			year,
-			month: parseInt(month),
-			week,
+			year: weekInfo.year,
+			month: weekInfo.month,
+			week: weekInfo.week,
 			page,
 			limit,
 			search: searchQuery,
