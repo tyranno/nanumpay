@@ -317,14 +317,29 @@
 				{#if showPlannerOption}
 					<option value="planner">설계자</option>
 				{/if}
+				<option value="grade">등급</option>
 			</select>
-			<input
-				type="text"
-				bind:value={searchQuery}
-				onkeypress={handleKeyPress}
-				placeholder="검색..."
-				class="input-search-mobile"
-			/>
+			{#if searchCategory === 'grade'}
+				<select bind:value={searchQuery} class="input-search-mobile">
+					<option value="">등급 선택...</option>
+					<option value="F1">F1</option>
+					<option value="F2">F2</option>
+					<option value="F3">F3</option>
+					<option value="F4">F4</option>
+					<option value="F5">F5</option>
+					<option value="F6">F6</option>
+					<option value="F7">F7</option>
+					<option value="F8">F8</option>
+				</select>
+			{:else}
+				<input
+					type="text"
+					bind:value={searchQuery}
+					onkeypress={handleKeyPress}
+					placeholder="검색..."
+					class="input-search-mobile"
+				/>
+			{/if}
 			<button onclick={handleSearch} class="btn-search-mobile">검색</button>
 		</div>
 
@@ -486,29 +501,49 @@
 
 	<!-- 검색 및 페이지 설정 -->
 	<div class="search-container-desktop">
-		<!-- 검색 카테고리 -->
-		<select bind:value={searchCategory} class="select-desktop">
-			<option value="name">이름</option>
-			{#if showPlannerOption}
-				<option value="planner">설계자</option>
+		<!-- 검색 부분 -->
+		<div class="flex items-center gap-2">
+			<!-- 검색 카테고리 -->
+			<select bind:value={searchCategory} class="select-desktop">
+				<option value="name">이름</option>
+				{#if showPlannerOption}
+					<option value="planner">설계자</option>
+				{/if}
+				<option value="grade">등급</option>
+			</select>
+
+			<!-- 검색 입력 -->
+			{#if searchCategory === 'grade'}
+				<select bind:value={searchQuery} class="input-search-desktop">
+					<option value="">등급 선택...</option>
+					<option value="F1">F1</option>
+					<option value="F2">F2</option>
+					<option value="F3">F3</option>
+					<option value="F4">F4</option>
+					<option value="F5">F5</option>
+					<option value="F6">F6</option>
+					<option value="F7">F7</option>
+					<option value="F8">F8</option>
+				</select>
+			{:else}
+				<input
+					type="text"
+					bind:value={searchQuery}
+					onkeypress={handleKeyPress}
+					placeholder={searchCategory === 'name' ? '이름으로 검색...' : '설계자 이름으로 검색...'}
+					class="input-search-desktop"
+				/>
 			{/if}
-		</select>
 
-		<!-- 검색 입력 -->
-		<input
-			type="text"
-			bind:value={searchQuery}
-			onkeypress={handleKeyPress}
-			placeholder={searchCategory === 'name' ? '이름으로 검색...' : '설계자 이름으로 검색...'}
-			class="input-search-desktop"
-		/>
+			<!-- 검색 버튼 -->
+			<button onclick={handleSearch} class="btn-gradient-blue">
+				<img src="/icons/search.svg" alt="검색" class="icon-small" />
+			</button>
+		</div>
 
-		<!-- 검색 버튼 -->
-		<button onclick={handleSearch} class="btn-gradient-blue">
-			<img src="/icons/search.svg" alt="검색" class="icon-small" />
-		</button>
-
-		<!-- 페이지당 항목 수 -->
+		<!-- 우측 버튼 그룹 -->
+		<div class="flex items-center gap-2">
+			<!-- 페이지당 항목 수 -->
 		<label class="label-desktop">
 			페이지당
 			<select
@@ -542,12 +577,13 @@
 			<img src="/icons/settings.svg" alt="Settings" class="h-4 w-4" />
 		</button>
 
-		<!-- Excel Export 버튼 -->
-		{#if hasData}
-			<button onclick={handleExport} title="Excel 다운로드" class="btn-gradient-green">
-				<img src="/icons/download.svg" alt="다운로드" class="icon-small" />
-			</button>
-		{/if}
+			<!-- Excel Export 버튼 -->
+			{#if hasData}
+				<button onclick={handleExport} title="Excel 다운로드" class="btn-gradient-green">
+					<img src="/icons/download.svg" alt="다운로드" class="icon-small" />
+				</button>
+			{/if}
+		</div>
 	</div>
 {/if}
 
@@ -684,7 +720,7 @@
 	}
 
 	.search-container-desktop {
-		@apply my-3 flex flex-wrap items-center gap-2.5 rounded-md bg-gradient-to-b from-gray-50 to-white p-3 shadow-sm;
+		@apply my-3 flex flex-wrap items-center justify-between gap-2.5 rounded-md bg-gradient-to-b from-gray-50 to-white p-3 shadow-sm;
 	}
 
 	.select-desktop {
