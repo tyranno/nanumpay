@@ -42,16 +42,27 @@
 		let totalAmount = 0;
 		let totalTax = 0;
 		let totalNet = 0;
+		const gradeInfoSet = new Set();
 
 		Object.values(user.payments || {}).forEach(payment => {
 			if (payment) {
 				totalAmount += payment.amount || 0;
 				totalTax += payment.tax || 0;
 				totalNet += payment.net || 0;
+				
+				// gradeInfo 수집
+				if (payment.gradeInfo) {
+					gradeInfoSet.add(payment.gradeInfo);
+				}
 			}
 		});
 
-		return { totalAmount, totalTax, totalNet };
+		return { 
+			totalAmount, 
+			totalTax, 
+			totalNet,
+			gradeInfo: Array.from(gradeInfoSet).join(', ')
+		};
 	}
 
 	// 주차별/월별 총금액 가져오기 (periodType과 filterType에 따라 다름)
@@ -119,25 +130,27 @@
 							<th rowspan="2" class="th-base th-sticky-4" style="left: {accountLeft}px;">계좌번호</th>
 						{/if}
 						{#if filterType === 'period'}
-							<th colspan={1 + (showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0)} class="th-total">기간 합계</th>
-						{/if}
-						{#each weeklyColumns as week}
-							<th colspan={1 + (showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0)} class="th-week">{week.label}</th>
+					<th colspan={2 + (showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0)} class="th-total">기간 합계</th>
+				{/if}
+				{#each weeklyColumns as week}
+					<th colspan={2 + (showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0)} class="th-week">{week.label}</th>
 						{/each}
 					</tr>
 					<!-- 두 번째 헤더 행 -->
 					<tr>
 						{#if filterType === 'period'}
-							<th class="th-sub th-total-sub">지급액</th>
-							{#if showTaxColumn}
-								<th class="th-sub th-total-sub th-tax">원천징수(3.3%)</th>
-							{/if}
-							{#if showNetColumn}
-								<th class="th-sub th-total-sub">실지급액</th>
-							{/if}
-						{/if}
-						{#each weeklyColumns as week}
-							<th class="th-sub">지급액</th>
+					<th class="th-sub th-total-sub th-grade-info">등급(회수)</th>
+					<th class="th-sub th-total-sub">지급액</th>
+					{#if showTaxColumn}
+						<th class="th-sub th-total-sub th-tax">원천징수(3.3%)</th>
+					{/if}
+					{#if showNetColumn}
+						<th class="th-sub th-total-sub">실지급액</th>
+					{/if}
+				{/if}
+				{#each weeklyColumns as week}
+					<th class="th-sub th-grade-info">등급(회수)</th>
+					<th class="th-sub">지급액</th>
 							{#if showTaxColumn}
 								<th class="th-sub th-tax">원천징수(3.3%)</th>
 							{/if}
@@ -178,37 +191,41 @@
 									<td class="td-sticky-4" style="left: {accountLeft}px;">{user.accountNumber}</td>
 								{/if}
 								<!-- 기간 합계 (기간 선택일 때만) -->
-								{#if filterType === 'period'}
-									<td class="td-total">{formatAmount(userTotal.totalAmount)}</td>
-									{#if showTaxColumn}
-										<td class="td-total td-tax">{formatAmount(userTotal.totalTax)}</td>
-									{/if}
-									{#if showNetColumn}
-										<td class="td-total">{formatAmount(userTotal.totalNet)}</td>
-									{/if}
-								{/if}
+				{#if filterType === 'period'}
+					<td class="td-total td-grade-info">{userTotal.gradeInfo || '-'}</td>
+					<td class="td-total">{formatAmount(userTotal.totalAmount)}</td>
+					{#if showTaxColumn}
+						<td class="td-total td-tax">{formatAmount(userTotal.totalTax)}</td>
+					{/if}
+					{#if showNetColumn}
+						<td class="td-total">{formatAmount(userTotal.totalNet)}</td>
+					{/if}
+				{/if}
 								{#each weeklyColumns as week}
 									{@const key =
 										filterType === 'period' && periodType === 'monthly'
 											? `month_${week.month}`
 											: `${week.year}_${week.month}_${week.week}`}
 									{@const payment = user.payments[key]}
-									<td
-										class="td-amount"
-										title={payment?.installmentDetails
-						? payment.installmentDetails
-								.map((d) => `${d.revenueMonth} ${d.week}회차`)
-								.join(', ')
-						: ''}
-									>
-										{formatAmount(payment?.amount)}
-									</td>
-									{#if showTaxColumn}
-										<td class="td-tax">{formatAmount(payment?.tax)}</td>
-									{/if}
-									{#if showNetColumn}
-										<td class="td-net">{formatAmount(payment?.net)}</td>
-									{/if}
+				<td class="td-grade-info">
+					{payment?.gradeInfo || '-'}
+				</td>
+				<td
+					class="td-amount"
+					title={payment?.installmentDetails
+			? payment.installmentDetails
+				.map((d) => `${d.revenueMonth} ${d.week}회차`)
+				.join(', ')
+			: ''}
+				>
+					{formatAmount(payment?.amount)}
+				</td>
+				{#if showTaxColumn}
+					<td class="td-tax">{formatAmount(payment?.tax)}</td>
+				{/if}
+				{#if showNetColumn}
+					<td class="td-net">{formatAmount(payment?.net)}</td>
+				{/if}
 								{/each}
 							</tr>
 						{/each}
@@ -218,19 +235,21 @@
 					<tr class="grand-total-row">
 						<td colspan={labelColspan} class="grand-total-label">총금액</td>
 							<!-- 기간 합계 컬럼 -->
-							{#if filterType === 'period'}
-								<td class="grand-total-value">{formatAmount(grandTotal.amount)}</td>
-								{#if showTaxColumn}
-									<td class="grand-total-value grand-total-tax">{formatAmount(grandTotal.tax)}</td>
-								{/if}
-								{#if showNetColumn}
-									<td class="grand-total-value">{formatAmount(grandTotal.net)}</td>
-								{/if}
-							{/if}
-							<!-- 주차별/월별 총계 컬럼 -->
-							{#each weeklyColumns as column}
-								{@const columnTotal = getColumnTotal(column)}
-								<td class="grand-total-value">{formatAmount(columnTotal.totalAmount)}</td>
+			{#if filterType === 'period'}
+				<td class="grand-total-value">-</td>
+				<td class="grand-total-value">{formatAmount(grandTotal.amount)}</td>
+				{#if showTaxColumn}
+					<td class="grand-total-value grand-total-tax">{formatAmount(grandTotal.tax)}</td>
+				{/if}
+				{#if showNetColumn}
+					<td class="grand-total-value">{formatAmount(grandTotal.net)}</td>
+				{/if}
+			{/if}
+			<!-- 주차별/월별 총계 컬럼 -->
+			{#each weeklyColumns as column}
+				{@const columnTotal = getColumnTotal(column)}
+				<td class="grand-total-value">-</td>
+				<td class="grand-total-value">{formatAmount(columnTotal.totalAmount)}</td>
 								{#if showTaxColumn}
 									<td class="grand-total-value grand-total-tax">{formatAmount(columnTotal.totalTax)}</td>
 								{/if}
@@ -241,7 +260,7 @@
 						</tr>
 					{:else}
 					{@const fixedCols = 2 + (showPlannerColumn ? 1 : 0) + (showBankColumn ? 1 : 0) + (showAccountColumn ? 1 : 0)}
-					{@const colsPerWeek = 1 + (showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0)}
+					{@const colsPerWeek = 2 + (showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0)}
 					{@const periodCols = filterType === 'period' ? colsPerWeek : 0}
 					{@const totalCols = fixedCols + periodCols + weeklyColumns.length * colsPerWeek}
 					<tr>
@@ -488,6 +507,31 @@
 
 	.data-row:hover .td-total.td-tax {
 		@apply bg-red-200;
+	}
+
+	/* 등급(회수) 셀 */
+	.th-grade-info {
+		@apply bg-indigo-100 min-w-[120px];
+		@apply font-semibold text-indigo-800;
+	}
+
+	.td-grade-info {
+		@apply border-b border-r border-gray-300 bg-indigo-50;
+		@apply whitespace-nowrap p-1.5 text-center text-xs;
+		@apply text-indigo-700 font-medium;
+	}
+
+	.data-row:hover .td-grade-info {
+		@apply bg-indigo-100;
+	}
+
+	.td-total.td-grade-info {
+		@apply bg-purple-50 text-gray-500;
+		@apply font-normal;
+	}
+
+	.data-row:hover .td-total.td-grade-info {
+		@apply bg-purple-100;
 	}
 
 	/* 등급 아이콘 */

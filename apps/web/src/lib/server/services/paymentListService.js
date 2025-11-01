@@ -119,8 +119,10 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
 				payments: {
 					$push: {
 						planType: '$planType',
+						baseGrade: '$baseGrade',  // ⭐ 지급 계획의 등급
+						추가지급단계: '$추가지급단계',  // ⭐ 추가지급 단계
 						revenueMonth: '$installments.revenueMonth',
-						week: '$installments.week',
+						week: '$installments.week',  // ⭐ 회차 (1~60)
 						amount: '$installments.installmentAmount',
 						tax: '$installments.withholdingTax',
 						net: '$installments.netAmount',
@@ -362,7 +364,16 @@ export async function getRangePayments(startYear, startMonth, endYear, endMonth,
 					baseGrade: { $first: '$baseGrade' },
 					installmentAmount: { $sum: '$installments.installmentAmount' },
 					withholdingTax: { $sum: '$installments.withholdingTax' },
-					netAmount: { $sum: '$installments.netAmount' }
+					netAmount: { $sum: '$installments.netAmount' },
+					// ⭐ 지급 계획 정보 수집 (등급, 회차)
+					payments: {
+						$push: {
+							baseGrade: '$baseGrade',
+							week: '$installments.week',
+							추가지급단계: '$추가지급단계',
+							revenueMonth: '$installments.revenueMonth'
+						}
+					}
 				}
 			}
 		];
@@ -387,7 +398,7 @@ export async function getRangePayments(startYear, startMonth, endYear, endMonth,
 				actualAmount: payment ? payment.installmentAmount : 0,
 				taxAmount: payment ? payment.withholdingTax : 0,
 				netAmount: payment ? payment.netAmount : 0,
-				installments: []
+				installments: payment ? payment.payments : []  // ⭐ 지급 계획 정보
 			};
 		});
 

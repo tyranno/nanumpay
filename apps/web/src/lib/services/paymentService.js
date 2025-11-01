@@ -1,6 +1,34 @@
 import { getWeekOfMonthByFriday } from '$lib/utils/fridayWeekCalculator.js';
 
 /**
+ * 등급(회수) 정보 포맷팅
+ * @param {Array} installments - 지급 계획 배열
+ * @returns {string} - "F1(5), F2(1)" 형식
+ */
+function formatGradeInfo(installments) {
+	if (!installments || installments.length === 0) return '-';
+	
+	// 등급별로 그룹화
+	const gradeMap = {};
+	installments.forEach(inst => {
+		const grade = inst.baseGrade || inst.grade;
+		const week = inst.week;
+		if (grade && week) {
+			if (!gradeMap[grade]) {
+				gradeMap[grade] = [];
+			}
+			gradeMap[grade].push(week);
+		}
+	});
+	
+	// "F1(5), F2(1)" 형식으로 변환
+	return Object.entries(gradeMap)
+		.sort(([a], [b]) => a.localeCompare(b))  // 등급순 정렬
+		.map(([grade, weeks]) => `${grade}(${weeks.join(',')})`)
+		.join(', ');
+}
+
+/**
  * Payment 관련 데이터 처리 서비스
  */
 export const paymentService = {
@@ -94,7 +122,8 @@ export const paymentService = {
 						amount: user.actualAmount || 0,
 						tax: user.taxAmount || 0,
 						net: user.netAmount || 0,
-						installmentDetails: user.installments || []
+						installmentDetails: user.installments || [],
+						gradeInfo: formatGradeInfo(user.installments || [])  // ⭐ 등급(회수) 포맷
 					}
 				}
 			})),
@@ -228,18 +257,29 @@ export const paymentService = {
 							user.payments[monthKey].installmentDetails.push(...(payment.installments || []));
 						} else {
 							// 주간 보기: 주차별로 저장
-							const weekKey = `${weekData.year}_${weekData.monthNumber}_${weekData.weekNumber}`;
-							user.payments[weekKey] = {
-								amount: payment.actualAmount || 0,
-								tax: payment.taxAmount || 0,
-								net: payment.netAmount || 0,
-								installmentDetails: payment.installments || []
-							};
+						const weekKey = `${weekData.year}_${weekData.monthNumber}_${weekData.weekNumber}`;
+						user.payments[weekKey] = {
+							amount: payment.actualAmount || 0,
+							tax: payment.taxAmount || 0,
+							net: payment.netAmount || 0,
+							installmentDetails: payment.installments || [],
+							gradeInfo: formatGradeInfo(payment.installments || [])  // ⭐ 등급(회수)
+						};
 						}
 					}
 				});
 			});
 		}
+
+		// ⭐ 월별 합산 후 gradeInfo 생성
+		userMap.forEach(user => {
+			Object.entries(user.payments).forEach(([key, payment]) => {
+				if (key.startsWith('month_')) {
+					// 월별 데이터는 installmentDetails로부터 gradeInfo 생성
+					payment.gradeInfo = formatGradeInfo(payment.installmentDetails || []);
+				}
+			});
+		});
 
 		const paymentList = Array.from(userMap.values()).map((user, index) => ({
 			...user,
