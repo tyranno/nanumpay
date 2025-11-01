@@ -139,6 +139,11 @@
 		onItemsPerPageChange();
 	}
 
+	// ⭐ 검색 카테고리 변경 시 검색어 초기화
+	function handleSearchCategoryChange() {
+		searchQuery = '';
+	}
+
 	function handleDateChange() {
 		onDateChange();
 	}
@@ -312,7 +317,7 @@
 	<div class="search-section-mobile">
 		<!-- 검색 -->
 		<div class="mb-2 flex gap-1">
-			<select bind:value={searchCategory} class="select-mobile">
+			<select bind:value={searchCategory} onchange={handleSearchCategoryChange} class="select-mobile">
 				<option value="name">이름</option>
 				{#if showPlannerOption}
 					<option value="planner">설계자</option>
@@ -504,7 +509,7 @@
 		<!-- 검색 부분 -->
 		<div class="flex items-center gap-2">
 			<!-- 검색 카테고리 -->
-			<select bind:value={searchCategory} class="select-desktop">
+			<select bind:value={searchCategory} onchange={handleSearchCategoryChange} class="select-desktop">
 				<option value="name">이름</option>
 				{#if showPlannerOption}
 					<option value="planner">설계자</option>

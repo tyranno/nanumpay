@@ -25,62 +25,7 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
 	const weekDate = targetWeek.friday;
 	const weekNumber = WeeklyPaymentPlans.getISOWeek(weekDate);
 
-	// 2. 주차별 총계 조회 (전체 총액 - 페이지 무관)
-	const summary = await WeeklyPaymentSummary.findOne({ weekNumber });
-
-	let grandTotal;
-	if (summary) {
-		// Summary가 있으면 사용 (지급 처리 완료된 경우)
-		grandTotal = {
-			totalAmount: summary.totalAmount || 0,
-			totalTax: summary.totalTax || 0,
-			totalNet: summary.totalNet || 0
-		};
-	} else {
-		// Summary가 없으면 WeeklyPaymentPlans에서 직접 계산 (pending 포함)
-		const totalPipeline = [
-			{
-				$match: {
-					'installments': {
-						$elemMatch: {
-							weekNumber: weekNumber,
-							status: { $in: ['paid', 'pending'] }
-						}
-					}
-				}
-			},
-			{
-				$unwind: '$installments'
-			},
-			{
-				$match: {
-					'installments.weekNumber': weekNumber,
-					'installments.status': { $in: ['paid', 'pending'] }
-				}
-			},
-			{
-				$group: {
-					_id: null,
-					totalAmount: { $sum: '$installments.installmentAmount' },
-					totalTax: { $sum: '$installments.withholdingTax' },
-					totalNet: { $sum: '$installments.netAmount' }
-				}
-			}
-		];
-
-		const totalResult = await WeeklyPaymentPlans.aggregate(totalPipeline);
-		grandTotal = totalResult[0] ? {
-			totalAmount: totalResult[0].totalAmount || 0,
-			totalTax: totalResult[0].totalTax || 0,
-			totalNet: totalResult[0].totalNet || 0
-		} : {
-			totalAmount: 0,
-			totalTax: 0,
-			totalNet: 0
-		};
-	}
-
-	// 3. 검색 조건 구성
+	// 2. 검색 조건 구성
 	const searchFilter = buildSearchFilter(search, searchCategory);
 
 	// 4. Aggregation Pipeline for 페이지네이션
@@ -106,15 +51,14 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
 				'installments.status': { $in: ['paid', 'pending'] }
 			}
 		},
-		// 검색 조건 적용
+		// 검색 조건 적용 (이름만 unwind 후 필터링)
 		...(searchFilter.userName ? [{ $match: { userName: searchFilter.userName } }] : []),
-		...(searchFilter.baseGrade ? [{ $match: { baseGrade: searchFilter.baseGrade } }] : []),
 		// 사용자별 그룹화
 		{
 			$group: {
 				_id: '$userId',
 				userName: { $first: '$userName' },
-				baseGrade: { $first: '$baseGrade' },
+				grades: { $push: '$baseGrade' },  // ⭐ 모든 등급 수집
 				payments: {
 					$push: {
 						planType: '$planType',
@@ -132,9 +76,25 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
 				totalTax: { $sum: '$installments.withholdingTax' },
 				totalNet: { $sum: '$installments.netAmount' }
 			}
+				},
+		{
+			$addFields: {
+				// ⭐ 등급을 숫자로 변환하여 최대값 계산
+				maxGradeNum: {
+					$max: {
+						$map: {
+							input: '$grades',
+							as: 'g',
+							in: { $toInt: { $substr: ['$$g', 1, -1] } }  // "F1" → 1
+						}
+					}
+				}
+			}
 		},
 		{
 			$addFields: {
+				// ⭐ 최대 등급을 다시 문자열로 변환
+				maxGrade: { $concat: ['F', { $toString: '$maxGradeNum' }] },
 				userIdAsObjectId: { $toObjectId: '$_id' }
 			}
 		},
@@ -176,6 +136,12 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
 				plannerAccountId: plannerAccountId
 			}
 		}] : []),
+		// 등급 검색 필터 적용 (⭐ $group 이후에 maxGrade로 필터링)
+		...(searchFilter.baseGrade ? [{
+			$match: {
+				maxGrade: searchFilter.baseGrade
+			}
+		}] : []),
 		// 설계사 검색 필터 적용
 		...(searchFilter.needPlannerSearch ? [{
 			$match: {
@@ -184,24 +150,44 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
 		}] : []),
 		{
 			$sort: { userObjectId: 1 }
+		},
+		// ⭐ $facet으로 grandTotal과 페이지네이션 데이터 동시 계산
+		{
+			$facet: {
+				// 전체 금액 합계 (필터링된 모든 사용자)
+				grandTotal: [
+					{
+						$group: {
+							_id: null,
+							totalAmount: { $sum: '$totalAmount' },
+							totalTax: { $sum: '$totalTax' },
+							totalNet: { $sum: '$totalNet' },
+							totalUsers: { $sum: 1 }
+						}
+					}
+				],
+				// 페이지네이션된 데이터
+				paginatedData: [
+					{ $skip: (page - 1) * limit },
+					{ $limit: limit }
+				]
+			}
 		}
 	];
 
-	// 전체 카운트
-	const countPipeline = [...pipeline, { $count: 'total' }];
-	const countResult = await WeeklyPaymentPlans.aggregate(countPipeline);
-	const totalCount = countResult[0]?.total || 0;
+	const result = await WeeklyPaymentPlans.aggregate(pipeline);
+	
+	// ⭐ grandTotal 추출
+	const grandTotal = result[0]?.grandTotal[0] || {
+		totalAmount: 0,
+		totalTax: 0,
+		totalNet: 0,
+		totalUsers: 0
+	};
+	
+	const totalCount = grandTotal.totalUsers;
 	const totalPages = Math.ceil(totalCount / limit);
-
-	// 페이지네이션 적용
-	const skip = (page - 1) * limit;
-	const paginatedPipeline = [
-		...pipeline,
-		{ $skip: skip },
-		{ $limit: limit }
-	];
-
-	const userPayments = await WeeklyPaymentPlans.aggregate(paginatedPipeline);
+	const userPayments = result[0]?.paginatedData || [];
 
 	// 5. 사용자 상세 정보 추가
 	const userIds = userPayments.map(p => p._id);
@@ -329,6 +315,266 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
 }
 
 /**
+ * 단일 주차 등급별 조회 (전용 함수)
+ * - 등급 검색에 최적화
+ * - getSingleWeekPayments의 복잡도를 줄이기 위해 분리
+ */
+export async function getSingleWeekPaymentsByGrade(year, month, week, page, limit, gradeFilter, plannerAccountId = null) {
+	// 1. 해당 주차의 날짜 계산
+	const fridays = getFridaysInMonth(year, month);
+	const targetWeek = fridays.find(w => w.weekNumber === week);
+
+	if (!targetWeek) {
+		throw new Error('유효하지 않은 주차입니다.');
+	}
+
+	const weekDate = targetWeek.friday;
+	const weekNumber = WeeklyPaymentPlans.getISOWeek(weekDate);
+
+	// 2. 등급 필터링된 사용자 조회
+	const pipeline = [
+		{
+			$match: {
+				'installments': {
+					$elemMatch: {
+						weekNumber: weekNumber,
+						status: { $in: ['paid', 'pending'] }
+					}
+				}
+			}
+		},
+		{
+			$unwind: '$installments'
+		},
+		{
+			$match: {
+				'installments.weekNumber': weekNumber,
+				'installments.status': { $in: ['paid', 'pending'] }
+			}
+		},
+		{
+			$group: {
+				_id: '$userId',
+				userName: { $first: '$userName' },
+				grades: { $push: '$baseGrade' },
+				payments: {
+					$push: {
+						planType: '$planType',
+						baseGrade: '$baseGrade',
+						추가지급단계: '$추가지급단계',
+						revenueMonth: '$installments.revenueMonth',
+						week: '$installments.week',
+						amount: '$installments.installmentAmount',
+						tax: '$installments.withholdingTax',
+						net: '$installments.netAmount',
+						status: '$installments.status'
+					}
+				},
+				totalAmount: { $sum: '$installments.installmentAmount' },
+				totalTax: { $sum: '$installments.withholdingTax' },
+				totalNet: { $sum: '$installments.netAmount' }
+			}
+		},
+		{
+			$addFields: {
+				maxGradeNum: {
+					$max: {
+						$map: {
+							input: '$grades',
+							as: 'g',
+							in: { $toInt: { $substr: ['$$g', 1, -1] } }
+						}
+					}
+				}
+			}
+		},
+		{
+			$addFields: {
+				maxGrade: { $concat: ['F', { $toString: '$maxGradeNum' }] },
+				userIdAsObjectId: { $toObjectId: '$_id' }
+			}
+		},
+		{
+			$match: {
+				maxGrade: gradeFilter
+			}
+		},
+		{
+			$lookup: {
+				from: 'users',
+				localField: 'userIdAsObjectId',
+				foreignField: '_id',
+				as: 'userDetails'
+			}
+		},
+		{
+			$unwind: {
+				path: '$userDetails',
+				preserveNullAndEmptyArrays: true
+			}
+		},
+		{
+			$addFields: {
+				plannerAccountId: '$userDetails.plannerAccountId'
+			}
+		},
+		// ⭐ 설계사 필터 적용
+		...(plannerAccountId ? [{
+			$match: {
+				plannerAccountId: plannerAccountId
+			}
+		}] : []),
+		{
+			$sort: { userObjectId: 1 }
+		},
+		// ⭐ $facet으로 grandTotal과 페이지네이션 데이터 동시 계산
+		{
+			$facet: {
+				grandTotal: [
+					{
+						$group: {
+							_id: null,
+							totalAmount: { $sum: '$totalAmount' },
+							totalTax: { $sum: '$totalTax' },
+							totalNet: { $sum: '$totalNet' },
+							totalUsers: { $sum: 1 }
+						}
+					}
+				],
+				paginatedData: [
+					{ $skip: (page - 1) * limit },
+					{ $limit: limit }
+				]
+			}
+		}
+	];
+
+	const result = await WeeklyPaymentPlans.aggregate(pipeline);
+	
+	const grandTotal = result[0]?.grandTotal[0] || {
+		totalAmount: 0,
+		totalTax: 0,
+		totalNet: 0,
+		totalUsers: 0
+	};
+	
+	const totalCount = grandTotal.totalUsers;
+	const totalPages = Math.ceil(totalCount / limit);
+	const userPayments = result[0]?.paginatedData || [];
+
+	// 3. 사용자 상세 정보 추가
+	const userIds = userPayments.map(p => p._id);
+	const users = await User.find({ _id: { $in: userIds } })
+		.populate('plannerAccountId')
+		.populate('userAccountId')
+		.lean();
+	const userMap = new Map(users.map(u => [u._id.toString(), u]));
+
+	const enrichedPayments = userPayments.map((payment, idx) => {
+		const user = userMap.get(payment._id) || {};
+		const userAccount = user.userAccountId || {};
+		const plannerAccount = user.plannerAccountId || {};
+
+		// gradeInfo 생성 (동일 로직)
+		const gradeInfo = payment.payments && payment.payments.length > 0
+			? (() => {
+				const gradeMap = {};
+				payment.payments.forEach(p => {
+					const grade = p.baseGrade;
+					const stage = p.추가지급단계 || 0;
+					if (!gradeMap[grade]) {
+						gradeMap[grade] = { basic: [], additional: [] };
+					}
+					if (stage === 0) {
+						gradeMap[grade].basic.push(p.week);
+					} else {
+						gradeMap[grade].additional.push(p.week);
+					}
+				});
+
+				return Object.entries(gradeMap).map(([grade, data]) => {
+					const hasBasic = data.basic.length > 0;
+					const hasAdditional = data.additional.length > 0;
+					if (hasBasic && hasAdditional) {
+						const pairs = [];
+						const maxLen = Math.max(data.basic.length, data.additional.length);
+						for (let i = 0; i < maxLen; i++) {
+							const basic = data.basic[i] || '';
+							const additional = data.additional[i] || '';
+							pairs.push(`${basic}/${additional}`);
+						}
+						return `${grade}(${pairs.join(',')})`;
+					} else if (hasBasic) {
+						return `${grade}(${data.basic.join(',')})`;
+					} else {
+						return `${grade}(${data.additional.join(',')})`;
+					}
+				}).join(', ');
+			})()
+			: '-';
+
+		const gradeOrder = { F1: 1, F2: 2, F3: 3, F4: 4, F5: 5, F6: 6, F7: 7, F8: 8 };
+		const periodGrade = payment.payments && payment.payments.length > 0
+			? payment.payments.reduce((maxGrade, p) => {
+				const currentGrade = p.baseGrade || 'F1';
+				return (gradeOrder[currentGrade] || 0) > (gradeOrder[maxGrade] || 0)
+					? currentGrade
+					: maxGrade;
+			}, 'F1')
+			: (user.grade || 'F1');
+
+		return {
+			userId: payment._id,
+			userName: payment.userName || user.name || 'Unknown',
+			planner: plannerAccount.name || '',
+			bank: userAccount.bank || '',
+			accountNumber: userAccount.accountNumber || '',
+			grade: periodGrade,
+			actualAmount: payment.totalAmount || 0,
+			taxAmount: payment.totalTax || 0,
+			netAmount: payment.totalNet || 0,
+			installments: payment.payments || [],
+			gradeInfo
+		};
+	});
+
+	const pageTotal = {
+		amount: enrichedPayments.reduce((sum, p) => sum + p.actualAmount, 0),
+		tax: enrichedPayments.reduce((sum, p) => sum + p.taxAmount, 0),
+		net: enrichedPayments.reduce((sum, p) => sum + p.netAmount, 0)
+	};
+
+	const weekKey = `${year}-${month}-${week}`;
+	const weeklyTotals = {
+		[weekKey]: {
+			totalAmount: grandTotal.totalAmount,
+			totalTax: grandTotal.totalTax,
+			totalNet: grandTotal.totalNet
+		}
+	};
+
+	return {
+		success: true,
+		data: {
+			grandTotal,
+			weeklyTotals,
+			pagination: {
+				page,
+				totalPages,
+				totalItems: totalCount,
+				itemsPerPage: limit
+			},
+			payments: enrichedPayments,
+			pageTotal,
+			year,
+			monthNumber: month,
+			weekNumber: week,
+			week: `${month}월 ${week}주`
+		}
+	};
+}
+
+/**
  * 기간 조회
  */
 export async function getRangePayments(startYear, startMonth, endYear, endMonth, page, limit, search, searchCategory, plannerAccountId = null) {
@@ -380,13 +626,7 @@ export async function getRangePayments(startYear, startMonth, endYear, endMonth,
 		});
 	}
 
-	// 등급 검색 필터 적용
-	if (searchFilter.baseGrade) {
-		// getRangePayments는 User 기준이 아닌 WeeklyPaymentPlans 기준으로 필터링해야 함
-		// 여기서는 사용자 필터링이 아니므로, 아래 파이프라인에서 처리
-	}
-
-	// 4. 주차별 데이터 생성
+	// 3. 주차별 데이터 생성
 	const weeks = [];
 
 	for (const fridayInfo of allFridays) {
@@ -416,13 +656,12 @@ export async function getRangePayments(startYear, startMonth, endYear, endMonth,
 					'installments.status': { $in: ['paid', 'pending'] }
 				}
 			},
-			// 등급 검색 필터 적용
-			...(searchFilter.baseGrade ? [{ $match: { baseGrade: searchFilter.baseGrade } }] : []),
+			// 사용자별 그룹화 (등급 검색을 위해 모든 등급 수집)
 			{
 				$group: {
 					_id: '$userId',
 					userName: { $first: '$userName' },
-					baseGrade: { $first: '$baseGrade' },
+					grades: { $push: '$baseGrade' },  // ⭐ 모든 등급 수집
 					installmentAmount: { $sum: '$installments.installmentAmount' },
 					withholdingTax: { $sum: '$installments.withholdingTax' },
 					netAmount: { $sum: '$installments.netAmount' },
@@ -436,7 +675,28 @@ export async function getRangePayments(startYear, startMonth, endYear, endMonth,
 						}
 					}
 				}
-			}
+			},
+			// ⭐ 최대 등급 계산
+			{
+				$addFields: {
+					maxGradeNum: {
+						$max: {
+							$map: {
+								input: '$grades',
+								as: 'g',
+								in: { $toInt: { $substr: ['$$g', 1, -1] } }
+							}
+						}
+					}
+				}
+			},
+			{
+				$addFields: {
+					maxGrade: { $concat: ['F', { $toString: '$maxGradeNum' }] }
+				}
+			},
+			// ⭐ 등급 검색 필터 적용 (maxGrade로 필터링)
+			...(searchFilter.baseGrade ? [{ $match: { maxGrade: searchFilter.baseGrade } }] : [])
 		];
 
 		const weekPayments = await WeeklyPaymentPlans.aggregate(pipeline);
@@ -590,6 +850,37 @@ export async function getRangePayments(startYear, startMonth, endYear, endMonth,
 				const userAccount = user.userAccountId || {};
 				const plannerAccount = user.plannerAccountId || {};
 
+				// ⭐ 선택된 기간 전체에서 최고 등급 및 gradeInfo 계산
+				const gradeOrder = { F1: 1, F2: 2, F3: 3, F4: 4, F5: 5, F6: 6, F7: 7, F8: 8 };
+				let periodGrade = 'F1';
+				const allGrades = [];
+				const allGradeInfos = [];
+
+				weeks.forEach(week => {
+					const userPayment = week.payments.find(p => p.userId === userId);
+					if (userPayment) {
+						if (userPayment.gradeInfo && userPayment.gradeInfo !== '-') {
+							allGradeInfos.push(userPayment.gradeInfo);
+							const grades = userPayment.gradeInfo.split(', ').map(g => {
+								const match = g.match(/^(F\d+)/);
+								return match ? match[1] : null;
+							}).filter(Boolean);
+							grades.forEach(grade => {
+								allGrades.push(grade);
+								if ((gradeOrder[grade] || 0) > (gradeOrder[periodGrade] || 0)) {
+									periodGrade = grade;
+								}
+							});
+						}
+					}
+				});
+
+				if (allGrades.length === 0) {
+					periodGrade = user.grade || 'F1';
+				}
+
+				const gradeInfo = allGradeInfos.length > 0 ? allGradeInfos[0] : '-';
+
 				return {
 					no: (page - 1) * limit + idx + 1,
 					userId: userId,
@@ -597,41 +888,9 @@ export async function getRangePayments(startYear, startMonth, endYear, endMonth,
 					planner: plannerAccount.name || '',
 					bank: userAccount.bank || '',
 					accountNumber: userAccount.accountNumber || '',
-					grade: (() => {
-					// ⭐ 선택된 기간 전체에서 최고 등급 계산
-					const gradeOrder = { F1: 1, F2: 2, F3: 3, F4: 4, F5: 5, F6: 6, F7: 7, F8: 8 };
-					let periodGrade = 'F1'; // ⭐ 기본값을 F1로 시작
-					const allGrades = [];
-
-					// ⭐ weeks 배열에서 해당 사용자의 모든 지급 내역 확인
-					weeks.forEach(week => {
-						const userPayment = week.payments.find(p => p.userId === userId);
-						if (userPayment) {
-							// gradeInfo에서 등급 추출 (예: "F2(1), F2(2)" → ["F2", "F2"])
-							if (userPayment.gradeInfo && userPayment.gradeInfo !== '-') {
-								const grades = userPayment.gradeInfo.split(', ').map(g => {
-									const match = g.match(/^(F\d+)/);
-									return match ? match[1] : null;
-								}).filter(Boolean);
-
-								grades.forEach(grade => {
-									allGrades.push(grade);
-									if ((gradeOrder[grade] || 0) > (gradeOrder[periodGrade] || 0)) {
-										periodGrade = grade;
-									}
-								});
-							}
-						}
-					});
-
-					// 지급 내역이 없으면 현재 사용자 등급 사용
-					if (allGrades.length === 0) {
-						periodGrade = user.grade || 'F1';
-					}
-
-					return periodGrade;
-				})(),
-					totalAmount: weeks.reduce((sum, week) => {
+					grade: periodGrade,
+					gradeInfo,
+				totalAmount: weeks.reduce((sum, week) => {
 						const payment = week.payments.find(p => p.userId === userId);
 						return sum + (payment?.actualAmount || 0);
 					}, 0),
@@ -708,17 +967,45 @@ export async function getRangePaymentsByGrade(startYear, startMonth, endYear, en
 						weekNumber: { $in: weekNumbers },
 						status: { $in: ['paid', 'pending'] }
 					}
-				},
-				...(gradeFilter ? { baseGrade: gradeFilter } : {})  // ⭐ 등급 필터
+				}
+			}
+		},
+		{
+			$unwind: '$installments'
+		},
+		{
+			$match: {
+				'installments.weekNumber': { $in: weekNumbers },
+				'installments.status': { $in: ['paid', 'pending'] }
 			}
 		},
 		{
 			$group: {
 				_id: '$userId',
 				userName: { $first: '$userName' },
-				baseGrade: { $first: '$baseGrade' }
+				grades: { $push: '$baseGrade' }  // ⭐ 모든 등급 수집
 			}
-		}
+		},
+		{
+			$addFields: {
+				maxGradeNum: {
+					$max: {
+						$map: {
+							input: '$grades',
+							as: 'g',
+							in: { $toInt: { $substr: ['$$g', 1, -1] } }
+						}
+					}
+				}
+			}
+		},
+		{
+			$addFields: {
+				maxGrade: { $concat: ['F', { $toString: '$maxGradeNum' }] }
+			}
+		},
+		// ⭐ 등급 필터 적용 (maxGrade로 필터링)
+		...(gradeFilter ? [{ $match: { maxGrade: gradeFilter } }] : [])
 	];
 
 	// ⭐ 설계사 필터는 나중에 User 조회 시 적용
@@ -738,21 +1025,14 @@ export async function getRangePaymentsByGrade(startYear, startMonth, endYear, en
 		userIds = userIds.filter(id => filteredUserIds.has(id));
 	}
 
-	// 4. 페이지네이션
-	const totalUsers = userIds.length;
-	const totalPages = Math.ceil(totalUsers / limit);
-	const startIndex = (page - 1) * limit;
-	const endIndex = startIndex + limit;
-	const pagedUserIds = userIds.slice(startIndex, endIndex);
-
-	// 5. 페이지에 해당하는 사용자 정보 조회
-	const allUsers = await User.find({ _id: { $in: pagedUserIds } })
+	// 4. 전체 사용자 정보 조회 (페이지네이션은 나중에)
+	const allUsers = await User.find({ _id: { $in: userIds } })
 		.populate('plannerAccountId')
 		.populate('userAccountId')
 		.sort({ _id: 1 })
 		.lean();
 
-	// 6. 주차별 데이터 생성 (페이지 사용자만)
+	// 6. 주차별 데이터 생성 (전체 사용자 기준)
 	const weeks = [];
 
 	for (const fridayInfo of allFridays) {
@@ -761,11 +1041,11 @@ export async function getRangePaymentsByGrade(startYear, startMonth, endYear, en
 		const wMonth = friday.getMonth() + 1;
 		const weekNumber = WeeklyPaymentPlans.getISOWeek(friday);
 
-		// 해당 주차의 페이지 사용자 지급 계획만 조회
+		// 해당 주차의 전체 사용자 지급 계획 조회
 		const pipeline = [
 			{
 				$match: {
-					userId: { $in: pagedUserIds },
+					userId: { $in: userIds },
 					'installments': {
 						$elemMatch: {
 							weekNumber: weekNumber,
@@ -830,23 +1110,24 @@ export async function getRangePaymentsByGrade(startYear, startMonth, endYear, en
 						}
 					});
 
-					const parts = [];
-					Object.keys(gradeMap).sort().forEach(grade => {
-						const info = gradeMap[grade];
-						const basicMin = info.basic.length > 0 ? Math.min(...info.basic) : null;
-						const basicMax = info.basic.length > 0 ? Math.max(...info.basic) : null;
-						const additionalMin = info.additional.length > 0 ? Math.min(...info.additional) : null;
-						const additionalMax = info.additional.length > 0 ? Math.max(...info.additional) : null;
-
-						if (basicMin !== null && additionalMin !== null) {
-							parts.push(`${grade}(${basicMin}~${basicMax}/${additionalMin}~${additionalMax})`);
-						} else if (basicMin !== null) {
-							parts.push(`${grade}(${basicMin}~${basicMax})`);
-						} else if (additionalMin !== null) {
-							parts.push(`${grade}(/${additionalMin}~${additionalMax})`);
+					return Object.entries(gradeMap).map(([grade, data]) => {
+					const hasBasic = data.basic.length > 0;
+					const hasAdditional = data.additional.length > 0;
+					if (hasBasic && hasAdditional) {
+						const pairs = [];
+						const maxLen = Math.max(data.basic.length, data.additional.length);
+						for (let i = 0; i < maxLen; i++) {
+							const basic = data.basic[i] || '';
+							const additional = data.additional[i] || '';
+							pairs.push(`${basic}/${additional}`);
 						}
-					});
-					return parts.join(', ');
+						return `${grade}(${pairs.join(',')})`;
+					} else if (hasBasic) {
+						return `${grade}(${data.basic.join(',')})`;
+					} else {
+						return `${grade}(${data.additional.join(',')})`;
+					}
+				}).join(', ');
 				})()
 				: '-';
 
@@ -860,7 +1141,7 @@ export async function getRangePaymentsByGrade(startYear, startMonth, endYear, en
 				actualAmount: payment?.installmentAmount || 0,
 				taxAmount: payment?.withholdingTax || 0,
 				netAmount: payment?.netAmount || 0,
-				installments: [],
+				installments: payment ? payment.payments : [],  // ⭐ 지급 계획 정보
 				gradeInfo
 			};
 		});
@@ -874,50 +1155,19 @@ export async function getRangePaymentsByGrade(startYear, startMonth, endYear, en
 		});
 	}
 
-	// 7. 총계 계산
-	const grandTotal = weeks.reduce((total, week) => {
-		week.payments.forEach(payment => {
-			total.totalAmount += payment.actualAmount;
-			total.totalTax += payment.taxAmount;
-			total.totalNet += payment.netAmount;
-		});
-		return total;
-	}, { totalAmount: 0, totalTax: 0, totalNet: 0 });
-
-	// 8. 주차별/월별 총계
-	const weeklyTotals = {};
-	const monthlyTotals = {};
-
-	weeks.forEach(week => {
-		const weekKey = `${week.year}-${week.monthNumber}-${week.weekNumber}`;
-		const monthKey = `month_${week.monthNumber}`;
-
-		const weekTotal = week.payments.reduce((sum, p) => ({
-			totalAmount: sum.totalAmount + p.actualAmount,
-			totalTax: sum.totalTax + p.taxAmount,
-			totalNet: sum.totalNet + p.netAmount
-		}), { totalAmount: 0, totalTax: 0, totalNet: 0 });
-
-		weeklyTotals[weekKey] = weekTotal;
-
-		if (!monthlyTotals[monthKey]) {
-			monthlyTotals[monthKey] = { totalAmount: 0, totalTax: 0, totalNet: 0 };
-		}
-		monthlyTotals[monthKey].totalAmount += weekTotal.totalAmount;
-		monthlyTotals[monthKey].totalTax += weekTotal.totalTax;
-		monthlyTotals[monthKey].totalNet += weekTotal.totalNet;
-	});
-
 	// 9. 사용자 요약 정보 생성 (Python 테스트 스크립트 호환)
 	const users = allUsers.map((user, idx) => {
 		const userId = user._id.toString();
 		const userAccount = user.userAccountId || {};
 		const plannerAccount = user.plannerAccountId || {};
-		
+
 		// 기간 전체에서 해당 사용자의 최고 등급 계산
 		const gradeOrder = { F1: 1, F2: 2, F3: 3, F4: 4, F5: 5, F6: 6, F7: 7, F8: 8 };
 		let currentGrade = user.grade || 'F1';
-		
+
+		// ⭐ 전체 기간의 gradeInfo 수집
+		const allGradeInfos = [];
+
 		weeks.forEach(week => {
 			const payment = week.payments.find(p => p.userId === userId);
 			if (payment && payment.grade) {
@@ -925,8 +1175,15 @@ export async function getRangePaymentsByGrade(startYear, startMonth, endYear, en
 					currentGrade = payment.grade;
 				}
 			}
+			// ⭐ 각 주차의 gradeInfo 수집
+			if (payment && payment.gradeInfo && payment.gradeInfo !== '-') {
+				allGradeInfos.push(payment.gradeInfo);
+			}
 		});
-		
+
+		// ⭐ 전체 기간의 gradeInfo 결합 (첫 번째 주차 것 사용)
+		const gradeInfo = allGradeInfos.length > 0 ? allGradeInfos[0] : '-';
+
 		return {
 			no: (page - 1) * limit + idx + 1,
 			userId,
@@ -934,7 +1191,8 @@ export async function getRangePaymentsByGrade(startYear, startMonth, endYear, en
 			planner: plannerAccount.name || '',
 			bank: userAccount.bank || '',
 			accountNumber: userAccount.accountNumber || '',
-			currentGrade,  // ⭐ 선택 기간의 최고 등급
+			grade: currentGrade,  // ⭐ 선택 기간의 최고 등급 (프론트와 호환)
+			gradeInfo,  // ⭐ 등급(회수) 정보 추가
 			weeks: weeks.map(week => {
 				const payment = week.payments.find(p => p.userId === userId);
 				return {
@@ -945,6 +1203,45 @@ export async function getRangePaymentsByGrade(startYear, startMonth, endYear, en
 				};
 			})
 		};
+	});
+
+	// ⭐ 페이지네이션 적용 (전체 사용자 목록에서)
+	const totalUsers = users.length;
+	const totalPages = Math.ceil(totalUsers / limit);
+	const paginatedUsers = users.slice((page - 1) * limit, page * limit);
+
+	// ⭐ 전체 사용자(users) 기준으로 총계 계산 (페이지 관계없이)
+	const filteredUserIds = new Set(users.map(u => u.userId));
+
+	const grandTotal = { totalAmount: 0, totalTax: 0, totalNet: 0 };
+	const weeklyTotals = {};
+	const monthlyTotals = {};
+
+	weeks.forEach(week => {
+		const weekKey = `${week.year}-${week.monthNumber}-${week.weekNumber}`;
+		const monthKey = `month_${week.monthNumber}`;
+
+		// 필터링된 사용자만 합산
+		const filteredPayments = week.payments.filter(p => filteredUserIds.has(p.userId));
+
+		const weekTotal = filteredPayments.reduce((sum, p) => ({
+			totalAmount: sum.totalAmount + p.actualAmount,
+			totalTax: sum.totalTax + p.taxAmount,
+			totalNet: sum.totalNet + p.netAmount
+		}), { totalAmount: 0, totalTax: 0, totalNet: 0 });
+
+		weeklyTotals[weekKey] = weekTotal;
+
+		grandTotal.totalAmount += weekTotal.totalAmount;
+		grandTotal.totalTax += weekTotal.totalTax;
+		grandTotal.totalNet += weekTotal.totalNet;
+
+		if (!monthlyTotals[monthKey]) {
+			monthlyTotals[monthKey] = { totalAmount: 0, totalTax: 0, totalNet: 0 };
+		}
+		monthlyTotals[monthKey].totalAmount += weekTotal.totalAmount;
+		monthlyTotals[monthKey].totalTax += weekTotal.totalTax;
+		monthlyTotals[monthKey].totalNet += weekTotal.totalNet;
 	});
 
 	return {
@@ -965,7 +1262,7 @@ export async function getRangePaymentsByGrade(startYear, startMonth, endYear, en
 				itemsPerPage: limit
 			},
 			weeks,
-			users  // ⭐ 사용자 요약 리스트 추가
+			payments: paginatedUsers  // ⭐ 페이지네이션 적용된 사용자 반환
 		}
 	};
 }
