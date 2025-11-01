@@ -37,7 +37,8 @@ export const plannerPaymentService = {
 					limit,
 					searchQuery,
 					searchCategory,
-					periodType: 'weekly' // 주간 보기로 강제
+					periodType: 'weekly', // 주간 보기로 강제
+					filterType: 'date' // ⭐ 주간 보기 표시 (한 주만)
 				});
 			} else {
 				return await this.loadPeriodPayments({
@@ -49,7 +50,8 @@ export const plannerPaymentService = {
 					limit,
 					searchQuery,
 					searchCategory,
-					periodType
+					periodType,
+					filterType: 'period' // ⭐ 기간 보기 표시 (모든 주/월)
 				});
 			}
 		} catch (err) {
@@ -131,7 +133,8 @@ export const plannerPaymentService = {
 			limit,
 			searchQuery,
 			searchCategory,
-			periodType
+			periodType,
+			filterType // ⭐ 주간 보기 vs 기간 보기
 		} = params;
 
 		// 기간 유효성 검사
@@ -183,13 +186,26 @@ export const plannerPaymentService = {
 			weeklyColumns = Array.from(monthMap.values());
 		} else {
 			// 주간 보기: 주차별 컬럼 생성
-			weeklyColumns = (data.weeks || []).map(week => ({
-				year: week.year,
-				month: week.monthNumber,
-				week: week.weekNumber,
-				label: week.week,
-				data: week
-			}));
+			if (filterType === 'date') {
+				// ⭐ 주간 보기: 첫 번째 주만 표시
+				const firstWeek = data.weeks?.[0];
+				weeklyColumns = firstWeek ? [{
+					year: firstWeek.year,
+					month: firstWeek.monthNumber,
+					week: firstWeek.weekNumber,
+					label: firstWeek.week,
+					data: firstWeek
+				}] : [];
+			} else {
+				// ⭐ 기간 보기 (주별): 모든 주 표시
+				weeklyColumns = (data.weeks || []).map(week => ({
+					year: week.year,
+					month: week.monthNumber,
+					week: week.weekNumber,
+					label: week.week,
+					data: week
+				}));
+			}
 		}
 
 		// 사용자별 데이터 매핑
@@ -205,15 +221,28 @@ export const plannerPaymentService = {
 
 					if (userPayment) {
 						if (!payments[monthKey]) {
-							payments[monthKey] = {
-								amount: 0,
-								tax: 0,
-								net: 0
-							};
-						}
-						payments[monthKey].amount += userPayment.actualAmount || 0;
-						payments[monthKey].tax += userPayment.taxAmount || 0;
-						payments[monthKey].net += userPayment.netAmount || 0;
+						payments[monthKey] = {
+							amount: 0,
+							tax: 0,
+							net: 0,
+							gradeInfo: '',  // ⭐ 등급(회수) 누적
+							installmentDetails: []  // ⭐ 지급 상세 누적
+						};
+					}
+					payments[monthKey].amount += userPayment.actualAmount || 0;
+					payments[monthKey].tax += userPayment.taxAmount || 0;
+					payments[monthKey].net += userPayment.netAmount || 0;
+					// ⭐ gradeInfo 누적 (중복 제거)
+					if (userPayment.gradeInfo && userPayment.gradeInfo !== '-') {
+						const existing = payments[monthKey].gradeInfo;
+						payments[monthKey].gradeInfo = existing
+							? `${existing}, ${userPayment.gradeInfo}`
+							: userPayment.gradeInfo;
+					}
+					// ⭐ installmentDetails 누적
+					if (userPayment.installments) {
+						payments[monthKey].installmentDetails.push(...userPayment.installments);
+					}
 					}
 				});
 			} else {
@@ -231,7 +260,9 @@ export const plannerPaymentService = {
 					payments[weekKey] = {
 						amount: userPayment?.actualAmount || 0,
 						tax: userPayment?.taxAmount || 0,
-						net: userPayment?.netAmount || 0
+						net: userPayment?.netAmount || 0,
+						gradeInfo: userPayment?.gradeInfo || '-',  // ⭐ 등급(회수)
+						installmentDetails: userPayment?.installments || []
 					};
 				});
 			}

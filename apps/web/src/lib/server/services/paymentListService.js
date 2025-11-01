@@ -217,6 +217,15 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
 		const userAccount = user.userAccountId || {};
 		const plannerAccount = user.plannerAccountId || {};
 
+		// ⭐ gradeInfo 생성: 등급(회수) 형식
+		const gradeInfo = payment.payments && payment.payments.length > 0
+			? payment.payments.map(p => {
+				const stage = p.추가지급단계 || 0;
+				const stageText = stage === 0 ? '' : `+${stage}`;
+				return `${p.baseGrade}${stageText}(${p.week})`;
+			}).join(', ')
+			: '-';
+
 		return {
 			no: (page - 1) * limit + idx + 1,
 			userId: payment._id,
@@ -228,7 +237,8 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
 			actualAmount: payment.totalAmount || 0,
 			taxAmount: payment.totalTax || 0,
 			netAmount: payment.totalNet || 0,
-			installments: payment.payments
+			installments: payment.payments,
+			gradeInfo // ⭐ 등급(회수) 정보
 		};
 	});
 
@@ -388,6 +398,15 @@ export async function getRangePayments(startYear, startMonth, endYear, endMonth,
 			const plannerAccount = user.plannerAccountId || {};
 			const userAccount = user.userAccountId || {};
 
+			// ⭐ gradeInfo 생성: 등급(회수) 형식
+			const gradeInfo = payment && payment.payments && payment.payments.length > 0
+				? payment.payments.map(p => {
+					const stage = p.추가지급단계 || 0;
+					const stageText = stage === 0 ? '' : `+${stage}`;
+					return `${p.baseGrade}${stageText}(${p.week})`;
+				}).join(', ')
+				: '-';
+
 			return {
 				userId: userId,
 				userName: user.name,
@@ -398,7 +417,8 @@ export async function getRangePayments(startYear, startMonth, endYear, endMonth,
 				actualAmount: payment ? payment.installmentAmount : 0,
 				taxAmount: payment ? payment.withholdingTax : 0,
 				netAmount: payment ? payment.netAmount : 0,
-				installments: payment ? payment.payments : []  // ⭐ 지급 계획 정보
+				installments: payment ? payment.payments : [],  // ⭐ 지급 계획 정보
+				gradeInfo  // ⭐ 등급(회수) 정보
 			};
 		});
 

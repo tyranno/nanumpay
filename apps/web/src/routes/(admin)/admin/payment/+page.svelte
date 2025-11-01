@@ -4,8 +4,8 @@
 	import { paymentPageFilterState } from '$lib/stores/dashboardStore';
 	import { paymentService } from '$lib/services/paymentService';
 	import { PaymentExcelExporter } from '$lib/utils/paymentExcelExporter';
-	import PaymentHeader from '$lib/components/admin/payment/PaymentHeader.svelte';
-	import PaymentTable from '$lib/components/admin/payment/PaymentTable.svelte';
+	import PaymentHeader from '$lib/components/shared/payment/PaymentHeader.svelte';
+	import PaymentTable from '$lib/components/shared/payment/PaymentTable.svelte';
 
 	// 상태 변수
 	let paymentList = [];
@@ -194,6 +194,7 @@
 		{grandTotal}
 		{weeklyTotals}
 		{monthlyTotals}
+		showPlannerColumn={filterState.showPlannerColumn}
 	/>
 </div>
 

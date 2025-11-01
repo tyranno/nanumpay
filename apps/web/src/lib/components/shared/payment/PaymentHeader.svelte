@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
 	import { paymentPageFilterState } from '$lib/stores/dashboardStore';
+	import PaymentColumnSettingsModal from './PaymentColumnSettingsModal.svelte';
 
 	// Props
 	export let isLoading = false;
@@ -9,6 +10,7 @@
 	export let grandTotal = { amount: 0, tax: 0, net: 0 };
 	export let totalPaymentTargets = 0;
 	export let hasData = false;
+	export let showPlannerOption = true; // ⭐ 설계자 옵션 표시 여부 (기본값 true)
 
 	// Event handler props (Svelte 5 style)
 	export let onFilterChange = () => {};
@@ -55,12 +57,18 @@
 	let endYear = $paymentPageFilterState.endYear;
 	let endMonth = $paymentPageFilterState.endMonth;
 	let itemsPerPage = $paymentPageFilterState.itemsPerPage;
+	let showGradeInfoColumn = $paymentPageFilterState.showGradeInfoColumn; // ⭐ 신규
 	let showTaxColumn = $paymentPageFilterState.showTaxColumn;
 	let showNetColumn = $paymentPageFilterState.showNetColumn;
+	let showPlannerColumn = $paymentPageFilterState.showPlannerColumn;
 	let showBankColumn = $paymentPageFilterState.showBankColumn;
 	let showAccountColumn = $paymentPageFilterState.showAccountColumn;
 	let searchQuery = $paymentPageFilterState.searchQuery;
 	let searchCategory = $paymentPageFilterState.searchCategory;
+
+	// 컬럼 설정 모달 상태
+	let showColumnSettings = false;
+	let tempSettings = {};
 
 	// Store 업데이트
 	$: (filterType,
@@ -73,8 +81,10 @@
 		endYear,
 		endMonth,
 		itemsPerPage,
+		showGradeInfoColumn, // ⭐ 신규
 		showTaxColumn,
 		showNetColumn,
+		showPlannerColumn,
 		showBankColumn,
 		showAccountColumn,
 		searchQuery,
@@ -94,8 +104,10 @@
 				endYear,
 				endMonth,
 				itemsPerPage,
+				showGradeInfoColumn, // ⭐ 신규
 				showTaxColumn,
 				showNetColumn,
+				showPlannerColumn,
 				showBankColumn,
 				showAccountColumn,
 				searchQuery,
@@ -143,6 +155,32 @@
 	function formatAmount(amount) {
 		if (!amount && amount !== 0) return '-';
 		return amount.toLocaleString();
+	}
+
+	// 컬럼 설정 모달 핸들러
+	function handleShowAllColumns() {
+		tempSettings = {
+			showGradeInfoColumn: true,
+			showPlannerColumn: true,
+			showBankColumn: true,
+			showAccountColumn: true,
+			showTaxColumn: true,
+			showNetColumn: true
+		};
+	}
+
+	function handleApplyColumnSettings() {
+		showGradeInfoColumn = tempSettings.showGradeInfoColumn;
+		showPlannerColumn = tempSettings.showPlannerColumn;
+		showBankColumn = tempSettings.showBankColumn;
+		showAccountColumn = tempSettings.showAccountColumn;
+		showTaxColumn = tempSettings.showTaxColumn;
+		showNetColumn = tempSettings.showNetColumn;
+		showColumnSettings = false;
+	}
+
+	function handleCloseColumnSettings() {
+		showColumnSettings = false;
 	}
 </script>
 
@@ -227,16 +265,16 @@
 								class="cursor-pointer"
 							/>
 							<span>주별</span>
-					</label>
-					<label class="radio-label-mobile">
-						<input
-							type="radio"
-							bind:group={periodType}
-							value="monthly"
-							onchange={handlePeriodChange}
-							class="cursor-pointer"
-						/>
-						<span>월별</span>
+						</label>
+						<label class="radio-label-mobile">
+							<input
+								type="radio"
+								bind:group={periodType}
+								value="monthly"
+								onchange={handlePeriodChange}
+								class="cursor-pointer"
+							/>
+							<span>월별</span>
 						</label>
 					</div>
 				</div>
@@ -260,10 +298,12 @@
 					<div class="summary-label-mobile">실지급액</div>
 					<div class="summary-value text-green-600">{formatAmount(grandTotal.net)}원</div>
 				</div>
-				<div class="summary-card-mobile">
-					<div class="summary-label-mobile">지급 대상</div>
-					<div class="summary-value text-gray-600">{totalPaymentTargets}명</div>
-				</div>
+				{#if filterType === 'date'}
+					<div class="summary-card-mobile">
+						<div class="summary-label-mobile">지급 대상</div>
+						<div class="summary-value text-gray-600">{totalPaymentTargets}명</div>
+					</div>
+				{/if}
 			</div>
 		</div>
 	{/if}
@@ -272,11 +312,17 @@
 	<div class="search-section-mobile">
 		<!-- 검색 -->
 		<div class="mb-2 flex gap-1">
+			<select bind:value={searchCategory} class="select-mobile">
+				<option value="name">이름</option>
+				{#if showPlannerOption}
+					<option value="planner">설계자</option>
+				{/if}
+			</select>
 			<input
 				type="text"
 				bind:value={searchQuery}
 				onkeypress={handleKeyPress}
-				placeholder="이름으로 검색..."
+				placeholder="검색..."
 				class="input-search-mobile"
 			/>
 			<button onclick={handleSearch} class="btn-search-mobile">검색</button>
@@ -299,24 +345,27 @@
 			</label>
 
 			<div class="flex items-center gap-2">
-				<label class="checkbox-label-mobile">
-					<input type="checkbox" bind:checked={showBankColumn} class="h-3 w-3" />
-					<span>은행</span>
-				</label>
-				<label class="checkbox-label-mobile">
-					<input type="checkbox" bind:checked={showAccountColumn} class="h-3 w-3" />
-					<span>계좌</span>
-				</label>
-				<label class="checkbox-label-mobile">
-					<input type="checkbox" bind:checked={showTaxColumn} class="h-3 w-3" />
-					<span>원천</span>
-				</label>
-				<label class="checkbox-label-mobile">
-					<input type="checkbox" bind:checked={showNetColumn} class="h-3 w-3" />
-					<span>실지급</span>
-				</label>
+				<!-- 컬럼 설정 버튼 -->
+				<button
+					onclick={() => {
+						tempSettings = {
+							showGradeInfoColumn,
+							showPlannerColumn,
+							showBankColumn,
+							showAccountColumn,
+							showTaxColumn,
+							showNetColumn
+						};
+						showColumnSettings = !showColumnSettings;
+					}}
+					class="btn-settings"
+					title="컬럼 설정"
+				>
+					<img src="/icons/settings.svg" alt="설정" class="h-4 w-4" />
+				</button>
+
 				{#if hasData}
-					<button onclick={handleExport} class="btn-icon-mobile" title="Excel 다운로드">
+					<button onclick={handleExport} class="btn-gradient-green" title="Excel 다운로드">
 						<img src="/icons/download.svg" alt="다운로드" class="icon-small" />
 					</button>
 				{/if}
@@ -415,7 +464,7 @@
 			<div class="grid grid-cols-[repeat(auto-fit,minmax(100px,1fr))] gap-2.5">
 				<div class="summary-card-desktop">
 					<div class="summary-label-desktop">총 지급액</div>
-					<div class="summary-value-desktop text-emerald-900">{formatAmount(grandTotal.amount)}원</div>
+					<div class="summary-value-desktop text-gray-800">{formatAmount(grandTotal.amount)}원</div>
 				</div>
 				<div class="summary-card-desktop">
 					<div class="summary-label-desktop">총 원천징수</div>
@@ -423,24 +472,34 @@
 				</div>
 				<div class="summary-card-desktop">
 					<div class="summary-label-desktop">총 실지급액</div>
-					<div class="summary-value-desktop text-blue-600">{formatAmount(grandTotal.net)}원</div>
+					<div class="summary-value-desktop text-green-600">{formatAmount(grandTotal.net)}원</div>
 				</div>
-				<div class="summary-card-desktop">
-					<div class="summary-label-desktop">지급 대상</div>
-					<div class="summary-value-desktop text-gray-600">{totalPaymentTargets}명</div>
-				</div>
+				{#if filterType === 'date'}
+					<div class="summary-card-desktop">
+						<div class="summary-label-desktop">지급 대상</div>
+						<div class="summary-value-desktop text-gray-600">{totalPaymentTargets}명</div>
+					</div>
+				{/if}
 			</div>
 		</div>
 	{/if}
 
 	<!-- 검색 및 페이지 설정 -->
 	<div class="search-container-desktop">
+		<!-- 검색 카테고리 -->
+		<select bind:value={searchCategory} class="select-desktop">
+			<option value="name">이름</option>
+			{#if showPlannerOption}
+				<option value="planner">설계자</option>
+			{/if}
+		</select>
+
 		<!-- 검색 입력 -->
 		<input
 			type="text"
 			bind:value={searchQuery}
 			onkeypress={handleKeyPress}
-			placeholder="이름으로 검색..."
+			placeholder={searchCategory === 'name' ? '이름으로 검색...' : '설계자 이름으로 검색...'}
 			class="input-search-desktop"
 		/>
 
@@ -464,25 +523,24 @@
 			</select>
 		</label>
 
-		<!-- 컬럼 표시 토글 -->
-		<div class="toggle-container">
-			<label class="toggle-label">
-				<input type="checkbox" bind:checked={showBankColumn} class="checkbox-desktop" />
-				<span>은행</span>
-			</label>
-			<label class="toggle-label">
-				<input type="checkbox" bind:checked={showAccountColumn} class="checkbox-desktop" />
-				<span>계좌번호</span>
-			</label>
-			<label class="toggle-label">
-				<input type="checkbox" bind:checked={showTaxColumn} class="checkbox-desktop" />
-				<span>원천징수</span>
-			</label>
-			<label class="toggle-label">
-				<input type="checkbox" bind:checked={showNetColumn} class="checkbox-desktop" />
-				<span>실지급액</span>
-			</label>
-		</div>
+		<!-- 컬럼 설정 버튼 -->
+		<button
+			onclick={() => {
+				tempSettings = {
+					showGradeInfoColumn,
+					showPlannerColumn,
+					showBankColumn,
+					showAccountColumn,
+					showTaxColumn,
+					showNetColumn
+				};
+				showColumnSettings = !showColumnSettings;
+			}}
+			class="btn-settings"
+			title="컬럼 설정"
+		>
+			<img src="/icons/settings.svg" alt="Settings" class="h-4 w-4" />
+		</button>
 
 		<!-- Excel Export 버튼 -->
 		{#if hasData}
@@ -492,6 +550,16 @@
 		{/if}
 	</div>
 {/if}
+
+<!-- 컬럼 설정 모달 -->
+<PaymentColumnSettingsModal
+	isOpen={showColumnSettings}
+	bind:tempSettings
+	onClose={handleCloseColumnSettings}
+	onShowAll={handleShowAllColumns}
+	onApply={handleApplyColumnSettings}
+	{showPlannerOption}
+/>
 
 <style>
 	@reference "$lib/../app.css";
@@ -531,7 +599,7 @@
 	}
 
 	.summary-label-mobile {
-		@apply mb-1 text-xs text-gray-500;
+		@apply mb-0.5 text-xs font-semibold text-gray-600;
 	}
 
 	.summary-value {
@@ -608,11 +676,11 @@
 	}
 
 	.summary-label-desktop {
-		@apply mb-0.5 text-xs font-medium text-gray-500;
+		@apply mb-0.5 text-xs font-semibold text-gray-600;
 	}
 
 	.summary-value-desktop {
-		@apply whitespace-nowrap text-lg font-bold;
+		@apply whitespace-nowrap text-base font-bold;
 	}
 
 	.search-container-desktop {
@@ -653,5 +721,9 @@
 
 	.btn-gradient-green {
 		@apply flex h-7 flex-shrink-0 cursor-pointer items-center justify-center rounded border-none bg-gradient-to-br from-green-500 to-green-700 px-2 text-white shadow-[0_1px_4px_rgba(40,167,69,0.3)] transition-all hover:-translate-y-px hover:from-green-700 hover:to-green-900 hover:shadow-[0_2px_8px_rgba(40,167,69,0.4)] active:translate-y-0 active:shadow-[0_1px_3px_rgba(40,167,69,0.3)];
+	}
+
+	.btn-settings {
+		@apply flex h-7 flex-shrink-0 cursor-pointer items-center justify-center rounded border-2 border-gray-300 bg-white px-2 transition-all hover:border-blue-500 hover:bg-blue-50 active:bg-blue-100;
 	}
 </style>
