@@ -263,7 +263,7 @@ export const paymentService = {
 							tax: payment.taxAmount || 0,
 							net: payment.netAmount || 0,
 							installmentDetails: payment.installments || [],
-							gradeInfo: formatGradeInfo(payment.installments || [])  // ⭐ 등급(회수)
+							gradeInfo: payment.gradeInfo || '-'  // ⭐ API에서 받은 gradeInfo 직접 사용
 						};
 						}
 					}

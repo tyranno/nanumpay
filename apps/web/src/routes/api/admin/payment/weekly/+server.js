@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { connectDB } from '$lib/server/db.js';
-import { getSingleWeekPayments, getRangePayments, getRangePaymentsByGrade } from '$lib/server/services/paymentListService.js';
+import { getSingleWeekPayments, getSingleWeekPaymentsByGrade, getRangePayments, getRangePaymentsByGrade } from '$lib/server/services/paymentListService.js';
 
 /**
  * 관리자 용역비 지급명부 API
@@ -35,6 +35,12 @@ export async function GET({ url, locals }) {
 
 		// === 단일 주차 조회 ===
 		if (month && week) {
+			// ⭐ 등급 검색일 경우 전용 함수 사용
+			if (searchCategory === 'grade' && search) {
+				const result = await getSingleWeekPaymentsByGrade(year, month, week, page, limit, search, plannerAccountId);
+				return json(result);
+			}
+			
 			const result = await getSingleWeekPayments(year, month, week, page, limit, search, searchCategory, plannerAccountId);
 			return json(result);
 		}
