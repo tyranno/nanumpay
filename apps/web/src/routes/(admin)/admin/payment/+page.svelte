@@ -114,6 +114,7 @@
 
 		// Excel 내보내기
 		const exporter = new PaymentExcelExporter({
+			showGradeInfoColumn: filterState.showGradeInfoColumn, // ⭐ 등급(회수) 컬럼
 			showTaxColumn: filterState.showTaxColumn,
 			showNetColumn: filterState.showNetColumn,
 			filterType: filterState.filterType,

@@ -9,6 +9,7 @@ const { saveAs } = FileSaver;
  */
 export class PaymentExcelExporter {
 	constructor(options = {}) {
+		this.showGradeInfoColumn = options.showGradeInfoColumn ?? true; // ⭐ 등급(회수) 컬럼
 		this.showTaxColumn = options.showTaxColumn ?? true;
 		this.showNetColumn = options.showNetColumn ?? true;
 		this.filterType = options.filterType || 'date';
@@ -37,8 +38,8 @@ export class PaymentExcelExporter {
 		const worksheet = workbook.addWorksheet('용역비 지급명부');
 
 		// 컬럼 수 계산
-		const colsPerWeek = 1 + (this.showTaxColumn ? 1 : 0) + (this.showNetColumn ? 1 : 0);
-		const periodTotalCols = this.filterType === 'period' ? colsPerWeek : 0; // 기간 합계 컬럼
+		const colsPerWeek = (this.showGradeInfoColumn ? 1 : 0) + 1 + (this.showTaxColumn ? 1 : 0) + (this.showNetColumn ? 1 : 0);
+		const periodTotalCols = this.filterType === 'period' ? (1 + (this.showTaxColumn ? 1 : 0) + (this.showNetColumn ? 1 : 0)) : 0; // 기간 합계 컬럼 (등급(회수) 제외)
 		const fixedCols = this.isPlanner ? 4 : 5; // 설계사 모드일 때 4개, 아닐 때 5개
 		const totalCols = fixedCols + periodTotalCols + allWeeks.length * colsPerWeek;
 
@@ -226,7 +227,7 @@ export class PaymentExcelExporter {
 		const headerRow1Data = this.isPlanner
 			? ['순번', '성명', '은행', '계좌번호']
 			: ['순번', '성명', '설계자', '은행', '계좌번호'];
-		const colsPerWeek = 1 + (this.showTaxColumn ? 1 : 0) + (this.showNetColumn ? 1 : 0);
+		const colsPerWeek = (this.showGradeInfoColumn ? 1 : 0) + 1 + (this.showTaxColumn ? 1 : 0) + (this.showNetColumn ? 1 : 0);
 
 		// 기간 조회일 때만 기간 합계 컬럼 추가
 		if (this.filterType === 'period') {
@@ -272,6 +273,9 @@ export class PaymentExcelExporter {
 
 		allWeeks.forEach(() => {
 			headerRow2Data.push('지급액');
+			if (this.showGradeInfoColumn) {
+				headerRow2Data.push('등급(회수)');
+			}
 			if (this.showTaxColumn) {
 				headerRow2Data.push('원천징수(3.3%)');
 			}
@@ -356,6 +360,9 @@ export class PaymentExcelExporter {
 				const payment = user.payments[key];
 
 				rowData.push(payment?.amount || 0);
+				if (this.showGradeInfoColumn) {
+					rowData.push(payment?.gradeInfo || '-');
+				}
 				if (this.showTaxColumn) {
 					rowData.push(payment?.tax || 0);
 				}
@@ -414,6 +421,14 @@ export class PaymentExcelExporter {
 			dataRow.getCell(col).numFmt = '#,##0';
 			dataRow.getCell(col).alignment = { vertical: 'middle', horizontal: 'right' };
 			col++;
+			
+			// 등급(회수)
+			if (this.showGradeInfoColumn) {
+				dataRow.getCell(col).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE3F2FD' } }; // 연한 파란색
+				dataRow.getCell(col).font = { size: 10 };
+				dataRow.getCell(col).alignment = { vertical: 'middle', horizontal: 'center' };
+				col++;
+			}
 
 			// 원천징수
 			if (this.showTaxColumn) {
@@ -459,6 +474,9 @@ export class PaymentExcelExporter {
 		allWeeks.forEach(week => {
 			const total = this.calculateWeekTotal(allData, week);
 			totalRowData.push(total.amount);
+			if (this.showGradeInfoColumn) {
+				totalRowData.push('-'); // 등급(회수)는 총계에서 '-' 표시
+			}
 			if (this.showTaxColumn) {
 				totalRowData.push(total.tax);
 			}
