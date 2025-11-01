@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { connectDB } from '$lib/server/db.js';
-import { getSingleWeekPayments, getRangePayments } from '$lib/server/services/paymentListService.js';
+import { getSingleWeekPayments, getRangePayments, getRangePaymentsByGrade } from '$lib/server/services/paymentListService.js';
 
 /**
  * 관리자 용역비 지급명부 API
@@ -41,12 +41,25 @@ export async function GET({ url, locals }) {
 
 		// === 기간 조회 ===
 		if (startYear && startMonth && endYear && endMonth) {
+			// ⭐ 등급 검색일 경우 전용 함수 사용
+			if (searchCategory === 'grade' && search) {
+				const result = await getRangePaymentsByGrade(startYear, startMonth, endYear, endMonth, page, limit, search, plannerAccountId);
+				return json(result);
+			}
+
 			const result = await getRangePayments(startYear, startMonth, endYear, endMonth, page, limit, search, searchCategory, plannerAccountId);
 			return json(result);
 		}
 
 		// === 기본: 현재 월의 모든 주차 조회 ===
 		const currentMonth = month || new Date().getMonth() + 1;
+
+		// ⭐ 등급 검색일 경우 전용 함수 사용
+		if (searchCategory === 'grade' && search) {
+			const result = await getRangePaymentsByGrade(year, currentMonth, year, currentMonth, page, limit, search, plannerAccountId);
+			return json(result);
+		}
+
 		const result = await getRangePayments(year, currentMonth, year, currentMonth, page, limit, search, searchCategory, plannerAccountId);
 		return json(result);
 
