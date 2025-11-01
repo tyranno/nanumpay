@@ -18,6 +18,7 @@
 	export let monthlyTotals = {};
 
 	// Store에서 컬럼 표시 설정 가져오기
+	$: showGradeInfoColumn = $paymentPageFilterState.showGradeInfoColumn; // ⭐ 등급(회수)
 	$: showTaxColumn = $paymentPageFilterState.showTaxColumn;
 	$: showNetColumn = $paymentPageFilterState.showNetColumn;
 	$: showBankColumn = $paymentPageFilterState.showBankColumn;
@@ -88,14 +89,14 @@
 						{#if showAccountColumn}
 							<th rowspan="2" class="th-base th-sticky-3" style="left: {accountLeft}px;">계좌번호</th>
 						{/if}
-						{#if filterType === 'period'}
-							{@const colCount = 1 + (showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0)}
-							<th colspan={colCount} class="th-week">기간 합계</th>
-						{/if}
-						{#each weeklyColumns as week}
-							{@const colCount = 1 + (showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0)}
-							<th colspan={colCount} class="th-week">{week.label}</th>
-						{/each}
+					{#if filterType === 'period'}
+						{@const colCount = 1 + (showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0)}
+						<th colspan={colCount} class="th-week">기간 합계</th>
+					{/if}
+					{#each weeklyColumns as week}
+						{@const colCount = (showGradeInfoColumn ? 1 : 0) + 1 + (showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0)}
+						<th colspan={colCount} class="th-week period-border">{week.label}</th>
+					{/each}
 					</tr>
 					<!-- 두 번째 헤더 행 -->
 					<tr>
@@ -109,14 +110,17 @@
 							{/if}
 						{/if}
 						{#each weeklyColumns as week}
-							<th class="th-sub">지급액</th>
-							{#if showTaxColumn}
-								<th class="th-sub th-tax">원천징수(3.3%)</th>
-							{/if}
-							{#if showNetColumn}
-								<th class="th-sub">실지급액</th>
-							{/if}
-						{/each}
+						<th class="th-sub{showGradeInfoColumn ? '' : ' period-border'}">지급액</th>
+						{#if showGradeInfoColumn}
+							<th class="th-sub th-grade-info">등급(회수)</th>
+						{/if}
+						{#if showTaxColumn}
+							<th class="th-sub th-tax">원천징수(3.3%)</th>
+						{/if}
+						{#if showNetColumn}
+							<th class="th-sub">실지급액</th>
+						{/if}
+					{/each}
 					</tr>
 				</thead>
 				<tbody>
@@ -179,15 +183,20 @@
 									: `${week.year}_${week.month}_${week.week}`}
 							{@const payment = user.payments[key]}
 									<td
-										class="td-amount"
+										class="td-amount{showGradeInfoColumn ? '' : ' period-border'}"
 										title={payment?.installmentDetails
 											? payment.installmentDetails
-													.map((d) => `${d.revenueMonth} ${d.installmentNumber}회차`)
+													.map((d) => `${d.revenueMonth} ${d.week}회차`)
 													.join(', ')
 											: ''}
 									>
 										{formatAmount(payment?.amount)}
 									</td>
+									{#if showGradeInfoColumn}
+										<td class="td-grade-info">
+											{payment?.gradeInfo || '-'}
+										</td>
+									{/if}
 									{#if showTaxColumn}
 										<td class="td-tax">{formatAmount(payment?.tax)}</td>
 									{/if}
@@ -225,7 +234,10 @@
 						{/if}
 						{#each weeklyColumns as column}
 							{@const columnTotal = getColumnTotal(column)}
-							<td class="grand-total-value">{formatAmount(columnTotal.totalAmount)}</td>
+							<td class="grand-total-value{showGradeInfoColumn ? '' : ' period-border'}">{formatAmount(columnTotal.totalAmount)}</td>
+							{#if showGradeInfoColumn}
+								<td class="grand-total-value period-border">-</td>
+							{/if}
 							{#if showTaxColumn}
 								<td class="grand-total-value grand-total-tax">{formatAmount(columnTotal.totalTax)}</td>
 							{/if}
@@ -457,5 +469,29 @@
 	/* 총금액 레이블 sticky */
 	.grand-total-label {
 		@apply sticky left-0 z-10 bg-purple-200;
+	}
+
+	/* 등급(회수) 셀 */
+	.th-grade-info {
+		@apply bg-indigo-100;
+		@apply font-semibold text-indigo-800;
+		@apply min-w-[80px] max-w-[100px];
+		border-left: 2px solid #3b82f6 !important; /* ⭐ 파란색 경계선 (2px) */
+	}
+
+	.td-grade-info {
+		@apply border-b border-r border-gray-300 bg-indigo-50;
+		@apply whitespace-nowrap p-1.5 text-center text-xs;
+		@apply text-indigo-700 font-medium;
+		border-left: 2px solid #3b82f6 !important; /* ⭐ 파란색 경계선 (2px) */
+	}
+
+	.data-row:hover .td-grade-info {
+		@apply bg-indigo-100;
+	}
+
+	/* 기간 경계선 */
+	.period-border {
+		border-left: 2px solid #3b82f6 !important; /* ⭐ 파란색 경계선 (2px) */
 	}
 </style>

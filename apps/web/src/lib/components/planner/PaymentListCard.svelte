@@ -109,6 +109,7 @@
 				endYear: filterState.endYear,
 				endMonth: filterState.endMonth,
 				periodType: filterState.periodType,
+				showGradeInfoColumn: filterState.showGradeInfoColumn, // ⭐ 등급(회수)
 				showTaxColumn: filterState.showTaxColumn,
 				showNetColumn: filterState.showNetColumn,
 				searchQuery: filterState.searchQuery,
