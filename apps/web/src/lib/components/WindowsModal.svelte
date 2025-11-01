@@ -43,13 +43,61 @@
 	// 반응형으로 maxWidth와 bodyHeight 계산
 	$: maxWidth = sizeMap[size] || sizeMap.md;
 	$: bodyHeight = bodyHeightMap[size] || bodyHeightMap.md;
+
+	// 드래그 관련 상태
+	let isDragging = false;
+	let modalElement;
+	let offsetX = 0;
+	let offsetY = 0;
+	let posX = 0;
+	let posY = 0;
+
+	function handleMouseDown(e) {
+		// 닫기 버튼 클릭 시 드래그 방지
+		if (e.target.closest('button')) return;
+
+		isDragging = true;
+		const rect = modalElement.getBoundingClientRect();
+		offsetX = e.clientX - rect.left;
+		offsetY = e.clientY - rect.top;
+	}
+
+	function handleMouseMove(e) {
+		if (!isDragging) return;
+
+		posX = e.clientX - offsetX;
+		posY = e.clientY - offsetY;
+
+		// 화면 밖으로 나가지 않도록 제한
+		const maxX = window.innerWidth - modalElement.offsetWidth;
+		const maxY = window.innerHeight - modalElement.offsetHeight;
+
+		posX = Math.max(0, Math.min(posX, maxX));
+		posY = Math.max(0, Math.min(posY, maxY));
+	}
+
+	function handleMouseUp() {
+		isDragging = false;
+	}
 </script>
 
+<svelte:window
+	onmousemove={handleMouseMove}
+	onmouseup={handleMouseUp}
+/>
+
 {#if isOpen}
-	<div class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-		<div class="bg-white rounded-lg shadow-xl w-full {maxWidth} border border-gray-200 relative transition-all duration-300">
+	<div class="fixed inset-0 bg-black/60 z-50">
+		<div
+			bind:this={modalElement}
+			class="bg-white rounded-lg shadow-xl w-full {maxWidth} border border-gray-200 absolute"
+			style="left: {posX}px; top: {posY}px; {posX === 0 && posY === 0 ? 'left: 50%; top: 50%; transform: translate(-50%, -50%);' : ''}"
+		>
 			<!-- Windows 스타일 타이틀바 -->
-			<div class="bg-gradient-to-r from-blue-500 to-blue-600 px-3 py-1.5 flex items-center justify-between select-none rounded-t-lg">
+			<div
+				class="bg-gradient-to-r from-blue-500 to-blue-600 px-3 py-1.5 flex items-center justify-between select-none rounded-t-lg cursor-move"
+				onmousedown={handleMouseDown}
+			>
 				<div class="flex items-center gap-2">
 					{#if icon}
 						<img src={icon} alt="Icon" class="w-4 h-4 filter brightness-0 invert" />
