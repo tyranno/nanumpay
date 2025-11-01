@@ -61,7 +61,7 @@
 <div class="min-h-screen bg-gray-100">
 	<!-- 네비게이션 바 -->
 	<nav class="fixed top-0 left-0 right-0 bg-white shadow-sm z-50">
-		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+		<div class="w-full px-4 sm:px-6 lg:px-8">
 			<div class="flex justify-between h-16">
 				<div class="flex items-center gap-2">
 					<!-- 햄버거 메뉴 버튼 -->
@@ -219,7 +219,7 @@
 		</div>
 	</aside>
 
-	<main class="max-w-7xl mx-auto pt-20 py-6 sm:px-6 lg:px-8">
+	<main class="w-full pt-16">
 		{@render children?.()}
 	</main>
 </div>

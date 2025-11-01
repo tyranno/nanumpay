@@ -38,9 +38,11 @@
 	<title>설계사 대시보드</title>
 </svelte:head>
 
-<div class="container">
-	<!-- 카드 1 & 2: 설계사 정보 + 용역비 총액 -->
-	<div class="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+<div class="w-full px-2 pb-2">
+	<!-- 전체 Base 카드 -->
+	<div class="rounded-lg bg-white shadow-lg p-4">
+		<!-- 카드 1 & 2: 설계사 정보 + 용역비 총액 -->
+		<div class="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
 		<PlannerInfoCard onOpenSettings={openSettingsModal} />
 		<PaymentSummaryCard />
 	</div>
@@ -48,8 +50,9 @@
 	<!-- 카드 3: 설계사 수당 내역 -->
 	<CommissionSummaryCard />
 
-	<!-- 카드 4: 용역비 지급명부 -->
-	<PaymentListCard />
+		<!-- 카드 4: 용역비 지급명부 -->
+		<PaymentListCard />
+	</div>
 </div>
 
 <!-- 설정 모달 -->
@@ -59,10 +62,3 @@
 	onUpdated={handleSettingsUpdated}
 />
 
-<style>
-	.container {
-		max-width: 1400px;
-		margin: 0 auto;
-		padding: 1rem;
-	}
-</style>

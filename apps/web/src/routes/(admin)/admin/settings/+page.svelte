@@ -312,7 +312,7 @@
 	<title>관리자 설정 - 나눔페이</title>
 </svelte:head>
 
-<div class="mx-auto max-w-5xl px-4 py-6">
+<div class="w-full px-4 py-6">
 	<h1 class="mb-6 text-2xl font-bold text-gray-900">관리자 설정</h1>
 
 	<!-- Tabs -->

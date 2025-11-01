@@ -1,6 +1,7 @@
 <script>
 	import WindowsModal from '$lib/components/WindowsModal.svelte';
 	import { onMount, onDestroy } from 'svelte';
+	import { browser } from '$app/environment';
 
 	// Props
 	let { isOpen = false, onClose = () => {} } = $props();
@@ -64,11 +65,15 @@
 	}
 
 	onMount(() => {
-		window.addEventListener('force-password-tab', handleForcePasswordTab);
+		if (browser) {
+			window.addEventListener('force-password-tab', handleForcePasswordTab);
+		}
 	});
 
 	onDestroy(() => {
-		window.removeEventListener('force-password-tab', handleForcePasswordTab);
+		if (browser) {
+			window.removeEventListener('force-password-tab', handleForcePasswordTab);
+		}
 	});
 
 	async function loadProfile() {

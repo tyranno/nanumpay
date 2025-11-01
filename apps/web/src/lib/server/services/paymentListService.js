@@ -14,8 +14,6 @@ import { getFridaysInMonth } from '$lib/utils/fridayWeekCalculator.js';
  * 단일 주차 지급 데이터 조회
  */
 export async function getSingleWeekPayments(year, month, week, page, limit, search, searchCategory, plannerAccountId = null) {
-	console.log(`[공용서비스] 단일 주차 조회: ${year}년 ${month}월 ${week}주차${plannerAccountId ? ' (설계사 필터)' : ''}`);
-
 	// 1. 해당 주차의 날짜 계산
 	const fridays = getFridaysInMonth(year, month);
 	const targetWeek = fridays.find(w => w.weekNumber === week);
@@ -217,13 +215,51 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
 		const userAccount = user.userAccountId || {};
 		const plannerAccount = user.plannerAccountId || {};
 
-		// ⭐ gradeInfo 생성: 등급(회수) 형식
+		// ⭐ gradeInfo 생성: 등급(회수) 형식 - 기본지급회차/추가지급회차
 		const gradeInfo = payment.payments && payment.payments.length > 0
-			? payment.payments.map(p => {
-				const stage = p.추가지급단계 || 0;
-				const stageText = stage === 0 ? '' : `+${stage}`;
-				return `${p.baseGrade}${stageText}(${p.week})`;
-			}).join(', ')
+			? (() => {
+				// 등급별로 그룹화하여 기본/추가 지급 회차 매칭
+				const gradeMap = {}; // { 'F2': { basic: [1,2,3], additional: [1,2,3] } }
+
+				payment.payments.forEach(p => {
+					const grade = p.baseGrade;
+					const stage = p.추가지급단계 || 0;
+
+					if (!gradeMap[grade]) {
+						gradeMap[grade] = { basic: [], additional: [] };
+					}
+
+					if (stage === 0) {
+						gradeMap[grade].basic.push(p.week);
+					} else {
+						gradeMap[grade].additional.push(p.week);
+					}
+				});
+
+				// 형식화: 기본만/추가만: F2(1,2,3,4), 둘 다: F2(6/1,7/2,8/3,9/4)
+				return Object.entries(gradeMap).map(([grade, data]) => {
+					const hasBasic = data.basic.length > 0;
+					const hasAdditional = data.additional.length > 0;
+
+					if (hasBasic && hasAdditional) {
+						// 둘 다 있을 때: 슬래시로 구분
+						const pairs = [];
+						const maxLen = Math.max(data.basic.length, data.additional.length);
+						for (let i = 0; i < maxLen; i++) {
+							const basic = data.basic[i] || '';
+							const additional = data.additional[i] || '';
+							pairs.push(`${basic}/${additional}`);
+						}
+						return `${grade}(${pairs.join(',')})`;
+					} else if (hasBasic) {
+						// 기본지급만: 슬래시 없이
+						return `${grade}(${data.basic.join(',')})`;
+					} else {
+						// 추가지급만: 슬래시 없이
+						return `${grade}(${data.additional.join(',')})`;
+					}
+				}).join(', ');
+			})()
 			: '-';
 
 		// ⭐ 선택된 기간의 최고 등급 계산
@@ -295,8 +331,6 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
  * 기간 조회
  */
 export async function getRangePayments(startYear, startMonth, endYear, endMonth, page, limit, search, searchCategory, plannerAccountId = null) {
-	console.log(`[공용서비스] 기간 조회: ${startYear}/${startMonth} ~ ${endYear}/${endMonth}${plannerAccountId ? ' (설계사 필터)' : ''}`);
-
 	// 1. 기간 내 모든 금요일 날짜 수집
 	const allFridays = [];
 	let currentYear = startYear;
@@ -327,7 +361,6 @@ export async function getRangePayments(startYear, startMonth, endYear, endMonth,
 		.populate('userAccountId')
 		.sort({ _id: 1 })
 		.lean();
-	console.log(`[공용서비스] 전체 용역자 ${allUsers.length}명 조회${plannerAccountId ? ' (설계사 필터 적용)' : ''}`);
 
 	// 검색 필터 적용
 	if (searchFilter.userName) {
@@ -335,7 +368,6 @@ export async function getRangePayments(startYear, startMonth, endYear, endMonth,
 			? new RegExp(searchFilter.userName.$regex.source || searchFilter.userName.$regex, searchFilter.userName.$options || 'i')
 			: new RegExp(searchFilter.userName, 'i');
 		allUsers = allUsers.filter(u => searchRegex.test(u.name));
-		console.log(`[공용서비스] 이름 검색 필터 적용 후 ${allUsers.length}명`);
 	}
 
 	// 설계사 검색 필터 적용
@@ -345,7 +377,6 @@ export async function getRangePayments(startYear, startMonth, endYear, endMonth,
 			const plannerName = u.plannerAccountId?.name || '';
 			return searchRegex.test(plannerName);
 		});
-		console.log(`[공용서비스] 설계사 검색 필터 적용 후 ${allUsers.length}명`);
 	}
 
 	// 4. 주차별 데이터 생성
@@ -409,13 +440,51 @@ export async function getRangePayments(startYear, startMonth, endYear, endMonth,
 			const plannerAccount = user.plannerAccountId || {};
 			const userAccount = user.userAccountId || {};
 
-			// ⭐ gradeInfo 생성: 등급(회수) 형식
+			// ⭐ gradeInfo 생성: 등급(회수) 형식 - 기본지급회차/추가지급회차
 			const gradeInfo = payment && payment.payments && payment.payments.length > 0
-				? payment.payments.map(p => {
-					const stage = p.추가지급단계 || 0;
-					const stageText = stage === 0 ? '' : `+${stage}`;
-					return `${p.baseGrade}${stageText}(${p.week})`;
-				}).join(', ')
+				? (() => {
+					// 등급별로 그룹화하여 기본/추가 지급 회차 매칭
+					const gradeMap = {}; // { 'F2': { basic: [1,2,3], additional: [1,2,3] } }
+
+					payment.payments.forEach(p => {
+						const grade = p.baseGrade;
+						const stage = p.추가지급단계 || 0;
+
+						if (!gradeMap[grade]) {
+							gradeMap[grade] = { basic: [], additional: [] };
+						}
+
+						if (stage === 0) {
+							gradeMap[grade].basic.push(p.week);
+						} else {
+							gradeMap[grade].additional.push(p.week);
+						}
+					});
+
+					// 형식화: 기본만/추가만: F2(1,2,3,4), 둘 다: F2(6/1,7/2,8/3,9/4)
+					return Object.entries(gradeMap).map(([grade, data]) => {
+						const hasBasic = data.basic.length > 0;
+						const hasAdditional = data.additional.length > 0;
+
+						if (hasBasic && hasAdditional) {
+							// 둘 다 있을 때: 슬래시로 구분
+							const pairs = [];
+							const maxLen = Math.max(data.basic.length, data.additional.length);
+							for (let i = 0; i < maxLen; i++) {
+								const basic = data.basic[i] || '';
+								const additional = data.additional[i] || '';
+								pairs.push(`${basic}/${additional}`);
+							}
+							return `${grade}(${pairs.join(',')})`;
+						} else if (hasBasic) {
+							// 기본지급만: 슬래시 없이
+							return `${grade}(${data.basic.join(',')})`;
+						} else {
+							// 추가지급만: 슬래시 없이
+							return `${grade}(${data.additional.join(',')})`;
+						}
+					}).join(', ');
+				})()
 				: '-';
 
 			// ⭐ 선택된 기간의 최고 등급 계산

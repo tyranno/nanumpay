@@ -271,9 +271,11 @@
 		</div>
 	</div>
 {:else}
-	<div class="container">
-		<!-- 상단 요약 카드 -->
-		<div class="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+	<div class="w-full px-2 pb-2">
+		<!-- 전체 Base 카드 -->
+		<div class="rounded-lg bg-white shadow-lg p-4">
+			<!-- 상단 요약 카드 -->
+			<div class="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
 			<!-- 사용자 정보 카드 -->
 			<div class="rounded-lg bg-gradient-to-br from-blue-50 to-indigo-100 p-3 shadow-md">
 				<div class="mb-2 flex items-center justify-between">
@@ -358,10 +360,9 @@
 					</tbody>
 				</table>
 			</div>
-		</div>
 
-		<!-- 용역비 수령 내역 테이블 -->
-		<div class="overflow-hidden rounded-lg bg-white shadow">
+			<!-- 용역비 수령 내역 테이블 -->
+			<div class="overflow-hidden rounded-lg bg-white shadow md:col-span-2">
 			<!-- 제목 -->
 			<div class="border-b border-gray-200 bg-gray-50 px-4 py-3">
 				<div class="flex items-center gap-2">
@@ -536,6 +537,8 @@
 					</div>
 				</div>
 			{/if}
+			</div>
+		</div>
 		</div>
 	</div>
 {/if}
@@ -548,13 +551,6 @@
 
 <style>
 	@reference "$lib/../app.css";
-
-	.container {
-		padding: 20px;
-		max-width: 1400px;
-		margin: 0 auto;
-		background: white;
-	}
 
 	.title {
 		font-size: 20px;
@@ -576,10 +572,6 @@
 
 	/* 모바일 반응형 */
 	@media (max-width: 480px) {
-		.container {
-			padding: 10px;
-		}
-
 		.title {
 			font-size: 18px;
 			margin-bottom: 15px;
