@@ -226,6 +226,17 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
 			}).join(', ')
 			: '-';
 
+		// ⭐ 선택된 기간의 최고 등급 계산
+		const gradeOrder = { F1: 1, F2: 2, F3: 3, F4: 4, F5: 5, F6: 6, F7: 7, F8: 8 };
+		const periodGrade = payment.payments && payment.payments.length > 0
+			? payment.payments.reduce((maxGrade, p) => {
+				const currentGrade = p.baseGrade || 'F1';
+				return (gradeOrder[currentGrade] || 0) > (gradeOrder[maxGrade] || 0)
+					? currentGrade
+					: maxGrade;
+			}, 'F1')
+			: (user.grade || 'F1');
+
 		return {
 			no: (page - 1) * limit + idx + 1,
 			userId: payment._id,
@@ -233,7 +244,7 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
 			planner: plannerAccount.name || '',
 			bank: userAccount.bank || '',
 			accountNumber: userAccount.accountNumber || '',
-			grade: user.grade || 'F1',
+			grade: periodGrade, // ⭐ 선택된 기간의 최고 등급
 			actualAmount: payment.totalAmount || 0,
 			taxAmount: payment.totalTax || 0,
 			netAmount: payment.totalNet || 0,
@@ -407,13 +418,24 @@ export async function getRangePayments(startYear, startMonth, endYear, endMonth,
 				}).join(', ')
 				: '-';
 
+			// ⭐ 선택된 기간의 최고 등급 계산
+			const gradeOrder = { F1: 1, F2: 2, F3: 3, F4: 4, F5: 5, F6: 6, F7: 7, F8: 8 };
+			const periodGrade = payment && payment.payments && payment.payments.length > 0
+				? payment.payments.reduce((maxGrade, p) => {
+					const currentGrade = p.baseGrade || 'F1';
+					return (gradeOrder[currentGrade] || 0) > (gradeOrder[maxGrade] || 0)
+						? currentGrade
+						: maxGrade;
+				}, 'F1')
+				: (user.grade || 'F1');
+
 			return {
 				userId: userId,
 				userName: user.name,
 				planner: plannerAccount.name || '',
 				bank: userAccount.bank || '',
 				accountNumber: userAccount.accountNumber || '',
-				grade: user.grade || 'F1',
+				grade: periodGrade, // ⭐ 선택된 기간의 최고 등급
 				actualAmount: payment ? payment.installmentAmount : 0,
 				taxAmount: payment ? payment.withholdingTax : 0,
 				netAmount: payment ? payment.netAmount : 0,
@@ -497,7 +519,40 @@ export async function getRangePayments(startYear, startMonth, endYear, endMonth,
 					planner: plannerAccount.name || '',
 					bank: userAccount.bank || '',
 					accountNumber: userAccount.accountNumber || '',
-					grade: user.grade || 'F1',
+					grade: (() => {
+					// ⭐ 선택된 기간 전체에서 최고 등급 계산
+					const gradeOrder = { F1: 1, F2: 2, F3: 3, F4: 4, F5: 5, F6: 6, F7: 7, F8: 8 };
+					let periodGrade = 'F1'; // ⭐ 기본값을 F1로 시작
+					const allGrades = [];
+
+					// ⭐ weeks 배열에서 해당 사용자의 모든 지급 내역 확인
+					weeks.forEach(week => {
+						const userPayment = week.payments.find(p => p.userId === userId);
+						if (userPayment) {
+							// gradeInfo에서 등급 추출 (예: "F2(1), F2(2)" → ["F2", "F2"])
+							if (userPayment.gradeInfo && userPayment.gradeInfo !== '-') {
+								const grades = userPayment.gradeInfo.split(', ').map(g => {
+									const match = g.match(/^(F\d+)/);
+									return match ? match[1] : null;
+								}).filter(Boolean);
+
+								grades.forEach(grade => {
+									allGrades.push(grade);
+									if ((gradeOrder[grade] || 0) > (gradeOrder[periodGrade] || 0)) {
+										periodGrade = grade;
+									}
+								});
+							}
+						}
+					});
+
+					// 지급 내역이 없으면 현재 사용자 등급 사용
+					if (allGrades.length === 0) {
+						periodGrade = user.grade || 'F1';
+					}
+
+					return periodGrade;
+				})(),
 					totalAmount: weeks.reduce((sum, week) => {
 						const payment = week.payments.find(p => p.userId === userId);
 						return sum + (payment?.actualAmount || 0);
