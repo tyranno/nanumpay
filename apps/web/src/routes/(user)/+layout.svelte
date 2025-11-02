@@ -1,6 +1,8 @@
 <script>
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
+	import { onMount } from 'svelte';
+	import { browser } from '$app/environment';
 
 	let { data, children } = $props();
 
@@ -15,6 +17,59 @@
 		// 3. 히스토리 대체 (뒤로가기 방지) + 새로고침 강제
 		goto('/login', { replaceState: true, invalidateAll: true });
 	}
+
+	// 세션 유효성 검증
+	async function validateSession() {
+		try {
+			const response = await fetch('/api/auth/refresh', { method: 'POST' });
+			if (!response.ok) {
+				// 세션이 유효하지 않으면 로그인 페이지로
+				console.warn('[세션 검증] 세션이 유효하지 않습니다. 로그인 페이지로 이동합니다.');
+				goto('/login', { replaceState: true });
+			}
+		} catch (error) {
+			console.error('[세션 검증] 오류:', error);
+			goto('/login', { replaceState: true });
+		}
+	}
+
+	// 페이지 가시성 변경 감지 (뒤로가기/앞으로가기 포함)
+	onMount(() => {
+		if (!browser) return;
+
+		// 페이지 로드 시 세션 검증
+		validateSession();
+
+		// 페이지 가시성 변경 이벤트
+		const handleVisibilityChange = () => {
+			if (document.visibilityState === 'visible') {
+				console.log('[세션 검증] 페이지가 보이게 되었습니다. 세션을 검증합니다.');
+				validateSession();
+			}
+		};
+
+		// popstate 이벤트 (뒤로가기/앞으로가기 감지)
+		const handlePopState = () => {
+			console.log('[세션 검증] 히스토리 변경 감지. 세션을 검증합니다.');
+			validateSession();
+		};
+
+		// 페이지 포커스 이벤트
+		const handleFocus = () => {
+			console.log('[세션 검증] 페이지 포커스. 세션을 검증합니다.');
+			validateSession();
+		};
+
+		document.addEventListener('visibilitychange', handleVisibilityChange);
+		window.addEventListener('popstate', handlePopState);
+		window.addEventListener('focus', handleFocus);
+
+		return () => {
+			document.removeEventListener('visibilitychange', handleVisibilityChange);
+			window.removeEventListener('popstate', handlePopState);
+			window.removeEventListener('focus', handleFocus);
+		};
+	});
 
 	function goBack() {
 		// SvelteKit의 네비게이션을 사용하여 사용자 대시보드로 이동

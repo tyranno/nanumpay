@@ -14,10 +14,26 @@
 	let availableTypes = [];
 	let selectedType = '';
 
-	// 로그인 페이지 진입 시 클라이언트 저장소 정리
+	// 로그인 페이지 진입 시 클라이언트 저장소 정리 및 히스토리 방지
 	onMount(() => {
 		localStorage.clear();
 		sessionStorage.clear();
+
+		// 히스토리 대체 (뒤로가기로 인증 페이지 접근 방지)
+		// replaceState를 사용하여 현재 히스토리 항목을 로그인 페이지로 교체
+		window.history.replaceState(null, '', '/login');
+
+		// popstate 이벤트 리스너 (뒤로가기 시도 감지)
+		const handlePopState = (e) => {
+			// 뒤로가기 시도 시 다시 로그인 페이지로 푸시
+			window.history.pushState(null, '', '/login');
+		};
+
+		window.addEventListener('popstate', handlePopState);
+
+		return () => {
+			window.removeEventListener('popstate', handlePopState);
+		};
 	});
 
 	async function handleSubmit(e) {
