@@ -649,9 +649,12 @@
 				{#if commissions.length === 0}
 					{@const colCount = 3 + (showUserCountColumn ? 1 : 0) + (showRevenueColumn ? 1 : 0)}
 					{@const baseColCount = 2 + (showPhoneColumn ? 1 : 0)}
+					{@const plannerSummaryCols = 3}
 					<!-- 빈 데이터 메시지 -->
 					<tr>
-						<td colspan={baseColCount + periods.length * colCount} class="empty-message">데이터가 없습니다</td>
+						<td colspan={baseColCount + plannerSummaryCols + periods.length * colCount} class="text-center py-12">
+							데이터가 없습니다
+						</td>
 					</tr>
 				{:else}
 					{#each commissions as planner, index}
