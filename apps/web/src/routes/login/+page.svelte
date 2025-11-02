@@ -48,7 +48,11 @@
 		errorMessage = '';
 
 		try {
-			const requestBody = { loginId, password };
+			// 로그인 요청 데이터 생성
+			const requestBody = {
+				loginId: loginId,
+				password: password
+			};
 
 			// 계정 타입이 선택된 경우 포함
 			if (selectedType) {
