@@ -70,27 +70,6 @@
 	let showColumnSettings = false;
 	let tempSettings = {};
 
-	// Store 업데이트
-	$: (filterType,
-		selectedDate,
-		selectedYear,
-		selectedMonth,
-		periodType,
-		startYear,
-		startMonth,
-		endYear,
-		endMonth,
-		itemsPerPage,
-		showGradeInfoColumn, // ⭐ 신규
-		showTaxColumn,
-		showNetColumn,
-		showPlannerColumn,
-		showBankColumn,
-		showAccountColumn,
-		searchQuery,
-		searchCategory,
-		updateStore());
-
 	function updateStore() {
 		if (browser) {
 			paymentPageFilterState.set({
@@ -144,8 +123,10 @@
 		searchQuery = '';
 	}
 
-	function handleDateChange() {
-		onDateChange();
+	// 날짜 변경 핸들러
+	function handleDateChange(event) {
+		selectedDate = event.target.value;
+		onDateChange(event.target.value);
 	}
 
 	function handleExport() {
@@ -222,11 +203,11 @@
 			<!-- 주간 선택 -->
 			{#if filterType === 'date'}
 				<input
-					type="date"
-					bind:value={selectedDate}
-					onchange={handleDateChange}
-					class="input-mobile"
-				/>
+				type="date"
+				value={selectedDate}
+				onchange={handleDateChange}
+				class="input-mobile"
+			/>
 			{/if}
 
 			<!-- 기간 선택 -->
@@ -413,7 +394,7 @@
 				{#if filterType === 'date'}
 					<input
 						type="date"
-						bind:value={selectedDate}
+						value={selectedDate}
 						onchange={handleDateChange}
 						class="input-desktop"
 					/>

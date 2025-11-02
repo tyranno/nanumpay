@@ -18,16 +18,20 @@
 	let weeklyTotals = {};
 	let monthlyTotals = {};
 
-	// Store 구독
-	$: filterState = $paymentPageFilterState;
+	// ⭐ Store 직접 사용 (reactive statement 제거하여 무한 루프 방지)
 
 	// 데이터 로드
-	async function loadPaymentData(page = 1) {
+	async function loadPaymentData(page = 1, overrideDate = null) {
 		isLoading = true;
 		error = '';
 		currentPage = page;
 
 		try {
+			// ⭐ overrideDate가 있으면 그것을 사용, 없으면 store 값 사용
+			const filterState = overrideDate ?
+				{ ...$paymentPageFilterState, selectedDate: overrideDate } :
+				$paymentPageFilterState;
+
 			const result = await plannerPaymentService.loadPaymentData({
 				filterType: filterState.filterType,
 				selectedDate: filterState.selectedDate,
@@ -79,12 +83,12 @@
 
 	// 필터 타입 변경
 	function handleFilterTypeChange() {
-		loadPaymentData();
+		loadPaymentData(1);
 	}
 
 	// 기간 변경
 	function handlePeriodChange() {
-		if (filterState.filterType === 'period') {
+		if ($paymentPageFilterState.filterType === 'period') {
 			loadPaymentData(1);
 		}
 	}
@@ -100,6 +104,8 @@
 	async function handleExcelExport() {
 		try {
 			const { PaymentExcelExporter } = await import('$lib/utils/paymentExcelExporter.js');
+
+			const filterState = $paymentPageFilterState; // ⭐ 스냅샷 사용
 
 			const exporter = new PaymentExcelExporter({
 				filterType: filterState.filterType,
@@ -143,7 +149,10 @@
 		hasData={filteredPaymentList.length > 0}
 		onFilterChange={handleFilterTypeChange}
 		onPeriodChange={handlePeriodChange}
-		onDateChange={() => loadPaymentData()}
+		onDateChange={(newDate) => {
+			// ⭐ store 업데이트 없이 직접 날짜 전달
+			loadPaymentData(1, newDate);
+		}}
 		onSearch={handleSearch}
 		onItemsPerPageChange={handleItemsPerPageChange}
 		onExport={handleExcelExport}
@@ -162,7 +171,7 @@
 		{currentPage}
 		{totalPages}
 		{totalPaymentTargets}
-		itemsPerPage={filterState.itemsPerPage}
+		itemsPerPage={$paymentPageFilterState.itemsPerPage}
 		onPageChange={goToPage}
 		{grandTotal}
 		{weeklyTotals}
