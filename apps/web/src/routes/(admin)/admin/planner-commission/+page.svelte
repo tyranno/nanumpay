@@ -5,8 +5,8 @@
 
 	// 상태 변수
 	let commissions = [];
-	let months = []; // 월 목록
-	let monthlyTotals = {}; // 월별 총계
+	let periods = []; // 기간 목록 (월간/주간)
+	let periodTotals = {}; // 기간별 총계
 	let isLoading = false;
 	let error = '';
 	let currentPage = 1;
@@ -16,12 +16,13 @@
 
 	// 필터 상태
 	let filterType = 'month'; // 'month' 또는 'period'
-	let selectedMonth = ''; // 이번 월
+	let selectedMonth = ''; // 이번 달
 	let startYear = new Date().getFullYear();
 	let startMonth = new Date().getMonth() + 1;
 	let endYear = new Date().getFullYear();
 	let endMonth = new Date().getMonth() + 1;
 	let plannerName = '';
+	let viewMode = 'monthly'; // 'monthly' | 'weekly'
 
 	// 칼럼 표시 옵션
 	let showPhoneColumn = false; // 연락처 칼럼 표시 여부 (기본값: false)
@@ -31,9 +32,10 @@
 	// 통계 요약
 	let summary = {
 		totalPlanners: 0,
-		totalUsers: 0,
 		totalRevenue: 0,
-		totalCommission: 0
+		totalCommission: 0,
+		totalService: 0,
+		grandTotal: 0
 	};
 
 	// 모바일 감지
@@ -42,6 +44,26 @@
 	function checkScreenSize() {
 		if (browser) {
 			isMobile = window.innerWidth < 768;
+		}
+	}
+
+	/**
+	 * 기간 키를 한글 형식으로 변환
+	 * @param {string} period - "2025-10" 또는 "2025-10-W1"
+	 * @returns {string} - "2025년 10월" 또는 "2025년 10월 1주차"
+	 */
+	function formatPeriodLabel(period) {
+		if (period.includes('-W')) {
+			// 주간보기: "2025-10-W1" → "2025년 10월 1주차"
+			const parts = period.split('-');
+			const year = parts[0];
+			const month = parts[1];
+			const week = parts[2].replace('W', '');
+			return `${year}년 ${month}월 ${week}주차`;
+		} else {
+			// 월간보기: "2025-10" → "2025년 10월"
+			const [year, month] = period.split('-');
+			return `${year}년 ${month}월`;
 		}
 	}
 
@@ -60,13 +82,13 @@
 		};
 	});
 
-	// 필터 기준으로 월 목록 생성
-	function generateMonthsFromFilter() {
-		const monthsList = [];
+	// 필터 기준으로 기간 목록 생성
+	function generatePeriodsFromFilter() {
+		const periodsList = [];
 
 		if (filterType === 'month' && selectedMonth) {
 			// 단일 월
-			monthsList.push(selectedMonth);
+			periodsList.push(selectedMonth);
 		} else if (filterType === 'period') {
 			// 기간
 			const start = new Date(startYear, startMonth - 1);
@@ -76,12 +98,12 @@
 			while (current <= end) {
 				const year = current.getFullYear();
 				const month = String(current.getMonth() + 1).padStart(2, '0');
-				monthsList.push(`${year}-${month}`);
+				periodsList.push(`${year}-${month}`);
 				current.setMonth(current.getMonth() + 1);
 			}
 		}
 
-		return monthsList;
+		return periodsList;
 	}
 
 	// 데이터 로드
@@ -93,7 +115,8 @@
 		try {
 			const params = new URLSearchParams({
 				page: page.toString(),
-				limit: limit.toString()
+				limit: limit.toString(),
+				viewMode: viewMode // 보기 모드 추가
 			});
 
 			if (filterType === 'month' && selectedMonth) {
@@ -112,11 +135,11 @@
 
 			if (result.success) {
 				commissions = result.data.commissions;
-				// API에서 월 목록이 없으면 필터 기준으로 생성
-				months = result.data.months && result.data.months.length > 0
-					? result.data.months
-					: generateMonthsFromFilter();
-				monthlyTotals = result.data.monthlyTotals || {}; // 월별 총계
+				// API에서 기간 목록이 없으면 필터 기준으로 생성
+				periods = result.data.periods && result.data.periods.length > 0
+					? result.data.periods
+					: generatePeriodsFromFilter();
+				periodTotals = result.data.periodTotals || {}; // 기간별 총계
 				totalPages = result.data.pagination.totalPages;
 				totalCount = result.data.pagination.totalCount;
 				summary = result.data.summary || summary;
@@ -153,6 +176,11 @@
 		loadCommissions(1);
 	}
 
+	// 보기 모드 변경
+	function handleViewModeChange() {
+		loadCommissions(1);
+	}
+
 	// 기간 변경
 	function handlePeriodChange() {
 		if (filterType === 'period') {
@@ -184,7 +212,11 @@
 	async function exportToExcel() {
 		try {
 			// 전체 데이터 가져오기
-			const params = new URLSearchParams({ page: '1', limit: '999999' });
+			const params = new URLSearchParams({
+				page: '1',
+				limit: '999999',
+				viewMode: viewMode
+			});
 			if (filterType === 'month' && selectedMonth) params.append('paymentMonth', selectedMonth);
 			else if (filterType === 'period') {
 				params.append('startYear', startYear.toString());
@@ -202,8 +234,8 @@
 			}
 
 			const allData = result.data.commissions;
-			const exportMonths = result.data.months || [];
-			const exportMonthlyTotals = result.data.monthlyTotals || {};
+			const exportPeriods = result.data.periods || [];
+			const exportPeriodTotals = result.data.periodTotals || {};
 
 			// Excel 내보내기
 			const exporter = new PlannerCommissionExcelExporter({
@@ -216,10 +248,11 @@
 				startMonth,
 				endYear,
 				endMonth,
-				plannerName
+				plannerName,
+				viewMode
 			});
 
-			await exporter.export(allData, exportMonths, exportMonthlyTotals);
+			await exporter.export(allData, exportPeriods, exportPeriodTotals);
 		} catch (error) {
 			console.error('Excel export error:', error);
 			alert('Excel 다운로드에 실패했습니다.');
@@ -228,7 +261,7 @@
 </script>
 
 <div class="container">
-	<h1 class="title">설계사 수당 지급명부</h1>
+	<h1 class="title">설계사 지급명부</h1>
 
 	{#if isMobile}
 		<!-- ==================== 모바일 버전 ==================== -->
@@ -246,7 +279,7 @@
 							onchange={handleFilterTypeChange}
 							class="cursor-pointer"
 						/>
-						<span class="font-medium">이번 월</span>
+						<span class="font-medium">이번 달</span>
 					</label>
 					<label class="radio-label-mobile">
 						<input
@@ -260,7 +293,7 @@
 					</label>
 				</div>
 
-				<!-- 이번 월 선택 -->
+				<!-- 이번 달 선택 -->
 				{#if filterType === 'month'}
 					<input
 						type="month"
@@ -312,6 +345,34 @@
 			</div>
 		</div>
 
+		<!-- 보기 모드 선택 -->
+		<div class="mb-2">
+			<div class="filter-box">
+				<div class="flex items-center gap-2">
+					<label class="radio-label-mobile">
+						<input
+							type="radio"
+							bind:group={viewMode}
+							value="monthly"
+							onchange={handleViewModeChange}
+							class="cursor-pointer"
+						/>
+						<span class="font-medium">월간보기</span>
+					</label>
+					<label class="radio-label-mobile">
+						<input
+							type="radio"
+							bind:group={viewMode}
+							value="weekly"
+							onchange={handleViewModeChange}
+							class="cursor-pointer"
+						/>
+						<span class="font-medium">주간보기</span>
+					</label>
+				</div>
+			</div>
+		</div>
+
 		<!-- 총합계 요약 -->
 		<div class="summary-container-mobile">
 			<div class="grid grid-cols-2 gap-2">
@@ -320,16 +381,16 @@
 					<div class="summary-value text-gray-800">{summary.totalPlanners}명</div>
 				</div>
 				<div class="summary-card-mobile">
-					<div class="summary-label-mobile">총 용역자</div>
-					<div class="summary-value text-gray-800">{summary.totalUsers}명</div>
-				</div>
-				<div class="summary-card-mobile">
-					<div class="summary-label-mobile">총 매출</div>
-					<div class="summary-value text-blue-600">{formatAmount(summary.totalRevenue)}원</div>
-				</div>
-				<div class="summary-card-mobile">
-					<div class="summary-label-mobile">총 수당</div>
+					<div class="summary-label-mobile">설계 총액</div>
 					<div class="summary-value text-green-600">{formatAmount(summary.totalCommission)}원</div>
+				</div>
+				<div class="summary-card-mobile">
+					<div class="summary-label-mobile">용역 총액</div>
+					<div class="summary-value text-purple-600">{formatAmount(summary.totalService)}원</div>
+				</div>
+				<div class="summary-card-mobile">
+					<div class="summary-label-mobile">전체 총액</div>
+					<div class="summary-value text-indigo-600 font-bold">{formatAmount(summary.grandTotal)}원</div>
 				</div>
 			</div>
 		</div>
@@ -364,18 +425,6 @@
 					</select>
 				</label>
 				<div class="flex items-center gap-2">
-					<label class="checkbox-label-mobile">
-						<input type="checkbox" bind:checked={showPhoneColumn} class="h-3 w-3" />
-						<span>연락처</span>
-					</label>
-					<label class="checkbox-label-mobile">
-						<input type="checkbox" bind:checked={showUserCountColumn} class="h-3 w-3" />
-						<span>등록인원</span>
-					</label>
-					<label class="checkbox-label-mobile">
-						<input type="checkbox" bind:checked={showRevenueColumn} class="h-3 w-3" />
-						<span>매출금</span>
-					</label>
 					<button onclick={exportToExcel} class="btn-icon-mobile" title="Excel 다운로드">
 						<img src="/icons/download.svg" alt="다운로드" class="icon-small" />
 					</button>
@@ -392,7 +441,7 @@
 		<div class="mb-2.5 flex items-start gap-2.5">
 			<div class="filter-container-desktop">
 				<div class="flex items-center gap-1.5 text-[13px]">
-					<!-- 이번 월 필터 -->
+					<!-- 이번 달 필터 -->
 					<label class="radio-label-desktop">
 						<input
 							type="radio"
@@ -401,7 +450,7 @@
 							onchange={handleFilterTypeChange}
 							class="cursor-pointer"
 						/>
-						<span>이번 월</span>
+						<span>이번 달</span>
 					</label>
 					{#if filterType === 'month'}
 						<input
@@ -458,6 +507,31 @@
 							{/each}
 						</select>
 					{/if}
+
+					<!-- 구분선 -->
+					<div class="divider-vertical"></div>
+
+					<!-- 보기 모드 필터 -->
+					<label class="radio-label-desktop">
+						<input
+							type="radio"
+							bind:group={viewMode}
+							value="monthly"
+							onchange={handleViewModeChange}
+							class="cursor-pointer"
+						/>
+						<span>월간보기</span>
+					</label>
+					<label class="radio-label-desktop">
+						<input
+							type="radio"
+							bind:group={viewMode}
+							value="weekly"
+							onchange={handleViewModeChange}
+							class="cursor-pointer"
+						/>
+						<span>주간보기</span>
+					</label>
 				</div>
 			</div>
 		</div>
@@ -470,75 +544,65 @@
 					<div class="summary-value-desktop text-gray-800">{summary.totalPlanners}명</div>
 				</div>
 				<div class="summary-card-desktop">
-					<div class="summary-label-desktop">총 용역자</div>
-					<div class="summary-value-desktop text-gray-800">{summary.totalUsers}명</div>
-				</div>
-				<div class="summary-card-desktop">
-					<div class="summary-label-desktop">총 매출</div>
-					<div class="summary-value-desktop text-blue-600">{formatAmount(summary.totalRevenue)}원</div>
-				</div>
-				<div class="summary-card-desktop">
-					<div class="summary-label-desktop">총 수당</div>
+					<div class="summary-label-desktop">설계 총액</div>
 					<div class="summary-value-desktop text-green-600">{formatAmount(summary.totalCommission)}원</div>
+				</div>
+				<div class="summary-card-desktop">
+					<div class="summary-label-desktop">용역 총액</div>
+					<div class="summary-value-desktop text-purple-600">{formatAmount(summary.totalService)}원</div>
+				</div>
+				<div class="summary-card-desktop">
+					<div class="summary-label-desktop">전체 총액</div>
+					<div class="summary-value-desktop text-indigo-600 font-bold">{formatAmount(summary.grandTotal)}원</div>
 				</div>
 			</div>
 		</div>
 
 		<!-- 검색 및 페이지 설정 -->
-		<div class="search-container-desktop">
-			<!-- 검색 입력 -->
-			<input
-				type="text"
-				bind:value={plannerName}
-				onkeypress={handleKeyPress}
-				placeholder="설계사 이름으로 검색..."
-				class="input-search-desktop"
-			/>
+		<div class="flex items-center justify-between gap-2.5 mb-2.5">
+			<!-- 검색 영역 (왼쪽) -->
+			<div class="flex items-center gap-1.5">
+				<!-- 검색 입력 -->
+				<input
+					type="text"
+					bind:value={plannerName}
+					onkeypress={handleKeyPress}
+					placeholder="설계사 이름으로 검색..."
+					class="input-search-desktop"
+				/>
 
-			<!-- 검색 버튼 -->
-			<button onclick={handleSearch} class="btn-gradient-blue">
-				<img src="/icons/search.svg" alt="검색" class="icon-small" />
-			</button>
-
-			<!-- 페이지당 항목 수 -->
-			<label class="label-desktop">
-				페이지당
-				<select
-					bind:value={limit}
-					onchange={handleItemsPerPageChange}
-					class="select-desktop-with-focus"
-				>
-					<option value={10}>10개</option>
-					<option value={20}>20개</option>
-					<option value={50}>50개</option>
-					<option value={100}>100개</option>
-				</select>
-			</label>
-
-			<!-- 칼럼 표시 토글 -->
-			<div class="toggle-container">
-				<label class="toggle-label">
-					<input type="checkbox" bind:checked={showPhoneColumn} class="checkbox-desktop" />
-					<span>연락처</span>
-				</label>
-				<label class="toggle-label">
-					<input type="checkbox" bind:checked={showUserCountColumn} class="checkbox-desktop" />
-					<span>등록인원</span>
-				</label>
-				<label class="toggle-label">
-					<input type="checkbox" bind:checked={showRevenueColumn} class="checkbox-desktop" />
-					<span>매출금</span>
-				</label>
+				<!-- 검색 버튼 -->
+				<button onclick={handleSearch} class="btn-gradient-blue">
+					<img src="/icons/search.svg" alt="검색" class="icon-small" />
+				</button>
 			</div>
 
-			<!-- Excel Export 버튼 -->
-			<button onclick={exportToExcel} title="Excel 다운로드" class="btn-gradient-green">
-				<img src="/icons/download.svg" alt="다운로드" class="icon-small" />
-			</button>
+			<!-- 설정 영역 (오른쪽) -->
+			<div class="flex items-center gap-2.5">
+				<!-- 페이지당 항목 수 -->
+				<label class="label-desktop">
+					페이지당
+					<select
+						bind:value={limit}
+						onchange={handleItemsPerPageChange}
+						class="select-desktop-with-focus"
+					>
+						<option value={10}>10개</option>
+						<option value={20}>20개</option>
+						<option value={50}>50개</option>
+						<option value={100}>100개</option>
+					</select>
+				</label>
 
-			{#if totalCount > 0}
-			<span class="text-[13px] text-gray-600">총 {totalCount}건</span>
-		{/if}
+				<!-- Excel Export 버튼 -->
+				<button onclick={exportToExcel} title="Excel 다운로드" class="btn-gradient-green">
+					<img src="/icons/download.svg" alt="다운로드" class="icon-small" />
+				</button>
+
+				{#if totalCount > 0}
+					<span class="text-[13px] text-gray-600">총 {totalCount}건</span>
+				{/if}
+			</div>
 		</div>
 	{/if}
 
@@ -551,20 +615,27 @@
 	<div class="table-wrapper">
 			<table class="payment-table">
 				<thead>
+					<!-- Row 1: 순번, 설계사, 전체총액/설계총액/용역총액, 기간 -->
 					<tr>
 						<th rowspan="2" class="th-number th-sticky-0">순번</th>
 						<th rowspan="2" class="th-name th-sticky-1">설계사</th>
 						{#if showPhoneColumn}
 							<th rowspan="2" class="th-name th-sticky-2">연락처</th>
 						{/if}
-						{#each months as month}
-							{@const colCount = 1 + (showUserCountColumn ? 1 : 0) + (showRevenueColumn ? 1 : 0)}
-							<th colspan={colCount} class="th-group">{month}</th>
+						<th rowspan="2" class="th-planner-total">전체 총액</th>
+						<th rowspan="2" class="th-planner-total">설계 총액</th>
+						<th rowspan="2" class="th-planner-total">용역 총액</th>
+						{#each periods as period}
+							{@const colCount = 3 + (showUserCountColumn ? 1 : 0) + (showRevenueColumn ? 1 : 0)}
+							<th colspan={colCount} class="th-group period-border">{formatPeriodLabel(period)}</th>
 						{/each}
 					</tr>
+					<!-- Row 2: 총액, 수당금액, 용역총액 -->
 					<tr>
-						{#each months as month}
-							<th class="th-sub">지급액</th>
+						{#each periods as period}
+							<th class="th-sub period-border">총액</th>
+							<th class="th-sub">수당금액</th>
+							<th class="th-sub">용역총액</th>
 							{#if showUserCountColumn}
 								<th class="th-sub">등록인원</th>
 							{/if}
@@ -576,28 +647,46 @@
 				</thead>
 				<tbody>
 				{#if commissions.length === 0}
-					{@const colCount = 1 + (showUserCountColumn ? 1 : 0) + (showRevenueColumn ? 1 : 0)}
+					{@const colCount = 3 + (showUserCountColumn ? 1 : 0) + (showRevenueColumn ? 1 : 0)}
 					{@const baseColCount = 2 + (showPhoneColumn ? 1 : 0)}
 					<!-- 빈 데이터 메시지 -->
 					<tr>
-						<td colspan={baseColCount + months.length * colCount} class="empty-message">데이터가 없습니다</td>
+						<td colspan={baseColCount + periods.length * colCount} class="empty-message">데이터가 없습니다</td>
 					</tr>
 				{:else}
 					{#each commissions as planner, index}
+						{@const plannerTotal = periods.reduce((sum, period) => {
+							const p = planner.periods[period];
+							if (p) {
+								return {
+									totalAmount: sum.totalAmount + (p.totalAmount || 0),
+									commissionAmount: sum.commissionAmount + (p.commissionAmount || 0),
+									serviceAmount: sum.serviceAmount + (p.serviceAmount || 0)
+								};
+							}
+							return sum;
+						}, { totalAmount: 0, commissionAmount: 0, serviceAmount: 0 })}
 						<tr class="data-row">
 							<td class="td-number td-sticky-0">{(currentPage - 1) * limit + index + 1}</td>
 							<td class="td-name td-sticky-1">{planner.plannerName}</td>
 							{#if showPhoneColumn}
 								<td class="td-phone td-sticky-2">{planner.plannerAccountId?.phone || '-'}</td>
 							{/if}
-							{#each months as month}
-								{@const monthData = planner.months[month]}
-								<td class="td-amount highlight">{monthData ? formatAmount(monthData.totalCommission) : '-'}</td>
+							<!-- 설계사별 총액 -->
+							<td class="td-amount planner-total highlight-total">{formatAmount(plannerTotal.totalAmount)}</td>
+							<td class="td-amount planner-total highlight-commission">{formatAmount(plannerTotal.commissionAmount)}</td>
+							<td class="td-amount planner-total highlight-service">{formatAmount(plannerTotal.serviceAmount)}</td>
+							<!-- 기간별 데이터 -->
+							{#each periods as period}
+								{@const periodData = planner.periods[period]}
+								<td class="td-amount highlight-total period-border">{periodData ? formatAmount(periodData.totalAmount) : '-'}</td>
+								<td class="td-amount highlight-commission">{periodData ? formatAmount(periodData.commissionAmount) : '-'}</td>
+								<td class="td-amount highlight-service">{periodData ? formatAmount(periodData.serviceAmount) : '-'}</td>
 								{#if showUserCountColumn}
-									<td class="td-count">{monthData ? monthData.totalUsers : '-'}</td>
+									<td class="td-count">{periodData ? periodData.totalUsers : '-'}</td>
 								{/if}
 								{#if showRevenueColumn}
-									<td class="td-amount">{monthData ? formatAmount(monthData.totalRevenue) : '-'}</td>
+									<td class="td-amount">{periodData ? formatAmount(periodData.totalRevenue) : '-'}</td>
 								{/if}
 							{/each}
 						</tr>
@@ -606,14 +695,21 @@
 					<!-- 총계 행 -->
 					<tr class="grand-total-row">
 						<td colspan={2 + (showPhoneColumn ? 1 : 0)} class="grand-total-label td-sticky-0">총계</td>
-						{#each months as month}
-							{@const monthTotal = monthlyTotals[month] || { totalCommission: 0, totalUsers: 0, totalRevenue: 0 }}
-							<td class="grand-total-value highlight">{formatAmount(monthTotal.totalCommission)}</td>
+						<!-- 설계사별 총액 합계 -->
+						<td class="grand-total-value planner-total highlight-total">{formatAmount(summary.grandTotal)}</td>
+						<td class="grand-total-value planner-total highlight-commission">{formatAmount(summary.totalCommission)}</td>
+						<td class="grand-total-value planner-total highlight-service">{formatAmount(summary.totalService)}</td>
+						<!-- 기간별 총계 -->
+						{#each periods as period}
+							{@const periodTotal = periodTotals[period] || { totalAmount: 0, commissionAmount: 0, serviceAmount: 0, totalUsers: 0, totalRevenue: 0 }}
+							<td class="grand-total-value highlight-total period-border">{formatAmount(periodTotal.totalAmount)}</td>
+							<td class="grand-total-value highlight-commission">{formatAmount(periodTotal.commissionAmount)}</td>
+							<td class="grand-total-value highlight-service">{formatAmount(periodTotal.serviceAmount)}</td>
 							{#if showUserCountColumn}
-								<td class="grand-total-value">{monthTotal.totalUsers}</td>
+								<td class="grand-total-value">{periodTotal.totalUsers}</td>
 							{/if}
 							{#if showRevenueColumn}
-								<td class="grand-total-value">{formatAmount(monthTotal.totalRevenue)}</td>
+								<td class="grand-total-value">{formatAmount(periodTotal.totalRevenue)}</td>
 							{/if}
 						{/each}
 					</tr>
@@ -866,23 +962,38 @@
 		@apply whitespace-nowrap p-1.5 text-center text-sm font-bold;
 	}
 
+	/* 헤더 - 설계사별 총액 */
+	.th-planner-total {
+		@apply border-b border-r border-t border-gray-300 bg-yellow-100;
+		@apply whitespace-nowrap p-1.5 text-center text-sm font-bold;
+	}
+
+	/* 헤더 - 그룹 서브 (총액) */
+	.th-group-sub {
+		@apply border-b border-r border-gray-300 bg-blue-50;
+		@apply whitespace-nowrap p-1.5 text-center text-[13px] font-semibold;
+	}
+
 	/* 헤더 - 서브 */
 	.th-sub {
 		@apply border-b border-r border-gray-300 bg-gray-200;
 		@apply min-w-[100px] whitespace-nowrap p-1.5 text-center text-[13px] font-normal;
 	}
 
-	/* 헤더 - 고정 컬럼 */
+	/* 헤더 - 고정 컬럼 (데스크탑만) */
 	.th-sticky-0 {
-		@apply sticky left-0 z-20 min-w-[60px];
+		@apply min-w-[60px];
+		@apply md:sticky md:left-0 md:z-20;
 	}
 
 	.th-sticky-1 {
-		@apply sticky left-[60px] z-[19] min-w-[120px];
+		@apply min-w-[120px];
+		@apply md:sticky md:left-[60px] md:z-[19];
 	}
 
 	.th-sticky-2 {
-		@apply sticky left-[180px] z-[18] min-w-[120px];
+		@apply min-w-[120px];
+		@apply md:sticky md:left-[180px] md:z-[18];
 	}
 
 	/* 데이터 행 */
@@ -890,41 +1001,53 @@
 		@apply bg-black/[0.02];
 	}
 
-	/* 데이터 셀 - 고정 컬럼 */
+	/* 데이터 셀 - 고정 컬럼 (데스크탑만) */
 	.td-sticky-0 {
-		@apply sticky left-0 bg-white;
 		@apply border-b border-l border-r border-gray-300;
 		@apply whitespace-nowrap p-1.5 text-center text-sm;
-		z-index: 10 !important;
+		@apply md:sticky md:left-0 md:bg-white;
 	}
 
-	.data-row:hover .td-sticky-0 {
-		background-color: #fafafa !important;
-		z-index: 10 !important;
+	@media (min-width: 768px) {
+		.td-sticky-0 {
+			z-index: 10 !important;
+		}
+		.data-row:hover .td-sticky-0 {
+			background-color: #fafafa !important;
+			z-index: 10 !important;
+		}
 	}
 
 	.td-sticky-1 {
-		@apply sticky left-[60px] bg-white;
 		@apply border-b border-r border-gray-300;
 		@apply whitespace-nowrap p-1.5 text-center text-sm;
-		z-index: 9 !important;
+		@apply md:sticky md:left-[60px] md:bg-white;
 	}
 
-	.data-row:hover .td-sticky-1 {
-		background-color: #fafafa !important;
-		z-index: 9 !important;
+	@media (min-width: 768px) {
+		.td-sticky-1 {
+			z-index: 9 !important;
+		}
+		.data-row:hover .td-sticky-1 {
+			background-color: #fafafa !important;
+			z-index: 9 !important;
+		}
 	}
 
 	.td-sticky-2 {
-		@apply sticky left-[180px] bg-white;
 		@apply border-b border-r border-gray-300;
 		@apply whitespace-nowrap p-1.5 text-center text-sm;
-		z-index: 8 !important;
+		@apply md:sticky md:left-[180px] md:bg-white;
 	}
 
-	.data-row:hover .td-sticky-2 {
-		background-color: #fafafa !important;
-		z-index: 8 !important;
+	@media (min-width: 768px) {
+		.td-sticky-2 {
+			z-index: 8 !important;
+		}
+		.data-row:hover .td-sticky-2 {
+			background-color: #fafafa !important;
+			z-index: 8 !important;
+		}
 	}
 
 	/* 데이터 셀 - 일반 */
@@ -966,12 +1089,49 @@
 		@apply bg-yellow-200;
 	}
 
-	.td-amount.highlight {
+	.td-amount.highlight-total {
+		@apply bg-blue-50 text-blue-700 font-bold;
+	}
+
+	.data-row:hover .td-amount.highlight-total {
+		@apply bg-blue-100;
+	}
+
+	.td-amount.highlight-commission {
 		@apply bg-green-50 text-green-700 font-bold;
 	}
 
-	.data-row:hover .td-amount.highlight {
+	.data-row:hover .td-amount.highlight-commission {
 		@apply bg-green-100;
+	}
+
+	.td-amount.highlight-service {
+		@apply bg-purple-50 text-purple-700 font-bold;
+	}
+
+	.data-row:hover .td-amount.highlight-service {
+		@apply bg-purple-100;
+	}
+
+	/* 설계사별 총액 셀 */
+	.td-amount.planner-total {
+		@apply bg-yellow-50 font-extrabold;
+	}
+
+	.data-row:hover .td-amount.planner-total {
+		@apply bg-yellow-100;
+	}
+
+	.td-amount.planner-total.highlight-total {
+		@apply text-blue-800;
+	}
+
+	.td-amount.planner-total.highlight-commission {
+		@apply text-green-800;
+	}
+
+	.td-amount.planner-total.highlight-service {
+		@apply text-purple-800;
 	}
 
 	/* 총계 행 */
@@ -982,8 +1142,14 @@
 	.grand-total-label {
 		@apply border-b border-l border-r border-gray-300;
 		@apply whitespace-nowrap p-1.5 text-center text-sm font-bold;
-		@apply sticky left-0 bg-purple-100;
-		z-index: 10 !important;
+		@apply bg-purple-100;
+		@apply md:sticky md:left-0;
+	}
+
+	@media (min-width: 768px) {
+		.grand-total-label {
+			z-index: 10 !important;
+		}
 	}
 
 	.grand-total-value {
@@ -991,8 +1157,33 @@
 		@apply whitespace-nowrap p-1.5 pr-3 text-right text-sm font-bold;
 	}
 
-	.grand-total-value.highlight {
+	.grand-total-value.highlight-total {
+		@apply bg-blue-100 text-blue-700;
+	}
+
+	.grand-total-value.highlight-commission {
 		@apply bg-green-100 text-green-700;
+	}
+
+	.grand-total-value.highlight-service {
+		@apply bg-purple-100 text-purple-700;
+	}
+
+	/* 총계 행 - 설계사별 총액 */
+	.grand-total-value.planner-total {
+		@apply bg-yellow-100 font-extrabold;
+	}
+
+	.grand-total-value.planner-total.highlight-total {
+		@apply text-blue-800;
+	}
+
+	.grand-total-value.planner-total.highlight-commission {
+		@apply text-green-800;
+	}
+
+	.grand-total-value.planner-total.highlight-service {
+		@apply text-purple-800;
 	}
 
 	/* 빈 메시지 */
@@ -1051,5 +1242,10 @@
 		padding: 0 5px;
 		color: #9ca3af;
 		font-size: 14px;
+	}
+
+	/* 기간 경계선 (주간보기/월간보기 구분) */
+	.period-border {
+		border-left: 2px solid #3b82f6 !important; /* 파란색 굵은 경계선 */
 	}
 </style>
