@@ -1,7 +1,10 @@
 import WeeklyPaymentPlans from '$lib/server/models/WeeklyPaymentPlans.js';
 import User from '$lib/server/models/User.js';
+import UserAccount from '$lib/server/models/UserAccount.js';
+import PlannerAccount from '$lib/server/models/PlannerAccount.js';
 import { getFridaysInMonth } from '$lib/utils/fridayWeekCalculator.js';
 import { buildSearchFilter, generateGradeInfo, calculatePeriodGrade } from './utils.js';
+import mongoose from 'mongoose';
 
 /**
  * 단일 주차 지급 데이터 조회
@@ -17,6 +20,11 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
 
 	const weekDate = targetWeek.friday;
 	const weekNumber = WeeklyPaymentPlans.getISOWeek(weekDate);
+
+	console.log(`🔍 [단일 주차] ${year}년 ${month}월 ${week}주차 조회`);
+	console.log(`  금요일 날짜: ${weekDate.toISOString().split('T')[0]}`);
+	console.log(`  ISO weekNumber: ${weekNumber}`);
+	console.log(`  plannerAccountId 필터:`, plannerAccountId || '없음 (전체)');
 
 	// 2. 검색 조건 구성
 	const searchFilter = buildSearchFilter(search, searchCategory);
@@ -126,7 +134,7 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
 		// ⭐ 설계사 필터 적용 (본인 용역자만 조회)
 		...(plannerAccountId ? [{
 			$match: {
-				plannerAccountId: plannerAccountId
+				plannerAccountId: new mongoose.Types.ObjectId(plannerAccountId)
 			}
 		}] : []),
 		// 등급 검색 필터 적용 (⭐ $group 이후에 maxGrade로 필터링)
@@ -169,6 +177,9 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
 	];
 
 	const result = await WeeklyPaymentPlans.aggregate(pipeline);
+
+	console.log(`  📊 Aggregation 결과: ${result[0]?.paginatedData?.length || 0}건`);
+	console.log(`  📊 전체: ${result[0]?.grandTotal[0]?.totalUsers || 0}명`);
 
 	// ⭐ grandTotal 추출
 	const grandTotal = result[0]?.grandTotal[0] || {
@@ -362,7 +373,7 @@ export async function getSingleWeekPaymentsByGrade(year, month, week, page, limi
 		// ⭐ 설계사 필터 적용
 		...(plannerAccountId ? [{
 			$match: {
-				plannerAccountId: plannerAccountId
+				plannerAccountId: new mongoose.Types.ObjectId(plannerAccountId)
 			}
 		}] : []),
 		{

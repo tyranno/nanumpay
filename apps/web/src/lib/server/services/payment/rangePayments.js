@@ -1,7 +1,10 @@
 import WeeklyPaymentPlans from '$lib/server/models/WeeklyPaymentPlans.js';
 import User from '$lib/server/models/User.js';
+import UserAccount from '$lib/server/models/UserAccount.js';
+import PlannerAccount from '$lib/server/models/PlannerAccount.js';
 import { getFridaysInMonth } from '$lib/utils/fridayWeekCalculator.js';
 import { buildSearchFilter, generateGradeInfo, calculatePeriodGrade } from './utils.js';
+import mongoose from 'mongoose';
 
 /**
  * 기간 조회
@@ -378,7 +381,7 @@ export async function getRangePaymentsByGrade(startYear, startMonth, endYear, en
 	if (plannerAccountId) {
 		const filteredUsers = await User.find({
 			_id: { $in: userIds.map(id => id) },
-			plannerAccountId: plannerAccountId
+			plannerAccountId: new mongoose.Types.ObjectId(plannerAccountId)
 		}).select('_id').lean();
 
 		const filteredUserIds = new Set(filteredUsers.map(u => u._id.toString()));

@@ -27,18 +27,13 @@ export const plannerPaymentService = {
 
 		try {
 			if (filterType === 'date') {
-				// ⭐ 주간 선택: selectedYear/selectedMonth를 사용하여 해당 월 전체 조회
-				return await this.loadPeriodPayments({
-					startYear: selectedYear,
-					startMonth: selectedMonth,
-					endYear: selectedYear,
-					endMonth: selectedMonth,
+				// ⭐ 주간 선택: selectedDate를 사용하여 단일 주차 조회
+				return await this.loadSingleDatePayments({
+					selectedDate,
 					page,
 					limit,
 					searchQuery,
-					searchCategory,
-					periodType: 'weekly', // 주간 보기로 강제
-					filterType: 'date' // ⭐ 주간 보기 표시 (한 주만)
+					searchCategory
 				});
 			} else {
 				return await this.loadPeriodPayments({
@@ -66,14 +61,17 @@ export const plannerPaymentService = {
 	async loadSingleDatePayments(params) {
 		const { selectedDate, page, limit, searchQuery, searchCategory } = params;
 
-		const [year, month] = selectedDate.split('-');
+		// ⭐ 금요일 기준 주차 계산 (월경계 처리)
 		const weekInfo = getWeekOfMonthByFriday(new Date(selectedDate));
-		const week = weekInfo.week;
+		
+		if (!weekInfo) {
+			throw new Error('주차 계산 실패');
+		}
 
 		const queryParams = new URLSearchParams({
-			year,
-			month: parseInt(month),
-			week,
+			year: weekInfo.year,
+			month: weekInfo.month,
+			week: weekInfo.week,
 			page,
 			limit,
 			search: searchQuery,
