@@ -17,6 +17,11 @@
 	let searchTerm = '';
 	let searchCategory = 'name'; // 검색 카테고리 추가
 	let currentPage = 1;
+
+	// 검색 카테고리 변경 시 검색어 초기화
+	$: if (searchCategory) {
+		searchTerm = '';
+	}
 	let totalPages = 1;
 	let totalMembers = 0;
 	let itemsPerPage = 20;
@@ -83,6 +88,7 @@
 				page: currentPage.toString(),
 				limit: itemsPerPage.toString(),
 				search: searchTerm,
+				searchCategory: searchCategory,
 				sortBy: sortBy,
 				sortOrder: sortOrder
 			});
@@ -651,16 +657,31 @@
 			<select bind:value={searchCategory} class="select-category">
 				<option value="name">이름</option>
 				<option value="planner">설계사</option>
+				<option value="grade">등급</option>
 			</select>
 
 			<!-- 검색 입력 -->
-			<input
-				type="text"
-				bind:value={searchTerm}
-				onkeypress={handleKeyPress}
-				placeholder={searchCategory === 'name' ? '이름으로 검색...' : '설계사 이름으로 검색...'}
-				class="input-search"
-			/>
+			{#if searchCategory === 'grade'}
+				<select bind:value={searchTerm} onchange={handleSearchClick} class="select-grade">
+					<option value="">등급 선택</option>
+					<option value="F1">F1</option>
+					<option value="F2">F2</option>
+					<option value="F3">F3</option>
+					<option value="F4">F4</option>
+					<option value="F5">F5</option>
+					<option value="F6">F6</option>
+					<option value="F7">F7</option>
+					<option value="F8">F8</option>
+				</select>
+			{:else}
+				<input
+					type="text"
+					bind:value={searchTerm}
+					onkeypress={handleKeyPress}
+					placeholder={searchCategory === 'name' ? '이름으로 검색...' : '설계사 이름으로 검색...'}
+					class="input-search"
+				/>
+			{/if}
 
 			<!-- 검색 버튼 -->
 			<button onclick={handleSearchClick} class="btn-search">
@@ -932,6 +953,10 @@
 
 	.select-category {
 		@apply flex h-7 min-w-[90px] cursor-pointer items-center rounded border-2 border-gray-200 bg-white px-1.5 py-1 text-[13px] leading-[1.4] outline-none transition-all hover:border-blue-500 hover:shadow-[0_0_0_2px_rgba(0,123,255,0.1)];
+	}
+
+	.select-grade {
+		@apply h-7 min-w-[200px] flex-1 cursor-pointer rounded border-2 border-gray-200 bg-white px-1.5 py-1 text-[13px] leading-[1.4] outline-none transition-all hover:border-blue-500 hover:shadow-[0_0_0_2px_rgba(0,123,255,0.1)] focus:border-blue-500 focus:shadow-[0_0_0_2px_rgba(0,123,255,0.15)];
 	}
 
 	.input-search {

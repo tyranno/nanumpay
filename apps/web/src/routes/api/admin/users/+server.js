@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db.js';
 import User from '$lib/server/models/User.js';
+import PlannerAccount from '$lib/server/models/PlannerAccount.js';
 
 export async function GET({ url, locals }) {
 	// 관리자 권한 확인
@@ -15,19 +16,35 @@ export async function GET({ url, locals }) {
 		const page = parseInt(url.searchParams.get('page') || '1');
 		const limit = parseInt(url.searchParams.get('limit') || '20');
 		const search = url.searchParams.get('search') || '';
+		const searchCategory = url.searchParams.get('searchCategory') || 'name';
 		const sortBy = url.searchParams.get('sortBy') || 'sequence';
 		const sortOrder = url.searchParams.get('sortOrder') || 'asc';
 
 		// 검색 조건 구성
 		let query = {}; // users 컬렉션은 모두 용역자 (관리자는 별도 admins 컬렉션)
 		if (search) {
-			query = {
-				$or: [
-					{ name: { $regex: search, $options: 'i' } },
-					{ salesperson: { $regex: search, $options: 'i' } },
-					{ planner: { $regex: search, $options: 'i' } }
-				]
-			};
+			// 검색 카테고리에 따라 검색 필드 결정
+			if (searchCategory === 'name') {
+				// 이름 검색: name 필드만
+				query = {
+					name: { $regex: search, $options: 'i' }
+				};
+			} else if (searchCategory === 'planner') {
+				// 설계사 검색: PlannerAccount에서 이름으로 검색 후 해당 설계사의 고객 조회
+				const plannerAccounts = await PlannerAccount.find({
+					name: { $regex: search, $options: 'i' }
+				}).select('_id').lean();
+
+				const plannerIds = plannerAccounts.map(p => p._id);
+				query = {
+					plannerAccountId: { $in: plannerIds }
+				};
+			} else if (searchCategory === 'grade') {
+				// 등급 검색: grade 필드로 정확히 일치
+				query = {
+					grade: search
+				};
+			}
 		}
 
 		// 전체 개수 조회
