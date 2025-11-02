@@ -19,64 +19,6 @@
 		goto('/login', { replaceState: true, invalidateAll: true });
 	}
 
-	// 세션 유효성 검증
-	async function validateSession() {
-		try {
-			const response = await fetch('/api/auth/refresh', { method: 'POST' });
-			if (!response.ok) {
-				// 세션이 유효하지 않으면 로그인 페이지로
-				console.warn('[세션 검증] 세션이 유효하지 않습니다. 로그인 페이지로 이동합니다.');
-				goto('/login', { replaceState: true });
-			}
-		} catch (error) {
-			console.error('[세션 검증] 오류:', error);
-			goto('/login', { replaceState: true });
-		}
-	}
-
-	// 페이지 가시성 변경 감지
-	onMount(() => {
-		if (!browser) return;
-
-		// 페이지 로드 시 세션 검증
-		validateSession();
-
-		// 히스토리 상태 설정 (뒤로가기 방지용)
-		window.history.pushState(null, '', window.location.pathname);
-
-		// popstate 이벤트 (뒤로가기 감지) - 로그아웃 처리
-		const handlePopState = () => {
-			console.log('[세션 검증] 뒤로가기 감지. 로그아웃합니다.');
-			// 히스토리를 다시 추가하여 뒤로가기 방지
-			window.history.pushState(null, '', window.location.pathname);
-			// 로그아웃 처리
-			logout();
-		};
-
-		// 페이지 가시성 변경 이벤트
-		const handleVisibilityChange = () => {
-			if (document.visibilityState === 'visible') {
-				console.log('[세션 검증] 페이지가 보이게 되었습니다. 세션을 검증합니다.');
-				validateSession();
-			}
-		};
-
-		// 페이지 포커스 이벤트
-		const handleFocus = () => {
-			console.log('[세션 검증] 페이지 포커스. 세션을 검증합니다.');
-			validateSession();
-		};
-
-		window.addEventListener('popstate', handlePopState);
-		document.addEventListener('visibilitychange', handleVisibilityChange);
-		window.addEventListener('focus', handleFocus);
-
-		return () => {
-			window.removeEventListener('popstate', handlePopState);
-			document.removeEventListener('visibilitychange', handleVisibilityChange);
-			window.removeEventListener('focus', handleFocus);
-		};
-	});
 
 	function goBack() {
 		// SvelteKit의 네비게이션을 사용하여 관리자 홈으로 이동
