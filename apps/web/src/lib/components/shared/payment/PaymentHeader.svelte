@@ -101,6 +101,7 @@
 	}
 
 	function handlePeriodChange() {
+		updateStore();
 		onPeriodChange();
 	}
 

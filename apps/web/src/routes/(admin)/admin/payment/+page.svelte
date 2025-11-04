@@ -21,9 +21,6 @@
 	let monthlyTotals = {}; // 월별 총계
 	let isProcessingPast = false;
 
-	// Store 구독
-	$: filterState = $paymentPageFilterState;
-
 	// grandTotal을 reactive 변수로 계산
 	$: grandTotal = apiGrandTotal ? {
 		amount: apiGrandTotal.totalAmount || 0,
@@ -38,6 +35,7 @@
 		currentPage = page;
 
 		try {
+			const filterState = $paymentPageFilterState;
 			const result = await paymentService.loadPaymentData({
 				filterType: filterState.filterType,
 				selectedDate: filterState.selectedDate,
@@ -87,18 +85,20 @@
 
 	// 필터 타입 변경
 	function handleFilterTypeChange() {
-		loadPaymentData();
+		loadPaymentData(1);
 	}
 
 	// 기간 변경
 	function handlePeriodChange() {
-		if (filterState.filterType === 'period') {
+		if ($paymentPageFilterState.filterType === 'period') {
 			loadPaymentData(1);
 		}
 	}
 
 	// Excel export
 	async function exportToExcel() {
+		const filterState = $paymentPageFilterState;
+
 		// 전체 데이터 가져오기
 		const { users: allData, weeks: allWeeks } = await paymentService.getAllPaymentData({
 			filterType: filterState.filterType,
@@ -189,12 +189,12 @@
 		{currentPage}
 		{totalPages}
 		{totalPaymentTargets}
-		itemsPerPage={filterState.itemsPerPage}
+		itemsPerPage={$paymentPageFilterState.itemsPerPage}
 		onPageChange={goToPage}
 		{grandTotal}
 		{weeklyTotals}
 		{monthlyTotals}
-		showPlannerColumn={filterState.showPlannerColumn}
+		showPlannerColumn={$paymentPageFilterState.showPlannerColumn}
 	/>
 </div>
 
