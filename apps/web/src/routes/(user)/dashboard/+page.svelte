@@ -39,7 +39,7 @@
 			console.log('🔥 API 응답:', data);
 
 			if (!response.ok) {
-				throw new Error(data.message || '용역비 정보를 불러오는데 실패했습니다.');
+				throw new Error(data.message || '지원비 정보를 불러오는데 실패했습니다.');
 			}
 
 			if (data.success) {
@@ -51,7 +51,7 @@
 				console.log('✅ allRegistrations 설정됨:', allRegistrations.length, '건');
 				console.log('📅 첫 번째 데이터:', allPayments[0]);
 			} else {
-				throw new Error('용역비 정보가 없습니다.');
+				throw new Error('지원비 정보가 없습니다.');
 			}
 
 			// 암호 변경 필요 여부 체크 (세션 스토리지)
@@ -257,7 +257,7 @@
 </script>
 
 <svelte:head>
-	<title>내 용역비 - 나눔페이</title>
+	<title>내 지원비 - 나눔페이</title>
 </svelte:head>
 
 {#if isLoading}
@@ -323,10 +323,10 @@
 				{/if}
 			</div>
 
-			<!-- 용역비 요약 카드 -->
+			<!-- 지원비 요약 카드 -->
 			<div class="rounded-lg bg-gradient-to-br from-green-50 to-emerald-100 p-3 shadow-md">
 				<div class="mb-2">
-					<h3 class="text-base font-bold text-emerald-900">💰 용역비 요약</h3>
+					<h3 class="text-base font-bold text-emerald-900">💰 지원비 요약</h3>
 				</div>
 				<table class="w-full">
 					<thead>
@@ -361,13 +361,13 @@
 				</table>
 			</div>
 
-			<!-- 용역비 수령 내역 테이블 -->
+			<!-- 지원비 수령 내역 테이블 -->
 			<div class="overflow-hidden rounded-lg bg-white shadow md:col-span-2">
 			<!-- 제목 -->
 			<div class="border-b border-gray-200 bg-gray-50 px-4 py-3">
 				<div class="flex items-center gap-2">
-					<img src="/icons/receipt.svg" alt="용역비" class="h-5 w-5" />
-					<h3 class="text-base font-bold text-gray-900">용역비 수령 내역</h3>
+					<img src="/icons/receipt.svg" alt="지원비" class="h-5 w-5" />
+					<h3 class="text-base font-bold text-gray-900">지원비 수령 내역</h3>
 				</div>
 			</div>
 

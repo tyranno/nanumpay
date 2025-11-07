@@ -274,12 +274,12 @@
 </script>
 
 <svelte:head>
-	<title>용역자 산하정보 - 나눔페이</title>
+	<title>계약자 산하정보 - 나눔페이</title>
 </svelte:head>
 
 <div class="container">
 	<!-- 제목 -->
-	<h1 class="title">용역자 산하정보</h1>
+	<h1 class="title">계약자 산하정보</h1>
 
 	<!-- 검색 영역 -->
 	<div class="search-section">
@@ -333,7 +333,7 @@
 				>
 					<div class="p-2">
 						<div class="border-b px-3 py-2 text-xs text-gray-500">
-							{searchResults.length}명의 용역자를 찾았습니다
+							{searchResults.length}명의 지원자를 찾았습니다
 						</div>
 						{#each searchResults as user}
 							<button

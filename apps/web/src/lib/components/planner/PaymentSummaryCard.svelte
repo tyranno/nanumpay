@@ -15,7 +15,7 @@
 				paymentSummary = await response.json();
 			}
 		} catch (error) {
-			console.error('용역비 총액 로드 오류:', error);
+			console.error('지원비 총액 로드 오류:', error);
 		}
 	}
 
@@ -24,12 +24,12 @@
 	});
 </script>
 
-<!-- 카드 2: 용역비 총액 -->
+<!-- 카드 2: 지원비 총액 -->
 <div class="rounded-lg bg-gradient-to-br from-green-50 to-emerald-100 p-3 shadow-md">
 	<div class="mb-2 flex items-center justify-between">
 		<div class="flex items-center gap-2">
-			<img src="/icons/total-budget.svg" alt="용역비 총액" class="h-6 w-6" />
-			<h3 class="text-base font-bold text-emerald-900">용역비 총액</h3>
+			<img src="/icons/total-budget.svg" alt="지원비 총액" class="h-6 w-6" />
+			<h3 class="text-base font-bold text-emerald-900">지원비 총액</h3>
 		</div>
 	</div>
 

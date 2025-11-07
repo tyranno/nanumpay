@@ -156,12 +156,12 @@
 </script>
 
 <svelte:head>
-	<title>용역비 지급명부</title>
+	<title>지원비 지급명부</title>
 </svelte:head>
 
 <div class="container">
 	<!-- 제목 -->
-	<h1 class="title">용역비 지급명부</h1>
+	<h1 class="title">지원비 지급명부</h1>
 
 	<!-- PaymentHeader 컴포넌트 사용 -->
 	<PaymentHeader

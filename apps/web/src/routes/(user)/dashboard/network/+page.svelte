@@ -290,7 +290,7 @@
 				>
 					<div class="p-2">
 						<div class="border-b px-3 py-2 text-xs text-gray-500">
-							{searchResults.length}명의 용역자를 찾았습니다
+							{searchResults.length}명의 지원자를 찾았습니다
 						</div>
 						{#each searchResults as user}
 							<button

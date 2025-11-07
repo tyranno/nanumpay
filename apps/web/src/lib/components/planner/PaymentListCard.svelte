@@ -137,9 +137,9 @@
 	});
 </script>
 
-<!-- 카드 4: 용역비 지급명부 -->
+<!-- 카드 4: 지원비 지급명부 -->
 <div class="rounded-lg bg-white p-4 shadow-md">
-	<h2 class="mb-3 text-lg font-bold text-gray-900">용역비 지급명부</h2>
+	<h2 class="mb-3 text-lg font-bold text-gray-900">지원비 지급명부</h2>
 
 	<PaymentHeader
 		{isLoading}

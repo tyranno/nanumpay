@@ -41,7 +41,7 @@
 <div class="w-full px-2 pb-2">
 	<!-- 전체 Base 카드 -->
 	<div class="rounded-lg bg-white shadow-lg p-4">
-		<!-- 카드 1 & 2: 설계사 정보 + 용역비 총액 -->
+		<!-- 카드 1 & 2: 설계사 정보 + 지원비 총액 -->
 		<div class="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
 		<PlannerInfoCard onOpenSettings={openSettingsModal} />
 		<PaymentSummaryCard />
@@ -50,7 +50,7 @@
 	<!-- 카드 3: 설계사 수당 내역 -->
 	<CommissionSummaryCard />
 
-		<!-- 카드 4: 용역비 지급명부 -->
+		<!-- 카드 4: 지원비 지급명부 -->
 		<PaymentListCard />
 	</div>
 </div>

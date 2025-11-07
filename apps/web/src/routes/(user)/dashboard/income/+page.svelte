@@ -49,7 +49,7 @@
 </script>
 
 <svelte:head>
-	<title>내용역비정보 - 나눔페이</title>
+	<title>내지원비정보 - 나눔페이</title>
 </svelte:head>
 
 {#if isLoading}
@@ -60,8 +60,8 @@
 	<div class="px-4 py-6 sm:px-0">
 		<div class="bg-white shadow overflow-hidden sm:rounded-lg">
 			<div class="px-4 py-5 sm:px-6 border-b border-gray-200 bg-gray-50">
-				<h3 class="text-lg leading-6 font-medium text-gray-900">내용역비정보</h3>
-				<p class="mt-1 text-sm text-gray-600">기간별 용역비 지급 내역</p>
+				<h3 class="text-lg leading-6 font-medium text-gray-900">내지원비정보</h3>
+				<p class="mt-1 text-sm text-gray-600">기간별 지원비 지급 내역</p>
 			</div>
 			<div class="overflow-x-auto">
 				<table class="min-w-full">

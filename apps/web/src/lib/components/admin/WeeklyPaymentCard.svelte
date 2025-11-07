@@ -48,7 +48,7 @@
 {:else}
 	<div class="bg-white shadow-sm rounded-lg overflow-hidden">
 		<div class="px-4 py-2 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100">
-			<h3 class="text-base font-medium text-gray-900">이번주 용역비 금액</h3>
+			<h3 class="text-base font-medium text-gray-900">이번주 지원비 금액</h3>
 			<p class="text-xs text-gray-500">{new Date().getFullYear()}년 {currentMonth}월 {currentWeek}</p>
 		</div>
 		<div class="px-3 sm:px-4 py-2">

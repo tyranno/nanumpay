@@ -70,7 +70,7 @@
 			<tbody>
 				{#if members.length === 0}
 					<tr>
-						<td colspan="14" class="empty-state"> 등록된 용역자가 없습니다 </td>
+						<td colspan="14" class="empty-state"> 등록된 지원자가 없습니다 </td>
 					</tr>
 				{:else}
 					{#each members as member, index}

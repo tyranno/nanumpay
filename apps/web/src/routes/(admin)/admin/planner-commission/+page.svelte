@@ -128,7 +128,10 @@
 				params.append('endMonth', endMonth.toString());
 			}
 
-			if (plannerName) params.append('plannerName', plannerName);
+			if (plannerName) {
+				params.append('searchType', 'name');
+				params.append('searchTerm', plannerName);
+			}
 
 			const response = await fetch(`/api/admin/planner-commission?${params}`);
 			const result = await response.json();
@@ -224,7 +227,10 @@
 				params.append('endYear', endYear.toString());
 				params.append('endMonth', endMonth.toString());
 			}
-			if (plannerName) params.append('plannerName', plannerName);
+			if (plannerName) {
+				params.append('searchType', 'name');
+				params.append('searchTerm', plannerName);
+			}
 
 			const response = await fetch(`/api/admin/planner-commission?${params}`);
 			const result = await response.json();
@@ -385,7 +391,7 @@
 					<div class="summary-value text-green-600">{formatAmount(summary.totalCommission)}원</div>
 				</div>
 				<div class="summary-card-mobile">
-					<div class="summary-label-mobile">용역 총액</div>
+					<div class="summary-label-mobile">지원 총액</div>
 					<div class="summary-value text-purple-600">{formatAmount(summary.totalService)}원</div>
 				</div>
 				<div class="summary-card-mobile">
@@ -548,7 +554,7 @@
 					<div class="summary-value-desktop text-green-600">{formatAmount(summary.totalCommission)}원</div>
 				</div>
 				<div class="summary-card-desktop">
-					<div class="summary-label-desktop">용역 총액</div>
+					<div class="summary-label-desktop">지원 총액</div>
 					<div class="summary-value-desktop text-purple-600">{formatAmount(summary.totalService)}원</div>
 				</div>
 				<div class="summary-card-desktop">
@@ -615,7 +621,7 @@
 	<div class="table-wrapper">
 			<table class="payment-table">
 				<thead>
-					<!-- Row 1: 순번, 설계사, 전체총액/설계총액/용역총액, 기간 -->
+					<!-- Row 1: 순번, 설계사, 전체총액/설계총액/지원총액, 기간 -->
 					<tr>
 						<th rowspan="2" class="th-number th-sticky-0">순번</th>
 						<th rowspan="2" class="th-name th-sticky-1">설계사</th>
@@ -624,18 +630,18 @@
 						{/if}
 						<th rowspan="2" class="th-planner-total">전체 총액</th>
 						<th rowspan="2" class="th-planner-total">설계 총액</th>
-						<th rowspan="2" class="th-planner-total">용역 총액</th>
+						<th rowspan="2" class="th-planner-total">지원 총액</th>
 						{#each periods as period}
 							{@const colCount = 3 + (showUserCountColumn ? 1 : 0) + (showRevenueColumn ? 1 : 0)}
 							<th colspan={colCount} class="th-group period-border">{formatPeriodLabel(period)}</th>
 						{/each}
 					</tr>
-					<!-- Row 2: 총액, 수당금액, 용역총액 -->
+					<!-- Row 2: 총액, 수당금액, 지원총액 -->
 					<tr>
 						{#each periods as period}
 							<th class="th-sub period-border">총액</th>
 							<th class="th-sub">수당금액</th>
-							<th class="th-sub">용역총액</th>
+							<th class="th-sub">지원총액</th>
 							{#if showUserCountColumn}
 								<th class="th-sub">등록인원</th>
 							{/if}

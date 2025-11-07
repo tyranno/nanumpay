@@ -648,7 +648,7 @@
 
 <div class="container">
 	<!-- 제목 -->
-	<h1 class="title">용역자 관리명부</h1>
+	<h1 class="title">계약자 관리명부</h1>
 
 	<!-- 검색 및 필터 -->
 	<div class="filter-section">
@@ -752,7 +752,7 @@
 		/>
 	{/if}
 
-	<!-- 용역자 등록 모달 -->
+	<!-- 지원자 등록 모달 -->
 	<MemberRegistrationModal
 		bind:this={registrationModal}
 		isOpen={showAddModal}

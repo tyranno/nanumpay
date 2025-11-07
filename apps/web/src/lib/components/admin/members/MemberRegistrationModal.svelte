@@ -118,7 +118,7 @@
 
 <WindowsModal
 	{isOpen}
-	title="용역자 등록"
+	title="지원자 등록"
 	icon="/icons/user-plus.svg"
 	size="xl"
 	{onClose}

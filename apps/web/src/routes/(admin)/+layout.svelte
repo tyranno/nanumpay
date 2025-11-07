@@ -122,16 +122,6 @@
 					>
 						<img src="/icons/menu-gray.svg" alt="메뉴" class="h-5 w-5 filter-gray" />
 					</button>
-					{#if $page.url.pathname !== '/admin'}
-						<button
-							onclick={goBack}
-							class="p-2 rounded-lg bg-gradient-to-br from-gray-50 to-gray-100 hover:from-gray-100 hover:to-gray-200 transition-all shadow-sm hover:shadow-md"
-							title="뒤로가기"
-							type="button"
-						>
-							<img src="/icons/arrow-left.svg" alt="뒤로가기" class="h-5 w-5 filter-gray" />
-						</button>
-					{/if}
 					<button
 						onclick={goHome}
 						class="flex items-center hover:opacity-80 transition-opacity"
@@ -206,9 +196,9 @@
 						type="button"
 					>
 						<div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
-							<img src="/icons/money-blue.svg" alt="용역비" class="h-5 w-5 filter-blue-icon" />
+							<img src="/icons/money-blue.svg" alt="지원비" class="h-5 w-5 filter-blue-icon" />
 						</div>
-						<span class="text-sm font-medium text-gray-900">용역비 지급명부</span>
+						<span class="text-sm font-medium text-gray-900">지원비 지급명부</span>
 					</button>
 
 					<button
@@ -217,9 +207,9 @@
 						type="button"
 					>
 						<div class="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
-							<img src="/icons/users-emerald.svg" alt="용역자" class="h-5 w-5 filter-emerald-icon" />
+							<img src="/icons/users-emerald.svg" alt="지원자" class="h-5 w-5 filter-emerald-icon" />
 						</div>
-						<span class="text-sm font-medium text-gray-900">용역자 관리명부</span>
+						<span class="text-sm font-medium text-gray-900">계약자 관리명부</span>
 					</button>
 
 					<button
@@ -228,7 +218,7 @@
 						type="button"
 					>
 						<div class="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
-							<img src="/icons/money-blue.svg" alt="설계사 수당" class="h-5 w-5 filter-blue-icon" />
+							<img src="/icons/planner-purple.svg" alt="설계사" class="h-5 w-5 filter-purple-icon" />
 						</div>
 						<span class="text-sm font-medium text-gray-900">설계사 지급명부</span>
 					</button>
@@ -239,9 +229,9 @@
 						type="button"
 					>
 						<div class="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
-							<img src="/icons/organization-purple.svg" alt="조직도" class="h-5 w-5 filter-purple-icon" />
+							<img src="/icons/tree-purple.svg" alt="계층도" class="h-5 w-5 filter-purple-icon" />
 						</div>
-						<span class="text-sm font-medium text-gray-900">용역자 산하정보</span>
+						<span class="text-sm font-medium text-gray-900">계약자 산하정보</span>
 					</button>
 
 					<button
@@ -260,7 +250,7 @@
 			<!-- Copyright 오버레이 -->
 			<div class="border-t border-gray-200 p-4 bg-gradient-to-b from-transparent to-gray-50">
 				<div class="text-center text-xs text-gray-500 leading-relaxed">
-					<p class="font-medium text-gray-600 mb-1">용역관리시스템</p>
+					<p class="font-medium text-gray-600 mb-1">지원관리시스템</p>
 					<p>&copy; 2025 나눔에셋</p>
 					<p class="mt-1 text-gray-400">All rights reserved</p>
 				</div>

@@ -90,7 +90,7 @@
 
 <WindowsModal
 	isOpen={isOpen && member}
-	title="용역자 정보 수정"
+	title="지원자 정보 수정"
 	icon="/icons/edit-blue.svg"
 	size="xl"
 	{onClose}

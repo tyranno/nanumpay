@@ -158,12 +158,12 @@
 			<img src="/icons/edit-blue.svg" alt="Info" class="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
 			<div class="text-xs text-amber-700">
 				<p class="mb-1">엑셀 양식:
-					<a href="/용역자_등록_양식.xlsx" download class="underline font-semibold hover:text-amber-900">
+					<a href="/지원자_등록_양식.xlsx" download class="underline font-semibold hover:text-amber-900">
 						다운로드
 					</a>
 				</p>
 				<p class="mb-0.5">• 형식 맞지 않으면 등록 안됨</p>
-				<p class="mb-0.5">• 판매인은 기존 용역자여야 함</p>
+				<p class="mb-0.5">• 판매인은 기존 지원자여야 함</p>
 				<p>• 비밀번호: 전화번호 뒤 4자리</p>
 			</div>
 		</div>
