@@ -97,6 +97,7 @@
 
 	// 이벤트 핸들러
 	function handleFilterTypeChange() {
+		updateStore();
 		onFilterChange();
 	}
 
@@ -117,17 +118,20 @@
 	}
 
 	function handleItemsPerPageChange() {
+		updateStore();
 		onItemsPerPageChange();
 	}
 
 	// ⭐ 검색 카테고리 변경 시 검색어 초기화
 	function handleSearchCategoryChange() {
 		searchQuery = '';
+		updateStore();
 	}
 
 	// 날짜 변경 핸들러
 	function handleDateChange(event) {
 		selectedDate = event.target.value;
+		updateStore();
 		onDateChange(event.target.value);
 	}
 
@@ -164,6 +168,7 @@
 		showAccountColumn = tempSettings.showAccountColumn;
 		showTaxColumn = tempSettings.showTaxColumn;
 		showNetColumn = tempSettings.showNetColumn;
+		updateStore();
 		showColumnSettings = false;
 	}
 
