@@ -312,7 +312,7 @@
 					{#if paymentViewMode === 'monthly'}
 						<p class="text-sm text-gray-700">💡 월간 보기: 각 월별 등급별 지급 금액 표시</p>
 					{:else}
-						<p class="text-sm text-gray-700">💡 주간 보기: 각 주차별 등급별 지급액 표시 - 지급 금액(계획 건수)</p>
+						<p class="text-sm text-gray-700">💡 주간 보기: 각 주차별 등급별 지급액 표시</p>
 					{/if}
 				</div>
 
@@ -420,7 +420,7 @@
 										{#each periodColumns as column}
 											{@const gradeData = getGradeDataForPeriod(grade, column)}
 											<td class="data-col text-center">
-												{(Math.floor(gradeData.amount / 100) * 100).toLocaleString()}({gradeData.count})
+												{(Math.floor(gradeData.amount / 100) * 100).toLocaleString()}
 											</td>
 										{/each}
 									</tr>
@@ -450,7 +450,7 @@
 												return sum;
 											})()}
 											<td class="data-col text-center">
-												{(Math.floor(totalAmount / 100) * 100).toLocaleString()}({totalCount})
+												{(Math.floor(totalAmount / 100) * 100).toLocaleString()}
 											</td>
 										{/each}
 									</tr>
