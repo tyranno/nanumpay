@@ -3,6 +3,7 @@
 	import { page } from '$app/stores';
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
+	import { revenueCardState, paymentCardState, paymentPageFilterState } from '$lib/stores/dashboardStore';
 
 	let { children } = $props();
 	let sidebarOpen = $state(false);
@@ -15,7 +16,44 @@
 		localStorage.clear();
 		sessionStorage.clear();
 
-		// 3. 히스토리 대체 (뒤로가기 방지) + 새로고침 강제
+		// 3. Store 초기화
+		const today = new Date();
+		revenueCardState.set({
+			viewMode: 'single',
+			startYear: today.getFullYear(),
+			startMonth: today.getMonth() + 1,
+			endYear: today.getFullYear(),
+			endMonth: today.getMonth() + 1
+		});
+		paymentCardState.set({
+			viewMode: 'monthly',
+			startYear: today.getFullYear(),
+			startMonth: today.getMonth() + 1,
+			endYear: today.getFullYear(),
+			endMonth: today.getMonth() + 1
+		});
+		paymentPageFilterState.set({
+			filterType: 'date',
+			selectedDate: today.toISOString().split('T')[0],
+			selectedYear: today.getFullYear(),
+			selectedMonth: today.getMonth() + 1,
+			periodType: 'weekly',
+			startYear: today.getFullYear(),
+			startMonth: today.getMonth() + 1,
+			endYear: today.getFullYear(),
+			endMonth: today.getMonth() + 1,
+			itemsPerPage: 20,
+			showGradeInfoColumn: true,
+			showTaxColumn: true,
+			showNetColumn: true,
+			showPlannerColumn: true,
+			showBankColumn: true,
+			showAccountColumn: true,
+			searchQuery: '',
+			searchCategory: 'name'
+		});
+
+		// 4. 히스토리 대체 (뒤로가기 방지) + 새로고침 강제
 		goto('/login', { replaceState: true, invalidateAll: true });
 	}
 
