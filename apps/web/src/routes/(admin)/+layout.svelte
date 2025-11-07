@@ -4,11 +4,19 @@
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
 	import { revenueCardState, paymentCardState, paymentPageFilterState } from '$lib/stores/dashboardStore';
+	import WindowsModal from '$lib/components/WindowsModal.svelte';
 
 	let { children } = $props();
 	let sidebarOpen = $state(false);
+	let showLogoutModal = $state(false);
+
+	function confirmLogout() {
+		showLogoutModal = true;
+	}
 
 	async function logout() {
+		showLogoutModal = false;
+
 		// 1. 서버 세션 삭제
 		await fetch('/api/auth/logout', { method: 'POST' });
 
@@ -137,7 +145,7 @@
 					<span class="text-sm text-gray-500 hidden sm:inline">관리자 모드</span>
 					<!-- 로그아웃 아이콘 버튼 -->
 					<button
-						onclick={logout}
+						onclick={confirmLogout}
 						class="p-2 rounded-lg bg-gradient-to-r from-red-50 to-pink-50 hover:from-red-100 hover:to-pink-100 transition-all shadow-sm hover:shadow-md"
 						title="로그아웃"
 						type="button"
@@ -264,3 +272,31 @@
 		{@render children?.()}
 	</main>
 </div>
+
+<!-- 로그아웃 확인 모달 -->
+<WindowsModal
+	isOpen={showLogoutModal}
+	title="로그아웃"
+	icon="/icons/logout-red.svg"
+	size="sm"
+	onClose={() => showLogoutModal = false}
+>
+	<div class="text-center py-4">
+		<p class="text-gray-700 mb-4">로그아웃 하시겠습니까?</p>
+	</div>
+
+	<div slot="footer">
+		<button
+			onclick={() => showLogoutModal = false}
+			class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+		>
+			취소
+		</button>
+		<button
+			onclick={logout}
+			class="px-4 py-2 text-sm font-medium text-white bg-gray-600 rounded hover:bg-gray-700 transition-colors"
+		>
+			로그아웃
+		</button>
+	</div>
+</WindowsModal>
