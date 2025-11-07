@@ -106,6 +106,7 @@
 	}
 
 	function handleSearch() {
+		updateStore();
 		onSearch();
 	}
 
