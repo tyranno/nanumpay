@@ -24,11 +24,11 @@
 
 	// 크기별 max-width 매핑
 	const sizeMap = {
-		xs: 'max-w-xs',    // 384px
-		sm: 'max-w-sm',    // 640px
-		md: 'max-w-md',    // 768px
-		lg: 'max-w-lg',    // 896px
-		xl: 'max-w-2xl'    // 1024px
+		xs: 'max-w-xs sm:max-w-xs',          // 384px
+		sm: 'max-w-[95vw] sm:max-w-sm',      // 모바일 95%, PC 640px
+		md: 'max-w-[95vw] sm:max-w-md',      // 모바일 95%, PC 768px
+		lg: 'max-w-[95vw] sm:max-w-lg',      // 모바일 95%, PC 896px
+		xl: 'max-w-[95vw] sm:max-w-2xl'      // 모바일 95%, PC 1024px
 	};
 
 	// 크기별 본문 높이 매핑 (업로드 진행 시 컴팩트하게)
@@ -87,11 +87,11 @@
 />
 
 {#if isOpen}
-	<div class="fixed inset-0 bg-black/60 z-50">
+	<div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-2 sm:p-4">
 		<div
 			bind:this={modalElement}
-			class="bg-white rounded-lg shadow-xl w-full {maxWidth} border border-gray-200 absolute"
-			style="left: {posX}px; top: {posY}px; {posX === 0 && posY === 0 ? 'left: 50%; top: 50%; transform: translate(-50%, -50%);' : ''}"
+			class="bg-white rounded-lg shadow-xl w-full {maxWidth} border border-gray-200"
+			style="{posX !== 0 || posY !== 0 ? `position: absolute; left: ${posX}px; top: ${posY}px;` : ''}"
 		>
 			<!-- Windows 스타일 타이틀바 -->
 			<div
