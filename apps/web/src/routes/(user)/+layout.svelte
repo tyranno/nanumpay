@@ -1,19 +1,29 @@
 <script>
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
 	import WindowsModal from '$lib/components/WindowsModal.svelte';
 
 	let { data, children } = $props();
 	let showLogoutModal = $state(false);
+	let isLoggedOut = false; // 중복 로그아웃 방지
 
 	function confirmLogout() {
 		showLogoutModal = true;
 	}
 
-	async function logout() {
+	async function logout(isAutoLogout = false) {
+		// 중복 로그아웃 방지
+		if (isLoggedOut) return;
+		isLoggedOut = true;
+
 		showLogoutModal = false;
+
+		// 자동 로그아웃인 경우 콘솔에 기록
+		if (isAutoLogout) {
+			console.log('[보안] 자동 로그아웃 처리됨');
+		}
 
 		// 1. 서버 세션 삭제
 		await fetch('/api/auth/logout', { method: 'POST' });
@@ -25,6 +35,112 @@
 		// 3. 히스토리 대체 (뒤로가기 방지) + 새로고침 강제
 		goto('/login', { replaceState: true, invalidateAll: true });
 	}
+
+	// 페이지를 벗어날 때 자동 로그아웃
+	function handleBeforeUnload(event) {
+		// 새로고침이나 페이지 이탈 시 로그아웃 처리
+		if (!isLoggedOut) {
+			// 동기적으로 로그아웃 API 호출 (Navigator.sendBeacon 사용)
+			if (browser && navigator.sendBeacon) {
+				navigator.sendBeacon('/api/auth/logout', new Blob(['{}'], { type: 'application/json' }));
+			}
+
+			// 로컬 스토리지 정리
+			localStorage.clear();
+			sessionStorage.clear();
+
+			// 브라우저에 따라 커스텀 메시지가 표시되지 않을 수 있음
+			event.preventDefault();
+			event.returnValue = '페이지를 벗어나면 자동으로 로그아웃됩니다.';
+			return event.returnValue;
+		}
+	}
+
+	// 탭 숨김/표시 감지 (탭 전환, 최소화 등)
+	function handleVisibilityChange() {
+		if (browser && document.hidden) {
+			// 탭이 비활성화될 때 (5분 후 자동 로그아웃 타이머 설정)
+			inactivityTimer = setTimeout(() => {
+				if (document.hidden && !isLoggedOut) {
+					logout(true);
+				}
+			}, 5 * 60 * 1000); // 5분
+		} else {
+			// 탭이 활성화될 때 타이머 취소
+			if (inactivityTimer) {
+				clearTimeout(inactivityTimer);
+				inactivityTimer = null;
+			}
+		}
+	}
+
+	// 뒤로가기 감지 및 처리
+	function handlePopState(event) {
+		// 사용자 페이지를 벗어나려고 할 때
+		const validPaths = ['/dashboard', '/payment-history', '/organization-tree', '/profile'];
+		const currentPath = $page.url.pathname;
+
+		if (!validPaths.some(path => currentPath.startsWith(path))) {
+			// 로그아웃 처리
+			logout(true);
+		}
+	}
+
+	let inactivityTimer = null;
+
+	onMount(() => {
+		if (browser) {
+			// 페이지 이탈 이벤트 등록
+			window.addEventListener('beforeunload', handleBeforeUnload);
+
+			// 탭 전환 감지
+			document.addEventListener('visibilitychange', handleVisibilityChange);
+
+			// 뒤로가기 감지
+			window.addEventListener('popstate', handlePopState);
+
+			// 사용자 활동 감지 (마우스, 키보드)
+			let activityTimer = null;
+			const resetActivityTimer = () => {
+				if (activityTimer) clearTimeout(activityTimer);
+				// 30분 동안 활동이 없으면 자동 로그아웃
+				activityTimer = setTimeout(() => {
+					if (!isLoggedOut) {
+						logout(true);
+					}
+				}, 30 * 60 * 1000); // 30분
+			};
+
+			// 활동 이벤트 리스너
+			document.addEventListener('mousemove', resetActivityTimer);
+			document.addEventListener('keypress', resetActivityTimer);
+			document.addEventListener('click', resetActivityTimer);
+			document.addEventListener('scroll', resetActivityTimer);
+
+			// 초기 타이머 설정
+			resetActivityTimer();
+
+			// 클린업 함수 반환
+			return () => {
+				window.removeEventListener('beforeunload', handleBeforeUnload);
+				document.removeEventListener('visibilitychange', handleVisibilityChange);
+				window.removeEventListener('popstate', handlePopState);
+				document.removeEventListener('mousemove', resetActivityTimer);
+				document.removeEventListener('keypress', resetActivityTimer);
+				document.removeEventListener('click', resetActivityTimer);
+				document.removeEventListener('scroll', resetActivityTimer);
+				if (activityTimer) clearTimeout(activityTimer);
+				if (inactivityTimer) clearTimeout(inactivityTimer);
+			};
+		}
+	});
+
+	onDestroy(() => {
+		// 컴포넌트 파괴 시 타이머 정리
+		if (inactivityTimer) {
+			clearTimeout(inactivityTimer);
+		}
+	});
 
 
 	function goBack() {
