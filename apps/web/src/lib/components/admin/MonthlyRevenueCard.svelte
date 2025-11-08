@@ -346,30 +346,11 @@
 						<h5 class="text-sm font-semibold text-gray-900">💰 매출 정보</h5>
 						<div class="flex items-center gap-4">
 							<div class="flex items-center gap-2">
-								<span class="text-xs text-gray-600">자동 매출:</span>
-								<span class="font-semibold text-sm">{(monthlyData.totalRevenue || 0).toLocaleString()}원</span>
-								<span class="text-gray-500 text-xs">(등록자 {monthlyData.registrationCount || 0}명)</span>
-							</div>
-							<span class="text-gray-400">|</span>
-							<div class="flex items-center gap-2">
-								<span class="text-xs text-gray-600">수동 매출:</span>
-								{#if monthlyData.isManualRevenue}
-									<span class="font-semibold text-orange-600 text-sm">
-										{(monthlyData.adjustedRevenue || 0).toLocaleString()}원
-									</span>
-									<span class="text-xs text-gray-500">
-										({new Date(monthlyData.revenueModifiedAt).toLocaleDateString()})
-									</span>
-								{:else}
-									<span class="text-gray-400 text-xs">설정 안 됨</span>
-								{/if}
-							</div>
-							<span class="text-gray-400">|</span>
-							<div class="flex items-center gap-2">
-								<span class="text-xs text-gray-900 font-semibold">적용 매출:</span>
+								<span class="text-xs text-gray-900 font-semibold">매출 총액:</span>
 								<span class="font-bold text-green-900 text-base">
 									{(monthlyData.effectiveRevenue || 0).toLocaleString()}원
 								</span>
+								<span class="text-gray-500 text-xs">(등록자 {monthlyData.registrationCount || 0}명)</span>
 							</div>
 							{#if isCurrentMonth}
 								<button

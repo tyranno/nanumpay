@@ -323,34 +323,13 @@
 				<div class="rounded-lg border border-gray-300 bg-green-50 px-4 py-3">
 					<div class="flex flex-col gap-2 text-xs">
 						<div class="flex items-center justify-between">
-							<span class="text-gray-600">자동 매출:</span>
+							<span class="font-semibold text-gray-900">매출 총액:</span>
 							<div class="flex items-center gap-2">
-								<span class="font-semibold"
-									>{(monthlyData.totalRevenue || 0).toLocaleString()}원</span
-								>
+								<span class="text-base font-bold text-green-900">
+									{(monthlyData.effectiveRevenue || 0).toLocaleString()}원
+								</span>
 								<span class="text-gray-500">(등록자 {monthlyData.registrationCount || 0}명)</span>
 							</div>
-						</div>
-						<div class="flex items-center justify-between">
-							<span class="text-gray-600">수동 매출:</span>
-							<div class="flex items-center gap-2">
-								{#if monthlyData.isManualRevenue}
-									<span class="font-semibold text-orange-600">
-										{(monthlyData.adjustedRevenue || 0).toLocaleString()}원
-									</span>
-									<span class="text-gray-500">
-										({new Date(monthlyData.revenueModifiedAt).toLocaleDateString()})
-									</span>
-								{:else}
-									<span class="text-gray-400">설정 안 됨</span>
-								{/if}
-							</div>
-						</div>
-						<div class="flex items-center justify-between border-t border-gray-300 pt-2">
-							<span class="font-semibold text-gray-900">적용 매출:</span>
-							<span class="text-base font-bold text-green-900">
-								{(monthlyData.effectiveRevenue || 0).toLocaleString()}원
-							</span>
 						</div>
 						<div class="flex justify-end border-t border-gray-300 pt-2">
 							{#if isCurrentMonth}
