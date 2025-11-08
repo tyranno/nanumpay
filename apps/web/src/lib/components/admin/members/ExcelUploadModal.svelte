@@ -82,7 +82,7 @@
 	{isOpen}
 	title="엑셀 파일 업로드"
 	icon="/icons/excel.svg"
-	size={isUploading ? 'xs' : 'sm'}
+	size="sm"
 	{onClose}
 >
 	<!-- 파일 선택 (다중 선택 지원) -->
@@ -152,29 +152,12 @@
 		</div>
 	{/if}
 
-	<!-- 주의사항 -->
-	<div class="p-2 bg-amber-50 border border-amber-200 rounded">
-		<div class="flex items-start gap-1.5">
-			<img src="/icons/edit-blue.svg" alt="Info" class="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
-			<div class="text-xs text-amber-700">
-				<p class="mb-1">엑셀 양식:
-					<a href="/지원자_등록_양식.xlsx" download class="underline font-semibold hover:text-amber-900">
-						다운로드
-					</a>
-				</p>
-				<p class="mb-0.5">• 형식 맞지 않으면 등록 안됨</p>
-				<p class="mb-0.5">• 판매인은 기존 지원자여야 함</p>
-				<p>• 비밀번호: 전화번호 뒤 4자리</p>
-			</div>
-		</div>
-	</div>
-
-	<!-- 로딩 오버레이 (진행 상황 표시) - 컴팩트 버전 -->
-	{#if isUploading}
-		<div class="absolute inset-0 bg-white bg-opacity-95 rounded-lg flex flex-col items-center justify-center z-10">
-			<div class="text-center w-full px-6 py-4">
-				<!-- 회전하는 서클 -->
-				<div class="relative w-16 h-16 mx-auto mb-3">
+	<!-- 업로드 진행 상황 표시 -->
+	{#if isUploading && uploadProgress}
+		<div class="mb-3 p-3 bg-blue-50 border border-blue-200 rounded">
+			<div class="flex items-center gap-3">
+				<!-- 회전하는 스피너 -->
+				<div class="relative w-12 h-12 flex-shrink-0">
 					<svg class="animate-spin" viewBox="0 0 50 50">
 						<circle
 							class="stroke-gray-200"
@@ -195,26 +178,40 @@
 							stroke-linecap="round"
 						></circle>
 					</svg>
-					{#if uploadProgress}
-						<div class="absolute inset-0 flex items-center justify-center">
-							<span class="text-sm font-bold text-blue-600">
-								{Math.round((uploadProgress.current / uploadProgress.total) * 100)}%
-							</span>
-						</div>
-					{/if}
+					<div class="absolute inset-0 flex items-center justify-center">
+						<span class="text-xs font-bold text-blue-600">
+							{Math.round((uploadProgress.current / uploadProgress.total) * 100)}%
+						</span>
+					</div>
 				</div>
 
-				{#if uploadProgress}
-					<p class="text-sm font-semibold text-gray-700">
-						{uploadProgress.current} / {uploadProgress.total}
+				<!-- 진행 정보 -->
+				<div class="flex-1 min-w-0">
+					<p class="text-sm font-semibold text-blue-900 mb-1">
+						업로드 중... ({uploadProgress.current} / {uploadProgress.total})
 					</p>
-					<p class="text-xs text-gray-500 mt-1 truncate max-w-xs mx-auto">{uploadProgress.fileName}</p>
-				{:else}
-					<p class="text-sm font-semibold text-gray-700">업로드 준비 중...</p>
-				{/if}
+					<p class="text-xs text-blue-700 truncate">{uploadProgress.fileName}</p>
+				</div>
 			</div>
 		</div>
 	{/if}
+
+	<!-- 주의사항 -->
+	<div class="p-2 bg-amber-50 border border-amber-200 rounded">
+		<div class="flex items-start gap-1.5">
+			<img src="/icons/edit-blue.svg" alt="Info" class="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+			<div class="text-xs text-amber-700">
+				<p class="mb-1">엑셀 양식:
+					<a href="/지원자_등록_양식.xlsx" download class="underline font-semibold hover:text-amber-900">
+						다운로드
+					</a>
+				</p>
+				<p class="mb-0.5">• 형식 맞지 않으면 등록 안됨</p>
+				<p class="mb-0.5">• 판매인은 기존 지원자여야 함</p>
+				<p>• 비밀번호: 전화번호 뒤 4자리</p>
+			</div>
+		</div>
+	</div>
 
 	<svelte:fragment slot="footer">
 		<button
