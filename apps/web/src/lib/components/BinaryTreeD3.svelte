@@ -748,18 +748,18 @@
 		height: 100%;
 		display: grid;
 		place-items: center;
-		font-size: 14px;
+		font-size: 0.875rem;
 		font-weight: 600;
 		line-height: 1.2;
 		gap: 2px;
 	}
 	.hint {
-		font-size: 11px;
+		font-size: 0.6875rem;
 		line-height: 1;
 		color: #9ca3af;
 	}
 	.hint-btn {
-		font-size: 11px;
+		font-size: 0.6875rem;
 		line-height: 1;
 		color: #3b82f6;
 		text-decoration: underline;

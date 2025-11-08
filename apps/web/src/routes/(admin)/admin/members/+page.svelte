@@ -935,7 +935,7 @@
 
 	/* 제목 */
 	.title {
-		font-size: 20px;
+		font-size: 1.25rem;
 		font-weight: 700;
 		text-align: center;
 		margin-bottom: 20px;
@@ -977,7 +977,7 @@
 
 	/* 테이블 헤더 */
 	.table-header {
-		@apply mb-3 flex flex-nowrap items-center justify-between;
+		@apply mb-3 flex flex-wrap items-center justify-between gap-2;
 	}
 
 	.total-count {
@@ -985,26 +985,41 @@
 	}
 
 	/* 반응형 - 모바일 */
+	@media (max-width: 768px) {
+		.container {
+			padding: 10px;
+		}
+
+		.title {
+			font-size: 1.125rem;
+			margin-bottom: 10px;
+		}
+
+		.filter-section {
+			margin-bottom: 12px;
+		}
+
+		.table-header {
+			@apply mb-2;
+		}
+
+		.total-count {
+			@apply w-full text-xs mb-1;
+		}
+
+		.table-header > div:last-child {
+			@apply w-full justify-start;
+		}
+	}
+
 	@media (max-width: 480px) {
 		.container {
 			padding: 5px;
 		}
 
 		.title {
-			font-size: 20px;
+			font-size: 1rem;
 			margin-bottom: 6px;
-		}
-
-		.filter-section {
-			margin-bottom: 10px;
-		}
-
-		.table-header {
-			@apply mb-2 gap-2;
-		}
-
-		.total-count {
-			@apply flex-shrink-0 text-xs;
 		}
 	}
 

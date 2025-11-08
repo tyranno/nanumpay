@@ -126,7 +126,7 @@
 		border: 1px solid #d1d5db;
 		border-radius: 4px;
 		cursor: pointer;
-		font-size: 13px;
+		font-size: 0.8125rem;
 		transition: all 0.15s;
 		color: #374151;
 		font-weight: 400;
@@ -160,7 +160,7 @@
 		border: 1px solid #d1d5db;
 		border-radius: 4px;
 		cursor: pointer;
-		font-size: 14px;
+		font-size: 0.875rem;
 		transition: all 0.15s;
 		color: #374151;
 		font-weight: 400;
@@ -184,12 +184,12 @@
 	.page-dots {
 		padding: 0 5px;
 		color: #9ca3af;
-		font-size: 14px;
+		font-size: 0.875rem;
 	}
 
 	.page-info {
 		margin-left: 20px;
-		font-size: 13px;
+		font-size: 0.8125rem;
 		color: #6b7280;
 		white-space: nowrap;
 	}
@@ -204,7 +204,7 @@
 
 		.page-button {
 			padding: 6px 12px;
-			font-size: 12px;
+			font-size: 0.75rem;
 		}
 
 		.page-numbers {
@@ -214,7 +214,7 @@
 		.page-number {
 			min-width: 32px;
 			height: 32px;
-			font-size: 12px;
+			font-size: 0.75rem;
 		}
 
 		.page-info {
@@ -222,7 +222,7 @@
 			text-align: center;
 			margin-left: 0;
 			margin-top: 8px;
-			font-size: 12px;
+			font-size: 0.75rem;
 		}
 	}
 </style>

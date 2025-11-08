@@ -323,7 +323,7 @@
 				type="button"
 			>
 				<img src="/icons/download.svg" alt="다운로드" class="btn-icon" />
-				<span class="ml-1.5 text-sm">이미지 다운로드</span>
+				<span class="ml-1.5 text-sm btn-download-text">이미지 다운로드</span>
 			</button>
 
 			<!-- 검색 결과 드롭다운 -->
@@ -473,7 +473,7 @@
 
 	/* 제목 */
 	.title {
-		font-size: 20px;
+		font-size: 1.25rem;
 		font-weight: 700;
 		text-align: center;
 		margin-bottom: 20px;
@@ -486,11 +486,11 @@
 	}
 
 	.search-container {
-		@apply flex items-center gap-2.5 rounded-md bg-gradient-to-b from-gray-50 to-white p-3 shadow-sm;
+		@apply flex flex-wrap items-center gap-2.5 rounded-md bg-gradient-to-b from-gray-50 to-white p-3 shadow-sm;
 	}
 
 	.input-search {
-		@apply h-7 min-w-[300px] flex-1 rounded border-2 border-gray-200 bg-white px-1.5 py-1 text-[13px] leading-[1.4] outline-none transition-all hover:border-gray-400 focus:border-blue-500 focus:shadow-[0_0_0_2px_rgba(0,123,255,0.15)];
+		@apply h-7 min-w-[200px] flex-1 rounded border-2 border-gray-200 bg-white px-1.5 py-1 text-[13px] leading-[1.4] outline-none transition-all hover:border-gray-400 focus:border-blue-500 focus:shadow-[0_0_0_2px_rgba(0,123,255,0.15)];
 	}
 
 	.btn-search {
@@ -527,6 +527,38 @@
 	}
 
 	/* 반응형 - 모바일 */
+	@media (max-width: 768px) {
+		.container {
+			padding: 10px;
+		}
+
+		.search-container {
+			gap: 1.5;
+		}
+
+		.input-search {
+			min-width: 120px;
+			flex: 1;
+		}
+
+		.btn-download-text {
+			display: none;
+		}
+
+		.btn-download {
+			padding-left: 0.5rem;
+			padding-right: 0.5rem;
+		}
+
+		.search-container > div:has(label[for="displayDepth"]) label {
+			display: none;
+		}
+
+		.search-container > div:has(label[for="displayDepth"]) {
+			flex-shrink: 0;
+		}
+	}
+
 	@media (max-width: 480px) {
 		.container {
 			padding: 5px;
@@ -538,7 +570,7 @@
 		}
 
 		.title {
-			font-size: 20px;
+			font-size: 1rem;
 			margin-bottom: 6px;
 		}
 
@@ -547,12 +579,12 @@
 		}
 
 		.input-search {
-			min-width: 200px;
+			min-width: 100px;
 		}
 
 		.breadcrumb-fixed {
 			padding: 8px 10px;
-			font-size: 12px;
+			font-size: 0.75rem;
 		}
 	}
 </style>

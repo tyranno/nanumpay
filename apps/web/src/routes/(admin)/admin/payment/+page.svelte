@@ -206,7 +206,7 @@
 	}
 
 	.title {
-		font-size: 20px;
+		font-size: 1.25rem;
 		font-weight: 700;
 		text-align: center;
 		margin-bottom: 20px;
@@ -220,7 +220,7 @@
 		}
 
 		.title {
-			font-size: 20px;
+			font-size: 1.25rem;
 			margin-bottom: 6px;
 		}
 	}

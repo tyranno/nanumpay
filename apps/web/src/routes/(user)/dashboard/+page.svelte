@@ -553,7 +553,7 @@
 	@reference "$lib/../app.css";
 
 	.title {
-		font-size: 20px;
+		font-size: 1.25rem;
 		font-weight: 700;
 		text-align: center;
 		margin-bottom: 20px;
@@ -573,7 +573,7 @@
 	/* 모바일 반응형 */
 	@media (max-width: 480px) {
 		.title {
-			font-size: 18px;
+			font-size: 1.125rem;
 			margin-bottom: 15px;
 		}
 

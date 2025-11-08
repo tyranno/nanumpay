@@ -542,7 +542,7 @@
 	}
 
 	.title {
-		font-size: 20px;
+		font-size: 1.25rem;
 		font-weight: 700;
 		text-align: center;
 		margin-bottom: 20px;
@@ -556,7 +556,7 @@
 		}
 
 		.title {
-			font-size: 18px;
+			font-size: 1.125rem;
 			margin-bottom: 15px;
 		}
 	}

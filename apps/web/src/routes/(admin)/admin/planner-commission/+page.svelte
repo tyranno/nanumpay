@@ -774,7 +774,7 @@
 	}
 
 	.title {
-		font-size: 20px;
+		font-size: 1.25rem;
 		font-weight: 700;
 		margin-bottom: 20px;
 		color: #1f2937;
@@ -1217,7 +1217,7 @@
 		border: 1px solid #d1d5db;
 		border-radius: 4px;
 		cursor: pointer;
-		font-size: 13px;
+		font-size: 0.8125rem;
 		transition: all 0.15s;
 		color: #374151;
 		font-weight: 400;
@@ -1250,7 +1250,7 @@
 	.pagination-dots {
 		padding: 0 5px;
 		color: #9ca3af;
-		font-size: 14px;
+		font-size: 0.875rem;
 	}
 
 	/* 기간 경계선 (주간보기/월간보기 구분) */

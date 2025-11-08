@@ -321,14 +321,14 @@
 	}
 
 	.info-title {
-		font-size: 13px;
+		font-size: 0.8125rem;
 		font-weight: 600;
 		color: #1e3a8a;
 		margin-bottom: 2px;
 	}
 
 	.info-description {
-		font-size: 11px;
+		font-size: 0.6875rem;
 		color: #475569;
 		line-height: 1.4;
 	}
@@ -342,7 +342,7 @@
 	.adjustment-table {
 		width: 100%;
 		border-collapse: collapse;
-		font-size: 12px;
+		font-size: 0.75rem;
 	}
 
 	.adjustment-table thead {
@@ -405,7 +405,7 @@
 		color: #334155;
 		width: 80px;
 		min-width: 80px;
-		font-size: 11px;
+		font-size: 0.6875rem;
 	}
 
 	.td-input {
@@ -415,7 +415,7 @@
 	}
 
 	.mode-label {
-		font-size: 9px;
+		font-size: 0.5625rem;
 		color: #475569;
 		vertical-align: middle;
 		display: inline-block;
@@ -427,7 +427,7 @@
 		padding: 2px 6px;
 		border: 1px solid #cbd5e1;
 		border-radius: 4px;
-		font-size: 11px;
+		font-size: 0.6875rem;
 		text-align: right;
 		font-family: monospace;
 		height: 22px;
@@ -448,7 +448,7 @@
 	}
 
 	.notice-title {
-		font-size: 12px;
+		font-size: 0.75rem;
 		font-weight: 600;
 		color: #78350f;
 		margin-bottom: 4px;
@@ -461,7 +461,7 @@
 	}
 
 	.notice-item {
-		font-size: 11px;
+		font-size: 0.6875rem;
 		color: #78350f;
 		padding-left: 12px;
 		position: relative;
@@ -477,7 +477,7 @@
 	/* Buttons */
 	.btn-cancel {
 		padding: 8px 16px;
-		font-size: 13px;
+		font-size: 0.8125rem;
 		color: #475569;
 		background-color: white;
 		border: 1px solid #e2e8f0;
@@ -493,7 +493,7 @@
 
 	.btn-save {
 		padding: 8px 16px;
-		font-size: 13px;
+		font-size: 0.8125rem;
 		color: white;
 		background-color: #3b82f6;
 		border: 1px solid #3b82f6;
