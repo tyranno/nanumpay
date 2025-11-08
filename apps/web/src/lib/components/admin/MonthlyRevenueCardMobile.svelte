@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
 	import GradeBadge from '$lib/components/GradeBadge.svelte';
-	import RevenueAdjustModal from './RevenueAdjustModal.svelte';
+	import GradePaymentAdjustModal from './GradePaymentAdjustModal.svelte';
 	import { revenueCardState } from '$lib/stores/dashboardStore';
 
 	// Store에서 초기값 가져오기
@@ -36,7 +36,7 @@
 	let isCurrentMonth = false;
 
 	// 모달 상태
-	let showRevenueModal = false;
+	let showGradeModal = false;
 	let modalMonthKey = null;
 
 	onMount(() => {
@@ -177,19 +177,19 @@
 		}
 	}
 
-	function openRevenueModal() {
+	function openGradeModal() {
 		const monthKey = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
 		modalMonthKey = monthKey;
-		showRevenueModal = true;
+		showGradeModal = true;
 	}
 
-	function closeRevenueModal() {
-		showRevenueModal = false;
+	function closeGradeModal() {
+		showGradeModal = false;
 		modalMonthKey = null;
 	}
 
-	async function handleRevenueAdjusted() {
-		closeRevenueModal();
+	async function handleGradeAdjusted(event) {
+		closeGradeModal();
 		await loadData();
 	}
 
@@ -355,10 +355,10 @@
 						<div class="flex justify-end border-t border-gray-300 pt-2">
 							{#if isCurrentMonth}
 								<button
-									on:click={openRevenueModal}
-									class="rounded bg-green-600 px-4 py-2 text-xs text-white transition hover:bg-green-700"
+									on:click={openGradeModal}
+									class="rounded bg-blue-600 px-4 py-2 text-xs text-white transition hover:bg-blue-700"
 								>
-									수동 설정
+									등급별 조정
 								</button>
 							{:else}
 								<span class="text-gray-400">현재월만 설정 가능</span>
@@ -591,12 +591,12 @@
 	</div>
 </div>
 
-<!-- 매출 수동 설정 모달 -->
-{#if showRevenueModal && modalMonthKey}
-	<RevenueAdjustModal
+<!-- 등급별 조정 모달 -->
+{#if showGradeModal && modalMonthKey}
+	<GradePaymentAdjustModal
+		isOpen={showGradeModal}
 		monthKey={modalMonthKey}
-		currentData={monthlyData}
-		on:close={closeRevenueModal}
-		on:adjusted={handleRevenueAdjusted}
+		onClose={closeGradeModal}
+		onSave={handleGradeAdjusted}
 	/>
 {/if}

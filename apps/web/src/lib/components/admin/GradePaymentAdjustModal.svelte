@@ -7,552 +7,721 @@
 	export let onClose = () => {};
 	export let onSave = () => {};
 
-	// 데이터 상태
-	let isLoading = true;
-	let monthlyData = null;
-	let gradeDistribution = {};
-	let currentPayments = {};
-	let adjustedPayments = {};
+	// 기간 선택
+	let startMonth = '';
+	let endMonth = '';
+	let selectedPeriod = 3; // 기본 3개월
+	let monthsData = [];
+	let currentMonthData = null; // 이번 달 데이터
+	let isLoading = false;
 
-	// 등급별 조정 데이터
-	let adjustments = {
-		F1: { totalAmount: '', perInstallment: 0, hasUsers: false },
-		F2: { totalAmount: '', perInstallment: 0, hasUsers: false },
-		F3: { totalAmount: '', perInstallment: 0, hasUsers: false },
-		F4: { totalAmount: '', perInstallment: 0, hasUsers: false },
-		F5: { totalAmount: '', perInstallment: 0, hasUsers: false },
-		F6: { totalAmount: '', perInstallment: 0, hasUsers: false },
-		F7: { totalAmount: '', perInstallment: 0, hasUsers: false },
-		F8: { totalAmount: '', perInstallment: 0, hasUsers: false }
-	};
+	// 조정 데이터 (현재 달만)
+	let adjustments = {};
 
-	// Modal이 열릴 때마다 데이터 로드
+	// Modal 열릴 때 초기화
 	$: if (isOpen && monthKey) {
-		loadMonthlyData();
+		initializeModal();
 	}
 
-	async function loadMonthlyData() {
+	function initializeModal() {
+		// 기본 3개월로 설정
+		setPeriod(3);
+	}
+
+	function setPeriod(months) {
+		selectedPeriod = months;
+		const [year, month] = monthKey.split('-').map(Number);
+
+		// 이번 달 제외, 이전 N개월
+		const endDate = new Date(year, month - 2, 1); // 이전 달부터
+		endMonth = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}`;
+
+		const start = new Date(year, month - months - 1, 1); // N개월 전
+		startMonth = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}`;
+
+		loadData();
+	}
+
+	async function loadData() {
+		if (!startMonth || !endMonth) return;
+
 		try {
 			isLoading = true;
-			console.log(`[GradePaymentAdjustModal] 데이터 로드 시작: ${monthKey}`);
 
-			const response = await fetch(`/api/admin/revenue/monthly?monthKey=${monthKey}`);
-			if (response.ok) {
-				monthlyData = await response.json();
-				gradeDistribution = monthlyData.gradeDistribution || {};
-				currentPayments = monthlyData.gradePayments || {};
-				adjustedPayments = monthlyData.adjustedGradePayments || {};
+			// 한 번의 API 호출로 기간별 데이터 가져오기
+			const response = await fetch(
+				`/api/admin/revenue/grade-adjustment?startMonth=${startMonth}&endMonth=${endMonth}`
+			);
 
-				console.log(`[GradePaymentAdjustModal] adjustedGradePayments:`, adjustedPayments);
-
-				initializeData();
+			if (!response.ok) {
+				console.error('API response not ok:', response.status);
+				monthsData = generateEmptyMonths(startMonth, endMonth);
 			} else {
-				console.error('Failed to load monthly data');
+				const result = await response.json();
+				monthsData = result.months || generateEmptyMonths(startMonth, endMonth);
+			}
+
+			// 현재 월 데이터 가져오기 (이번 달)
+			const currentResponse = await fetch(
+				`/api/admin/revenue/grade-adjustment?startMonth=${monthKey}&endMonth=${monthKey}`
+			);
+			if (currentResponse.ok) {
+				const currentResult = await currentResponse.json();
+				currentMonthData = currentResult.months?.[0] || null;
+			}
+
+			adjustments = {};
+
+			// 현재 달 조정값 초기화
+			if (currentMonthData) {
+				['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'].forEach(grade => {
+					const adj = currentMonthData.adjustedGradePayments?.[grade];
+					adjustments[grade] = adj?.totalAmount ? adj.totalAmount.toString() : '';
+				});
 			}
 		} catch (error) {
-			console.error('Error loading monthly data:', error);
+			console.error('Error loading data:', error);
+			monthsData = generateEmptyMonths(startMonth, endMonth);
+			adjustments = {};
 		} finally {
 			isLoading = false;
 		}
 	}
 
-	function initializeData() {
-		const grades = ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'];
+	// 빈 월 데이터 생성 함수
+	function generateEmptyMonths(start, end) {
+		const months = [];
+		const [startY, startM] = start.split('-').map(Number);
+		const [endY, endM] = end.split('-').map(Number);
 
-		grades.forEach(grade => {
-			const userCount = gradeDistribution[grade] || 0;
-			const hasUsers = userCount > 0;
+		let current = new Date(endY, endM - 1, 1);
+		const startDate = new Date(startY, startM - 1, 1);
 
-			// 기존 조정값이 있으면 사용, 없으면 빈 값
-			let totalAmount = '';
-			if (adjustedPayments?.[grade]?.totalAmount !== null && adjustedPayments?.[grade]?.totalAmount !== undefined) {
-				// 100원 단위로 절삭하여 저장
-				const rounded = Math.floor(Number(adjustedPayments[grade].totalAmount) / 100) * 100;
-				totalAmount = rounded.toString();
-				console.log(`[GradePaymentAdjustModal] ${grade} 조정값 복원: ${totalAmount}`);
-			} else {
-				console.log(`[GradePaymentAdjustModal] ${grade} 조정값 없음`);
-			}
-
-			adjustments[grade] = {
-				totalAmount: totalAmount,
-				perInstallment: totalAmount ? Math.floor(Number(totalAmount) / 10 / 100) * 100 : 0,
-				hasUsers: hasUsers,
-				userCount: userCount
-			};
-		});
-
-		// 강제 업데이트
-		adjustments = { ...adjustments };
-	}
-
-	// 총액 입력 시 10분할 금액 자동 계산
-	function handleTotalAmountInput(grade, event) {
-		// 콤마 제거하고 숫자만 추출
-		const value = event.target.value.replace(/,/g, '');
-		const numValue = Number(value);
-
-		if (value && !isNaN(numValue)) {
-			adjustments[grade].totalAmount = numValue;
-			// 10분할 금액 100원 단위 절삭
-			adjustments[grade].perInstallment = Math.floor(numValue / 10 / 100) * 100;
-		} else {
-			adjustments[grade].totalAmount = '';
-			adjustments[grade].perInstallment = 0;
+		// 역순으로 월 생성 (최신월부터)
+		while (current >= startDate) {
+			const y = current.getFullYear();
+			const m = String(current.getMonth() + 1).padStart(2, '0');
+			months.push({
+				monthKey: `${y}-${m}`,
+				gradeDistribution: {},
+				gradePayments: {},
+				adjustedGradePayments: {}
+			});
+			current.setMonth(current.getMonth() - 1);
 		}
-		// 강제 업데이트
-		adjustments = { ...adjustments };
+
+		return months;
 	}
 
-	// 입력 완료 시 100원 단위로 절삭 및 포맷팅
-	function handleTotalAmountBlur(grade) {
-		const totalAmount = adjustments[grade].totalAmount;
-		if (totalAmount && !isNaN(totalAmount)) {
-			// 100원 단위로 절삭
-			const rounded = Math.floor(Number(totalAmount) / 100) * 100;
-			adjustments[grade].totalAmount = rounded;
-			// 10분할 금액도 재계산
-			adjustments[grade].perInstallment = Math.floor(rounded / 10 / 100) * 100;
-			// 강제 업데이트
-			adjustments = { ...adjustments };
+	function handleInput(grade, value) {
+		adjustments[grade] = value.replace(/,/g, '');
+	}
+
+	function handleBlur(grade) {
+		if (adjustments[grade]) {
+			const num = Number(adjustments[grade]);
+			const rounded = Math.floor(num / 100) * 100;
+			adjustments[grade] = rounded.toString();
 		}
 	}
 
-	// 금액 표시용 (콤마 포함)
-	function getDisplayAmount(amount) {
-		if (!amount && amount !== 0) return '';
-		return Number(amount).toLocaleString();
+	function formatNum(num) {
+		if (!num && num !== 0) return '';
+		return Number(num).toLocaleString();
 	}
 
-	// 저장
-	function handleSave() {
-		const result = {};
-		const grades = ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'];
-
-		grades.forEach(grade => {
-			// 총액이 입력되었으면 저장, 비어있으면 null로 설정 (자동 계산)
-			if (adjustments[grade].totalAmount && adjustments[grade].totalAmount !== '') {
-				const totalAmount = Number(adjustments[grade].totalAmount);
-				if (totalAmount > 0) {
-					result[grade] = {
-						totalAmount: totalAmount,
-						perInstallment: Math.floor(totalAmount / 10 / 100) * 100  // 100원 단위 절삭
+	async function handleSave() {
+		try {
+			const adjustedGradePayments = {};
+			['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'].forEach(grade => {
+				if (adjustments[grade]) {
+					adjustedGradePayments[grade] = {
+						totalAmount: Number(adjustments[grade]),
+						perInstallment: Math.floor(Number(adjustments[grade]) / 10 / 100) * 100
 					};
 				} else {
-					// 0 이하면 자동 계산으로
-					result[grade] = {
-						totalAmount: null,
-						perInstallment: null
-					};
+					adjustedGradePayments[grade] = { totalAmount: null, perInstallment: null };
 				}
-			} else {
-				// 비어있으면 자동 계산으로
-				result[grade] = {
-					totalAmount: null,
-					perInstallment: null
-				};
+			});
+
+			// 현재 월 키 (monthKey)
+			if (!monthKey) {
+				alert('저장할 월 정보가 없습니다.');
+				return;
 			}
-		});
 
-		onSave(result);
-		handleClose();
-	}
+			// API 호출로 저장
+			const response = await fetch('/api/admin/revenue/grade-adjustment', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({
+					monthKey: monthKey,
+					adjustedGradePayments
+				})
+			});
 
-	// 특정 등급만 자동 계산으로 복귀
-	function handleResetGradeToAuto(grade) {
-		adjustments[grade].totalAmount = '';
-		adjustments[grade].perInstallment = 0;
-		adjustments = { ...adjustments };
-	}
+			if (!response.ok) {
+				const error = await response.json();
+				throw new Error(error.error || '저장 실패');
+			}
 
-	// 닫기
-	function handleClose() {
-		onClose();
-	}
+			const result = await response.json();
+			alert(result.message || '저장되었습니다.');
 
-	// 금액 포맷팅 (100원 단위 절삭)
-	function formatAmount(amount) {
-		if (!amount && amount !== 0) return '-';
-		const rounded = Math.floor(Number(amount) / 100) * 100;
-		return rounded.toLocaleString();
+			// 콜백 호출
+			onSave(adjustedGradePayments);
+			onClose();
+		} catch (error) {
+			console.error('Save error:', error);
+			alert(`저장 중 오류가 발생했습니다: ${error.message}`);
+		}
 	}
 </script>
 
-<WindowsModal
-	{isOpen}
-	title="등급별 지급 총액 조정"
-	icon="/icons/edit-blue.svg"
-	size="lg"
-	onClose={handleClose}
->
-	{#if isLoading}
-		<div class="loading-container">
-			<div class="loading-text">데이터 로딩 중...</div>
-		</div>
-	{:else}
-		<div class="modal-content">
-			<!-- 정보 박스 -->
-			<div class="info-box">
-				<p class="info-title">📊 {monthKey} 등급별 지급 총액 조정</p>
-				<p class="info-description">
-					각 등급의 지급 총액을 직접 설정할 수 있습니다. 총액을 입력하면 10분할 금액이 자동으로 계산됩니다. 비워두면 자동 계산됩니다.
-				</p>
+<WindowsModal {isOpen} title="등급별 지급 총액 조정" icon="/icons/edit-blue.svg" size="xl" onClose={onClose}>
+	<div class="container">
+		<!-- 기간 선택 -->
+		<div class="period-row">
+			<span class="label">조회 기간:</span>
+			<div class="period-buttons">
+				<button
+					class="period-btn"
+					class:active={selectedPeriod === 3}
+					onclick={() => setPeriod(3)}
+				>
+					최근 3개월
+				</button>
+				<button
+					class="period-btn"
+					class:active={selectedPeriod === 6}
+					onclick={() => setPeriod(6)}
+				>
+					최근 6개월
+				</button>
+				<button
+					class="period-btn"
+					class:active={selectedPeriod === 12}
+					onclick={() => setPeriod(12)}
+				>
+					최근 1년
+				</button>
 			</div>
+			<span class="period-display">
+				{endMonth} ~ {startMonth}
+			</span>
+		</div>
 
-			<!-- 테이블 -->
-			<div class="table-container">
-				<table class="adjustment-table">
+		{#if isLoading}
+			<div class="loading">로딩 중...</div>
+		{:else}
+			<!-- 테이블 래퍼 -->
+			<div class="table-wrapper">
+				<!-- 스크롤 영역 -->
+				<div class="table-scroll">
+					<table class="main-table">
 					<thead>
 						<tr>
-							<th class="th-cell">등급</th>
-							<th class="th-cell">인원</th>
-							<th class="th-cell">모드</th>
-							<th class="th-cell">기본 총액</th>
-							<th class="th-cell">조정 총액</th>
-							<th class="th-cell">10분할금</th>
+							<th rowspan="2" class="th-grade">등급</th>
+							<!-- 이번 달 -->
+							{#if currentMonthData}
+								<th colspan="4" class="th-month current-month">
+									{currentMonthData.monthKey.split('-')[0]}년 {currentMonthData.monthKey.split('-')[1]}월
+									<span class="text-xs font-normal">(조정가능)</span>
+								</th>
+							{/if}
+							<!-- 기간총액 -->
+							<th colspan="4" class="th-month period-total">
+								이전기간({startMonth}~{endMonth})총액
+							</th>
+							<!-- 개별 월들 -->
+							{#each monthsData as md}
+								<th colspan="4" class="th-month">
+									{md.monthKey.split('-')[0]}년 {md.monthKey.split('-')[1]}월
+								</th>
+							{/each}
+						</tr>
+						<tr>
+							<!-- 이번 달 -->
+							{#if currentMonthData}
+								<th class="th-sub month-start">인원</th>
+								<th class="th-sub">자동총액</th>
+								<th class="th-sub editable">조정총액</th>
+								<th class="th-sub">차이금액</th>
+							{/if}
+							<!-- 기간총액 -->
+							<th class="th-sub month-start period-col">인원</th>
+							<th class="th-sub period-col">자동총액</th>
+							<th class="th-sub period-col">조정총액</th>
+							<th class="th-sub period-col">차이금액</th>
+							<!-- 개별 월들 -->
+							{#each monthsData as md}
+								<th class="th-sub month-start">인원</th>
+								<th class="th-sub">자동총액</th>
+								<th class="th-sub">조정총액</th>
+								<th class="th-sub">차이금액</th>
+							{/each}
 						</tr>
 					</thead>
 					<tbody>
 						{#each ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'] as grade}
-							{@const isManual = adjustedPayments?.[grade]?.totalAmount !== null && adjustedPayments?.[grade]?.totalAmount !== undefined}
-							{@const hasInput = adjustments[grade].totalAmount && adjustments[grade].totalAmount !== ''}
-							{@const baseAmount = currentPayments?.[grade] || 0}
-							{@const displayAmount = adjustments[grade].perInstallment > 0
-								? adjustments[grade].perInstallment
-								: Math.floor(baseAmount / 10 / 100) * 100}
-							<tr class="table-row {isManual ? 'manual-mode' : ''}">
+							<tr>
 								<td class="td-grade">{grade}</td>
-								<td class="td-count">
-									{adjustments[grade].userCount || 0}명
-								</td>
-								<td class="td-mode">
-									<label class="switch">
+								<!-- 이번 달 -->
+								{#if currentMonthData}
+									{@const users = currentMonthData.gradeDistribution?.[grade] || 0}
+									{@const auto = currentMonthData.gradePayments?.[grade] || 0}
+									{@const manual = currentMonthData.adjustedGradePayments?.[grade]?.totalAmount}
+									{@const display = adjustments[grade] ? Number(adjustments[grade]) : manual}
+									{@const diff = (display !== null && display !== undefined) ? display - auto : 0}
+
+									<td class="td-num month-start">{formatNum(users)}</td>
+									<td class="td-amt">{formatNum(auto)}</td>
+									<td class="td-adj editable">
 										<input
-											type="checkbox"
-											checked={hasInput}
-											onchange={() => {
-												if (hasInput) {
-													handleResetGradeToAuto(grade);
-												}
-											}}
+											type="text"
+											value={adjustments[grade] ? formatNum(adjustments[grade]) : ''}
+											oninput={(e) => handleInput(grade, e.target.value)}
+											onblur={() => handleBlur(grade)}
+											class="adj-input"
 										/>
-										<span class="slider"></span>
-									</label>
-									<span class="mode-label">{hasInput ? '수동' : '자동'}</span>
-								</td>
-								<td class="td-amount">
-									{formatAmount(currentPayments?.[grade] || 0)}원
-								</td>
-								<td class="td-input">
-									<input
-										type="text"
-										value={getDisplayAmount(adjustments[grade].totalAmount)}
-										oninput={(e) => handleTotalAmountInput(grade, e)}
-										onblur={() => handleTotalAmountBlur(grade)}
-										class="amount-input"
-									/>
-								</td>
-								<td class="td-amount">
-									{#if displayAmount > 0}
-										{formatAmount(displayAmount)}원
-									{:else}
-										0원
-									{/if}
-								</td>
+									</td>
+									<td class="td-diff" class:pos={diff > 0} class:neg={diff < 0}>
+										{diff !== 0 ? formatNum(diff) : ''}
+									</td>
+								{/if}
+								<!-- 기간총액 -->
+								{#if true}
+									{@const periodUsers = monthsData.reduce((s, md) => s + (md.gradeDistribution?.[grade] || 0), 0)}
+									{@const periodAuto = monthsData.reduce((s, md) => s + (md.gradePayments?.[grade] || 0), 0)}
+									{@const periodAdj = monthsData.reduce((s, md) => {
+										const manual = md.adjustedGradePayments?.[grade]?.totalAmount;
+										return s + (manual || 0);
+									}, 0)}
+									{@const hasAnyAdj = monthsData.some(md => md.adjustedGradePayments?.[grade]?.totalAmount !== null && md.adjustedGradePayments?.[grade]?.totalAmount !== undefined)}
+									{@const periodDiff = hasAnyAdj ? periodAdj - periodAuto : 0}
+
+									<td class="td-num month-start period-col">{formatNum(periodUsers)}</td>
+									<td class="td-amt period-col">{formatNum(periodAuto)}</td>
+									<td class="td-adj period-col">{hasAnyAdj ? formatNum(periodAdj) : ''}</td>
+									<td class="td-diff period-col" class:pos={periodDiff > 0} class:neg={periodDiff < 0}>
+										{periodDiff !== 0 ? formatNum(periodDiff) : ''}
+									</td>
+								{/if}
+								<!-- 개별 월들 -->
+								{#each monthsData as md}
+									{@const users = md.gradeDistribution?.[grade] || 0}
+									{@const auto = md.gradePayments?.[grade] || 0}
+									{@const manual = md.adjustedGradePayments?.[grade]?.totalAmount}
+									{@const diff = (manual !== null && manual !== undefined) ? manual - auto : 0}
+
+									<td class="td-num month-start">{formatNum(users)}</td>
+									<td class="td-amt">{formatNum(auto)}</td>
+									<td class="td-adj">
+										{manual !== null && manual !== undefined ? formatNum(manual) : ''}
+									</td>
+									<td class="td-diff" class:pos={diff > 0} class:neg={diff < 0}>
+										{diff !== 0 ? formatNum(diff) : ''}
+									</td>
+								{/each}
 							</tr>
 						{/each}
+						<!-- 총계 -->
+						<tr class="total-row">
+							<td class="td-grade">총계</td>
+							<!-- 이번 달 -->
+							{#if currentMonthData}
+								{@const grades = ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8']}
+								{@const totalUsers = grades.reduce((s, g) => s + (currentMonthData.gradeDistribution?.[g] || 0), 0)}
+								{@const totalAuto = grades.reduce((s, g) => s + (currentMonthData.gradePayments?.[g] || 0), 0)}
+								{@const hasAdjustment = grades.some(g => {
+									const display = adjustments[g] ? Number(adjustments[g]) : currentMonthData.adjustedGradePayments?.[g]?.totalAmount;
+									return display !== null && display !== undefined;
+								})}
+								{@const totalAdj = hasAdjustment ? grades.reduce((s, g) => {
+									const display = adjustments[g] ? Number(adjustments[g]) : currentMonthData.adjustedGradePayments?.[g]?.totalAmount;
+									return s + (display || 0);
+								}, 0) : null}
+								{@const totalDiff = totalAdj !== null ? totalAdj - totalAuto : 0}
+
+								<td class="td-num month-start">{formatNum(totalUsers)}</td>
+								<td class="td-amt">{formatNum(totalAuto)}</td>
+								<td class="td-adj editable">{totalAdj !== null ? formatNum(totalAdj) : ''}</td>
+								<td class="td-diff" class:pos={totalDiff > 0} class:neg={totalDiff < 0}>
+									{totalDiff !== 0 ? formatNum(totalDiff) : ''}
+								</td>
+							{/if}
+							<!-- 기간총액 -->
+							{#if true}
+								{@const grades = ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8']}
+								{@const periodTotalUsers = monthsData.reduce((s, md) => s + grades.reduce((gs, g) => gs + (md.gradeDistribution?.[g] || 0), 0), 0)}
+								{@const periodTotalAuto = monthsData.reduce((s, md) => s + grades.reduce((gs, g) => gs + (md.gradePayments?.[g] || 0), 0), 0)}
+								{@const periodHasAdj = monthsData.some(md => grades.some(g => md.adjustedGradePayments?.[g]?.totalAmount !== null && md.adjustedGradePayments?.[g]?.totalAmount !== undefined))}
+								{@const periodTotalAdj = periodHasAdj ? monthsData.reduce((s, md) => s + grades.reduce((gs, g) => gs + (md.adjustedGradePayments?.[g]?.totalAmount || 0), 0), 0) : null}
+								{@const periodTotalDiff = periodTotalAdj !== null ? periodTotalAdj - periodTotalAuto : 0}
+
+								<td class="td-num month-start period-col">{formatNum(periodTotalUsers)}</td>
+								<td class="td-amt period-col">{formatNum(periodTotalAuto)}</td>
+								<td class="td-adj period-col">{periodTotalAdj !== null ? formatNum(periodTotalAdj) : ''}</td>
+								<td class="td-diff period-col" class:pos={periodTotalDiff > 0} class:neg={periodTotalDiff < 0}>
+									{periodTotalDiff !== 0 ? formatNum(periodTotalDiff) : ''}
+								</td>
+							{/if}
+							<!-- 개별 월들 -->
+							{#each monthsData as md}
+								{@const grades = ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8']}
+								{@const totalUsers = grades.reduce((s, g) => s + (md.gradeDistribution?.[g] || 0), 0)}
+								{@const totalAuto = grades.reduce((s, g) => s + (md.gradePayments?.[g] || 0), 0)}
+								{@const hasAdj = grades.some(g => md.adjustedGradePayments?.[g]?.totalAmount !== null && md.adjustedGradePayments?.[g]?.totalAmount !== undefined)}
+								{@const totalAdj = hasAdj ? grades.reduce((s, g) => s + (md.adjustedGradePayments?.[g]?.totalAmount || 0), 0) : null}
+								{@const totalDiff = totalAdj !== null ? totalAdj - totalAuto : 0}
+
+								<td class="td-num month-start">{formatNum(totalUsers)}</td>
+								<td class="td-amt">{formatNum(totalAuto)}</td>
+								<td class="td-adj">{totalAdj !== null ? formatNum(totalAdj) : ''}</td>
+								<td class="td-diff" class:pos={totalDiff > 0} class:neg={totalDiff < 0}>
+									{totalDiff !== 0 ? formatNum(totalDiff) : ''}
+								</td>
+							{/each}
+						</tr>
 					</tbody>
-				</table>
+					</table>
+				</div>
 			</div>
 
 			<!-- 참고사항 -->
-			<div class="notice-box">
-				<p class="notice-title">💡 참고사항</p>
-				<ul class="notice-list">
-					<li class="notice-item"><strong>수동 모드</strong>: 입력한 금액으로 지급계획이 생성/업데이트됩니다</li>
-					<li class="notice-item"><strong>자동 모드</strong>: 매출과 등급 분포에 따라 자동으로 계산됩니다</li>
-					<li class="notice-item">자동 복귀 시 해당 월의 모든 지급계획이 재계산됩니다</li>
-					<li class="notice-item">인원이 0명인 등급도 미리 조정 가능합니다 (수동 모드)</li>
-					<li class="notice-item">10분할금은 총액 ÷ 10으로 자동 계산됩니다</li>
-				</ul>
+			<div class="notice">
+				<div class="notice-title">💡 참고사항</div>
+				<div class="notice-text">
+					• 이번달에 대해서만 지급총액을 조정할 수 있습니다<br />
+					• 조정총액이 0이면 자동총액이 적용됩니다<br />
+					• 저장 버튼을 눌러 변경된 조정금액으로 자동 계산이 됩니다
+				</div>
 			</div>
-		</div>
-	{/if}
+		{/if}
+	</div>
 
 	<svelte:fragment slot="footer">
-		{#if !isLoading}
-			<button onclick={handleClose} class="btn-cancel">
-				취소
-			</button>
-			<button onclick={handleSave} class="btn-save">
-				저장
-			</button>
-		{/if}
+		<button onclick={onClose} class="btn btn-cancel">취소</button>
+		<button onclick={handleSave} class="btn btn-save">저장</button>
 	</svelte:fragment>
 </WindowsModal>
 
 <style>
-	@reference "$lib/../app.css";
-
-	/* Loading */
-	.loading-container {
-		display: flex;
-		justify-content: center;
-		align-items: center;
-		min-height: 300px;
+	.container {
+		padding: 1rem;
 	}
 
-	.loading-text {
+	.period-row {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		margin-bottom: 1rem;
+		flex-wrap: wrap;
+	}
+
+	.label {
+		font-weight: 600;
+		font-size: 0.875rem;
+		color: #1f2937;
+	}
+
+	.period-buttons {
+		display: flex;
+		gap: 0.5rem;
+	}
+
+	.period-btn {
+		padding: 0.375rem 0.75rem;
+		border: 1px solid #cbd5e1;
+		border-radius: 6px;
+		background-color: white;
+		color: #64748b;
+		font-size: 0.8125rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: all 0.2s;
+	}
+
+	.period-btn:hover {
+		background-color: #f8fafc;
+		border-color: #3b82f6;
+		color: #3b82f6;
+	}
+
+	.period-btn.active {
+		background-color: #3b82f6;
+		border-color: #3b82f6;
+		color: white;
+		font-weight: 600;
+	}
+
+	.period-display {
+		font-size: 0.8125rem;
+		color: #64748b;
+		margin-left: auto;
+	}
+
+	.loading {
+		padding: 2rem;
+		text-align: center;
 		color: #64748b;
 	}
 
-	/* Modal Content */
-	.modal-content {
-		padding: 8px;
+	.table-wrapper {
+		position: relative;
+		margin-bottom: 1rem;
 	}
 
-	/* Info Box */
-	.info-box {
-		background-color: #eff6ff;
-		border: 1px solid #bfdbfe;
-		border-radius: 6px;
-		padding: 8px 10px;
-		margin-bottom: 10px;
-	}
-
-	.info-title {
-		font-size: 0.8125rem;
-		font-weight: 600;
-		color: #1e3a8a;
-		margin-bottom: 2px;
-	}
-
-	.info-description {
-		font-size: 0.6875rem;
-		color: #475569;
-		line-height: 1.4;
-	}
-
-	/* Table */
-	.table-container {
+	.table-scroll {
 		overflow-x: auto;
-		margin-bottom: 10px;
+		overflow-y: visible;
 	}
 
-	.adjustment-table {
-		width: 100%;
-		border-collapse: collapse;
+	.main-table {
+		width: auto;
+		min-width: 100%;
+		border-collapse: separate;
+		border-spacing: 0;
 		font-size: 0.75rem;
 	}
 
-	.adjustment-table thead {
+	.main-table thead {
 		background-color: #f8fafc;
 	}
 
-	.th-cell {
-		padding: 4px;
-		text-align: left;
-		font-weight: 600;
-		color: #475569;
-		border-bottom: 2px solid #e2e8f0;
-		white-space: nowrap;
-	}
-
-	.table-row {
-		height: 28px;
-		border-bottom: 1px solid #e2e8f0;
-	}
-
-	.table-row:hover {
+	.th-grade {
+		padding: 0.25rem;
+		border: 1px solid #cbd5e1;
+		font-weight: 700;
+		text-align: center;
+		min-width: 50px;
+		width: 50px;
 		background-color: #f8fafc;
+		position: sticky;
+		left: 0;
+		z-index: 20 !important;
 	}
 
-	.table-row.manual-mode {
+	.th-month {
+		padding: 0.25rem;
+		border: 1px solid #cbd5e1;
+		border-left: 2px solid #3b82f6;
+		font-weight: 700;
+		text-align: center;
+		background-color: #dbeafe;
+	}
+
+	.th-month.current-month {
 		background-color: #fef3c7;
 	}
 
-	.table-row.manual-mode:hover {
-		background-color: #fde68a;
+	.th-month.period-total {
+		background-color: #d1fae5;
+	}
+
+	.th-sub {
+		padding: 0.25rem;
+		border: 1px solid #e2e8f0;
+		font-weight: 600;
+		text-align: center;
+		min-width: 90px;
+		white-space: nowrap;
+	}
+
+	.th-sub.month-start {
+		border-left: 2px solid #3b82f6;
+	}
+
+	.th-sub.editable {
+		background-color: #fef3c7;
+	}
+
+	.th-sub.period-col {
+		background-color: #ecfdf5;
 	}
 
 	.td-grade {
-		padding: 2px 4px;
-		font-weight: 600;
-		color: #1e293b;
-		width: 40px;
-		min-width: 40px;
-	}
-
-	.td-count {
-		padding: 2px 4px;
+		padding: 0.25rem;
+		border: 1px solid #e2e8f0;
+		font-weight: 700;
 		text-align: center;
-		color: #475569;
-		width: 50px;
-		min-width: 50px;
+		background-color: white !important;
+		position: sticky;
+		left: 0;
+		z-index: 10 !important;
 	}
 
-	.td-mode {
-		padding: 2px 4px;
+	.td-num {
+		padding: 0.25rem;
+		border: 1px solid #e2e8f0;
 		text-align: center;
-		width: 70px;
-		min-width: 70px;
 	}
 
-	.td-amount {
-		padding: 2px 4px;
+	.td-num.month-start {
+		border-left: 2px solid #3b82f6;
+	}
+
+	.td-amt {
+		padding: 0.25rem;
+		border: 1px solid #e2e8f0;
 		text-align: right;
-		font-family: monospace;
-		color: #334155;
-		width: 80px;
-		min-width: 80px;
-		font-size: 0.6875rem;
 	}
 
-	.td-input {
-		padding: 2px 4px;
-		width: 80px;
-		min-width: 80px;
+	.td-adj {
+		padding: 0.25rem;
+		border: 1px solid #e2e8f0;
+		text-align: right;
 	}
 
-	.mode-label {
-		font-size: 0.5625rem;
-		color: #475569;
-		vertical-align: middle;
-		display: inline-block;
-		min-width: 24px;
+	.td-adj.editable {
+		background-color: #fef3c7;
+		padding: 0.125rem;
 	}
 
-	.amount-input {
+	.adj-input {
 		width: 100%;
-		padding: 2px 6px;
+		padding: 0.125rem 0.25rem;
 		border: 1px solid #cbd5e1;
-		border-radius: 4px;
-		font-size: 0.6875rem;
+		border-radius: 2px;
 		text-align: right;
-		font-family: monospace;
-		height: 22px;
+		font-size: 0.75rem;
+		line-height: 1.2;
 	}
 
-	.amount-input:focus {
+	.adj-input:focus {
 		outline: none;
-		border-color: #3b82f6;
-		box-shadow: 0 0 0 2px #dbeafe;
+		border-color: #f59e0b;
 	}
 
-	/* Notice Box */
-	.notice-box {
-		background-color: #fffbeb;
-		border: 1px solid #fde68a;
+	.adj-input::placeholder {
+		color: #9ca3af;
+		font-size: 0.6875rem;
+	}
+
+	.td-diff {
+		padding: 0.25rem;
+		border: 1px solid #e2e8f0;
+		text-align: right;
+		font-weight: 600;
+	}
+
+	.td-diff.pos {
+		color: #dc2626;
+	}
+
+	.td-diff.neg {
+		color: #2563eb;
+	}
+
+	.td-num.period-col,
+	.td-amt.period-col,
+	.td-adj.period-col,
+	.td-diff.period-col {
+		background-color: #f0fdf4;
+		font-weight: 600;
+	}
+
+	.total-row {
+		background-color: #f1f5f9;
+		font-weight: 700;
+	}
+
+	.total-row .td-grade {
+		background-color: #f1f5f9 !important;
+	}
+
+	.notice {
+		background-color: #f0f9ff;
+		border: 1px solid #bfdbfe;
 		border-radius: 6px;
-		padding: 8px 10px;
+		padding: 0.75rem;
 	}
 
 	.notice-title {
-		font-size: 0.75rem;
 		font-weight: 600;
-		color: #78350f;
-		margin-bottom: 4px;
+		color: #1e40af;
+		margin-bottom: 0.5rem;
+		font-size: 0.875rem;
 	}
 
-	.notice-list {
-		list-style: none;
-		padding: 0;
-		margin: 0;
+	.notice-text {
+		color: #1e40af;
+		font-size: 0.75rem;
+		line-height: 1.6;
 	}
 
-	.notice-item {
-		font-size: 0.6875rem;
-		color: #78350f;
-		padding-left: 12px;
-		position: relative;
-		margin-bottom: 2px;
-	}
-
-	.notice-item::before {
-		content: '•';
-		position: absolute;
-		left: 4px;
-	}
-
-	/* Buttons */
-	.btn-cancel {
-		padding: 8px 16px;
-		font-size: 0.8125rem;
-		color: #475569;
-		background-color: white;
-		border: 1px solid #e2e8f0;
+	.btn {
+		padding: 0.5rem 1rem;
+		font-size: 0.875rem;
 		border-radius: 6px;
 		cursor: pointer;
 		transition: all 0.2s;
+	}
+
+	.btn-cancel {
+		color: #475569;
+		background-color: white;
+		border: 1px solid #e2e8f0;
 	}
 
 	.btn-cancel:hover {
 		background-color: #f8fafc;
-		border-color: #cbd5e1;
 	}
 
 	.btn-save {
-		padding: 8px 16px;
-		font-size: 0.8125rem;
 		color: white;
 		background-color: #3b82f6;
 		border: 1px solid #3b82f6;
-		border-radius: 6px;
-		cursor: pointer;
-		transition: all 0.2s;
 	}
 
 	.btn-save:hover {
 		background-color: #2563eb;
-		border-color: #2563eb;
 	}
 
-	/* Toggle Switch */
-	.switch {
-		position: relative;
-		display: inline-block;
-		width: 32px;
-		height: 16px;
-		margin-right: 4px;
-		vertical-align: middle;
-	}
+	/* 모바일 최적화 */
+	@media (max-width: 768px) {
+		.container {
+			padding: 0.5rem;
+		}
 
-	.switch input {
-		opacity: 0;
-		width: 0;
-		height: 0;
-	}
+		.period-row {
+			flex-wrap: wrap;
+			gap: 0.25rem;
+		}
 
-	.slider {
-		position: absolute;
-		cursor: pointer;
-		top: 0;
-		left: 0;
-		right: 0;
-		bottom: 0;
-		background-color: #d1fae5;
-		transition: .3s;
-		border-radius: 16px;
-	}
+		.month-input {
+			font-size: 0.8125rem;
+			padding: 0.25rem 0.5rem;
+		}
 
-	.slider:before {
-		position: absolute;
-		content: "";
-		height: 12px;
-		width: 12px;
-		left: 2px;
-		bottom: 2px;
-		background-color: #059669;
-		transition: .3s;
-		border-radius: 50%;
-	}
+		.main-table {
+			font-size: 0.8125rem;
+		}
 
-	input:checked + .slider {
-		background-color: #fef3c7;
-	}
+		.table-wrapper {
+			margin-bottom: 0.5rem;
+		}
 
-	input:checked + .slider:before {
-		background-color: #f59e0b;
-		transform: translateX(16px);
+		.notice {
+			padding: 0.5rem;
+		}
+
+		.notice-title {
+			font-size: 0.8125rem;
+		}
+
+		.notice-text {
+			font-size: 0.8125rem;
+		}
+
+		.adj-input {
+			font-size: 0.8125rem;
+		}
+
+		.adj-input::placeholder {
+			font-size: 0.75rem;
+		}
 	}
 </style>
