@@ -274,7 +274,7 @@
 									{@const auto = currentMonthData.gradePayments?.[grade] || 0}
 									{@const manual = currentMonthData.adjustedGradePayments?.[grade]?.totalAmount}
 									{@const display = adjustments[grade] ? Number(adjustments[grade]) : manual}
-									{@const diff = (display !== null && display !== undefined) ? display - auto : 0}
+									{@const diff = (display !== null && display !== undefined) ? auto - display : 0}
 
 									<td class="td-num month-start">{formatNum(users)}</td>
 									<td class="td-amt">{formatNum(auto)}</td>
@@ -300,7 +300,7 @@
 										return s + (manual || 0);
 									}, 0)}
 									{@const hasAnyAdj = monthsData.some(md => md.adjustedGradePayments?.[grade]?.totalAmount !== null && md.adjustedGradePayments?.[grade]?.totalAmount !== undefined)}
-									{@const periodDiff = hasAnyAdj ? periodAdj - periodAuto : 0}
+									{@const periodDiff = hasAnyAdj ? periodAuto - periodAdj : 0}
 
 									<td class="td-num month-start period-col">{formatNum(periodUsers)}</td>
 									<td class="td-amt period-col">{formatNum(periodAuto)}</td>
@@ -314,7 +314,7 @@
 									{@const users = md.gradeDistribution?.[grade] || 0}
 									{@const auto = md.gradePayments?.[grade] || 0}
 									{@const manual = md.adjustedGradePayments?.[grade]?.totalAmount}
-									{@const diff = (manual !== null && manual !== undefined) ? manual - auto : 0}
+									{@const diff = (manual !== null && manual !== undefined) ? auto - manual : 0}
 
 									<td class="td-num month-start">{formatNum(users)}</td>
 									<td class="td-amt">{formatNum(auto)}</td>
@@ -343,7 +343,7 @@
 									const display = adjustments[g] ? Number(adjustments[g]) : currentMonthData.adjustedGradePayments?.[g]?.totalAmount;
 									return s + (display || 0);
 								}, 0) : null}
-								{@const totalDiff = totalAdj !== null ? totalAdj - totalAuto : 0}
+								{@const totalDiff = totalAdj !== null ? totalAuto - totalAdj : 0}
 
 								<td class="td-num month-start">{formatNum(totalUsers)}</td>
 								<td class="td-amt">{formatNum(totalAuto)}</td>
@@ -359,7 +359,7 @@
 								{@const periodTotalAuto = monthsData.reduce((s, md) => s + grades.reduce((gs, g) => gs + (md.gradePayments?.[g] || 0), 0), 0)}
 								{@const periodHasAdj = monthsData.some(md => grades.some(g => md.adjustedGradePayments?.[g]?.totalAmount !== null && md.adjustedGradePayments?.[g]?.totalAmount !== undefined))}
 								{@const periodTotalAdj = periodHasAdj ? monthsData.reduce((s, md) => s + grades.reduce((gs, g) => gs + (md.adjustedGradePayments?.[g]?.totalAmount || 0), 0), 0) : null}
-								{@const periodTotalDiff = periodTotalAdj !== null ? periodTotalAdj - periodTotalAuto : 0}
+								{@const periodTotalDiff = periodTotalAdj !== null ? periodTotalAuto - periodTotalAdj : 0}
 
 								<td class="td-num month-start period-col">{formatNum(periodTotalUsers)}</td>
 								<td class="td-amt period-col">{formatNum(periodTotalAuto)}</td>
@@ -375,7 +375,7 @@
 								{@const totalAuto = grades.reduce((s, g) => s + (md.gradePayments?.[g] || 0), 0)}
 								{@const hasAdj = grades.some(g => md.adjustedGradePayments?.[g]?.totalAmount !== null && md.adjustedGradePayments?.[g]?.totalAmount !== undefined)}
 								{@const totalAdj = hasAdj ? grades.reduce((s, g) => s + (md.adjustedGradePayments?.[g]?.totalAmount || 0), 0) : null}
-								{@const totalDiff = totalAdj !== null ? totalAdj - totalAuto : 0}
+								{@const totalDiff = totalAdj !== null ? totalAuto - totalAdj : 0}
 
 								<td class="td-num month-start">{formatNum(totalUsers)}</td>
 								<td class="td-amt">{formatNum(totalAuto)}</td>
