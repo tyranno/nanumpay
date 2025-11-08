@@ -48,11 +48,9 @@
 			// 로컬 스토리지 정리
 			localStorage.clear();
 			sessionStorage.clear();
-
-			// 브라우저에 따라 커스텀 메시지가 표시되지 않을 수 있음
-			event.preventDefault();
-			event.returnValue = '페이지를 벗어나면 자동으로 로그아웃됩니다.';
-			return event.returnValue;
+			
+			// 로그아웃 플래그 설정
+			isLoggedOut = true;
 		}
 	}
 
