@@ -229,11 +229,11 @@
 	/* 모바일에서 성명 컬럼 너비 조정 */
 	@media (max-width: 768px) {
 		.th-number {
-			@apply min-w-[55px] max-w-[55px] w-[55px];
+			@apply min-w-[50px] max-w-[50px] w-[50px];
 		}
 
 		.td-number {
-			@apply min-w-[55px] max-w-[55px] w-[55px];
+			@apply min-w-[50px] max-w-[50px] w-[50px];
 		}
 
 		.th-name {
