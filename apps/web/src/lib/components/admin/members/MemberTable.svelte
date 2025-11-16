@@ -202,6 +202,19 @@
 		@apply sticky left-[60px] z-20 min-w-[120px];
 	}
 
+	/* 모바일에서는 sticky 제거 */
+	@media (max-width: 768px) {
+		.th-sticky-0,
+		.th-sticky-1 {
+			@apply static;
+		}
+
+		.td-sticky-0,
+		.td-sticky-1 {
+			@apply static;
+		}
+	}
+
 	/* 데이터 행 */
 	.data-row:hover td {
 		@apply bg-black/[0.02];
