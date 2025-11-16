@@ -20,9 +20,9 @@
 		<table class="member-table">
 			<thead>
 				<tr>
-					<th class="th-base th-sticky-0">순번</th>
+					<th class="th-base">순번</th>
 					{#if visibleColumns.name}
-						<th onclick={() => onSort('name')} class="th-base th-sticky-1 th-sortable">
+						<th onclick={() => onSort('name')} class="th-base th-sortable">
 							성명 {#if sortBy === 'name'}{sortOrder === 'asc' ? '↑' : '↓'}{/if}
 						</th>
 					{/if}
@@ -75,9 +75,9 @@
 				{:else}
 					{#each members as member, index}
 						<tr class="data-row">
-							<td class="td-sticky-0">{(currentPage - 1) * itemsPerPage + index + 1}</td>
+							<td class="td-base">{(currentPage - 1) * itemsPerPage + index + 1}</td>
 							{#if visibleColumns.name}
-								<td class="td-sticky-1">
+								<td class="td-base">
 									<div class="flex items-center justify-center">
 										<button
 											onclick={() => onEdit(member)}
@@ -193,28 +193,6 @@
 		@apply cursor-pointer transition-colors hover:bg-gray-300;
 	}
 
-	/* 헤더 - 고정 컬럼 */
-	.th-sticky-0 {
-		@apply sticky left-0 z-[21] min-w-[60px];
-	}
-
-	.th-sticky-1 {
-		@apply sticky left-[60px] z-20 min-w-[120px];
-	}
-
-	/* 모바일에서는 sticky 제거 */
-	@media (max-width: 768px) {
-		.th-sticky-0,
-		.th-sticky-1 {
-			@apply static;
-		}
-
-		.td-sticky-0,
-		.td-sticky-1 {
-			@apply static;
-		}
-	}
-
 	/* 데이터 행 */
 	.data-row:hover td {
 		@apply bg-black/[0.02];
@@ -228,27 +206,6 @@
 
 	.td-base:first-child {
 		@apply border-l;
-	}
-
-	/* 데이터 셀 - 고정 컬럼 */
-	.td-sticky-0 {
-		@apply sticky left-0 z-[11] bg-white;
-		@apply border-b border-l border-r border-gray-300;
-		@apply whitespace-nowrap p-1.5 text-center text-sm;
-	}
-
-	.data-row:hover .td-sticky-0 {
-		@apply bg-black/[0.02] z-[11];
-	}
-
-	.td-sticky-1 {
-		@apply sticky left-[60px] z-10 bg-white;
-		@apply border-b border-r border-gray-300;
-		@apply whitespace-nowrap p-1.5 text-center text-sm;
-	}
-
-	.data-row:hover .td-sticky-1 {
-		@apply bg-black/[0.02] z-10;
 	}
 
 	/* 등급 아이콘 */
