@@ -208,13 +208,24 @@
 		@apply border-l;
 	}
 
-	/* 성명 컬럼 최소 너비 */
+	/* 성명 컬럼 고정 너비 */
 	.th-name {
-		@apply min-w-[90px] max-w-[90px] w-[90px];
+		@apply min-w-[100px] max-w-[100px] w-[100px];
 	}
 
 	.td-name {
-		@apply min-w-[90px] max-w-[90px] w-[90px];
+		@apply min-w-[100px] max-w-[100px] w-[100px];
+	}
+
+	/* 모바일에서 성명 컬럼 너비 조정 */
+	@media (max-width: 768px) {
+		.th-name {
+			@apply min-w-[95px] max-w-[95px] w-[95px];
+		}
+
+		.td-name {
+			@apply min-w-[95px] max-w-[95px] w-[95px];
+		}
 	}
 
 	/* 등급 아이콘 */
