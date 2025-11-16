@@ -20,7 +20,12 @@ import PlannerAccount from '../../models/PlannerAccount.js';
  * @returns {Promise<Object>} { promoted, monthlyReg, registrationMonth }
  */
 export async function executeStep2(users) {
-	// 2-1. 등급 재계산 (전체 사용자)
+	// 2-1. 귀속월 먼저 파악 (승급일 계산에 필요)
+	const registrationMonth = MonthlyRegistrations.generateMonthKey(
+		users[0]?.registrationDate || users[0]?.createdAt || new Date()
+	);
+
+	// 2-2. 등급 재계산 (전체 사용자)
 	const gradeChangeResult = await recalculateAllGrades();
 	const changedUsers = gradeChangeResult.changedUsers || [];
 
@@ -39,7 +44,12 @@ export async function executeStep2(users) {
 		});
 	}
 
-	// ⭐ 중복 제거: 같은 사용자가 여러 번 승급 시 (최초 oldGrade, 최종 newGrade만 사용)
+	// ⭐ 승급일 계산: 귀속월의 중간 날짜 (15일) 사용
+	const [year, month] = registrationMonth.split('-').map(Number);
+	const promotionDateForMonth = new Date(Date.UTC(year, month - 1, 15, 0, 0, 0, 0));
+	console.log(`📅 승급일 기준: ${promotionDateForMonth.toISOString().split('T')[0]} (${registrationMonth})`);
+
+	// ⭐ 중복 제거: 같은 사용자가 여러 번 승급 시 (최초 oldGrade, 최종 newGrade, 첫 승급일 추적)
 	const promotedMap = new Map();
 	for (const p of promotedRaw) {
 		if (!promotedMap.has(p.userId)) {
@@ -49,31 +59,28 @@ export async function executeStep2(users) {
 				userName: p.userName,
 				changeType: p.changeType,
 				oldGrade: p.oldGrade,  // 최초 등급
-				newGrade: p.newGrade   // 현재 등급 (계속 업데이트됨)
+				newGrade: p.newGrade,  // 현재 등급 (계속 업데이트됨)
+				promotionDate: promotionDateForMonth  // ⭐ 귀속월 기준 승급일
 			});
 		} else {
-			// 이미 있으면 newGrade만 업데이트 (oldGrade는 최초값 유지)
+			// 이미 있으면 newGrade만 업데이트 (oldGrade, promotionDate는 최초값 유지)
 			const existing = promotedMap.get(p.userId);
 			console.log(`    🔄 다단계 승급 감지: ${p.userName} (${existing.oldGrade} → ${existing.newGrade} → ${p.newGrade})`);
 			existing.newGrade = p.newGrade;
+			// promotionDate는 그대로 유지 (첫 승급일 보존)
 		}
 	}
 	const promoted = Array.from(promotedMap.values());
-	
+
 	// ⭐ 디버깅: 최종 promoted 배열 확인
 	console.log(`\n📊 Step2 승급자 처리 결과:`);
 	console.log(`  - 원본 승급 이벤트: ${promotedRaw.length}건`);
 	console.log(`  - 최종 승급자: ${promoted.length}명`);
 	if (promoted.length > 0 && promoted.length < 10) {
 		promoted.forEach(p => {
-			console.log(`    → ${p.userName}: ${p.oldGrade} → ${p.newGrade}`);
+			console.log(`    → ${p.userName}: ${p.oldGrade} → ${p.newGrade} (승급일: ${p.promotionDate.toISOString().split('T')[0]})`);
 		});
 	}
-
-	// 2-2. 귀속월 파악
-	const registrationMonth = MonthlyRegistrations.generateMonthKey(
-		users[0]?.registrationDate || users[0]?.createdAt || new Date()
-	);
 
 	// 2-3. 월별 등록자 관리 (MonthlyRegistrations)
 	let monthlyReg = await MonthlyRegistrations.findOne({ monthKey: registrationMonth });

@@ -53,13 +53,14 @@ export async function executeStep4(promoted, targets, gradePayments, monthlyReg,
 
     if (promotion) {
       // ⭐ 승급한 경우: newGrade Promotion만 생성 (oldGrade Initial 생성 안 함!)
+      // ⭐ 등록일 기준으로 지급 계획 시작 (귀속월에 등록+승급한 경우)
 
       // newGrade Promotion 계획만 생성
       const promotionPlan = await createPromotionPaymentPlan(
         userId,
         userName,
         promotion.newGrade,
-        registrationDate,
+        registrationDate,  // ⭐ 등록일 기준 (등록한 달에 승급)
         monthlyReg
       );
       promotionPlans.push({
@@ -109,17 +110,19 @@ export async function executeStep4(promoted, targets, gradePayments, monthlyReg,
         continue;
       }
 
+      // ⭐ 승급일 = promoted 배열에서 전달받은 promotionDate (첫 승급일) 사용
+      // promoted 배열에서 해당 사용자 찾기
+      const promotionInfo = promoted.find(p => p.userId === prom.userId);
+      const promotionDate = promotionInfo?.promotionDate || new Date();
 
-      // ⭐ 승급일 = registrationMonth의 첫날 (매출 귀속 월과 동일)
-      const [year, month] = registrationMonth.split('-').map(Number);
-      const promotionDate = new Date(year, month - 1, 1);  // 월은 0-based
+      console.log(`[기존 승급자] ${prom.userName}: 첫 승급일 = ${promotionDate.toISOString().split('T')[0]}`);
 
       // newGrade Promotion 계획 생성
       const promotionPlan = await createPromotionPaymentPlan(
         prom.userId,
         prom.userName,
         prom.grade,
-        promotionDate,  // ⭐ registrationMonth 첫날
+        promotionDate,  // ⭐ 첫 승급일 기준
         monthlyReg
       );
       promotionPlans.push({
