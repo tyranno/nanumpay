@@ -210,11 +210,11 @@
 
 	/* 성명 컬럼 최소 너비 */
 	.th-name {
-		@apply min-w-[80px];
+		@apply min-w-[90px] max-w-[90px] w-[90px];
 	}
 
 	.td-name {
-		@apply min-w-[80px];
+		@apply min-w-[90px] max-w-[90px] w-[90px];
 	}
 
 	/* 등급 아이콘 */
