@@ -86,8 +86,12 @@ export async function GET({ url, locals }) {
 				insuranceAmount: user.userAccountId?.insuranceAmount || 0,
 				// ⭐ v8.0: PlannerAccount 필드들
 				planner: user.plannerAccountId?.name || '',
-				plannerPhone: user.plannerAccountId?.phone || ''
-			};
+				plannerPhone: user.plannerAccountId?.phone || '',
+			// User 모델 필드들 (지사, 보험상품, 보험회사)
+			branch: user.branch || '',
+			insuranceProduct: user.insuranceProduct || '',
+			insuranceCompany: user.insuranceCompany || ''
+		};
 		});
 
 		return json({

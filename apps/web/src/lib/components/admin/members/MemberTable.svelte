@@ -195,11 +195,11 @@
 
 	/* 헤더 - 고정 컬럼 */
 	.th-sticky-0 {
-		@apply sticky left-0 z-20 min-w-[60px];
+		@apply sticky left-0 z-[21] min-w-[60px];
 	}
 
 	.th-sticky-1 {
-		@apply sticky left-[60px] z-[19] min-w-[120px];
+		@apply sticky left-[60px] z-20 min-w-[120px];
 	}
 
 	/* 데이터 행 */
@@ -219,23 +219,23 @@
 
 	/* 데이터 셀 - 고정 컬럼 */
 	.td-sticky-0 {
-		@apply sticky left-0 z-10 bg-white;
+		@apply sticky left-0 z-[11] bg-white;
 		@apply border-b border-l border-r border-gray-300;
 		@apply whitespace-nowrap p-1.5 text-center text-sm;
 	}
 
 	.data-row:hover .td-sticky-0 {
-		@apply bg-black/[0.02];
+		@apply bg-black/[0.02] z-[11];
 	}
 
 	.td-sticky-1 {
-		@apply sticky left-[60px] z-[9] bg-white;
+		@apply sticky left-[60px] z-10 bg-white;
 		@apply border-b border-r border-gray-300;
 		@apply whitespace-nowrap p-1.5 text-center text-sm;
 	}
 
 	.data-row:hover .td-sticky-1 {
-		@apply bg-black/[0.02];
+		@apply bg-black/[0.02] z-10;
 	}
 
 	/* 등급 아이콘 */
