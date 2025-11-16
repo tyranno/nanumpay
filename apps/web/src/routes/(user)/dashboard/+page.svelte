@@ -465,12 +465,16 @@
 							{#each displayedPayments as weekGroup}
 								{#each weekGroup.users as user, index}
 									{@const breakdown = calculateBreakdown(user.amount)}
+									{@const isPast = new Date(weekGroup.weekDate) < new Date(new Date().setHours(0, 0, 0, 0))}
 
-									<tr class="hover:bg-gray-50">
+									<tr class="{isPast ? 'bg-gray-100 hover:bg-gray-200' : 'hover:bg-gray-50'}">
 										{#if index === 0}
 											<!-- 첫 번째 행만 지급일 표시 (rowspan) -->
 											<td class="table-cell" rowspan={weekGroup.users.length}>
 												{formatDate(weekGroup.weekDate)}
+												{#if isPast}
+													<span class="ml-1 text-xs font-semibold text-green-600">(완)</span>
+												{/if}
 											</td>
 										{/if}
 										<td class="table-cell">{user.userName || '-'}</td>
