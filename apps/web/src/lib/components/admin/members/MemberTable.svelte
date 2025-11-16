@@ -210,11 +210,11 @@
 
 	/* 성명 컬럼 고정 너비 */
 	.th-name {
-		@apply min-w-[100px] max-w-[100px] w-[100px];
+		@apply min-w-[120px] max-w-[120px] w-[120px];
 	}
 
 	.td-name {
-		@apply min-w-[100px] max-w-[100px] w-[100px];
+		@apply min-w-[120px] max-w-[120px] w-[120px];
 	}
 
 	/* 모바일에서 성명 컬럼 너비 조정 */
