@@ -45,23 +45,17 @@ export async function GET({ url, locals }) {
 				// 실제 매출 가져오기 (수동 조정값이 있으면 그것을, 없으면 자동값)
 				const effectiveRevenue = monthData.getEffectiveRevenue();
 
-				// 등급별 지급액 가져오기 (100원 단위 절삭 적용)
+				// 등급별 지급액 가져오기 (절삭하지 않고 원본 값 사용)
 				let gradePayments = {};
 				if (monthData.gradePayments) {
-					// 기존 값도 100원 단위 절삭
-					for (const [grade, amount] of Object.entries(monthData.gradePayments)) {
-						gradePayments[grade] = Math.floor(amount / 100) * 100;
-					}
+					// 원본 값 그대로 사용 (절삭하지 않음)
+					gradePayments = { ...monthData.gradePayments };
 				}
 
 				// 등급별 지급액이 없으면 계산
 				if (!gradePayments.F1 && !gradePayments.F2 && monthData.gradeDistribution) {
-					// 등급별 지급액 재계산
-					const calculatedPayments = calculateGradePayments(effectiveRevenue, monthData.gradeDistribution);
-					// 100원 단위 절삭
-					for (const [grade, amount] of Object.entries(calculatedPayments)) {
-						gradePayments[grade] = Math.floor(amount / 100) * 100;
-					}
+					// 등급별 지급액 재계산 (원본 값 사용, 절삭하지 않음)
+					gradePayments = calculateGradePayments(effectiveRevenue, monthData.gradeDistribution);
 				}
 
 				monthsData.push({

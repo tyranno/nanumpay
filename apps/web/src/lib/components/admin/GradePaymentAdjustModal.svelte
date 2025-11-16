@@ -127,7 +127,15 @@
 
 	function formatNum(num) {
 		if (!num && num !== 0) return '';
-		return Number(num).toLocaleString();
+		// 100원 단위 절삭 후 표시 (표시용)
+		const rounded = Math.floor(Number(num) / 100) * 100;
+		return rounded.toLocaleString();
+	}
+
+	function formatInputValue(value) {
+		if (!value) return '';
+		// 입력 필드 표시용: 콤마만 추가 (절삭하지 않음)
+		return Number(value).toLocaleString();
 	}
 
 	async function handleSave() {
@@ -281,7 +289,7 @@
 									<td class="td-adj editable">
 										<input
 											type="text"
-											value={adjustments[grade] ? formatNum(adjustments[grade]) : ''}
+											value={adjustments[grade] ? formatInputValue(adjustments[grade]) : ''}
 											oninput={(e) => handleInput(grade, e.target.value)}
 											onblur={() => handleBlur(grade)}
 											class="adj-input"
@@ -334,20 +342,23 @@
 							{#if currentMonthData}
 								{@const grades = ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8']}
 								{@const totalUsers = grades.reduce((s, g) => s + (currentMonthData.gradeDistribution?.[g] || 0), 0)}
-								{@const totalAuto = grades.reduce((s, g) => s + (currentMonthData.gradePayments?.[g] || 0), 0)}
-								{@const hasAdjustment = grades.some(g => {
-									const display = adjustments[g] ? Number(adjustments[g]) : currentMonthData.adjustedGradePayments?.[g]?.totalAmount;
-									return display !== null && display !== undefined;
-								})}
-								{@const totalAdj = hasAdjustment ? grades.reduce((s, g) => {
-									const display = adjustments[g] ? Number(adjustments[g]) : currentMonthData.adjustedGradePayments?.[g]?.totalAmount;
-									return s + (display || 0);
-								}, 0) : null}
-								{@const totalDiff = totalAdj !== null ? totalAuto - totalAdj : 0}
+								{@const totalAutoRaw = grades.reduce((s, g) => {
+									const users = currentMonthData.gradeDistribution?.[g] || 0;
+									const perPerson = currentMonthData.gradePayments?.[g] || 0;
+									return s + (users * perPerson);
+								}, 0)}
+								{@const totalAuto = Math.floor(totalAutoRaw / 100) * 100}
+								{@const totalAdjRaw = grades.reduce((s, g) => {
+									const users = currentMonthData.gradeDistribution?.[g] || 0;
+									const gradeAdj = adjustments[g] ? Number(adjustments[g]) : (currentMonthData.adjustedGradePayments?.[g]?.totalAmount || currentMonthData.gradePayments?.[g] || 0);
+									return s + (users * gradeAdj);
+								}, 0)}
+								{@const totalAdj = Math.floor(totalAdjRaw / 100) * 100}
+								{@const totalDiff = totalAuto - totalAdj}
 
 								<td class="td-num month-start">{formatNum(totalUsers)}</td>
 								<td class="td-amt">{formatNum(totalAuto)}</td>
-								<td class="td-adj editable">{totalAdj !== null ? formatNum(totalAdj) : ''}</td>
+								<td class="td-adj editable">{formatNum(totalAdj)}</td>
 								<td class="td-diff" class:pos={totalDiff > 0} class:neg={totalDiff < 0}>
 									{totalDiff !== 0 ? formatNum(totalDiff) : ''}
 								</td>
@@ -356,9 +367,19 @@
 							{#if true}
 								{@const grades = ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8']}
 								{@const periodTotalUsers = monthsData.reduce((s, md) => s + grades.reduce((gs, g) => gs + (md.gradeDistribution?.[g] || 0), 0), 0)}
-								{@const periodTotalAuto = monthsData.reduce((s, md) => s + grades.reduce((gs, g) => gs + (md.gradePayments?.[g] || 0), 0), 0)}
+								{@const periodTotalAutoRaw = monthsData.reduce((s, md) => s + grades.reduce((gs, g) => {
+									const users = md.gradeDistribution?.[g] || 0;
+									const perPerson = md.gradePayments?.[g] || 0;
+									return gs + (users * perPerson);
+								}, 0), 0)}
+								{@const periodTotalAuto = Math.floor(periodTotalAutoRaw / 100) * 100}
 								{@const periodHasAdj = monthsData.some(md => grades.some(g => md.adjustedGradePayments?.[g]?.totalAmount !== null && md.adjustedGradePayments?.[g]?.totalAmount !== undefined))}
-								{@const periodTotalAdj = periodHasAdj ? monthsData.reduce((s, md) => s + grades.reduce((gs, g) => gs + (md.adjustedGradePayments?.[g]?.totalAmount || 0), 0), 0) : null}
+								{@const periodTotalAdjRaw = periodHasAdj ? monthsData.reduce((s, md) => s + grades.reduce((gs, g) => {
+									const users = md.gradeDistribution?.[g] || 0;
+									const perPerson = md.adjustedGradePayments?.[g]?.totalAmount || 0;
+									return gs + (users * perPerson);
+								}, 0), 0) : null}
+								{@const periodTotalAdj = periodTotalAdjRaw !== null ? Math.floor(periodTotalAdjRaw / 100) * 100 : null}
 								{@const periodTotalDiff = periodTotalAdj !== null ? periodTotalAuto - periodTotalAdj : 0}
 
 								<td class="td-num month-start period-col">{formatNum(periodTotalUsers)}</td>
@@ -372,9 +393,19 @@
 							{#each monthsData as md}
 								{@const grades = ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8']}
 								{@const totalUsers = grades.reduce((s, g) => s + (md.gradeDistribution?.[g] || 0), 0)}
-								{@const totalAuto = grades.reduce((s, g) => s + (md.gradePayments?.[g] || 0), 0)}
+								{@const totalAutoRaw = grades.reduce((s, g) => {
+									const users = md.gradeDistribution?.[g] || 0;
+									const perPerson = md.gradePayments?.[g] || 0;
+									return s + (users * perPerson);
+								}, 0)}
+								{@const totalAuto = Math.floor(totalAutoRaw / 100) * 100}
 								{@const hasAdj = grades.some(g => md.adjustedGradePayments?.[g]?.totalAmount !== null && md.adjustedGradePayments?.[g]?.totalAmount !== undefined)}
-								{@const totalAdj = hasAdj ? grades.reduce((s, g) => s + (md.adjustedGradePayments?.[g]?.totalAmount || 0), 0) : null}
+								{@const totalAdjRaw = hasAdj ? grades.reduce((s, g) => {
+									const users = md.gradeDistribution?.[g] || 0;
+									const perPerson = md.adjustedGradePayments?.[g]?.totalAmount || 0;
+									return s + (users * perPerson);
+								}, 0) : null}
+								{@const totalAdj = totalAdjRaw !== null ? Math.floor(totalAdjRaw / 100) * 100 : null}
 								{@const totalDiff = totalAdj !== null ? totalAuto - totalAdj : 0}
 
 								<td class="td-num month-start">{formatNum(totalUsers)}</td>
