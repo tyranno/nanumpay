@@ -22,7 +22,7 @@
 				<tr>
 					<th class="th-base">순번</th>
 					{#if visibleColumns.name}
-						<th onclick={() => onSort('name')} class="th-base th-sortable">
+						<th onclick={() => onSort('name')} class="th-base th-sortable th-name">
 							성명 {#if sortBy === 'name'}{sortOrder === 'asc' ? '↑' : '↓'}{/if}
 						</th>
 					{/if}
@@ -77,7 +77,7 @@
 						<tr class="data-row">
 							<td class="td-base">{(currentPage - 1) * itemsPerPage + index + 1}</td>
 							{#if visibleColumns.name}
-								<td class="td-base">
+								<td class="td-base td-name">
 									<div class="flex items-center justify-center">
 										<button
 											onclick={() => onEdit(member)}
@@ -206,6 +206,15 @@
 
 	.td-base:first-child {
 		@apply border-l;
+	}
+
+	/* 성명 컬럼 최소 너비 */
+	.th-name {
+		@apply min-w-[120px];
+	}
+
+	.td-name {
+		@apply min-w-[120px];
 	}
 
 	/* 등급 아이콘 */
