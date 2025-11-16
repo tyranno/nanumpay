@@ -289,8 +289,7 @@ const monthlyRegistrationsSchema = new mongoose.Schema(
   }
 );
 
-// 인덱스
-monthlyRegistrationsSchema.index({ monthKey: 1 }, { unique: true });
+// 인덱스 (monthKey는 스키마 필드에 unique: true로 정의됨)
 monthlyRegistrationsSchema.index({ 'registrations.userId': 1 });
 monthlyRegistrationsSchema.index({ 'registrations.registrationDate': 1 });
 // v7.0: paymentTargets 인덱스

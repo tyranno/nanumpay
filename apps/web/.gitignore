@@ -21,8 +21,8 @@ Thumbs.db
 # Vite
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
-logs/
 .stage
 release/*
 !release/install.sh
 !release/README.md
+logs/

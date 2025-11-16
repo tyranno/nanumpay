@@ -51,8 +51,7 @@ const plannerAccountSchema = new mongoose.Schema({
 	updatedAt: Date
 });
 
-// 인덱스
-plannerAccountSchema.index({ loginId: 1 });
+// 인덱스 (loginId는 스키마 필드에 unique: true, index: true로 정의됨)
 plannerAccountSchema.index({ status: 1 });
 
 // 모델 캐시 강제 삭제 (스키마 변경 시)

@@ -150,8 +150,7 @@ const weeklyPaymentSummarySchema = new mongoose.Schema(
   }
 );
 
-// 인덱스
-weeklyPaymentSummarySchema.index({ weekNumber: 1 }, { unique: true });
+// 인덱스 (weekNumber는 스키마 필드에 unique: true로 정의됨)
 weeklyPaymentSummarySchema.index({ weekDate: 1 });
 weeklyPaymentSummarySchema.index({ monthKey: 1 });
 weeklyPaymentSummarySchema.index({ status: 1 });

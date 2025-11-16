@@ -3,9 +3,26 @@ import { JWT_SECRET, JWT_EXPIRES } from '$env/static/private';
 import { redirect } from '@sveltejs/kit';
 import { Admin } from '$lib/server/models/Admin.js';
 import { connectDB } from '$lib/server/db.js';
+import logger from '$lib/server/logger.js';
 
 /** @type {import('@sveltejs/kit').Handle} */
 export async function handle({ event, resolve }) {
+	const startTime = Date.now();
+	const { pathname } = event.url;
+	const method = event.request.method;
+
+	// 선택적 로깅: 로그인 및 용역자 등록만 로그 남기기
+	const shouldLog =
+		pathname.includes('/api/auth/login') || // 로그인
+		pathname.includes('/api/planner/login') || // 설계사 로그인
+		pathname.includes('/api/admin/login') || // 관리자 로그인
+		pathname.includes('/api/admin/users/bulk') || // 용역자 대량 등록
+		pathname.includes('/api/admin/registration'); // 용역자 등록 관련
+
+	if (shouldLog) {
+		logger.info(`[${method}] ${pathname} 요청 시작`);
+	}
+
 	// 로그인 페이지 접근 시 모든 인증 정보 강제 삭제 (보안 강화)
 	if (event.url.pathname === '/login') {
 		event.cookies.delete('token', {
@@ -139,6 +156,12 @@ export async function handle({ event, resolve }) {
 	// 로그인 페이지는 항상 접근 허용 (위에서 이미 쿠키 삭제됨)
 
 	const response = await resolve(event);
+
+	// 선택적 로깅: 응답 시간 및 상태 코드 로그
+	if (shouldLog) {
+		const duration = Date.now() - startTime;
+		logger.info(`[${method}] ${pathname} 완료 - ${response.status} (${duration}ms)`);
+	}
 
 	// 보호된 페이지에 캐시 방지 헤더 추가 (뒤로가기 시 재인증 강제)
 	if (isProtectedRoute) {
