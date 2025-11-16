@@ -20,7 +20,7 @@
 		<table class="member-table">
 			<thead>
 				<tr>
-					<th class="th-base">순번</th>
+					<th class="th-base th-number">순번</th>
 					{#if visibleColumns.name}
 						<th onclick={() => onSort('name')} class="th-base th-sortable th-name">
 							성명 {#if sortBy === 'name'}{sortOrder === 'asc' ? '↑' : '↓'}{/if}
@@ -75,7 +75,7 @@
 				{:else}
 					{#each members as member, index}
 						<tr class="data-row">
-							<td class="td-base">{(currentPage - 1) * itemsPerPage + index + 1}</td>
+							<td class="td-base td-number">{(currentPage - 1) * itemsPerPage + index + 1}</td>
 							{#if visibleColumns.name}
 								<td class="td-base td-name">
 									<div class="flex items-center justify-center">
@@ -208,6 +208,15 @@
 		@apply border-l;
 	}
 
+	/* 순번 컬럼 고정 너비 */
+	.th-number {
+		@apply min-w-[60px] max-w-[60px] w-[60px];
+	}
+
+	.td-number {
+		@apply min-w-[60px] max-w-[60px] w-[60px];
+	}
+
 	/* 성명 컬럼 고정 너비 */
 	.th-name {
 		@apply min-w-[120px] max-w-[120px] w-[120px];
@@ -219,6 +228,14 @@
 
 	/* 모바일에서 성명 컬럼 너비 조정 */
 	@media (max-width: 768px) {
+		.th-number {
+			@apply min-w-[55px] max-w-[55px] w-[55px];
+		}
+
+		.td-number {
+			@apply min-w-[55px] max-w-[55px] w-[55px];
+		}
+
 		.th-name {
 			@apply min-w-[95px] max-w-[95px] w-[95px];
 		}
