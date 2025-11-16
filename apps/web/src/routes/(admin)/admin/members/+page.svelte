@@ -295,82 +295,55 @@
 		}
 	}
 
-	// 단일 파일 처리 함수
-	async function processFile(file) {
+	// 모든 시트에서 데이터 수집 (원래 파싱 로직 그대로 유지)
+	async function readAllSheetsFromFile(file) {
 		return new Promise((resolve, reject) => {
 			const reader = new FileReader();
-			reader.onload = async (e) => {
+			reader.onload = (e) => {
 				try {
-				const data = new Uint8Array(e.target.result);
-				const workbook = XLSX.read(data, { type: 'array' });
-				const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+					const data = new Uint8Array(e.target.result);
+					const workbook = XLSX.read(data, { type: 'array' });
+					const allData = [];
 
-				// __EMPTY_X 인덱스 키를 포함한 커스텀 파싱 (중복 헤더 대응)
-				const rawData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
-				const headers = rawData[0] || [];
-				const jsonData = [];
+					// 모든 시트 순회
+					for (const sheetName of workbook.SheetNames) {
+						const sheet = workbook.Sheets[sheetName];
 
-				for (let i = 1; i < rawData.length; i++) {
-					const row = rawData[i];
-					if (!row || row.every(cell => cell === null || cell === undefined || cell === '')) {
-						continue; // 빈 행 스킵
-					}
+						// __EMPTY_X 인덱스 키를 포함한 커스텀 파싱 (중복 헤더 대응) - 원래 로직 그대로
+						const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+						const headers = rawData[0] || [];
 
-					const rowData = {};
-					for (let j = 0; j < row.length; j++) {
-						const value = row[j];
-						if (value !== null && value !== undefined && value !== '') {
-							// 인덱스 기반 키 추가 (__EMPTY_X)
-							const indexKey = j === 0 ? '__EMPTY' : `__EMPTY_${j}`;
-							rowData[indexKey] = String(value).trim();
+						for (let i = 1; i < rawData.length; i++) {
+							const row = rawData[i];
+							if (!row || row.every(cell => cell === null || cell === undefined || cell === '')) {
+								continue; // 빈 행 스킵
+							}
 
-							// 헤더 이름 키도 추가 (중복되면 마지막 값이 남음)
-							if (headers[j]) {
-								rowData[String(headers[j]).trim()] = String(value).trim();
+							const rowData = {};
+							for (let j = 0; j < row.length; j++) {
+								const value = row[j];
+								if (value !== null && value !== undefined && value !== '') {
+									// 인덱스 기반 키 추가 (__EMPTY_X)
+									const indexKey = j === 0 ? '__EMPTY' : `__EMPTY_${j}`;
+									// 숫자는 숫자로 유지, 문자열만 trim
+									rowData[indexKey] = typeof value === 'string' ? value.trim() : value;
+
+									// 헤더 이름 키도 추가 (중복되면 마지막 값이 남음)
+									if (headers[j]) {
+										rowData[String(headers[j]).trim()] = typeof value === 'string' ? value.trim() : value;
+									}
+								}
+							}
+
+							if (Object.keys(rowData).length > 0) {
+								allData.push(rowData);
 							}
 						}
 					}
 
-					if (Object.keys(rowData).length > 0) {
-						jsonData.push(rowData);
-					}
-				}
-
-					const response = await fetch('/api/admin/users/bulk', {
-						method: 'POST',
-						headers: {
-							'Content-Type': 'application/json'
-						},
-						body: JSON.stringify({
-							users: jsonData,
-							fileName: file.name
-						})
-					});
-
-					const result = await response.json();
-					if (response.ok) {
-						resolve({
-							success: true,
-							fileName: file.name,
-							created: result.created,
-							failed: result.failed,
-							alerts: result.alerts,
-							errors: result.errors
-						});
-					} else {
-						resolve({
-							success: false,
-							fileName: file.name,
-							error: result.error || '업로드 실패'
-						});
-					}
+					resolve(allData);
 				} catch (error) {
-					console.error('Excel upload error:', error);
-					resolve({
-						success: false,
-						fileName: file.name,
-						error: error.message
-					});
+					reject(error);
 				}
 			};
 
@@ -382,7 +355,47 @@
 		});
 	}
 
-	// 다중 파일 업로드 처리
+	// 월별 데이터 처리
+	async function processMonth(monthData, monthKey) {
+		try {
+			const response = await fetch('/api/admin/users/bulk', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({
+					users: monthData,
+					fileName: `${monthKey} (${monthData.length}명)`
+				})
+			});
+
+			const result = await response.json();
+			if (response.ok) {
+				return {
+					success: true,
+					monthKey: monthKey,
+					created: result.created,
+					failed: result.failed,
+					alerts: result.alerts,
+					errors: result.errors
+				};
+			} else {
+				return {
+					success: false,
+					monthKey: monthKey,
+					error: result.error || '업로드 실패'
+				};
+			}
+		} catch (error) {
+			return {
+				success: false,
+				monthKey: monthKey,
+				error: error.message
+			};
+		}
+	}
+
+	// 다중 파일 업로드 처리 (월별 그룹화)
 	async function handleExcelUpload() {
 		if (uploadFiles.length === 0) {
 			notificationConfig = {
@@ -400,39 +413,116 @@
 		const results = [];
 
 		try {
-			// 파일을 순차적으로 처리
+			// 1단계: 모든 파일의 모든 시트에서 데이터 수집
+			uploadProgress = {
+				current: 0,
+				total: uploadFiles.length,
+				fileName: '파일 읽는 중...'
+			};
+
+			const allData = [];
 			for (let i = 0; i < uploadFiles.length; i++) {
 				const file = uploadFiles[i];
-
-				// 진행 상황 업데이트
 				uploadProgress = {
 					current: i + 1,
 					total: uploadFiles.length,
-					fileName: file.name
+					fileName: `${file.name} 읽는 중...`
 				};
 
-				const result = await processFile(file);
+				const fileData = await readAllSheetsFromFile(file);
+				allData.push(...fileData);
+			}
+
+			// 2단계: 정렬 (1차: 날짜, 2차: 순번)
+		allData.sort((a, b) => {
+			// 1차: 날짜 정렬
+			let dateA = a.__EMPTY_1 || a.__EMPTY || '';
+			let dateB = b.__EMPTY_1 || b.__EMPTY || '';
+			
+			// Excel 시리얼 번호 처리
+			if (typeof dateA === 'number' || (!isNaN(dateA) && Number(dateA) > 1900)) {
+				dateA = Number(dateA);
+			}
+			if (typeof dateB === 'number' || (!isNaN(dateB) && Number(dateB) > 1900)) {
+				dateB = Number(dateB);
+			}
+			
+			// 숫자면 숫자 비교, 문자열이면 문자열 비교
+			let dateCompare;
+			if (typeof dateA === 'number' && typeof dateB === 'number') {
+				dateCompare = dateA - dateB;
+			} else {
+				dateCompare = String(dateA).localeCompare(String(dateB));
+			}
+			if (dateCompare !== 0) return dateCompare;
+			
+			// 2차: 순번 정렬
+			const seqA = a.__EMPTY || '';
+			const seqB = b.__EMPTY || '';
+			return String(seqA).localeCompare(String(seqB), undefined, { numeric: true });
+		});
+
+		// 3단계: 월별 그룹화
+		const monthGroups = {};
+		for (const item of allData) {
+			let dateValue = item.__EMPTY_1 || item.__EMPTY || '';
+			
+			// Excel 시리얼 번호 감지 및 변환 (숫자이고 1900 이상이면 Excel 날짜)
+			if (typeof dateValue === 'number' || (!isNaN(dateValue) && Number(dateValue) > 1900)) {
+				const serial = Number(dateValue);
+				// Excel 시리얼 번호를 Date로 변환 (1900-01-01 = 1)
+				const epoch = new Date(1899, 11, 30);
+				const date = new Date(epoch.getTime() + serial * 86400000);
+				// "YYYY-MM-DD" 형식으로 변환
+				const year = date.getFullYear();
+				const month = String(date.getMonth() + 1).padStart(2, '0');
+				const day = String(date.getDate()).padStart(2, '0');
+				dateValue = `${year}-${month}-${day}`;
+			}
+			
+			const monthKey = String(dateValue).substring(0, 7); // "2025-07"
+
+			if (!monthGroups[monthKey]) {
+				monthGroups[monthKey] = [];
+			}
+			monthGroups[monthKey].push(item);
+		}
+
+			// 4단계: 월별로 순차 처리
+			const monthKeys = Object.keys(monthGroups).sort();
+
+			for (let i = 0; i < monthKeys.length; i++) {
+				const monthKey = monthKeys[i];
+				const monthData = monthGroups[monthKey];
+
+				uploadProgress = {
+					current: i + 1,
+					total: monthKeys.length,
+					fileName: `${monthKey} 처리 중 (${monthData.length}명)...`
+				};
+
+				const result = await processMonth(monthData, monthKey);
 				results.push(result);
 			}
 
-			// 전체 결과 집계
+			// 5단계: 전체 결과 집계
 			const totalCreated = results.reduce((sum, r) => sum + (r.created || 0), 0);
 			const totalFailed = results.reduce((sum, r) => sum + (r.failed || 0), 0);
-			const failedFiles = results.filter(r => !r.success);
+			const failedMonths = results.filter(r => !r.success);
 
 			// 결과 표시
 			notificationConfig = {
-				type: failedFiles.length > 0 ? 'warning' : 'success',
+				type: failedMonths.length > 0 ? 'warning' : 'success',
 				title: '엑셀 업로드 완료',
-				message: `총 ${uploadFiles.length}개 파일 처리\n성공: ${totalCreated}명 등록, 실패: ${totalFailed}명`,
+				message: `총 ${monthKeys.length}개 월 처리\n성공: ${totalCreated}명 등록, 실패: ${totalFailed}명`,
 				results: {
-					files: results,
+					months: results,
 					totalCreated,
 					totalFailed
 				},
 				details: results.map(r => ({
 					type: r.success ? 'success' : 'error',
-					title: r.fileName,
+					title: r.monthKey,
 					content: r.success
 						? `등록: ${r.created}명, 실패: ${r.failed}명`
 						: `오류: ${r.error}`
@@ -444,7 +534,7 @@
 			uploadProgress = null;
 			await loadMembers();
 		} catch (error) {
-			console.error('Multiple files upload error:', error);
+			console.error('Excel upload error:', error);
 			notificationConfig = {
 				type: 'error',
 				title: '업로드 오류',

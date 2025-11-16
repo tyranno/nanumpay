@@ -98,7 +98,7 @@
 							{/if}
 							{#if visibleColumns.date}
 								<td class="td-base">
-									{member.createdAt ? new Date(member.createdAt).toLocaleDateString('ko-KR') : '-'}
+									{member.createdAt ? new Date(member.createdAt).toLocaleDateString('ko-KR').replace(/\.$/, '') : '-'}
 								</td>
 							{/if}
 							{#if visibleColumns.phone}
