@@ -246,7 +246,7 @@
 	}
 </script>
 
-<div class="bg-white shadow-sm rounded-lg overflow-hidden">
+<div class="bg-white border-2 border-green-200 shadow-lg rounded-lg overflow-hidden">
 	<!-- 헤더 -->
 	<div class="px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-green-50 to-green-100">
 		<div class="flex flex-col gap-3">

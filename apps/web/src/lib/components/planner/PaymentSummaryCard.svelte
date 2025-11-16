@@ -25,7 +25,7 @@
 </script>
 
 <!-- 카드 2: 지원비 총액 -->
-<div class="rounded-lg bg-gradient-to-br from-green-50 to-emerald-100 p-3 shadow-md">
+<div class="rounded-lg border-2 border-emerald-200 bg-gradient-to-br from-green-50 to-emerald-100 p-3 shadow-lg">
 	<div class="mb-2 flex items-center justify-between">
 		<div class="flex items-center gap-2">
 			<img src="/icons/total-budget.svg" alt="지원비 총액" class="h-6 w-6" />

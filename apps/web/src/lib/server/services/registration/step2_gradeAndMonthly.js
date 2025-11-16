@@ -11,6 +11,7 @@
 import { recalculateAllGrades } from '../gradeCalculation.js';
 import MonthlyRegistrations from '../../models/MonthlyRegistrations.js';
 import PlannerCommission from '../../models/PlannerCommission.js';
+import PlannerCommissionPlan from '../../models/PlannerCommissionPlan.js';
 import PlannerAccount from '../../models/PlannerAccount.js';
 
 /**
@@ -183,7 +184,7 @@ export async function executeStep2(users) {
  * @param {string} registrationMonth - 귀속월 (YYYY-MM)
  */
 async function updatePlannerCommissions(users, registrationMonth) {
-	console.log(`\n💰 [Step2-9] 설계사 수당 통계 업데이트: ${registrationMonth}`);
+	console.log(`\n💰 [Step2-9] 설계사 수당 개별 지급 계획 생성: ${registrationMonth}`);
 	console.log(`  📋 전달된 사용자: ${users.length}명`);
 
 	// 설계사별로 그룹화
@@ -203,77 +204,75 @@ async function updatePlannerCommissions(users, registrationMonth) {
 		const plannerIdStr = user.plannerAccountId.toString();
 
 		if (!plannerMap.has(plannerIdStr)) {
-			plannerMap.set(plannerIdStr, []);
+			plannerMap.set(plannerIdStr, {
+				account: plannerAccount,
+				users: []
+			});
 		}
 
-		plannerMap.get(plannerIdStr).push(user);
+		plannerMap.get(plannerIdStr).users.push(user);
 	}
 
 	console.log(`  📊 설계사 수: ${plannerMap.size}명`);
 
-	// 각 설계사별로 PlannerCommission 업데이트
-	for (const [plannerIdStr, plannerUsers] of plannerMap.entries()) {
+	// 각 설계사별로 개별 지급 계획 생성
+	for (const [plannerIdStr, data] of plannerMap.entries()) {
+		const { account: plannerAccount, users: plannerUsers } = data;
+
+		if (!plannerAccount) {
+			console.log(`  ⚠️ 설계사 계정 없음: ${plannerIdStr}`);
+			continue;
+		}
+
 		try {
-			// 설계사 정보 조회
-			const plannerAccount = await PlannerAccount.findById(plannerIdStr);
-			if (!plannerAccount) {
-				console.log(`  ⚠️ 설계사 계정 없음: ${plannerIdStr}`);
-				continue;
-			}
-
-			// PlannerCommission 찾기 또는 생성
-			let commission = await PlannerCommission.findOne({
-				plannerAccountId: plannerIdStr,
-				revenueMonth: registrationMonth
-			});
-
-			if (!commission) {
-				commission = new PlannerCommission({
-					plannerAccountId: plannerIdStr,
-					plannerName: plannerAccount.name,
-					revenueMonth: registrationMonth,
-					users: []  // ⭐ 명시적으로 초기화
-				});
-			}
-
-			// users 배열이 undefined면 초기화
-			if (!commission.users) {
-				commission.users = [];
-			}
-
-			// 용역자 추가
+			// 용역자별로 개별 지급 계획 생성
 			for (const user of plannerUsers) {
 				const userIdStr = user._id.toString();
+				const registrationDate = user.registrationDate || user.createdAt;
 
 				// 중복 확인
-				const exists = commission.users.some(u => u.userId === userIdStr);
-				if (!exists) {
-					commission.users.push({
-						userId: userIdStr,
-						userName: user.name,
-						registrationDate: user.registrationDate || user.createdAt,
-						revenue: 1000000,
-						commission: 100000
-					});
+				const exists = await PlannerCommissionPlan.findOne({
+					plannerAccountId: plannerIdStr,
+					userId: userIdStr,
+					revenueMonth: registrationMonth
+				});
 
-					console.log(`  ✅ ${plannerAccount.name} ← ${user.name} (수당: 100,000원)`);
+				if (exists) {
+					console.log(`  ⏭️  이미 존재: ${plannerAccount.name} ← ${user.name}`);
+					continue;
 				}
+
+				// 지급일 계산 (등록일 + 1개월 후 금요일)
+				const paymentDate = PlannerCommissionPlan.calculatePaymentDate(registrationDate);
+
+				// 개별 지급 계획 생성
+				const plan = new PlannerCommissionPlan({
+					plannerAccountId: plannerIdStr,
+					plannerName: plannerAccount.name,
+					userId: userIdStr,
+					userName: user.name,
+					registrationDate: registrationDate,
+					revenueMonth: registrationMonth,
+					revenue: 1000000,
+					commissionAmount: 100000,
+					paymentDate: paymentDate,
+					paymentStatus: 'pending'
+				});
+
+				await plan.save();
+
+				console.log(
+					`  ✅ ${plannerAccount.name} ← ${user.name} ` +
+					`(수당: 100,000원, 지급일: ${paymentDate.toISOString().split('T')[0]})`
+				);
 			}
 
-			// 통계 재계산
-			commission.totalUsers = commission.users.length;
-			commission.totalRevenue = commission.users.reduce((sum, u) => sum + (u.revenue || 0), 0);
-			commission.totalCommission = commission.users.reduce((sum, u) => sum + (u.commission || 0), 0);
-
-			// 저장
-			await commission.save();
-
-			console.log(`  💰 ${plannerAccount.name} 총 수당: ${commission.totalCommission.toLocaleString()}원 (${commission.totalUsers}명)`);
+			console.log(`  💰 ${plannerAccount.name} 총 등록: ${plannerUsers.length}명`);
 
 		} catch (error) {
-			console.error(`  ❌ 설계사 수당 업데이트 실패 (${plannerIdStr}):`, error.message);
+			console.error(`  ❌ 설계사 수당 계획 생성 실패 (${plannerIdStr}):`, error.message);
 		}
 	}
 
-	console.log(`✅ [Step2-9] 설계사 수당 통계 업데이트 완료\n`);
+	console.log(`✅ [Step2-9] 설계사 수당 개별 지급 계획 생성 완료\n`);
 }

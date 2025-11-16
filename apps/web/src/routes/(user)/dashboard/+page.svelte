@@ -277,7 +277,7 @@
 			<!-- 상단 요약 카드 -->
 			<div class="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
 			<!-- 사용자 정보 카드 -->
-			<div class="rounded-lg bg-gradient-to-br from-blue-50 to-indigo-100 p-3 shadow-md">
+			<div class="rounded-lg border-2 border-indigo-200 bg-gradient-to-br from-blue-50 to-indigo-100 p-3 shadow-lg">
 				<div class="mb-2 flex items-center justify-between">
 					<div class="flex items-center gap-2">
 						<img src="/icons/user.svg" alt="사용자" class="h-5 w-5 text-indigo-700" />
@@ -324,7 +324,7 @@
 			</div>
 
 			<!-- 지원비 요약 카드 -->
-			<div class="rounded-lg bg-gradient-to-br from-green-50 to-emerald-100 p-3 shadow-md">
+			<div class="rounded-lg border-2 border-emerald-200 bg-gradient-to-br from-green-50 to-emerald-100 p-3 shadow-lg">
 				<div class="mb-2">
 					<h3 class="text-base font-bold text-emerald-900">💰 지원비 요약</h3>
 				</div>
@@ -362,7 +362,7 @@
 			</div>
 
 			<!-- 지원비 수령 내역 테이블 -->
-			<div class="overflow-hidden rounded-lg bg-white shadow md:col-span-2">
+			<div class="overflow-hidden rounded-lg border-2 border-blue-200 bg-white shadow-lg md:col-span-2">
 			<!-- 제목 -->
 			<div class="border-b border-gray-200 bg-gray-50 px-4 py-3">
 				<div class="flex items-center gap-2">

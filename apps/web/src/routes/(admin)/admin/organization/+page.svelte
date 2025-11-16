@@ -380,11 +380,11 @@
 
 	<!-- 트리 영역 -->
 	{#if isLoading}
-		<div class="flex h-96 items-center justify-center rounded-lg bg-white shadow">
+		<div class="flex h-96 items-center justify-center rounded-lg border-2 border-indigo-200 bg-white shadow-lg">
 			<div class="text-gray-500">로딩 중...</div>
 		</div>
 	{:else if error}
-		<div class="flex h-96 items-center justify-center rounded-lg bg-white shadow">
+		<div class="flex h-96 items-center justify-center rounded-lg border-2 border-indigo-200 bg-white shadow-lg">
 			<div class="text-center">
 				<p class="mb-2 text-red-500">{error}</p>
 				<button

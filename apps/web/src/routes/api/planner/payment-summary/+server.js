@@ -26,19 +26,31 @@ export async function GET({ locals }) {
 			});
 		}
 
-		// 이번 주 금요일 계산
+		// 이번 주 금요일 계산 (UTC 기준)
 		const now = new Date();
-		const thisWeekStart = new Date(now);
-		thisWeekStart.setDate(now.getDate() - now.getDay()); // 이번 주 일요일
-		thisWeekStart.setHours(0, 0, 0, 0);
+		const dayOfWeek = now.getUTCDay(); // 0(일) ~ 6(토)
 
-		const thisWeekEnd = new Date(thisWeekStart);
-		thisWeekEnd.setDate(thisWeekStart.getDate() + 6); // 이번 주 토요일
-		thisWeekEnd.setHours(23, 59, 59, 999);
+		// 이번 주 일요일 (UTC 기준)
+		const thisWeekStart = new Date(Date.UTC(
+			now.getUTCFullYear(),
+			now.getUTCMonth(),
+			now.getUTCDate() - dayOfWeek
+		));
 
-		// 이번 주 금요일 날짜
-		const thisWeekFriday = new Date(thisWeekStart);
-		thisWeekFriday.setDate(thisWeekStart.getDate() + 5);
+		// 이번 주 토요일 (UTC 기준)
+		const thisWeekEnd = new Date(Date.UTC(
+			now.getUTCFullYear(),
+			now.getUTCMonth(),
+			now.getUTCDate() - dayOfWeek + 6,
+			23, 59, 59, 999
+		));
+
+		// 이번 주 금요일 날짜 (UTC 기준)
+		const thisWeekFriday = new Date(Date.UTC(
+			now.getUTCFullYear(),
+			now.getUTCMonth(),
+			now.getUTCDate() - dayOfWeek + 5
+		));
 
 		// 모든 지급 계획 조회
 		const paymentPlans = await WeeklyPaymentPlans.find({

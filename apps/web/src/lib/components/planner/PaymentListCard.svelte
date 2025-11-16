@@ -138,7 +138,7 @@
 </script>
 
 <!-- 카드 4: 지원비 지급명부 -->
-<div class="rounded-lg bg-white p-4 shadow-md">
+<div class="rounded-lg border-2 border-purple-200 bg-white p-4 shadow-lg">
 	<h2 class="mb-3 text-lg font-bold text-gray-900">지원비 지급명부</h2>
 
 	<PaymentHeader

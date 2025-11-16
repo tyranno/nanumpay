@@ -368,7 +368,7 @@
 		</div>
 	{:else}
 		<!-- Tab Content -->
-		<div class="rounded-lg bg-white p-6 shadow">
+		<div class="rounded-lg border-2 border-blue-200 bg-white p-6 shadow-lg">
 			{#if activeTab === 'admin'}
 				<!-- 관리자 정보 탭 -->
 				<form onsubmit={(e) => { e.preventDefault(); handleSaveAdminInfo(); }}>

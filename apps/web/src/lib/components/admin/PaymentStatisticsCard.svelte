@@ -242,7 +242,7 @@
 	}
 </script>
 
-<div class="bg-white shadow-sm rounded-lg overflow-hidden">
+<div class="bg-white border-2 border-blue-200 shadow-lg rounded-lg overflow-hidden">
 	<!-- 헤더 -->
 	<div class="px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-blue-100">
 		<div class="flex flex-col gap-3">

@@ -49,7 +49,7 @@
 </script>
 
 <!-- 카드 3: 설계사 수당 내역 -->
-<div class="mb-4 overflow-hidden rounded-lg bg-white shadow">
+<div class="mb-4 overflow-hidden rounded-lg border-2 border-blue-200 bg-white shadow-lg">
 	<!-- 제목 -->
 	<div class="border-b border-gray-200 bg-gray-50 px-4 py-3">
 		<div class="flex items-center gap-2">

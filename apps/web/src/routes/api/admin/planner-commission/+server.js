@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { connectDB } from '$lib/server/db.js';
 import PlannerCommission from '$lib/server/models/PlannerCommission.js';
+import PlannerCommissionPlan from '$lib/server/models/PlannerCommissionPlan.js';
 import WeeklyPaymentPlans from '$lib/server/models/WeeklyPaymentPlans.js';
 import User from '$lib/server/models/User.js';
 import PlannerAccount from '$lib/server/models/PlannerAccount.js';
@@ -294,32 +295,59 @@ export async function GET({ url, locals }) {
 		console.log(`   ✅ 2단계 완료: ${plannerMap.size}개 설계사 맵 생성`);
 
 		// ==================== 3단계: 설계사 수당 매칭 ==================== //
-		console.log(`\n🔍 3단계: PlannerCommission 매칭`);
+		console.log(`
+🔍 3단계: PlannerCommissionPlan 매칭 (개별 지급 계획)`);
 
-		// 주간보기일 때는 수당 지급월(paymentMonth)의 첫 주에만 표시
-		// 월간보기일 때는 기존대로 paymentMonth에 표시
-		let commissionQuery;
-		if (viewMode === 'weekly') {
-			// 주간보기: 월 정보 추출 (예: "2025-10-W1" → "2025-10")
-			const monthsInPeriods = new Set();
-			periods.forEach(period => {
-				if (period.includes('-W')) {
-					const [year, month] = period.split('-');
-					monthsInPeriods.add(`${year}-${month}`);
+		// PlannerCommissionPlan에서 기간별 수당 집계
+		const commissionPlansAggregation = [];
+
+		for (const { period, startDate, endDate } of dateRanges) {
+			const result = await PlannerCommissionPlan.aggregate([
+				// 기간 필터링 (지급일 기준)
+				{
+					$match: {
+						'paymentDate': {
+							$gte: startDate,
+							$lt: endDate
+						},
+						'paymentStatus': { $in: ['paid', 'pending'] }
+					}
+				},
+
+				// 설계사별 그룹핑
+				{
+					$group: {
+						_id: '$plannerAccountId',
+						totalCommission: { $sum: '$commissionAmount' },
+						totalRevenue: { $sum: '$revenue' },
+						userCount: { $sum: 1 }
+					}
 				}
+			]);
+
+			console.log(`   📊 ${period}: ${result.length}개 설계사 수당 발견`);
+
+			// 결과를 배열에 추가 (period 정보 포함)
+			result.forEach(item => {
+				commissionPlansAggregation.push({
+					plannerId: item._id,
+					period,
+					totalCommission: item.totalCommission,
+					totalRevenue: item.totalRevenue,
+					userCount: item.userCount
+				});
 			});
-			commissionQuery = { paymentMonth: { $in: Array.from(monthsInPeriods) } };
-		} else {
-			// 월간보기: 기존 로직
-			commissionQuery = { paymentMonth: { $in: periods } };
 		}
 
-		const commissions = await PlannerCommission.find(commissionQuery).lean();
+		console.log(`   ✅ 3단계 완료: ${commissionPlansAggregation.length}개 항목 집계됨`);
 
-		console.log(`   📋 수당 레코드 조회: ${commissions.length}개`);
+		// 임시 변수 (기존 코드 호환성 유지)
+		const commissions = commissionPlansAggregation;
+
+		console.log(`   📋 수당 집계 결과: ${commissions.length}개`);
 
 		// 수당만 있는 설계사의 PlannerAccount 정보 추가 조회
-		const commissionPlannerIds = commissions.map(c => c.plannerAccountId);
+		const commissionPlannerIds = commissions.map(c => c.plannerId);
 		const missingPlannerIds = commissionPlannerIds.filter(id => 
 			!plannerAccountMap.has(id.toString())
 		);
@@ -342,19 +370,11 @@ export async function GET({ url, locals }) {
 		let newPlannerCount = 0;
 
 		commissions.forEach(comm => {
-			const key = comm.plannerAccountId.toString();
+			const key = comm.plannerId.toString();
 			let plannerData = plannerMap.get(key);
 
-			// 수당이 표시될 기간 키 결정
-			let targetPeriodKey;
-			if (viewMode === 'weekly') {
-				// 주간보기: paymentMonth의 첫 주차 (예: "2025-11" → "2025-11-W1")
-				const [year, month] = comm.paymentMonth.split('-');
-				targetPeriodKey = getWeekKey(parseInt(year), parseInt(month), 1);
-			} else {
-				// 월간보기: paymentMonth 그대로
-				targetPeriodKey = comm.paymentMonth;
-			}
+			// 수당이 표시될 기간 키 (이미 period에 포함되어 있음)
+			const targetPeriodKey = comm.period;
 
 			if (plannerData && plannerData.periods[targetPeriodKey]) {
 				// 기존 기간 데이터에 수당 추가
@@ -367,7 +387,7 @@ export async function GET({ url, locals }) {
 				// 용역비는 없지만 수당만 있는 경우 (드문 케이스)
 				plannerData.periods[targetPeriodKey] = {
 					paymentMonth: targetPeriodKey,
-					revenueMonth: comm.revenueMonth,
+					revenueMonth: targetPeriodKey,
 					serviceAmount: 0,
 					userCount: 0,
 					commissionAmount: comm.totalCommission,
@@ -377,13 +397,13 @@ export async function GET({ url, locals }) {
 				newPlannerCount++;
 			} else {
 				// plannerData가 없는 경우: 수당만 있고 용역비 없는 설계사
-				// 이런 경우도 plannerMap에 추가해야 함 (예: 한매니저)
 				const plannerAccount = plannerAccountMap.get(key);
 				if (plannerAccount) {
 					plannerData = {
-						plannerAccountId: comm.plannerAccountId,
+						plannerAccountId: comm.plannerId,
 						plannerName: plannerAccount.name,
-						registrationDate: plannerAccount.createdAt,
+						plannerPhone: plannerAccount.phone,
+						plannerEmail: plannerAccount.email,
 						periods: {}
 					};
 					
@@ -401,7 +421,7 @@ export async function GET({ url, locals }) {
 					});
 					
 					// 수당 기간에만 데이터 추가
-					plannerData.periods[targetPeriodKey].revenueMonth = comm.revenueMonth;
+					plannerData.periods[targetPeriodKey].revenueMonth = targetPeriodKey;
 					plannerData.periods[targetPeriodKey].commissionAmount = comm.totalCommission;
 					plannerData.periods[targetPeriodKey].totalAmount = comm.totalCommission;
 					plannerData.periods[targetPeriodKey].totalRevenue = comm.totalRevenue;

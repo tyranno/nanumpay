@@ -26,7 +26,7 @@
 </script>
 
 <!-- 카드 1: 설계사 정보 -->
-<div class="rounded-lg bg-gradient-to-br from-blue-50 to-indigo-100 p-3 shadow-md">
+<div class="rounded-lg border-2 border-indigo-200 bg-gradient-to-br from-blue-50 to-indigo-100 p-3 shadow-lg">
 	<div class="mb-2 flex items-center justify-between">
 		<div class="flex items-center gap-2">
 			<img src="/icons/user.svg" alt="설계사" class="h-5 w-5 text-indigo-700" />

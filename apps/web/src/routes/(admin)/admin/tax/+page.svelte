@@ -52,7 +52,7 @@
 	</div>
 {:else}
 	<div class="px-4 py-6 sm:px-0">
-		<div class="bg-white shadow overflow-hidden sm:rounded-lg">
+		<div class="bg-white border-2 border-gray-200 shadow-lg overflow-hidden sm:rounded-lg">
 			<div class="px-4 py-5 sm:px-6 border-b border-gray-200 bg-gray-50">
 				<h3 class="text-lg leading-6 font-medium text-gray-900">원천징수 지급명부</h3>
 				<p class="mt-1 text-sm text-gray-600">
