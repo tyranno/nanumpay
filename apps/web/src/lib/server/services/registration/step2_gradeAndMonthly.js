@@ -25,9 +25,50 @@ export async function executeStep2(users) {
 	const changedUsers = gradeChangeResult.changedUsers || [];
 
 	// 승급자 필터링 (등급 상승한 사람들)
-	const promoted = changedUsers.filter((u) => {
+	const promotedRaw = changedUsers.filter((u) => {
 		return u.changeType === 'grade_change' && u.oldGrade && u.newGrade && u.oldGrade < u.newGrade;
 	});
+
+	// ⭐ 디버깅: promotedRaw 확인
+	console.log(`\n🔍 changedUsers: ${changedUsers.length}건`);
+	console.log(`🔍 promotedRaw: ${promotedRaw.length}건`);
+	if (promotedRaw.length > 0 && promotedRaw.length <= 25) {
+		console.log('🔍 promotedRaw 내용:');
+		promotedRaw.forEach((p, idx) => {
+			console.log(`  ${idx + 1}. ${p.userName} (userId: ${p.userId?.substring(0, 8)}...) ${p.oldGrade} → ${p.newGrade}`);
+		});
+	}
+
+	// ⭐ 중복 제거: 같은 사용자가 여러 번 승급 시 (최초 oldGrade, 최종 newGrade만 사용)
+	const promotedMap = new Map();
+	for (const p of promotedRaw) {
+		if (!promotedMap.has(p.userId)) {
+			// 첫 승급 기록
+			promotedMap.set(p.userId, {
+				userId: p.userId,
+				userName: p.userName,
+				changeType: p.changeType,
+				oldGrade: p.oldGrade,  // 최초 등급
+				newGrade: p.newGrade   // 현재 등급 (계속 업데이트됨)
+			});
+		} else {
+			// 이미 있으면 newGrade만 업데이트 (oldGrade는 최초값 유지)
+			const existing = promotedMap.get(p.userId);
+			console.log(`    🔄 다단계 승급 감지: ${p.userName} (${existing.oldGrade} → ${existing.newGrade} → ${p.newGrade})`);
+			existing.newGrade = p.newGrade;
+		}
+	}
+	const promoted = Array.from(promotedMap.values());
+	
+	// ⭐ 디버깅: 최종 promoted 배열 확인
+	console.log(`\n📊 Step2 승급자 처리 결과:`);
+	console.log(`  - 원본 승급 이벤트: ${promotedRaw.length}건`);
+	console.log(`  - 최종 승급자: ${promoted.length}명`);
+	if (promoted.length > 0 && promoted.length < 10) {
+		promoted.forEach(p => {
+			console.log(`    → ${p.userName}: ${p.oldGrade} → ${p.newGrade}`);
+		});
+	}
 
 	// 2-2. 귀속월 파악
 	const registrationMonth = MonthlyRegistrations.generateMonthKey(
@@ -106,20 +147,20 @@ export async function executeStep2(users) {
 	// 2-9. 설계사 수당 통계 업데이트
 	await updatePlannerCommissions(users, registrationMonth);
 
-	// console.log(`\nSTEP2  [${registrationMonth} 월별 인원 현황]`);
-	// console.log(`  - 전체 등록자: ${monthlyReg.registrationCount}명`);
-	// // 등록자 이름 출력
-	// const registrantNames = monthlyReg.registrations.map((r) => r.userName).join(', ');
-	// console.log(`    → 등록자: ${registrantNames}`);
-	// console.log(`  - 승급자: ${monthlyReg.promotedCount}명`);
-	// // 승급자 이름 출력
-	// if (promoted.length > 0) {
-	// 	const promotedNames = promoted.map((p) => p.name || p.userId).join(', ');
-	// 	console.log(`    → 승급자: ${promotedNames}`);
-	// }
-	// console.log(`  - 미승급자: ${monthlyReg.nonPromotedCount}명`);
-	// console.log(`  - 매출: ${monthlyReg.totalRevenue.toLocaleString()}원`);
-	// console.log('-'.repeat(80));
+	console.log(`\nSTEP2  [${registrationMonth} 월별 인원 현황]`);
+	console.log(`  - 전체 등록자: ${monthlyReg.registrationCount}명`);
+	// 등록자 이름 출력
+	const registrantNames = monthlyReg.registrations.map((r) => r.userName).join(', ');
+	console.log(`    → 등록자: ${registrantNames}`);
+	console.log(`  - 승급자: ${monthlyReg.promotedCount}명`);
+	// 승급자 이름 출력
+	if (promoted.length > 0) {
+		const promotedNames = promoted.map((p) => p.userName).join(', '); // ⭐ userName 사용
+		console.log(`    → 승급자: ${promotedNames}`);
+	}
+	console.log(`  - 미승급자: ${monthlyReg.nonPromotedCount}명`);
+	console.log(`  - 매출: ${monthlyReg.totalRevenue.toLocaleString()}원`);
+	console.log('-'.repeat(80));
 
 	return {
 		promoted,
@@ -142,12 +183,15 @@ async function updatePlannerCommissions(users, registrationMonth) {
 	const plannerMap = new Map();
 
 	for (const user of users) {
-		console.log(`  👤 ${user.name}: plannerAccountId = ${user.plannerAccountId}`);
-
 		if (!user.plannerAccountId) {
 			console.log(`  ⚠️ 설계사 정보 없음: ${user.name} (${user._id})`);
 			continue;
 		}
+
+		// 설계사 정보 조회
+		const plannerAccount = await PlannerAccount.findById(user.plannerAccountId);
+		const plannerName = plannerAccount ? plannerAccount.name : user.plannerAccountId;
+		console.log(`  👤 ${user.name}: 설계사 = ${plannerName}`);
 
 		const plannerIdStr = user.plannerAccountId.toString();
 

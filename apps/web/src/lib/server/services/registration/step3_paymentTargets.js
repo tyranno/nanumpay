@@ -29,20 +29,22 @@ export async function executeStep3(promoted, monthlyReg, registrationMonth) {
 	// A. 승급자 (이번 달 전체 승급자 = 기존 + 신규)
 	// ⚠️ 이번 배치의 승급자를 기존 승급자 목록에 누적
 	const existingPromoted = monthlyReg.paymentTargets?.promoted || [];
-	const existingPromotedIds = existingPromoted.map(p => p.userId);
 
-	// 신규 승급자만 추가 (중복 제거)
-	const newPromoted = promoted.filter(p => !existingPromotedIds.includes(p.userId));
+	// ⭐ promoted 배열의 userId 목록
+	const promotedUserIds = promoted.map(p => p.userId);
+
+	// ⭐ 기존 승급자 중 이번에 다시 승급한 사람 제외 (업데이트될 예정)
+	const unchangedPromoted = existingPromoted.filter(p => !promotedUserIds.includes(p.userId));
 
 	const promotedTargets = [
-		...existingPromoted.map(p => ({
+		...unchangedPromoted.map(p => ({
 			userId: p.userId,
 			userName: p.userName,
-			grade: p.newGrade,
+			grade: p.newGrade || p.grade,
 			oldGrade: p.oldGrade,
 			type: 'promoted'
 		})),
-		...newPromoted.map(p => ({
+		...promoted.map(p => ({
 			userId: p.userId,
 			userName: p.userName,
 			grade: p.newGrade,
