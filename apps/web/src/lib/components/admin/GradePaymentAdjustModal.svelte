@@ -176,14 +176,14 @@
 			}
 
 			const result = await response.json();
-			alert(result.message || '저장되었습니다.');
+			// alert(result.message || '저장되었습니다.'); // 알림창 제거
 
 			// 콜백 호출
 			onSave(adjustedGradePayments);
 			onClose();
 		} catch (error) {
 			console.error('Save error:', error);
-			alert(`저장 중 오류가 발생했습니다: ${error.message}`);
+			// alert(`저장 중 오류가 발생했습니다: ${error.message}`); // 알림창 제거
 		}
 	}
 </script>

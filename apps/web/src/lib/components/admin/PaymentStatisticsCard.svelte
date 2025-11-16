@@ -472,35 +472,24 @@
 	/* 등급별 인원 통계 테이블 스타일 */
 	.grade-table-wrapper {
 		overflow-x: auto;
-		border: 1px solid #d1d5db;
 		background: white;
 		position: relative;
 	}
 
 	.grade-table {
-		border-collapse: separate;
-		border-spacing: 0;
+		border-collapse: collapse;
 		width: 100%;
 		min-width: max-content;
 		font-size: 0.875rem;
+		border: 1px solid #d1d5db;
 	}
 
 	.grade-table th,
 	.grade-table td {
-		border-right: 1px solid #d1d5db;
-		border-bottom: 1px solid #d1d5db;
+		border: 1px solid #d1d5db;
 		padding: 0.25rem 0.5rem;
 		text-align: center;
 		white-space: nowrap;
-	}
-
-	.grade-table th:first-child,
-	.grade-table td:first-child {
-		border-left: 1px solid #d1d5db;
-	}
-
-	.grade-table thead tr:first-child th {
-		border-top: 1px solid #d1d5db;
 	}
 
 	/* 고정 컬럼 (등급) */

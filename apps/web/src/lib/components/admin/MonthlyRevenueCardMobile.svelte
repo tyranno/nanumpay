@@ -195,28 +195,28 @@
 
 	// 총계 계산
 	let totalCount = 0;
-	let totalPerAmount = 0; // 1회 금액 합계
-	let totalAmount = 0; // 10회 총액 합계
+	let totalGradeAmount = 0; // 등급총액 합계
+	let totalAmount = 0; // 총액 합계
 
 	$: if (monthlyData?.gradeDistribution && monthlyData?.gradePayments) {
 		totalCount = Object.values(monthlyData.gradeDistribution || {}).reduce((sum, count) => sum + count, 0);
 
-		// 1회 금액 합계와 10회 총액 합계 계산
+		// 등급총액, 총액 계산
 		const result = ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'].reduce((acc, grade) => {
 			const count = monthlyData.gradeDistribution?.[grade] || 0;
 			const perAmount = monthlyData.gradePayments?.[grade] || 0;
 
 			return {
-				perAmount: acc.perAmount + (perAmount * count), // 1회 금액 × 인원수
-				totalAmount: acc.totalAmount + (perAmount * 10 * count) // 10회 총액
+				gradeAmount: acc.gradeAmount + perAmount, // 등급총액 = 10회분 합계
+				totalAmount: acc.totalAmount + (perAmount * count) // 총액 = 10회분 × 인원수
 			};
-		}, { perAmount: 0, totalAmount: 0 });
+		}, { gradeAmount: 0, totalAmount: 0 });
 
-		totalPerAmount = result.perAmount;
+		totalGradeAmount = result.gradeAmount;
 		totalAmount = result.totalAmount;
 	} else {
 		totalCount = 0;
-		totalPerAmount = 0;
+		totalGradeAmount = 0;
 		totalAmount = 0;
 	}
 
@@ -381,15 +381,18 @@
 							<tr>
 								<th class="border border-gray-300 px-2 py-1 text-xs">등급</th>
 								<th class="border border-gray-300 px-2 py-1 text-xs">인원</th>
-								<th class="border border-gray-300 px-2 py-1 text-xs">1회 금액</th>
-								<th class="border border-gray-300 px-2 py-1 text-xs">10회 총액</th>
+								<th class="border border-gray-300 px-2 py-1 text-xs">1인 총액</th>
+								<th class="border border-gray-300 px-2 py-1 text-xs">총액</th>
 								<th class="border border-gray-300 px-2 py-1 text-xs">지급 기간</th>
 							</tr>
 						</thead>
 						<tbody>
 							{#each ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'] as grade}
 								{@const count = monthlyData.gradeDistribution?.[grade] || 0}
-								{@const perAmount = monthlyData.gradePayments?.[grade] || 0}
+								{@const originalAmount = monthlyData.gradePayments?.[grade] || 0}
+								{@const adjustedTotalAmount = monthlyData.adjustedGradePayments?.[grade]?.totalAmount || null}
+								{@const adjustedAmount = adjustedTotalAmount !== null ? Math.floor(adjustedTotalAmount / 10 / 100) * 100 : null}
+								{@const perAmount = adjustedAmount || originalAmount}
 								<tr class="hover:bg-gray-50">
 									<td class="border border-gray-300 px-2 py-1 text-center">
 										<GradeBadge {grade} size="sm" />
@@ -401,7 +404,7 @@
 										{(Math.floor(perAmount / 100) * 100).toLocaleString()}
 									</td>
 									<td class="border border-gray-300 px-2 py-1 text-right text-xs text-blue-600">
-										{(Math.floor((perAmount * 10 * count) / 100) * 100).toLocaleString()}
+										{(Math.floor(perAmount * count / 100) * 100).toLocaleString()}
 									</td>
 									<td class="border border-gray-300 px-2 py-1 text-center text-xs">
 										{getPaymentPeriod(selectedYear, selectedMonth)}
@@ -410,19 +413,19 @@
 							{/each}
 					<!-- 총계 행 -->
 					<tr class="bg-gray-50 font-semibold">
-						<td class="border border-gray-300 px-2 py-1 text-center text-xs">
-							총계
+						<td class="border border-gray-300 px-2 py-1.5 text-center text-xs">
+							합계
 						</td>
-						<td class="border border-gray-300 px-2 py-1 text-center text-xs">
+						<td class="border border-gray-300 px-2 py-1.5 text-center text-xs">
 							{totalCount}
 						</td>
-						<td class="border border-gray-300 px-2 py-1 text-right text-xs">
-							{(Math.floor(totalPerAmount / 100) * 100).toLocaleString()}
+						<td class="border border-gray-300 px-2 py-1.5 text-right text-xs">
+							{(Math.floor(totalGradeAmount / 100) * 100).toLocaleString()}
 						</td>
-						<td class="border border-gray-300 px-2 py-1 text-right text-xs text-blue-600">
+						<td class="border border-gray-300 px-2 py-1.5 text-right text-xs text-blue-600">
 							{(Math.floor(totalAmount / 100) * 100).toLocaleString()}
 						</td>
-						<td class="border border-gray-300 px-2 py-1 text-center text-xs">
+						<td class="border border-gray-300 px-2 py-1.5 text-center text-xs">
 							-
 						</td>
 					</tr>
