@@ -22,9 +22,9 @@ export const gradeColors = {
 		description: '양쪽 자식 보유'
 	},
 	F3: {
-		bg: 'bg-yellow-100',
-		text: 'text-yellow-700',
-		border: 'border-yellow-300',
+		bg: 'bg-yellow-200',
+		text: 'text-yellow-800',
+		border: 'border-yellow-400',
 		label: '브론즈',
 		level: 3,
 		description: 'F2 2명 (좌1, 우1)'

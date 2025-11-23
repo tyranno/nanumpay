@@ -70,7 +70,7 @@ const originalDebug = console.debug;
 
 console.log = function(...args) {
   logger.info(args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : arg).join(' '));
-  originalLog.apply(console, args);
+  // 콘솔 출력은 Winston transports에서 처리 (중복 출력 방지)
 };
 
 console.error = function(...args) {
@@ -81,22 +81,22 @@ console.error = function(...args) {
   } else {
     logger.error(message);
   }
-  originalError.apply(console, args);
+  // 콘솔 출력은 Winston transports에서 처리 (중복 출력 방지)
 };
 
 console.warn = function(...args) {
   logger.warn(args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : arg).join(' '));
-  originalWarn.apply(console, args);
+  // 콘솔 출력은 Winston transports에서 처리 (중복 출력 방지)
 };
 
 console.info = function(...args) {
   logger.info(args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : arg).join(' '));
-  originalInfo.apply(console, args);
+  // 콘솔 출력은 Winston transports에서 처리 (중복 출력 방지)
 };
 
 console.debug = function(...args) {
   logger.debug(args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : arg).join(' '));
-  originalDebug.apply(console, args);
+  // 콘솔 출력은 Winston transports에서 처리 (중복 출력 방지)
 };
 
 // 로그 폴더 용량 체크 및 정리 (100MB 제한)
