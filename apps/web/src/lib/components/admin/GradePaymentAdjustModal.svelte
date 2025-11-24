@@ -78,7 +78,8 @@
 				monthsData = result.months || generateEmptyMonths(startMonth, endMonth);
 			}
 
-			// 현재 월 데이터 가져오기const currentResponse = await fetch(
+			// 현재 월 데이터 가져오기
+			const currentResponse = await fetch(
 				`/api/admin/revenue/grade-adjustment?startMonth=${monthKey}&endMonth=${monthKey}`
 			);
 			if (currentResponse.ok) {
@@ -86,7 +87,8 @@
 				currentMonthData = currentResult.months?.[0] || null;
 			}
 
-			// 이전 월 데이터 가져오기const prevResponse = await fetch(
+			// 이전 월 데이터 가져오기
+		const prevResponse = await fetch(
 				`/api/admin/revenue/grade-adjustment?startMonth=${prevMonthKey}&endMonth=${prevMonthKey}`
 			);
 			if (prevResponse.ok) {
