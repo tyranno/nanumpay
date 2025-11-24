@@ -20,6 +20,14 @@
 	let currentAdjustments = {};
 	let prevAdjustments = {};
 
+	// 결과 모달
+	let showResultModal = false;
+	let currentResult = null;
+	let prevResult = null;
+	let currentMonthKeyForResult = '';
+	let prevMonthKeyForResult = '';
+	let savedAdjustments = null;
+
 	// Modal 열릴 때 초기화
 	$: if (isOpen && monthKey) {
 		initializeModal();
@@ -70,28 +78,20 @@
 				monthsData = result.months || generateEmptyMonths(startMonth, endMonth);
 			}
 
-			// 현재 월 데이터 가져오기
-			console.log(`🔍 현재월 데이터 요청: ${monthKey}`);
-			const currentResponse = await fetch(
+			// 현재 월 데이터 가져오기const currentResponse = await fetch(
 				`/api/admin/revenue/grade-adjustment?startMonth=${monthKey}&endMonth=${monthKey}`
 			);
 			if (currentResponse.ok) {
 				const currentResult = await currentResponse.json();
-				currentMonthData = currentResult.months?.[0] || null;
-				console.log(`📊 현재월 데이터:`, currentMonthData);
-				console.log(`👥 현재월 gradeDistribution:`, currentMonthData?.gradeDistribution);
+				currentMonthData = currentResult.months?.[0] || null;console.log(`👥 현재월 gradeDistribution:`, currentMonthData?.gradeDistribution);
 			}
 
-			// 이전 월 데이터 가져오기
-			console.log(`🔍 이전월 데이터 요청: ${prevMonthKey}`);
-			const prevResponse = await fetch(
+			// 이전 월 데이터 가져오기const prevResponse = await fetch(
 				`/api/admin/revenue/grade-adjustment?startMonth=${prevMonthKey}&endMonth=${prevMonthKey}`
 			);
 			if (prevResponse.ok) {
 				const prevResult = await prevResponse.json();
-				previousMonthData = prevResult.months?.[0] || null;
-				console.log(`📊 이전월 데이터:`, previousMonthData);
-				console.log(`👥 이전월 gradeDistribution:`, previousMonthData?.gradeDistribution);
+				previousMonthData = prevResult.months?.[0] || null;console.log(`👥 이전월 gradeDistribution:`, previousMonthData?.gradeDistribution);
 			}
 
 			currentAdjustments = {};
@@ -180,35 +180,41 @@
 			// 현재 월 조정 데이터
 			const currentAdjustedGradePayments = {};
 			['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'].forEach(grade => {
-				if (currentAdjustments[grade]) {
-					const num = Number(currentAdjustments[grade]);
-					const rounded = Math.floor(num / 100) * 100; // 100원 단위 절삭
+				const value = currentAdjustments[grade];
+				if (value === '' || value === undefined || value === null) {
+					currentAdjustedGradePayments[grade] = { totalAmount: null, perInstallment: null };
+				} else {
+					const num = Number(value);
+					const rounded = Math.floor(num / 100) * 100;
 					currentAdjustedGradePayments[grade] = {
 						totalAmount: rounded,
 						perInstallment: Math.floor(rounded / 10 / 100) * 100
 					};
-				} else {
-					currentAdjustedGradePayments[grade] = { totalAmount: null, perInstallment: null };
 				}
 			});
 
-			// 이전 월 조정 데이터 (저장 시 100원 단위 절삭)
+			// 이전 월 조정 데이터
 			const prevAdjustedGradePayments = {};
 			['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'].forEach(grade => {
-				if (prevAdjustments[grade]) {
-					const num = Number(prevAdjustments[grade]);
-					const rounded = Math.floor(num / 100) * 100; // 100원 단위 절삭
+				const value = prevAdjustments[grade];
+				if (value === '' || value === undefined || value === null) {
+					prevAdjustedGradePayments[grade] = { totalAmount: null, perInstallment: null };
+				} else {
+					const num = Number(value);
+					const rounded = Math.floor(num / 100) * 100;
 					prevAdjustedGradePayments[grade] = {
 						totalAmount: rounded,
 						perInstallment: Math.floor(rounded / 10 / 100) * 100
 					};
-				} else {
-					prevAdjustedGradePayments[grade] = { totalAmount: null, perInstallment: null };
 				}
 			});
 
 			if (!monthKey) {
-				alert('저장할 월 정보가 없습니다.');
+				currentResult = { error: '저장할 월 정보가 없습니다.' };
+				prevResult = null;
+				currentMonthKeyForResult = '';
+				prevMonthKeyForResult = '';
+				showResultModal = true;
 				return;
 			}
 
@@ -220,43 +226,43 @@
 			// 현재 월 저장
 			const currentResponse = await fetch('/api/admin/revenue/grade-adjustment', {
 				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify({
-					monthKey: monthKey,
-					adjustedGradePayments: currentAdjustedGradePayments
-				})
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ monthKey, adjustedGradePayments: currentAdjustedGradePayments })
 			});
 
+			const currentApiResult = await currentResponse.json();
 			if (!currentResponse.ok) {
-				const error = await currentResponse.json();
-				throw new Error(error.error || '현재 월 저장 실패');
+				throw new Error(currentApiResult.error || '현재 월 저장 실패');
 			}
 
 			// 이전 월 저장
 			const prevResponse = await fetch('/api/admin/revenue/grade-adjustment', {
 				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify({
-					monthKey: prevMonthKey,
-					adjustedGradePayments: prevAdjustedGradePayments
-				})
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ monthKey: prevMonthKey, adjustedGradePayments: prevAdjustedGradePayments })
 			});
 
+			const prevApiResult = await prevResponse.json();
 			if (!prevResponse.ok) {
-				const error = await prevResponse.json();
-				throw new Error(error.error || '이전 월 저장 실패');
+				throw new Error(prevApiResult.error || '이전 월 저장 실패');
 			}
 
-			// 콜백 호출
-			onSave({ current: currentAdjustedGradePayments, previous: prevAdjustedGradePayments });
-			onClose();
+			// 조정값 저장
+			savedAdjustments = { current: currentAdjustedGradePayments, previous: prevAdjustedGradePayments };
+
+			// 결과 데이터 저장
+			currentResult = currentApiResult;
+			prevResult = prevApiResult;
+			currentMonthKeyForResult = monthKey;
+			prevMonthKeyForResult = prevMonthKey;
+			showResultModal = true;
 		} catch (error) {
 			console.error('Save error:', error);
-			alert(`저장 중 오류가 발생했습니다: ${error.message}`);
+			currentResult = { error: error.message };
+			prevResult = null;
+			currentMonthKeyForResult = monthKey || '';
+			prevMonthKeyForResult = '';
+			showResultModal = true;
 		}
 	}
 </script>
@@ -563,7 +569,6 @@
 				<div class="notice-title">💡 참고사항</div>
 				<div class="notice-text">
 					• 현재월과 이전월 두 달을 동시에 조정할 수 있습니다<br />
-					• 조정총액이 0이면 자동총액이 적용됩니다<br />
 					• 저장 버튼을 눌러 변경된 조정금액으로 자동 계산이 됩니다
 				</div>
 			</div>
@@ -573,6 +578,63 @@
 	<svelte:fragment slot="footer">
 		<button onclick={onClose} class="btn btn-cancel">취소</button>
 		<button onclick={handleSave} class="btn btn-save">저장</button>
+	</svelte:fragment>
+</WindowsModal>
+
+<WindowsModal
+	isOpen={showResultModal}
+	title="저장 결과"
+	icon="/icons/check-blue.svg"
+	size="sm"
+	onClose={() => {
+		showResultModal = false;
+		if (savedAdjustments) {
+			onSave(savedAdjustments);
+			onClose();
+		}
+	}}
+>
+	<div style="padding: 0.5rem; max-height: 400px; overflow-y: auto;">
+		{#if currentResult?.error}
+			<div class="result-error">
+				<div class="result-header">❌ 저장 실패</div>
+				<div class="result-content">{currentResult.error}</div>
+			</div>
+		{:else}
+			<div class="result-success-header">✅ 저장 완료!</div>
+			
+			<!-- 현재월 카드 -->
+			{#if currentResult}
+				<div class="result-card">
+					<div class="result-card-title">현재월 ({currentMonthKeyForResult})</div>
+					<div class="result-card-content">{currentResult.message}</div>
+				</div>
+			{/if}
+			
+			<!-- 이전월 카드 -->
+			{#if prevResult}
+				<div class="result-card">
+					<div class="result-card-title">이전월 ({prevMonthKeyForResult})</div>
+					<div class="result-card-content">{prevResult.message}</div>
+				</div>
+			{/if}
+		{/if}
+	</div>
+
+	<svelte:fragment slot="footer">
+		<button
+			onclick={() => {
+				showResultModal = false;
+				if (savedAdjustments) {
+					onSave(savedAdjustments);
+					onClose();
+				}
+			}}
+			class="btn btn-primary"
+			style="padding: 0.375rem 0.75rem; font-size: 0.8125rem;"
+		>
+			확인
+		</button>
 	</svelte:fragment>
 </WindowsModal>
 
@@ -842,13 +904,13 @@
 		background-color: #f8fafc;
 	}
 
-	.btn-save {
+	.btn-save, .btn-primary {
 		color: white;
 		background-color: #3b82f6;
 		border: 1px solid #3b82f6;
 	}
 
-	.btn-save:hover {
+	.btn-save:hover, .btn-primary:hover {
 		background-color: #2563eb;
 	}
 
@@ -895,5 +957,62 @@
 		.adj-input::placeholder {
 			font-size: 0.75rem;
 		}
+	}
+
+	/* 결과 모달 스타일 */
+	.result-success-header {
+		font-size: 1rem;
+		font-weight: 600;
+		color: #059669;
+		margin-bottom: 0.75rem;
+		text-align: center;
+	}
+
+	.result-card {
+		background: #f8fafc;
+		border: 1px solid #e2e8f0;
+		border-radius: 0.5rem;
+		padding: 0.75rem;
+		margin-bottom: 0.5rem;
+	}
+
+	.result-card:last-child {
+		margin-bottom: 0;
+	}
+
+	.result-card-title {
+		font-size: 0.875rem;
+		font-weight: 600;
+		color: #1e293b;
+		margin-bottom: 0.5rem;
+		padding-bottom: 0.375rem;
+		border-bottom: 1px solid #cbd5e1;
+	}
+
+	.result-card-content {
+		font-size: 0.8125rem;
+		line-height: 1.5;
+		color: #475569;
+		white-space: pre-line;
+	}
+
+	.result-error {
+		background: #fef2f2;
+		border: 1px solid #fecaca;
+		border-radius: 0.5rem;
+		padding: 0.75rem;
+	}
+
+	.result-header {
+		font-size: 0.875rem;
+		font-weight: 600;
+		color: #dc2626;
+		margin-bottom: 0.5rem;
+	}
+
+	.result-content {
+		font-size: 0.8125rem;
+		color: #991b1b;
+		white-space: pre-line;
 	}
 </style>
