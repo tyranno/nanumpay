@@ -83,7 +83,7 @@
 			);
 			if (currentResponse.ok) {
 				const currentResult = await currentResponse.json();
-				currentMonthData = currentResult.months?.[0] || null;console.log(`👥 현재월 gradeDistribution:`, currentMonthData?.gradeDistribution);
+				currentMonthData = currentResult.months?.[0] || null;
 			}
 
 			// 이전 월 데이터 가져오기const prevResponse = await fetch(
@@ -91,7 +91,7 @@
 			);
 			if (prevResponse.ok) {
 				const prevResult = await prevResponse.json();
-				previousMonthData = prevResult.months?.[0] || null;console.log(`👥 이전월 gradeDistribution:`, previousMonthData?.gradeDistribution);
+				previousMonthData = prevResult.months?.[0] || null;
 			}
 
 			currentAdjustments = {};
