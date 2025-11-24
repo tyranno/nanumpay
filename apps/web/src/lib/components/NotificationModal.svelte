@@ -60,7 +60,7 @@
 <svelte:window on:keydown={handleKeydown} />
 
 {#if isOpen}
-	<div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-4">
+	<div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4">
 		<div class="bg-white rounded-lg shadow-xl max-w-xs w-full animate-scaleIn">
 			<!-- Compact Header -->
 			<div class="flex items-center justify-between p-3 border-b">
