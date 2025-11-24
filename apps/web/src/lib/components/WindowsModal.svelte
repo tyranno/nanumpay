@@ -28,7 +28,8 @@
 		sm: 'max-w-[95vw] sm:max-w-sm',      // 모바일 95%, PC 640px
 		md: 'max-w-[95vw] sm:max-w-md',      // 모바일 95%, PC 768px
 		lg: 'max-w-[95vw] sm:max-w-lg',      // 모바일 95%, PC 896px
-		xl: 'max-w-[95vw] sm:max-w-2xl'      // 모바일 95%, PC 1024px
+		xl: 'max-w-[95vw] sm:max-w-2xl',     // 모바일 95%, PC 1024px
+		'2xl': 'max-w-[95vw] sm:max-w-[860px]'  // 모바일 95%, PC 860px
 	};
 
 	// 크기별 본문 높이 매핑 (업로드 진행 시 컴팩트하게)

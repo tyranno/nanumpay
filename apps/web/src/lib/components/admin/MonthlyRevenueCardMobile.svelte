@@ -53,12 +53,23 @@
 		loadRangeData();
 	}
 
-	// 현재월 확인
+	// 현재월 또는 이전월 확인 (조정 가능 여부)
+	let isCurrentMonthOnly = false; // 버튼 표시용 (현재월에서만)
 	$: {
 		const today = new Date();
 		const currentMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+		
+		// 이전 달 계산
+		const prevMonthDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+		const prevMonthKey = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth() + 1).padStart(2, '0')}`;
+		
 		const selectedMonthKey = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
-		isCurrentMonth = selectedMonthKey === currentMonthKey;
+		
+		// 현재월인지 확인 (버튼 표시용)
+		isCurrentMonthOnly = (selectedMonthKey === currentMonthKey);
+		
+		// 현재월 또는 이전월이면 조정 가능
+		isCurrentMonth = (selectedMonthKey === currentMonthKey || selectedMonthKey === prevMonthKey);
 	}
 
 	// 날짜 범위 검증
@@ -332,16 +343,16 @@
 							</div>
 						</div>
 						<div class="flex justify-end border-t border-gray-300 pt-2">
-							{#if isCurrentMonth}
-								<button
-									on:click={openGradeModal}
-									class="rounded bg-blue-600 px-4 py-2 text-xs text-white transition hover:bg-blue-700"
-								>
-									등급별 조정
-								</button>
-							{:else}
-								<span class="text-gray-400">현재월만 설정 가능</span>
-							{/if}
+							{#if isCurrentMonthOnly}
+							<button
+								on:click={openGradeModal}
+								class="rounded bg-blue-600 px-4 py-2 text-xs text-white transition hover:bg-blue-700"
+							>
+								등급별 조정
+							</button>
+						{:else}
+							<span class="text-gray-400">현재월만 설정 가능</span>
+						{/if}
 						</div>
 					</div>
 				</div>

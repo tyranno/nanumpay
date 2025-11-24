@@ -12,11 +12,13 @@
 	let endMonth = '';
 	let selectedPeriod = 3; // 기본 3개월
 	let monthsData = [];
-	let currentMonthData = null; // 이번 달 데이터
+	let currentMonthData = null; // 현재 달 데이터
+	let previousMonthData = null; // 이전 달 데이터
 	let isLoading = false;
 
-	// 조정 데이터 (현재 달만)
-	let adjustments = {};
+	// 조정 데이터 (현재월, 이전월)
+	let currentAdjustments = {};
+	let prevAdjustments = {};
 
 	// Modal 열릴 때 초기화
 	$: if (isOpen && monthKey) {
@@ -32,11 +34,11 @@
 		selectedPeriod = months;
 		const [year, month] = monthKey.split('-').map(Number);
 
-		// 이번 달 제외, 이전 N개월
-		const endDate = new Date(year, month - 2, 1); // 이전 달부터
+		// 이번 달과 이전 달 제외, 그 이전 N개월
+		const endDate = new Date(year, month - 3, 1); // 이전이전 달부터 (09월)
 		endMonth = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}`;
 
-		const start = new Date(year, month - months - 1, 1); // N개월 전
+		const start = new Date(year, month - months - 2, 1); // N개월 전
 		startMonth = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}`;
 
 		loadData();
@@ -47,6 +49,13 @@
 
 		try {
 			isLoading = true;
+
+			// 현재 월 계산
+			const [currentYear, currentMonth] = monthKey.split('-').map(Number);
+			
+			// 이전 월 계산
+			const prevMonthDate = new Date(currentYear, currentMonth - 2, 1);
+			const prevMonthKey = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth() + 1).padStart(2, '0')}`;
 
 			// 한 번의 API 호출로 기간별 데이터 가져오기
 			const response = await fetch(
@@ -61,28 +70,53 @@
 				monthsData = result.months || generateEmptyMonths(startMonth, endMonth);
 			}
 
-			// 현재 월 데이터 가져오기 (이번 달)
+			// 현재 월 데이터 가져오기
+			console.log(`🔍 현재월 데이터 요청: ${monthKey}`);
 			const currentResponse = await fetch(
 				`/api/admin/revenue/grade-adjustment?startMonth=${monthKey}&endMonth=${monthKey}`
 			);
 			if (currentResponse.ok) {
 				const currentResult = await currentResponse.json();
 				currentMonthData = currentResult.months?.[0] || null;
+				console.log(`📊 현재월 데이터:`, currentMonthData);
+				console.log(`👥 현재월 gradeDistribution:`, currentMonthData?.gradeDistribution);
 			}
 
-			adjustments = {};
+			// 이전 월 데이터 가져오기
+			console.log(`🔍 이전월 데이터 요청: ${prevMonthKey}`);
+			const prevResponse = await fetch(
+				`/api/admin/revenue/grade-adjustment?startMonth=${prevMonthKey}&endMonth=${prevMonthKey}`
+			);
+			if (prevResponse.ok) {
+				const prevResult = await prevResponse.json();
+				previousMonthData = prevResult.months?.[0] || null;
+				console.log(`📊 이전월 데이터:`, previousMonthData);
+				console.log(`👥 이전월 gradeDistribution:`, previousMonthData?.gradeDistribution);
+			}
+
+			currentAdjustments = {};
+			prevAdjustments = {};
 
 			// 현재 달 조정값 초기화
 			if (currentMonthData) {
 				['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'].forEach(grade => {
 					const adj = currentMonthData.adjustedGradePayments?.[grade];
-					adjustments[grade] = adj?.totalAmount ? adj.totalAmount.toString() : '';
+					currentAdjustments[grade] = adj?.totalAmount ? adj.totalAmount.toString() : '';
+				});
+			}
+
+			// 이전 달 조정값 초기화
+			if (previousMonthData) {
+				['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'].forEach(grade => {
+					const adj = previousMonthData.adjustedGradePayments?.[grade];
+					prevAdjustments[grade] = adj?.totalAmount ? adj.totalAmount.toString() : '';
 				});
 			}
 		} catch (error) {
 			console.error('Error loading data:', error);
 			monthsData = generateEmptyMonths(startMonth, endMonth);
-			adjustments = {};
+			currentAdjustments = {};
+			prevAdjustments = {};
 		} finally {
 			isLoading = false;
 		}
@@ -113,15 +147,12 @@
 		return months;
 	}
 
-	function handleInput(grade, value) {
-		adjustments[grade] = value.replace(/,/g, '');
-	}
-
-	function handleBlur(grade) {
-		if (adjustments[grade]) {
-			const num = Number(adjustments[grade]);
-			const rounded = Math.floor(num / 100) * 100;
-			adjustments[grade] = rounded.toString();
+	function handleInput(grade, value, type = 'current') {
+		// 쉼표만 제거하고 그대로 저장 (절삭하지 않음)
+		if (type === 'current') {
+			currentAdjustments[grade] = value.replace(/,/g, '');
+		} else {
+			prevAdjustments[grade] = value.replace(/,/g, '');
 		}
 	}
 
@@ -132,6 +163,12 @@
 		return rounded.toLocaleString();
 	}
 
+	function formatCount(num) {
+		// 인원 표시용 (절삭하지 않음)
+		if (!num && num !== 0) return '';
+		return Number(num).toLocaleString();
+	}
+
 	function formatInputValue(value) {
 		if (!value) return '';
 		// 입력 필드 표시용: 콤마만 추가 (절삭하지 않음)
@@ -140,55 +177,91 @@
 
 	async function handleSave() {
 		try {
-			const adjustedGradePayments = {};
+			// 현재 월 조정 데이터
+			const currentAdjustedGradePayments = {};
 			['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'].forEach(grade => {
-				if (adjustments[grade]) {
-					adjustedGradePayments[grade] = {
-						totalAmount: Number(adjustments[grade]),
-						perInstallment: Math.floor(Number(adjustments[grade]) / 10 / 100) * 100
+				if (currentAdjustments[grade]) {
+					const num = Number(currentAdjustments[grade]);
+					const rounded = Math.floor(num / 100) * 100; // 100원 단위 절삭
+					currentAdjustedGradePayments[grade] = {
+						totalAmount: rounded,
+						perInstallment: Math.floor(rounded / 10 / 100) * 100
 					};
 				} else {
-					adjustedGradePayments[grade] = { totalAmount: null, perInstallment: null };
+					currentAdjustedGradePayments[grade] = { totalAmount: null, perInstallment: null };
 				}
 			});
 
-			// 현재 월 키 (monthKey)
+			// 이전 월 조정 데이터 (저장 시 100원 단위 절삭)
+			const prevAdjustedGradePayments = {};
+			['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'].forEach(grade => {
+				if (prevAdjustments[grade]) {
+					const num = Number(prevAdjustments[grade]);
+					const rounded = Math.floor(num / 100) * 100; // 100원 단위 절삭
+					prevAdjustedGradePayments[grade] = {
+						totalAmount: rounded,
+						perInstallment: Math.floor(rounded / 10 / 100) * 100
+					};
+				} else {
+					prevAdjustedGradePayments[grade] = { totalAmount: null, perInstallment: null };
+				}
+			});
+
 			if (!monthKey) {
 				alert('저장할 월 정보가 없습니다.');
 				return;
 			}
 
-			// API 호출로 저장
-			const response = await fetch('/api/admin/revenue/grade-adjustment', {
+			// 이전 월 키 계산
+			const [currentYear, currentMonth] = monthKey.split('-').map(Number);
+			const prevMonthDate = new Date(currentYear, currentMonth - 2, 1);
+			const prevMonthKey = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth() + 1).padStart(2, '0')}`;
+
+			// 현재 월 저장
+			const currentResponse = await fetch('/api/admin/revenue/grade-adjustment', {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json'
 				},
 				body: JSON.stringify({
 					monthKey: monthKey,
-					adjustedGradePayments
+					adjustedGradePayments: currentAdjustedGradePayments
 				})
 			});
 
-			if (!response.ok) {
-				const error = await response.json();
-				throw new Error(error.error || '저장 실패');
+			if (!currentResponse.ok) {
+				const error = await currentResponse.json();
+				throw new Error(error.error || '현재 월 저장 실패');
 			}
 
-			const result = await response.json();
-			// alert(result.message || '저장되었습니다.'); // 알림창 제거
+			// 이전 월 저장
+			const prevResponse = await fetch('/api/admin/revenue/grade-adjustment', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({
+					monthKey: prevMonthKey,
+					adjustedGradePayments: prevAdjustedGradePayments
+				})
+			});
+
+			if (!prevResponse.ok) {
+				const error = await prevResponse.json();
+				throw new Error(error.error || '이전 월 저장 실패');
+			}
 
 			// 콜백 호출
-			onSave(adjustedGradePayments);
+			onSave({ current: currentAdjustedGradePayments, previous: prevAdjustedGradePayments });
 			onClose();
 		} catch (error) {
 			console.error('Save error:', error);
-			// alert(`저장 중 오류가 발생했습니다: ${error.message}`); // 알림창 제거
+			alert(`저장 중 오류가 발생했습니다: ${error.message}`);
 		}
 	}
 </script>
 
-<WindowsModal {isOpen} title="등급별 지급 총액 조정" icon="/icons/edit-blue.svg" size="xl" onClose={onClose}>
+<WindowsModal {isOpen} title="등급별 지급 총액 조정" icon="/icons/edit-blue.svg" size="2xl" onClose={onClose}>
 	<div class="container">
 		<!-- 기간 선택 -->
 		<div class="period-row">
@@ -231,15 +304,22 @@
 					<table class="main-table">
 					<thead>
 						<tr>
-							<th rowspan="2" class="th-grade">등급</th>
-							<!-- 이번 달 -->
-							{#if currentMonthData}
-								<th colspan="4" class="th-month current-month">
-									{currentMonthData.monthKey.split('-')[0]}년 {currentMonthData.monthKey.split('-')[1]}월
-									<span class="text-xs font-normal">(조정가능)</span>
-								</th>
-							{/if}
-							<!-- 기간총액 -->
+						<th rowspan="2" class="th-grade">등급</th>
+						<!-- 현재 월 -->
+					{#if currentMonthData}
+						<th colspan="4" class="th-month current-month">
+							{currentMonthData.monthKey.split('-')[0]}년 {currentMonthData.monthKey.split('-')[1]}월
+							<span class="text-xs font-normal">(조정가능)</span>
+						</th>
+					{/if}
+					<!-- 이전 월 -->
+					{#if previousMonthData}
+						<th colspan="4" class="th-month previous-month">
+							{previousMonthData.monthKey.split('-')[0]}년 {previousMonthData.monthKey.split('-')[1]}월
+							<span class="text-xs font-normal">(조정가능)</span>
+						</th>
+					{/if}
+						<!-- 기간총액 -->
 							<th colspan="4" class="th-month period-total">
 								이전기간({startMonth}~{endMonth})총액
 							</th>
@@ -251,14 +331,21 @@
 							{/each}
 						</tr>
 						<tr>
-							<!-- 이번 달 -->
-							{#if currentMonthData}
-								<th class="th-sub month-start">인원</th>
-								<th class="th-sub">자동총액</th>
-								<th class="th-sub editable">조정총액</th>
-								<th class="th-sub">차이금액</th>
-							{/if}
-							<!-- 기간총액 -->
+						<!-- 현재 월 -->
+				{#if currentMonthData}
+					<th class="th-sub month-start">인원</th>
+					<th class="th-sub">자동총액</th>
+					<th class="th-sub editable">조정총액</th>
+					<th class="th-sub">차이금액</th>
+				{/if}
+				<!-- 이전 월 -->
+				{#if previousMonthData}
+					<th class="th-sub month-start">인원</th>
+					<th class="th-sub">자동총액</th>
+					<th class="th-sub editable">조정총액</th>
+					<th class="th-sub">차이금액</th>
+				{/if}
+					<!-- 기간총액 -->
 							<th class="th-sub month-start period-col">인원</th>
 							<th class="th-sub period-col">자동총액</th>
 							<th class="th-sub period-col">조정총액</th>
@@ -274,32 +361,55 @@
 					</thead>
 					<tbody>
 						{#each ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'] as grade}
-							<tr>
-								<td class="td-grade">{grade}</td>
-								<!-- 이번 달 -->
-								{#if currentMonthData}
-									{@const users = currentMonthData.gradeDistribution?.[grade] || 0}
-									{@const auto = currentMonthData.gradePayments?.[grade] || 0}
-									{@const manual = currentMonthData.adjustedGradePayments?.[grade]?.totalAmount}
-									{@const display = adjustments[grade] ? Number(adjustments[grade]) : manual}
-									{@const diff = (display !== null && display !== undefined) ? auto - display : 0}
+					<tr>
+						<td class="td-grade">{grade}</td>
+						<!-- 현재 월 -->
+						{#if currentMonthData}
+							{@const users = currentMonthData.gradeDistribution?.[grade] || 0}
+						{@const auto = currentMonthData.gradePayments?.[grade] || 0}
+						{@const manual = currentMonthData.adjustedGradePayments?.[grade]?.totalAmount}
+						{@const rawDisplay = currentAdjustments[grade] ? Number(currentAdjustments[grade]) : manual}
+						{@const display = rawDisplay ? Math.floor(rawDisplay / 100) * 100 : rawDisplay}
+						{@const diff = (display !== null && display !== undefined) ? auto - display : 0}
 
-									<td class="td-num month-start">{formatNum(users)}</td>
-									<td class="td-amt">{formatNum(auto)}</td>
-									<td class="td-adj editable">
-										<input
-											type="text"
-											value={adjustments[grade] ? formatInputValue(adjustments[grade]) : ''}
-											oninput={(e) => handleInput(grade, e.target.value)}
-											onblur={() => handleBlur(grade)}
-											class="adj-input"
-										/>
-									</td>
-									<td class="td-diff" class:pos={diff > 0} class:neg={diff < 0}>
-										{diff !== 0 ? formatNum(diff) : ''}
-									</td>
-								{/if}
-								<!-- 기간총액 -->
+							<td class="td-num month-start">{formatCount(users)}</td>
+							<td class="td-amt">{formatNum(auto)}</td>
+							<td class="td-adj editable">
+								<input
+									type="text"
+									value={currentAdjustments[grade] ? formatInputValue(currentAdjustments[grade]) : ''}
+									oninput={(e) => handleInput(grade, e.target.value, 'current')}
+									class="adj-input"
+								/>
+							</td>
+							<td class="td-diff" class:pos={diff > 0} class:neg={diff < 0}>
+							{diff !== 0 ? formatNum(diff) : ''}
+						</td>
+					{/if}
+					<!-- 이전 월 -->
+					{#if previousMonthData}
+						{@const users = previousMonthData.gradeDistribution?.[grade] || 0}
+					{@const auto = previousMonthData.gradePayments?.[grade] || 0}
+					{@const manual = previousMonthData.adjustedGradePayments?.[grade]?.totalAmount}
+					{@const rawDisplay = prevAdjustments[grade] ? Number(prevAdjustments[grade]) : manual}
+					{@const display = rawDisplay ? Math.floor(rawDisplay / 100) * 100 : rawDisplay}
+					{@const diff = (display !== null && display !== undefined) ? auto - display : 0}
+
+						<td class="td-num month-start">{formatCount(users)}</td>
+						<td class="td-amt">{formatNum(auto)}</td>
+						<td class="td-adj editable">
+							<input
+								type="text"
+								value={prevAdjustments[grade] ? formatInputValue(prevAdjustments[grade]) : ''}
+								oninput={(e) => handleInput(grade, e.target.value, 'prev')}
+								class="adj-input"
+							/>
+						</td>
+						<td class="td-diff" class:pos={diff > 0} class:neg={diff < 0}>
+							{diff !== 0 ? formatNum(diff) : ''}
+						</td>
+					{/if}
+						<!-- 기간총액 -->
 								{#if true}
 									{@const periodUsers = monthsData.reduce((s, md) => s + (md.gradeDistribution?.[grade] || 0), 0)}
 									{@const periodAuto = monthsData.reduce((s, md) => s + (md.gradePayments?.[grade] || 0), 0)}
@@ -310,7 +420,7 @@
 									{@const hasAnyAdj = monthsData.some(md => md.adjustedGradePayments?.[grade]?.totalAmount !== null && md.adjustedGradePayments?.[grade]?.totalAmount !== undefined)}
 									{@const periodDiff = hasAnyAdj ? periodAuto - periodAdj : 0}
 
-									<td class="td-num month-start period-col">{formatNum(periodUsers)}</td>
+									<td class="td-num month-start period-col">{formatCount(periodUsers)}</td>
 									<td class="td-amt period-col">{formatNum(periodAuto)}</td>
 									<td class="td-adj period-col">{hasAnyAdj ? formatNum(periodAdj) : ''}</td>
 									<td class="td-diff period-col" class:pos={periodDiff > 0} class:neg={periodDiff < 0}>
@@ -324,7 +434,7 @@
 									{@const manual = md.adjustedGradePayments?.[grade]?.totalAmount}
 									{@const diff = (manual !== null && manual !== undefined) ? auto - manual : 0}
 
-									<td class="td-num month-start">{formatNum(users)}</td>
+									<td class="td-num month-start">{formatCount(users)}</td>
 									<td class="td-amt">{formatNum(auto)}</td>
 									<td class="td-adj">
 										{manual !== null && manual !== undefined ? formatNum(manual) : ''}
@@ -336,34 +446,61 @@
 							</tr>
 						{/each}
 						<!-- 총계 -->
-						<tr class="total-row">
-							<td class="td-grade">총계</td>
-							<!-- 이번 달 -->
-							{#if currentMonthData}
-								{@const grades = ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8']}
-								{@const totalUsers = grades.reduce((s, g) => s + (currentMonthData.gradeDistribution?.[g] || 0), 0)}
-								{@const totalAutoRaw = grades.reduce((s, g) => {
-									const users = currentMonthData.gradeDistribution?.[g] || 0;
-									const perPerson = currentMonthData.gradePayments?.[g] || 0;
-									return s + (users * perPerson);
-								}, 0)}
-								{@const totalAuto = Math.floor(totalAutoRaw / 100) * 100}
-								{@const totalAdjRaw = grades.reduce((s, g) => {
-									const users = currentMonthData.gradeDistribution?.[g] || 0;
-									const gradeAdj = adjustments[g] ? Number(adjustments[g]) : (currentMonthData.adjustedGradePayments?.[g]?.totalAmount || currentMonthData.gradePayments?.[g] || 0);
-									return s + (users * gradeAdj);
-								}, 0)}
-								{@const totalAdj = Math.floor(totalAdjRaw / 100) * 100}
-								{@const totalDiff = totalAuto - totalAdj}
+				<tr class="total-row">
+					<td class="td-grade">총계</td>
+					<!-- 현재 월 -->
+					{#if currentMonthData}
+						{@const grades = ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8']}
+						{@const totalUsers = grades.reduce((s, g) => s + (currentMonthData.gradeDistribution?.[g] || 0), 0)}
+						{@const totalAutoRaw = grades.reduce((s, g) => {
+							const users = currentMonthData.gradeDistribution?.[g] || 0;
+							const perPerson = currentMonthData.gradePayments?.[g] || 0;
+							return s + (users * perPerson);
+						}, 0)}
+						{@const totalAuto = Math.floor(totalAutoRaw / 100) * 100}
+						{@const totalAdjRaw = grades.reduce((s, g) => {
+						const users = currentMonthData.gradeDistribution?.[g] || 0;
+						const rawAdj = currentAdjustments[g] ? Number(currentAdjustments[g]) : (currentMonthData.adjustedGradePayments?.[g]?.totalAmount || currentMonthData.gradePayments?.[g] || 0);
+						const gradeAdj = rawAdj ? Math.floor(rawAdj / 100) * 100 : rawAdj;
+						return s + (users * gradeAdj);
+					}, 0)}
+						{@const totalAdj = Math.floor(totalAdjRaw / 100) * 100}
+						{@const totalDiff = totalAuto - totalAdj}
 
-								<td class="td-num month-start">{formatNum(totalUsers)}</td>
-								<td class="td-amt">{formatNum(totalAuto)}</td>
-								<td class="td-adj editable">{formatNum(totalAdj)}</td>
-								<td class="td-diff" class:pos={totalDiff > 0} class:neg={totalDiff < 0}>
-									{totalDiff !== 0 ? formatNum(totalDiff) : ''}
-								</td>
-							{/if}
-							<!-- 기간총액 -->
+						<td class="td-num month-start">{formatCount(totalUsers)}</td>
+						<td class="td-amt">{formatNum(totalAuto)}</td>
+						<td class="td-adj editable">{formatNum(totalAdj)}</td>
+						<td class="td-diff" class:pos={totalDiff > 0} class:neg={totalDiff < 0}>
+						{totalDiff !== 0 ? formatNum(totalDiff) : ''}
+					</td>
+				{/if}
+				<!-- 이전 월 -->
+				{#if previousMonthData}
+					{@const grades = ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8']}
+					{@const totalUsers = grades.reduce((s, g) => s + (previousMonthData.gradeDistribution?.[g] || 0), 0)}
+					{@const totalAutoRaw = grades.reduce((s, g) => {
+						const users = previousMonthData.gradeDistribution?.[g] || 0;
+						const perPerson = previousMonthData.gradePayments?.[g] || 0;
+						return s + (users * perPerson);
+					}, 0)}
+					{@const totalAuto = Math.floor(totalAutoRaw / 100) * 100}
+					{@const totalAdjRaw = grades.reduce((s, g) => {
+				const users = previousMonthData.gradeDistribution?.[g] || 0;
+				const rawAdj = prevAdjustments[g] ? Number(prevAdjustments[g]) : (previousMonthData.adjustedGradePayments?.[g]?.totalAmount || previousMonthData.gradePayments?.[g] || 0);
+				const gradeAdj = rawAdj ? Math.floor(rawAdj / 100) * 100 : rawAdj;
+				return s + (users * gradeAdj);
+			}, 0)}
+					{@const totalAdj = Math.floor(totalAdjRaw / 100) * 100}
+					{@const totalDiff = totalAuto - totalAdj}
+
+					<td class="td-num month-start">{formatCount(totalUsers)}</td>
+					<td class="td-amt">{formatNum(totalAuto)}</td>
+					<td class="td-adj editable">{formatNum(totalAdj)}</td>
+					<td class="td-diff" class:pos={totalDiff > 0} class:neg={totalDiff < 0}>
+						{totalDiff !== 0 ? formatNum(totalDiff) : ''}
+					</td>
+				{/if}
+					<!-- 기간총액 -->
 							{#if true}
 								{@const grades = ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8']}
 								{@const periodTotalUsers = monthsData.reduce((s, md) => s + grades.reduce((gs, g) => gs + (md.gradeDistribution?.[g] || 0), 0), 0)}
@@ -382,7 +519,7 @@
 								{@const periodTotalAdj = periodTotalAdjRaw !== null ? Math.floor(periodTotalAdjRaw / 100) * 100 : null}
 								{@const periodTotalDiff = periodTotalAdj !== null ? periodTotalAuto - periodTotalAdj : 0}
 
-								<td class="td-num month-start period-col">{formatNum(periodTotalUsers)}</td>
+								<td class="td-num month-start period-col">{formatCount(periodTotalUsers)}</td>
 								<td class="td-amt period-col">{formatNum(periodTotalAuto)}</td>
 								<td class="td-adj period-col">{periodTotalAdj !== null ? formatNum(periodTotalAdj) : ''}</td>
 								<td class="td-diff period-col" class:pos={periodTotalDiff > 0} class:neg={periodTotalDiff < 0}>
@@ -408,7 +545,7 @@
 								{@const totalAdj = totalAdjRaw !== null ? Math.floor(totalAdjRaw / 100) * 100 : null}
 								{@const totalDiff = totalAdj !== null ? totalAuto - totalAdj : 0}
 
-								<td class="td-num month-start">{formatNum(totalUsers)}</td>
+								<td class="td-num month-start">{formatCount(totalUsers)}</td>
 								<td class="td-amt">{formatNum(totalAuto)}</td>
 								<td class="td-adj">{totalAdj !== null ? formatNum(totalAdj) : ''}</td>
 								<td class="td-diff" class:pos={totalDiff > 0} class:neg={totalDiff < 0}>
@@ -425,7 +562,7 @@
 			<div class="notice">
 				<div class="notice-title">💡 참고사항</div>
 				<div class="notice-text">
-					• 이번달에 대해서만 지급총액을 조정할 수 있습니다<br />
+					• 현재월과 이전월 두 달을 동시에 조정할 수 있습니다<br />
 					• 조정총액이 0이면 자동총액이 적용됩니다<br />
 					• 저장 버튼을 눌러 변경된 조정금액으로 자동 계산이 됩니다
 				</div>
@@ -546,6 +683,10 @@
 
 	.th-month.current-month {
 		background-color: #fef3c7;
+	}
+
+	.th-month.previous-month {
+		background-color: #dbeafe;
 	}
 
 	.th-month.period-total {
