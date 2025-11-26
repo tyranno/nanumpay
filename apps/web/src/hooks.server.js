@@ -95,7 +95,8 @@ export async function handle({ event, resolve }) {
 				}
 			} else {
 				// 리프레시 토큰이 없거나 다른 에러인 경우
-				event.cookies.delete('token', { path: '/' });
+				// SSR 시에는 토큰을 바로 삭제하지 않고 user만 null로 설정
+				// 클라이언트에서 판단하도록 함
 				event.locals.user = null;
 			}
 		}
@@ -163,12 +164,28 @@ export async function handle({ event, resolve }) {
 		logger.info(`[${method}] ${pathname} 완료 - ${response.status} (${duration}ms)`);
 	}
 
-	// 보호된 페이지에 캐시 방지 헤더 추가 (뒤로가기 시 재인증 강제)
-	if (isProtectedRoute) {
-		response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-		response.headers.set('Pragma', 'no-cache');
-		response.headers.set('Expires', '0');
-	}
+	// 캐시 방지 헤더 제거 - SSR 문제 유발
+	// 필요하면 특정 페이지에서만 적용
 
 	return response;
+}
+
+/** @type {import('@sveltejs/kit').HandleFetch} */
+export async function handleFetch({ request, fetch, event }) {
+	// SSR 시 컴포넌트의 fetch에서도 쿠키가 전달되도록 보장
+	if (request.url.startsWith(event.url.origin)) {
+		// 같은 오리진의 요청인 경우 쿠키 헤더 복사
+		const cookie = event.request.headers.get('cookie');
+		if (cookie) {
+			// Request 객체는 immutable이므로 새로 생성해야 함
+			request = new Request(request, {
+				headers: {
+					...Object.fromEntries(request.headers.entries()),
+					cookie: cookie
+				}
+			});
+		}
+	}
+
+	return fetch(request);
 }

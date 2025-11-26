@@ -36,23 +36,24 @@
 		goto('/login', { replaceState: true, invalidateAll: true });
 	}
 
-	// 페이지를 벗어날 때 자동 로그아웃
-	function handleBeforeUnload(event) {
-		// 새로고침이나 페이지 이탈 시 로그아웃 처리
-		if (!isLoggedOut) {
-			// 동기적으로 로그아웃 API 호출 (Navigator.sendBeacon 사용)
-			if (browser && navigator.sendBeacon) {
-				navigator.sendBeacon('/api/auth/logout', new Blob(['{}'], { type: 'application/json' }));
-			}
+	// 페이지를 벗어날 때 자동 로그아웃 - F5 새로고침 문제로 제거
+	// F5 새로고침과 실제 페이지 이탈을 구분할 수 없어 제거함
+	// function handleBeforeUnload(event) {
+	// 	// 새로고침이나 페이지 이탈 시 로그아웃 처리
+	// 	if (!isLoggedOut) {
+	// 		// 동기적으로 로그아웃 API 호출 (Navigator.sendBeacon 사용)
+	// 		if (browser && navigator.sendBeacon) {
+	// 			navigator.sendBeacon('/api/auth/logout', new Blob(['{}'], { type: 'application/json' }));
+	// 		}
 
-			// 로컬 스토리지 정리
-			localStorage.clear();
-			sessionStorage.clear();
-			
-			// 로그아웃 플래그 설정
-			isLoggedOut = true;
-		}
-	}
+	// 		// 로컬 스토리지 정리
+	// 		localStorage.clear();
+	// 		sessionStorage.clear();
+
+	// 		// 로그아웃 플래그 설정
+	// 		isLoggedOut = true;
+	// 	}
+	// }
 
 	// 탭 숨김/표시 감지 (탭 전환, 최소화 등)
 	function handleVisibilityChange() {
@@ -88,8 +89,8 @@
 
 	onMount(() => {
 		if (browser) {
-			// 페이지 이탈 이벤트 등록
-			window.addEventListener('beforeunload', handleBeforeUnload);
+			// 페이지 이탈 이벤트 등록 - F5 문제로 제거
+			// window.addEventListener('beforeunload', handleBeforeUnload);
 
 			// 탭 전환 감지
 			document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -120,7 +121,7 @@
 
 			// 클린업 함수 반환
 			return () => {
-				window.removeEventListener('beforeunload', handleBeforeUnload);
+				// window.removeEventListener('beforeunload', handleBeforeUnload); - F5 문제로 제거
 				document.removeEventListener('visibilitychange', handleVisibilityChange);
 				window.removeEventListener('popstate', handlePopState);
 				document.removeEventListener('mousemove', resetActivityTimer);
