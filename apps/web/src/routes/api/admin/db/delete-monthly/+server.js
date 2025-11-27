@@ -5,7 +5,7 @@ import WeeklyPaymentPlans from '$lib/server/models/WeeklyPaymentPlans.js';
 import WeeklyPaymentSummary from '$lib/server/models/WeeklyPaymentSummary.js';
 import User from '$lib/server/models/User.js';
 import PlannerAccount from '$lib/server/models/PlannerAccount.js';
-import { processUserRegistration } from '$lib/server/services/registrationService.js';
+import PlannerCommissionPlan from '$lib/server/models/PlannerCommissionPlan.js';
 
 export async function POST({ request, locals }) {
 	try {
@@ -104,6 +104,10 @@ export async function POST({ request, locals }) {
 		const deletedUserPlans = await WeeklyPaymentPlans.deleteMany({ userId: { $in: userIds } });
 		console.log(`[DB Delete] 신규 용역자 지급 계획 ${deletedUserPlans.deletedCount}건 삭제`);
 
+		// 3-1. ⭐ 해당 월에 등록된 용역자의 설계사 수당 계획 삭제
+		const deletedCommissionPlans = await PlannerCommissionPlan.deleteMany({ userId: { $in: userIds } });
+		console.log(`[DB Delete] 설계사 수당 계획 ${deletedCommissionPlans.deletedCount}건 삭제`);
+
 		// 4. 해당 월에 등록된 용역자 삭제 (cascade hook 작동하도록 개별 삭제)
 		// ⭐ deleteMany()는 pre hook을 호출하지 않으므로 findByIdAndDelete() 사용
 		let deletedUsersCount = 0;
@@ -170,51 +174,32 @@ export async function POST({ request, locals }) {
 			  ∟ 신규 용역자: ${deletedUserPlans.deletedCount}건
 			  ∟ 승급자 새 등급: ${deletedPromotionPlans?.deletedCount || 0}건
 			  ∟ 매출월 기준: ${deletedRevenueMonthPlans.deletedCount}건
+			- 설계사 수당 계획: ${deletedCommissionPlans.deletedCount}건
 			- 설계사: ${deletedPlanners.deletedCount}건
 			- 월별 등록: ${deletedRegistrations.deletedCount}건
 			- 주간 요약: ${deletedSummaries.deletedCount}건
 		`);
 
-		// 10. ⭐ 삭제 후 바로 이전 월 재처리 (배치 프로세싱)
-		let reprocessedMonth = null;
-		const [year, month] = monthKey.split('-').map(Number);
-		const previousMonth = month === 1 ? 12 : month - 1;
-		const previousYear = month === 1 ? year - 1 : year;
-		const previousMonthKey = `${previousYear}-${String(previousMonth).padStart(2, '0')}`;
+		// 10. ⭐ 삭제 후 등급 재계산만 수행 (지급 계획 재생성 안 함!)
+		// - 삭제로 인해 트리 구조가 변경되었으므로 등급 재계산 필요
+		// - 기존 지급 계획은 그대로 유지 (삭제된 월 것만 이미 삭제됨)
+		const { recalculateAllGrades } = await import('$lib/server/services/gradeCalculation.js');
 
-		const previousMonthReg = await MonthlyRegistrations.findOne({ monthKey: previousMonthKey });
+		console.log(`[DB Delete] 등급 재계산 시작...`);
+		try {
+			const gradeResult = await recalculateAllGrades();
+			console.log(`[DB Delete] 등급 재계산 완료: ${gradeResult.updatedCount}명 등급 변경`);
 
-		if (previousMonthReg && previousMonthReg.registrations && previousMonthReg.registrations.length > 0) {
-			console.log(`[DB Delete] 이전 월(${previousMonthKey}) 재처리 시작...`);
-
-			try {
-				// ⭐ 등록자 + 승급자 + 추가지급 대상자 모두 재처리
-				const userIds = new Set();
-
-				// 등록자
-				if (previousMonthReg.registrations) {
-					previousMonthReg.registrations.forEach(r => userIds.add(r.userId));
-				}
-
-				// 승급자
-				if (previousMonthReg.paymentTargets?.promoted) {
-					previousMonthReg.paymentTargets.promoted.forEach(p => userIds.add(p.userId));
-				}
-
-				// 추가지급 대상자 (이전 월 등록자들 - 복원 대상!)
-				if (previousMonthReg.paymentTargets?.additionalPayments) {
-					previousMonthReg.paymentTargets.additionalPayments.forEach(a => userIds.add(a.userId));
-				}
-
-				// ⭐ processUserRegistration 호출 (배치 프로세싱)
-				await processUserRegistration(Array.from(userIds));
-
-				reprocessedMonth = previousMonthKey;
-				console.log(`[DB Delete] 이전 월(${previousMonthKey}) 재처리 완료 (${userIds.size}명)`);
-			} catch (reprocessError) {
-				console.error(`[DB Delete] 이전 월 재처리 실패:`, reprocessError);
+			if (gradeResult.changedUsers && gradeResult.changedUsers.length > 0) {
+				gradeResult.changedUsers.forEach(u => {
+					console.log(`  → ${u.userName}: ${u.oldGrade} → ${u.newGrade}`);
+				});
 			}
+		} catch (gradeError) {
+			console.error(`[DB Delete] 등급 재계산 실패:`, gradeError);
 		}
+
+		const reprocessedMonth = null;
 
 		return json({
 			success: true,
@@ -222,6 +207,7 @@ export async function POST({ request, locals }) {
 			deletedPlanners: deletedPlanners.deletedCount,
 			deletedRegistrations: deletedRegistrations.deletedCount,
 			deletedPlans: totalDeletedPlans,
+			deletedCommissionPlans: deletedCommissionPlans.deletedCount,
 			deletedSummaries: deletedSummaries.deletedCount,
 			reprocessedMonth
 		});

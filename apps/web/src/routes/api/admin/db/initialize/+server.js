@@ -3,6 +3,8 @@ import { db } from '$lib/server/db.js';
 import User from '$lib/server/models/User.js';
 import UserAccount from '$lib/server/models/UserAccount.js';
 import PlannerAccount from '$lib/server/models/PlannerAccount.js';
+import PlannerCommission from '$lib/server/models/PlannerCommission.js';
+import PlannerCommissionPlan from '$lib/server/models/PlannerCommissionPlan.js';
 import MonthlyRegistrations from '$lib/server/models/MonthlyRegistrations.js';
 import WeeklyPaymentPlans from '$lib/server/models/WeeklyPaymentPlans.js';
 import WeeklyPaymentSummary from '$lib/server/models/WeeklyPaymentSummary.js';
@@ -28,6 +30,8 @@ export async function POST({ request, locals }) {
 		await User.deleteMany({});
 		await UserAccount.deleteMany({ role: { $ne: 'admin' } });
 		await PlannerAccount.deleteMany({});
+		await PlannerCommission.deleteMany({});
+		await PlannerCommissionPlan.deleteMany({});
 		await MonthlyRegistrations.deleteMany({});
 		await WeeklyPaymentPlans.deleteMany({});
 		await WeeklyPaymentSummary.deleteMany({});
