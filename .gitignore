@@ -25,7 +25,8 @@ vite.config.ts.timestamp-*
 # Project specific
 구현참조
 dist
-test-data
+test-data/*
+!test-data/verfify2/
 apps/web/scripts/*.js
 !apps/web/scripts/release-*.cjs
 .claude
@@ -38,3 +39,6 @@ work_logs/
 apps/backup/build/
 # Build outputs
 apps/app/build-outputs/
+
+# DB Backup files (keep scripts and gz)
+backup/*.bson
