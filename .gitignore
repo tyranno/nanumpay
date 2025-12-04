@@ -42,3 +42,4 @@ apps/app/build-outputs/
 
 # DB Backup files (keep scripts and gz)
 backup/*.bson
+backups/
