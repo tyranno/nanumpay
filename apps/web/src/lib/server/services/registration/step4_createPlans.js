@@ -71,7 +71,8 @@ export async function executeStep4(promoted, targets, gradePayments, monthlyReg,
       });
 
       // ⭐ 기존 추가지급 계획 중단 (승급 시)
-      const terminatedCount = await terminateAdditionalPaymentPlans(userId, registrationMonth);
+      // v8.0: 등록일 = 승급일 (등록한 달에 승급한 경우)
+      const terminatedCount = await terminateAdditionalPaymentPlans(userId, registrationDate);
       if (terminatedCount > 0) {
       }
 
@@ -133,7 +134,8 @@ export async function executeStep4(promoted, targets, gradePayments, monthlyReg,
       });
 
       // 기존 추가지급 계획 중단
-      const terminatedCount = await terminateAdditionalPaymentPlans(prom.userId, registrationMonth);
+      // v8.0: promotionDate 사용 (승급 다음달 첫 금요일부터 중단)
+      const terminatedCount = await terminateAdditionalPaymentPlans(prom.userId, promotionDate);
       if (terminatedCount > 0) {
       }
     }
@@ -204,13 +206,38 @@ async function createAdditionalPaymentPlan(userId, userName, grade, 추가지급
     const netAmount = installmentAmount - withholdingTax;
 
 
-    // 2. 지급 시작일 = 다음 달 첫 금요일
-    const [year, month] = revenueMonth.split('-').map(Number);
-    const nextMonthStart = new Date(year, month, 1);  // 다음 달 1일
-    const firstPaymentDate = calculateNextFriday(nextMonthStart);
+    // 2. 이전 계획 조회 (v8.0: additionalPaymentBaseDate 참조용)
+    const previousPlans = await WeeklyPaymentPlans.find({
+      userId: userId,
+      baseGrade: grade
+    }).sort({ 추가지급단계: -1 });
+
+    const latestPlan = previousPlans[0];
+
+    // 3. v8.0: 지급 시작일 계산
+    // - 추가1차 (단계=1): 등록/승급일 + 2개월 후 첫 금요일
+    // - 추가2차+ (단계>=2): 이전 추가지급 시작일 + 1개월 후 첫 금요일
+    let firstPaymentDate;
+    let additionalPaymentBaseDate;
+
+    if (추가지급단계 === 1) {
+      // 추가1차: 등록/승급일 + 2개월 후 첫 금요일
+      additionalPaymentBaseDate = latestPlan?.additionalPaymentBaseDate || new Date();
+      const baseDate = new Date(additionalPaymentBaseDate);
+      baseDate.setMonth(baseDate.getMonth() + 2);
+      firstPaymentDate = WeeklyPaymentPlans.getNextFriday(baseDate);
+      console.log(`[createAdditionalPaymentPlan] 추가1차: 기준일=${additionalPaymentBaseDate.toISOString().split('T')[0]}, +2개월 후 시작=${firstPaymentDate.toISOString().split('T')[0]}`);
+    } else {
+      // 추가2차+: 이전 추가지급 시작일 + 1개월 후 첫 금요일
+      additionalPaymentBaseDate = latestPlan?.startDate || new Date();
+      const baseDate = new Date(additionalPaymentBaseDate);
+      baseDate.setMonth(baseDate.getMonth() + 1);
+      firstPaymentDate = WeeklyPaymentPlans.getNextFriday(baseDate);
+      console.log(`[createAdditionalPaymentPlan] 추가${추가지급단계}차: 이전 시작일=${additionalPaymentBaseDate.toISOString().split('T')[0]}, +1개월 후 시작=${firstPaymentDate.toISOString().split('T')[0]}`);
+    }
 
 
-    // 3. 10회 installments 생성
+    // 4. 10회 installments 생성
     const installments = [];
     for (let i = 0; i < 10; i++) {
       const paymentDate = new Date(firstPaymentDate);
@@ -231,15 +258,7 @@ async function createAdditionalPaymentPlan(userId, userName, grade, 추가지급
       });
     }
 
-    // 4. 이전 계획 조회 (parentPlanId용)
-    const previousPlans = await WeeklyPaymentPlans.find({
-      userId: userId,
-      baseGrade: grade
-    }).sort({ 추가지급단계: -1 });
-
-    const latestPlan = previousPlans[0];
-
-    // 5. 계획 생성
+    // 5. 계획 생성 (v8.0: additionalPaymentBaseDate 포함)
     const newPlan = new WeeklyPaymentPlans({
       userId: userId,
       userName: userName,
@@ -249,6 +268,7 @@ async function createAdditionalPaymentPlan(userId, userName, grade, 추가지급
       추가지급단계: 추가지급단계,  // ⭐ Step 3에서 계산된 값 사용
       baseGrade: grade,
       revenueMonth: revenueMonth,
+      additionalPaymentBaseDate: latestPlan?.additionalPaymentBaseDate || new Date(),  // v8.0
       startDate: firstPaymentDate,
       totalInstallments: 10,
       completedInstallments: 0,
@@ -271,19 +291,19 @@ async function createAdditionalPaymentPlan(userId, userName, grade, 추가지급
 }
 
 /**
- * 승급 시 추가지급 계획 중단
+ * v8.0: 승급 시 추가지급 계획 중단
+ * ⭐ 중단 시점: 승급 지급 시작일 (승급 다음달 첫 금요일)부터
  *
  * @param {string} userId - 사용자 ID
- * @param {string} registrationMonth - 승급 월 (YYYY-MM)
+ * @param {Date} promotionDate - 승급일
  * @returns {Promise<number>} 중단된 계획 수
  */
-async function terminateAdditionalPaymentPlans(userId, registrationMonth) {
+async function terminateAdditionalPaymentPlans(userId, promotionDate) {
   try {
+    // ⭐ v8.0: 승급 지급 시작일 계산 (승급 다음달 첫 금요일)
+    const stopDate = WeeklyPaymentPlans.getPaymentStartDate(promotionDate);
 
-    // ⭐ v7.0: 승급 시 추가지급 계획 중단
-    // 승급 월의 다음 달부터 중단 (예: 9월 승급 → 10월 1일부터 중단)
-    const [year, month] = registrationMonth.split('-').map(Number);
-    const stopDate = new Date(Date.UTC(year, month, 1));  // ⭐ 다음 달 1일
+    console.log(`[terminateAdditionalPaymentPlans] ${userId} 승급일: ${promotionDate}, 중단 시작일: ${stopDate}`);
 
     // 모든 active 추가지급 계획 조회
     const plans = await WeeklyPaymentPlans.find({
@@ -292,54 +312,54 @@ async function terminateAdditionalPaymentPlans(userId, registrationMonth) {
       installmentType: 'additional'
     });
 
-
     let terminatedCount = 0;
 
     for (const plan of plans) {
-
       let hasCanceled = false;
 
-      // 각 installment 확인 - 다음 달부터만 canceled로 변경
+      // 각 installment 확인 - 승급 지급 시작일 이후만 canceled로 변경
       for (const inst of plan.installments) {
         const instDate = new Date(inst.scheduledDate);
-        
-        // ⭐ 승급 다음 달 이후만 중단 (승급 월은 지급)
+
+        // ⭐ v8.0: 승급 지급 시작일 이후만 중단
         if (instDate >= stopDate && inst.status === 'pending') {
-          inst.status = 'canceled';
+          inst.status = 'terminated';
+          inst.terminatedReason = 'promotion';
           hasCanceled = true;
         }
       }
 
       if (hasCanceled) {
-        // 모든 installments 완료 확인
-        const allDone = plan.installments.every(i =>
-          i.status === 'canceled' || i.status === 'paid'
-        );
+        // 남은 pending 확인
+        const remainingPending = plan.installments.filter(i => i.status === 'pending').length;
 
         // ⭐ updateOne 사용 (Mongoose validation 우회)
         const updateFields = {
-          installments: plan.installments
+          installments: plan.installments,
+          terminatedAt: stopDate,
+          terminationReason: 'promotion'
         };
 
-        if (allDone) {
+        if (remainingPending === 0) {
           updateFields.planStatus = 'terminated';
           updateFields.terminatedBy = 'promotion_additional_stop';
-          updateFields.terminatedAt = new Date();
         }
 
         await WeeklyPaymentPlans.updateOne(
           { _id: plan._id },
           { $set: updateFields },
-          { strict: false }  // ⭐ 스키마 validation 우회
+          { strict: false }
         );
         terminatedCount++;
+
+        console.log(`[terminateAdditionalPaymentPlans] ${userId} ${plan.baseGrade} ${plan.추가지급단계}단계 중단`);
       }
     }
-
 
     return terminatedCount;
 
   } catch (error) {
+    console.error(`[terminateAdditionalPaymentPlans] ${userId} 오류:`, error);
     return 0;
   }
 }

@@ -113,8 +113,9 @@ export async function handle({ event, resolve }) {
 			const isMaintenanceMode = admin?.systemSettings?.maintenanceMode || false;
 
 			if (isMaintenanceMode) {
-				// 관리자가 아니면 유지보수 페이지로 리다이렉트
-				if (event.locals.user?.type !== 'admin') {
+				// 로그인한 비관리자만 유지보수 페이지로 리다이렉트
+				// 비로그인 상태는 건너뜀 (이후 보호된 경로 체크에서 /login으로 보냄)
+				if (event.locals.user && event.locals.user.type !== 'admin') {
 					throw redirect(302, '/maintenance');
 				}
 			}

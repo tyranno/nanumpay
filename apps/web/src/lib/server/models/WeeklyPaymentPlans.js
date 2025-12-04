@@ -44,6 +44,13 @@ const weeklyPaymentPlansSchema = new mongoose.Schema(
       required: true  // "2025-10" 형식 (매출 귀속 월)
     },
 
+    // v8.0: 추가지급 시작 기준일 (등록일 또는 승급일)
+    // 추가지급 시작일 계산: 기본→추가1차는 +2개월, 추가N차→추가(N+1)차는 +1개월
+    additionalPaymentBaseDate: {
+      type: Date,
+      required: true  // 등록일 또는 승급일
+    },
+
     // 지급 정보
     startDate: {
       type: Date,
@@ -125,7 +132,7 @@ const weeklyPaymentPlansSchema = new mongoose.Schema(
     },
     createdBy: {
       type: String,
-      enum: ['registration', 'promotion', 'monthly_check'],  // v7.0: monthly_check 추가
+      enum: ['registration', 'promotion', 'monthly_check', 'additional_payment', 'auto_generation'],  // v8.0: additional_payment 추가
       default: 'registration'
     },
 
