@@ -12,8 +12,8 @@
 	let error = null;
 
 	// ⭐ 계층수 설정
-	let maxDepth = 6; // 한 번에 볼 수 있는 최대 depth (기본값: 6)
-	let displayDepth = '6'; // UI에 표시되는 값 ('4'~'8', 'all')
+	let maxDepth = 8; // 한 번에 볼 수 있는 최대 depth (기본값: 8)
+	let displayDepth = '8'; // UI에 표시되는 값 ('4'~'8', 'all') // UI에 표시되는 값 ('4'~'8', 'all')
 
 	// 노드 검색 관련
 	let searchQuery = '';

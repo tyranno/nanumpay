@@ -10,7 +10,7 @@
 	export let levelGapY = 60;
 	export let siblingGapX = 10;
 	export let nodeComponent = null;
-	export let maxDepth = 6;
+	export let maxDepth = 8;
 	export let onselect = null; // 선택 이벤트 콜백
 
 	// 상단 간격 압축(상위 레벨 수평 간격 축소)
@@ -394,7 +394,7 @@
 			const ctx = canvas.getContext('2d');
 
 			// 4. 배경 흰색
-			ctx.fillStyle = '#ffffff';
+			ctx.fillStyle = '#dcfce7';
 			ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
 			// 5. 링크 그리기 (SVG path를 캔버스에 그리기)
@@ -682,7 +682,7 @@
 		border: 1px solid #e5e7eb;
 		border-radius: 12px;
 		overflow: auto; /* 혼합 방식: 스크롤바 표시 */
-		background: #fff;
+		background: #dcfce7;
 		cursor: grab;
 		touch-action: none;
 		/* ⭐ 초기 렌더링 완료 전까지 완전히 숨김 */
