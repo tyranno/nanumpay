@@ -301,27 +301,21 @@
 		}
 	}
 
-	// === 호버 위치 (scale 없음) ===
+	// === 호버 관리 (스타일 변경용) ===
 	let hoverPath = '';
-	let hoverPos = null;
 	function onEnterNode(path) {
 		hoverPath = path;
 	}
 	function onLeaveNode() {
 		hoverPath = '';
 	}
-	$: {
-		if (!hoverPath || !panzoomInstance) {
-			hoverPos = null;
-		} else {
-			const n = layoutNodes.find((m) => m.data.__path === hoverPath);
-			if (n) {
-				const transform = panzoomInstance.getTransform();
-				hoverPos = { x: transform.x + n.x, y: transform.y + (n.y - nodeHeight / 2) };
-			} else {
-				hoverPos = null;
-			}
-		}
+
+	// 날짜 포맷팅 함수
+	function formatDate(dateStr) {
+		if (!dateStr) return '-';
+		const date = new Date(dateStr);
+		if (isNaN(date.getTime())) return '-';
+		return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 	}
 
 	// === 공개 메서드 ===
@@ -602,6 +596,7 @@
 </script>
 
 <div bind:this={wrapEl} class="tree-wrap" class:rendered={isRendered} ondblclick={() => backToFull()}>
+	<!-- 툴팁 제거: 노드 아래에 직접 표시 -->
 	<!-- SVG와 HTML을 하나의 컨테이너로 묶음 (모바일 pinch-zoom 대응) -->
 	<div
 		bind:this={transformContainerEl}
@@ -651,6 +646,10 @@
 									/>
 								{/if}
 							</div>
+								<!-- 등록일 표시 (hover 시에만) -->
+								{#if hoverPath === n.data.__path}
+									<div class="node-date">{formatDate(n.data.createdAt)}</div>
+								{/if}
 							{#if n.data.__hasMoreBelow}
 								<span class="hint">▼ 아래 단계</span>
 							{/if}
@@ -729,7 +728,7 @@
 		border: 2px solid #3b82f6;
 		border-radius: 10px;
 		box-sizing: border-box;
-		overflow: hidden;
+		overflow: visible; /* 등록일이 노드 밖으로 표시되도록 */
 		user-select: none;
 		pointer-events: auto; /* panzoom이 beforeMouseDown/onTouch에서 처리 */
 		transition:
@@ -770,5 +769,20 @@
 	}
 	.hint-btn:hover {
 		color: #1d4ed8;
+	}
+	/* 등록일 표시 스타일 (노드 밖 아래) */
+	.node-date {
+		position: absolute;
+		bottom: -18px;
+		left: 50%;
+		transform: translateX(-50%);
+		font-size: 0.7rem;
+		color: #374151;
+		background: rgba(255, 255, 255, 0.95);
+		padding: 2px 6px;
+		border-radius: 4px;
+		white-space: nowrap;
+		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+		z-index: 10;
 	}
 </style>

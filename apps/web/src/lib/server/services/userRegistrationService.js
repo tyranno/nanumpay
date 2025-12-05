@@ -557,11 +557,11 @@ export class UserRegistrationService {
 	/**
 	 * 4단계: 배치 처리
 	 * - 등급 재계산, 매출 계산, 지급 계획 생성
-	 * - ⭐ v7.0: 월별로 순차 처리하여 매출 계산 정확도 보장
+	 * - ⭐ v8.0 수정: 월별로 처리 (승급일은 하위 노드 등록일 기준으로 계산)
 	 */
 	async processBatch() {
 		try {
-			// 등록된 사용자들을 월별로 그룹화
+			// ⭐ v8.0 수정: 월별로 그룹화 (지급 계획은 월 단위로 관리)
 			const usersByMonth = new Map();
 
 			for (const info of this.registeredUsers.values()) {
@@ -576,8 +576,13 @@ export class UserRegistrationService {
 				usersByMonth.get(monthKey).push(user);
 			}
 
-			// 월별 키를 시간순으로 정렬 (2025-07, 2025-08, 2025-09 ...)
+			// 월별 키를 시간순으로 정렬 (2025-10, 2025-11, ...)
 			const sortedMonths = Array.from(usersByMonth.keys()).sort();
+			console.log(`
+📅 월별 배치 처리: ${sortedMonths.length}개월치 데이터`);
+			sortedMonths.forEach(m => {
+				console.log(`  → ${m}: ${usersByMonth.get(m).length}명`);
+			});
 
 			// ⭐ 각 월별로 순차 처리
 			const allResults = {
@@ -590,12 +595,18 @@ export class UserRegistrationService {
 				const users = usersByMonth.get(monthKey);
 				const userIds = users.map((u) => u._id);
 
+				console.log(`
+🔄 [${monthKey}] 월별 배치 처리 시작: ${users.length}명`);
+
 				// registrationService로 등급 재계산 및 지급 계획 생성
 				const monthResult = await processUserRegistration(userIds);
 
 				// 결과 병합
 				allResults.revenue.totalRevenue += monthResult.revenue?.totalRevenue || 0;
-				allResults.revenue.byMonth[monthKey] = monthResult.revenue;
+				if (!allResults.revenue.byMonth[monthKey]) {
+					allResults.revenue.byMonth[monthKey] = { totalRevenue: 0 };
+				}
+				allResults.revenue.byMonth[monthKey].totalRevenue += monthResult.revenue?.totalRevenue || 0;
 				if (monthResult.schedules) {
 					allResults.schedules.push(...monthResult.schedules);
 				}

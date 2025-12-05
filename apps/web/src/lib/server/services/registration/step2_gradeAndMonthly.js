@@ -10,6 +10,7 @@
 
 import { recalculateAllGrades } from '../gradeCalculation.js';
 import MonthlyRegistrations from '../../models/MonthlyRegistrations.js';
+import User from '../../models/User.js';
 import PlannerCommission from '../../models/PlannerCommission.js';
 import PlannerCommissionPlan from '../../models/PlannerCommissionPlan.js';
 import PlannerAccount from '../../models/PlannerAccount.js';
@@ -45,19 +46,68 @@ export async function executeStep2(users) {
 		});
 	}
 
-	// ⭐ 승급일 = 등록일 (엑셀 날짜 컬럼 → User.createdAt으로 저장됨)
-	// 승급은 등록으로 인해 발생하므로, 등록일이 곧 승급일
-	const registrationDates = users.map(u => u.registrationDate || u.createdAt).filter(d => d);
-	if (registrationDates.length === 0) {
-		throw new Error('등록일이 없는 사용자가 있습니다. 엑셀 날짜 컬럼을 확인하세요.');
+	// ⭐ v8.0 수정: 월별 배치 처리, 승급일 = 해당 사용자 하위 노드의 최신 등록일
+	// 배치 내 등록자들의 userId 집합 (빠른 조회용)
+	const batchUserIds = new Set(users.map(u => u._id.toString()));
+	
+	// 배치 사용자들의 등록일 맵 (userId -> registrationDate)
+	const batchUserDates = new Map();
+	for (const u of users) {
+		batchUserDates.set(u._id.toString(), u.registrationDate || u.createdAt);
 	}
-	// 가장 최근 등록일을 승급일로 사용 (같은 배치는 보통 같은 날짜)
-	const promotionDateForMonth = new Date(Math.max(...registrationDates.map(d => d.getTime())));
-	console.log(`📅 승급일 (등록일 기준): ${promotionDateForMonth.toISOString().split('T')[0]} (${registrationMonth})`);
 
-	// ⭐ 중복 제거: 같은 사용자가 여러 번 승급 시 (최초 oldGrade, 최종 newGrade, 첫 승급일 추적)
+	// ⭐ 중복 제거 및 정확한 승급일 계산
 	const promotedMap = new Map();
 	for (const p of promotedRaw) {
+		// 승급일 계산: 이 사용자의 하위 노드 중 배치에 포함된 노드의 최신 등록일
+		let promotionDate = null;
+		
+		// 해당 사용자의 모든 하위 노드 조회
+		const promotedUser = await User.findById(p.userId).lean();
+		if (promotedUser) {
+			// 하위 노드들 중 이번 배치에 등록된 노드 찾기
+			const descendants = await User.find({ 
+				parentId: { $ne: null } 
+			}).lean();
+			
+			// BFS로 해당 사용자의 직계 하위 노드 찾기
+			const descendantIds = [];
+			const queue = [promotedUser._id.toString()];
+			const visited = new Set([promotedUser._id.toString()]);
+			
+			while (queue.length > 0) {
+				const currentId = queue.shift();
+				// 자식 노드 찾기
+				const children = descendants.filter(d => 
+					d.parentId && d.parentId.toString() === currentId
+				);
+				for (const child of children) {
+					const childId = child._id.toString();
+					if (!visited.has(childId)) {
+						visited.add(childId);
+						descendantIds.push(childId);
+						queue.push(childId);
+					}
+				}
+			}
+			
+			// 배치에 포함된 하위 노드의 등록일 중 최대값
+			for (const descId of descendantIds) {
+				if (batchUserIds.has(descId)) {
+					const descDate = batchUserDates.get(descId);
+					if (descDate && (!promotionDate || descDate > promotionDate)) {
+						promotionDate = descDate;
+					}
+				}
+			}
+		}
+		
+		// 하위 노드가 없으면 배치 내 첫 등록일 사용 (fallback)
+		if (!promotionDate) {
+			const registrationDates = users.map(u => u.registrationDate || u.createdAt).filter(d => d);
+			promotionDate = registrationDates.length > 0 ? registrationDates[0] : new Date();
+		}
+		
 		if (!promotedMap.has(p.userId)) {
 			// 첫 승급 기록
 			promotedMap.set(p.userId, {
@@ -66,14 +116,13 @@ export async function executeStep2(users) {
 				changeType: p.changeType,
 				oldGrade: p.oldGrade,  // 최초 등급
 				newGrade: p.newGrade,  // 현재 등급 (계속 업데이트됨)
-				promotionDate: promotionDateForMonth  // ⭐ 귀속월 기준 승급일
+				promotionDate: promotionDate  // ⭐ 하위 노드 등록일 기준
 			});
 		} else {
 			// 이미 있으면 newGrade만 업데이트 (oldGrade, promotionDate는 최초값 유지)
 			const existing = promotedMap.get(p.userId);
 			console.log(`    🔄 다단계 승급 감지: ${p.userName} (${existing.oldGrade} → ${existing.newGrade} → ${p.newGrade})`);
 			existing.newGrade = p.newGrade;
-			// promotionDate는 그대로 유지 (첫 승급일 보존)
 		}
 	}
 	const promoted = Array.from(promotedMap.values());
@@ -153,6 +202,17 @@ export async function executeStep2(users) {
 
 	// 2-7. 미승급자 수 계산 (이번 달 등록자 중 승급 안 한 사람)
 	monthlyReg.nonPromotedCount = monthlyReg.registrationCount - monthlyReg.promotedCount;
+
+	// ⭐ 2-7-2. 승급자 lastGradeChangeDate 업데이트
+	if (promoted.length > 0) {
+		console.log(`\n📅 [Step2-7-2] 승급자 lastGradeChangeDate 업데이트: ${promoted.length}명`);
+		for (const prom of promoted) {
+			await User.findByIdAndUpdate(prom.userId, {
+				lastGradeChangeDate: prom.promotionDate
+			});
+			console.log(`    → ${prom.userName}: lastGradeChangeDate = ${prom.promotionDate.toISOString().split('T')[0]}`);
+		}
+	}
 
 	// 2-8. 저장
 	await monthlyReg.save();

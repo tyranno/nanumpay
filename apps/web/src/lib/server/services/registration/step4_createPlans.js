@@ -111,12 +111,21 @@ export async function executeStep4(promoted, targets, gradePayments, monthlyReg,
         continue;
       }
 
-      // ⭐ 승급일 = promoted 배열에서 전달받은 promotionDate (첫 승급일) 사용
-      // promoted 배열에서 해당 사용자 찾기
-      const promotionInfo = promoted.find(p => p.userId === prom.userId);
-      const promotionDate = promotionInfo?.promotionDate || new Date();
+      // ⭐ v8.0: 이미 해당 등급의 promotion 계획이 있으면 스킵 (중복 방지)
+      const existingPlan = await WeeklyPaymentPlans.findOne({
+        userId: prom.userId,
+        baseGrade: prom.grade,
+        planType: 'promotion'
+      });
+      if (existingPlan) {
+        console.log(`[기존 승급자] ${prom.userName}: ${prom.grade} promotion 계획 이미 존재 → 스킵`);
+        continue;
+      }
 
-      console.log(`[기존 승급자] ${prom.userName}: 첫 승급일 = ${promotionDate.toISOString().split('T')[0]}`);
+      // ⭐ v8.0: 승급일 = User.lastGradeChangeDate 사용 (정확한 승급일)
+      const promotionDate = user.lastGradeChangeDate || new Date();
+
+      console.log(`[기존 승급자] ${prom.userName}: 승급일 = ${promotionDate.toISOString().split('T')[0]}`);
 
       // newGrade Promotion 계획 생성
       const promotionPlan = await createPromotionPaymentPlan(
