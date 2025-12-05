@@ -1,5 +1,5 @@
 // scripts/deploy2.cjs
-// 검증 서버 (34.64.105.51) 배포용 스크립트
+// 검증 서버 (nanumpay.xyz) 배포용 스크립트
 'use strict';
 
 const fs = require('fs');
@@ -9,8 +9,7 @@ const cp = require('child_process');
 const ROOT = process.cwd();
 const RELEASE_DIR = path.join(ROOT, 'apps', 'web', 'release');
 const SSH_KEY = path.join(process.env.HOME, '.ssh', 'gcp_verify');
-const VERIFY_SERVER = '34.64.105.51';
-const VERIFY_PORT = 3100;
+const VERIFY_SERVER = 'nanumpay.xyz';
 const VERIFY_USER = 'tyranno';
 
 // 설정 검증
@@ -143,14 +142,14 @@ function installPackage(remotePath) {
 		'echo "📦 install.sh 실행 중..."',
 		'sudo bash install.sh',
 		'',
-		'# 방화벽 설정 (포트 80, 3100)',
+		'# 방화벽 설정 (포트 80, 443)',
 		'echo "🔥 방화벽 설정 중..."',
 		'if command -v ufw >/dev/null 2>&1; then',
 		'  UFW_STATUS=$(sudo ufw status | head -1)',
 		'  if echo "$UFW_STATUS" | grep -q "Status: active"; then',
 		'    sudo ufw allow 80/tcp || true',
-		'    sudo ufw allow 3100/tcp || true',
-		'    echo "✅ 포트 80, 3100 허용 완료"',
+		'    sudo ufw allow 443/tcp || true',
+		'    echo "✅ 포트 80, 443 허용 완료"',
 		'  fi',
 		'fi',
 		'',
@@ -183,12 +182,6 @@ function verifyDeployment() {
 			encoding: 'utf8'
 		}).trim();
 
-		// 포트 3100 (Nanumpay) 확인
-		const port3100Result = cp.execSync(`ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no ${VERIFY_USER}@${VERIFY_SERVER} "curl -s -o /dev/null -w '%{http_code}' http://localhost:${VERIFY_PORT} || echo 'CURL_FAILED'"`, {
-			stdio: ['ignore', 'pipe', 'ignore'],
-			encoding: 'utf8'
-		}).trim();
-
 		console.log('');
 		console.log('📊 서비스 상태:');
 
@@ -196,12 +189,6 @@ function verifyDeployment() {
 			console.log('✅ Nginx (포트 80): 정상');
 		} else {
 			console.warn(`⚠️  Nginx (포트 80): 응답 코드 ${port80Result}`);
-		}
-
-		if (port3100Result === '200' || port3100Result === '302') {
-			console.log('✅ Nanumpay (포트 3100): 정상');
-		} else {
-			console.warn(`⚠️  Nanumpay (포트 3100): 응답 코드 ${port3100Result}`);
 		}
 
 		// 외부 접속 테스트 (포트 80)
@@ -241,8 +228,7 @@ function verifyDeployment() {
 	console.log('sudo ufw status');
 	console.log('');
 	console.log('🔗 브라우저에서 확인:');
-	console.log(`http://${VERIFY_SERVER} (포트 80 - Nginx)`);
-	console.log(`http://${VERIFY_SERVER}:${VERIFY_PORT} (포트 3100 - 직접)`);
+	console.log(`https://www.nanumpay.xyz`);
 }
 
 // 메인 함수
@@ -276,8 +262,8 @@ function main() {
 		console.log('');
 		console.log('📋 배포된 내용:');
 		console.log(`   - 릴리스: ${release.name}`);
-		console.log('   - Nginx (포트 80)');
-		console.log('   - Nanumpay (포트 3100)');
+		console.log('   - Nginx (포트 80/443)');
+		console.log('   - Nanumpay');
 		console.log('   - MongoDB');
 
 	} catch (error) {
