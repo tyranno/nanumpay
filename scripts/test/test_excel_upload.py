@@ -24,7 +24,8 @@ EXCEL_FILES = {
     "7월": "test-data/test/7월_용역자명단_간단.xlsx",
     "8월": "test-data/test/8월_용역자명단_간단.xlsx",
     "9월": "test-data/test/9월_용역자명단_간단.xlsx",
-    "10월": "test-data/test/10월_용역자명단_간단.xlsx"
+    "10월": "test-data/test/10월_용역자명단_간단.xlsx",
+    "11월": "test-data/verfify2/계약자관리명부(11월).xlsx"
 }
 
 def login_admin():

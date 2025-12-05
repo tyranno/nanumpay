@@ -222,11 +222,24 @@ async function createAdditionalPaymentPlan(userId, userName, grade, 추가지급
 
     if (추가지급단계 === 1) {
       // 추가1차: 등록/승급일 + 2개월 후 첫 금요일
-      additionalPaymentBaseDate = latestPlan?.additionalPaymentBaseDate || new Date();
+      // ⭐ v8.0 마이그레이션: additionalPaymentBaseDate가 없으면 startDate에서 역계산
+      if (latestPlan?.additionalPaymentBaseDate) {
+        additionalPaymentBaseDate = latestPlan.additionalPaymentBaseDate;
+      } else if (latestPlan?.startDate) {
+        // startDate = baseDate + 1개월 → 첫 금요일
+        // 역계산: startDate에서 약 1개월 전으로 추정
+        const estimatedBaseDate = new Date(latestPlan.startDate);
+        estimatedBaseDate.setMonth(estimatedBaseDate.getMonth() - 1);
+        additionalPaymentBaseDate = estimatedBaseDate;
+        console.log(`[createAdditionalPaymentPlan] additionalPaymentBaseDate 역계산: startDate=${latestPlan.startDate.toISOString().split('T')[0]} → baseDate=${estimatedBaseDate.toISOString().split('T')[0]}`);
+      } else {
+        additionalPaymentBaseDate = new Date();
+        console.warn(`[createAdditionalPaymentPlan] ${userName} - 기준일 없음, 오늘 날짜 사용`);
+      }
       const baseDate = new Date(additionalPaymentBaseDate);
       baseDate.setMonth(baseDate.getMonth() + 2);
       firstPaymentDate = WeeklyPaymentPlans.getNextFriday(baseDate);
-      console.log(`[createAdditionalPaymentPlan] 추가1차: 기준일=${additionalPaymentBaseDate.toISOString().split('T')[0]}, +2개월 후 시작=${firstPaymentDate.toISOString().split('T')[0]}`);
+      console.log(`[createAdditionalPaymentPlan] 추가1차: 기준일=${new Date(additionalPaymentBaseDate).toISOString().split('T')[0]}, +2개월 후 시작=${firstPaymentDate.toISOString().split('T')[0]}`);
     } else {
       // 추가2차+: 이전 추가지급 시작일 + 1개월 후 첫 금요일
       additionalPaymentBaseDate = latestPlan?.startDate || new Date();
@@ -268,7 +281,7 @@ async function createAdditionalPaymentPlan(userId, userName, grade, 추가지급
       추가지급단계: 추가지급단계,  // ⭐ Step 3에서 계산된 값 사용
       baseGrade: grade,
       revenueMonth: revenueMonth,
-      additionalPaymentBaseDate: latestPlan?.additionalPaymentBaseDate || new Date(),  // v8.0
+      additionalPaymentBaseDate: additionalPaymentBaseDate,  // v8.0: 위에서 계산된 값 사용
       startDate: firstPaymentDate,
       totalInstallments: 10,
       completedInstallments: 0,

@@ -45,10 +45,15 @@ export async function executeStep2(users) {
 		});
 	}
 
-	// ⭐ 승급일 계산: 귀속월의 중간 날짜 (15일) 사용
-	const [year, month] = registrationMonth.split('-').map(Number);
-	const promotionDateForMonth = new Date(Date.UTC(year, month - 1, 15, 0, 0, 0, 0));
-	console.log(`📅 승급일 기준: ${promotionDateForMonth.toISOString().split('T')[0]} (${registrationMonth})`);
+	// ⭐ 승급일 = 등록일 (엑셀 날짜 컬럼 → User.createdAt으로 저장됨)
+	// 승급은 등록으로 인해 발생하므로, 등록일이 곧 승급일
+	const registrationDates = users.map(u => u.registrationDate || u.createdAt).filter(d => d);
+	if (registrationDates.length === 0) {
+		throw new Error('등록일이 없는 사용자가 있습니다. 엑셀 날짜 컬럼을 확인하세요.');
+	}
+	// 가장 최근 등록일을 승급일로 사용 (같은 배치는 보통 같은 날짜)
+	const promotionDateForMonth = new Date(Math.max(...registrationDates.map(d => d.getTime())));
+	console.log(`📅 승급일 (등록일 기준): ${promotionDateForMonth.toISOString().split('T')[0]} (${registrationMonth})`);
 
 	// ⭐ 중복 제거: 같은 사용자가 여러 번 승급 시 (최초 oldGrade, 최종 newGrade, 첫 승급일 추적)
 	const promotedMap = new Map();
