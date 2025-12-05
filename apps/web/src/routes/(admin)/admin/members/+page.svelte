@@ -466,21 +466,47 @@
 		const monthGroups = {};
 		for (const item of allData) {
 			let dateValue = item.__EMPTY_1 || item.__EMPTY || '';
-			
+			let monthKey = '';
+
 			// Excel 시리얼 번호 감지 및 변환 (숫자이고 1900 이상이면 Excel 날짜)
 			if (typeof dateValue === 'number' || (!isNaN(dateValue) && Number(dateValue) > 1900)) {
 				const serial = Number(dateValue);
 				// Excel 시리얼 번호를 Date로 변환 (1900-01-01 = 1)
 				const epoch = new Date(1899, 11, 30);
 				const date = new Date(epoch.getTime() + serial * 86400000);
-				// "YYYY-MM-DD" 형식으로 변환
+				// "YYYY-MM" 형식으로 변환
 				const year = date.getFullYear();
 				const month = String(date.getMonth() + 1).padStart(2, '0');
-				const day = String(date.getDate()).padStart(2, '0');
-				dateValue = `${year}-${month}-${day}`;
+				monthKey = `${year}-${month}`;
+			} else if (typeof dateValue === 'string') {
+				// 다양한 문자열 날짜 형식 처리
+				const dateStr = dateValue.trim();
+
+				// "MM/DD/YYYY" 또는 "M/D/YYYY" 형식 (예: 10/24/2025)
+				const slashMatch = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+				if (slashMatch) {
+					const [, m, , y] = slashMatch;
+					monthKey = `${y}-${m.padStart(2, '0')}`;
+				}
+				// "YYYY-MM-DD" 형식 (예: 2025-10-24)
+				else if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+					monthKey = dateStr.substring(0, 7);
+				}
+				// "YYYY/MM/DD" 형식 (예: 2025/10/24)
+				else if (/^\d{4}\/\d{2}\/\d{2}$/.test(dateStr)) {
+					monthKey = dateStr.substring(0, 7).replace('/', '-');
+				}
+				// "YYYY-MM" 형식 (이미 월 형식)
+				else if (/^\d{4}-\d{2}$/.test(dateStr)) {
+					monthKey = dateStr;
+				}
+				// 기타: 그냥 substring 시도
+				else {
+					monthKey = dateStr.substring(0, 7);
+				}
 			}
-			
-			const monthKey = String(dateValue).substring(0, 7); // "2025-07"
+
+			if (!monthKey) continue; // 날짜 파싱 실패 시 스킵
 
 			if (!monthGroups[monthKey]) {
 				monthGroups[monthKey] = [];
