@@ -60,7 +60,7 @@ export async function GET({ url, locals }) {
 
 		// ⭐ v8.0: 사용자 목록 조회 + UserAccount, PlannerAccount populate
 		const users = await User.find(query)
-			.populate('userAccountId', 'loginId canViewSubordinates phone bank accountNumber idNumber insuranceAmount')
+			.populate('userAccountId', 'loginId canViewSubordinates phone bank accountNumber idNumber')
 			.populate('plannerAccountId', 'name phone')
 			.select('-passwordHash')
 			.sort(sortOptions)
@@ -83,7 +83,7 @@ export async function GET({ url, locals }) {
 				bank: user.userAccountId?.bank || '',
 				accountNumber: user.userAccountId?.accountNumber || '',
 				idNumber: user.userAccountId?.idNumber || '',
-				insuranceAmount: user.userAccountId?.insuranceAmount || 0,
+				insuranceAmount: user.insuranceAmount || 0,
 				// ⭐ v8.0: PlannerAccount 필드들
 				planner: user.plannerAccountId?.name || '',
 				plannerPhone: user.plannerAccountId?.phone || '',
@@ -148,11 +148,7 @@ export async function PUT({ request, locals }) {
 			userAccountFields.idNumber = updateData.idNumber;
 			delete updateData.idNumber;
 		}
-		if (updateData.insuranceAmount !== undefined) {
-			userAccountFields.insuranceAmount = updateData.insuranceAmount;
-			// ⭐ insuranceAmount는 User에도 필요하므로 delete하지 않음
-			// delete updateData.insuranceAmount;
-		}
+		// ⭐ insuranceAmount는 User에만 저장 (UserAccount에는 저장 안 함)
 
 		// User 업데이트
 		const user = await User.findByIdAndUpdate(

@@ -65,8 +65,8 @@ export async function processWeeklyPayments(date = new Date()) {
       const installment = plan.getInstallmentByDate(paymentDate);
       if (!installment) continue;
 
-      // 사용자 정보 조회 (UserAccount populate)
-      const user = await User.findById(plan.userId).populate('userAccountId', 'insuranceAmount');
+      // 사용자 정보 조회
+      const user = await User.findById(plan.userId);
       if (!user) {
         console.log(`사용자 ${plan.userId} 없음`);
         continue;
@@ -194,8 +194,8 @@ async function checkInsuranceCondition(user, grade) {
     F7: 100000, F8: 100000
   };
 
-  // UserAccount에서 보험 금액 조회
-  const insuranceAmount = user.userAccountId?.insuranceAmount || 0;
+  // User에서 보험 금액 조회
+  const insuranceAmount = user.insuranceAmount || 0;
 
   if (insuranceAmount < requiredAmounts[grade]) {
     return {

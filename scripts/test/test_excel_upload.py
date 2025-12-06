@@ -4,14 +4,15 @@
 v8.0: ID 기반 계정 시스템
 
 사용법:
-  python3 scripts/test/test_excel_upload.py 7월      # 7월_용역자명단_root.xlsx
-  python3 scripts/test/test_excel_upload.py 8-9월    # 8-9월_용역자명단_간단.xlsx
-  python3 scripts/test/test_excel_upload.py all      # 전체 순차 테스트
+  python3 scripts/test/test_excel_upload.py 7월                    # test 폴더
+  python3 scripts/test/test_excel_upload.py 7월 --folder verify    # verify 폴더
+  python3 scripts/test/test_excel_upload.py all --folder verify    # 전체 순차 테스트
 """
 
 import requests
 import sys
 import json
+import argparse
 import openpyxl
 from pathlib import Path
 
@@ -19,13 +20,25 @@ BASE_URL = "http://localhost:3100"
 ADMIN_LOGIN_ID = "관리자"
 ADMIN_PASSWORD = "admin1234!!"
 
-# 엑셀 파일 경로
-EXCEL_FILES = {
-    "7월": "test-data/test/7월_용역자명단_간단.xlsx",
-    "8월": "test-data/test/8월_용역자명단_간단.xlsx",
-    "9월": "test-data/test/9월_용역자명단_간단.xlsx",
-    "10월": "test-data/test/10월_용역자명단_간단.xlsx",
-    "11월": "test-data/verfify2/계약자관리명부(11월).xlsx"
+# 폴더별 엑셀 파일 경로 설정
+FOLDER_FILES = {
+    "test": {
+        "7월": "test-data/test/7월_용역자명단_간단.xlsx",
+        "8월": "test-data/test/8월_용역자명단_간단.xlsx",
+        "9월": "test-data/test/9월_용역자명단_간단.xlsx",
+        "10월": "test-data/test/10월_용역자명단_간단.xlsx",
+    },
+    "verify": {
+        "7월": "test-data/verify/7월_용역자명단_간단.xlsx",
+        "7월추가": "test-data/verify/7월_용역자명단_추가.xlsx",
+        "8월": "test-data/verify/8월_용역자명단_간단.xlsx",
+        "9월": "test-data/verify/9월_용역자명단_간단.xlsx",
+        "10월": "test-data/verify/10월_용역자명단_간단.xlsx",
+    },
+    "verfify2": {
+        "10월": "test-data/verfify2/계약자관리명부(10월).xlsx",
+        "11월": "test-data/verfify2/계약자관리명부(11월).xlsx",
+    }
 }
 
 def login_admin():
@@ -42,7 +55,6 @@ def login_admin():
 
     if response.status_code == 200:
         print(f"✅ 관리자 로그인 성공")
-        # 쿠키에서 세션 추출
         return response.cookies
     else:
         print(f"❌ 로그인 실패: {response.status_code}")
@@ -58,15 +70,12 @@ def read_excel_to_json(file_path):
 
     # 헤더 추출 (첫 번째 행)
     headers = []
-    header_names = []
     for idx, cell in enumerate(ws[1]):
         if cell.value:
             header_name = str(cell.value).strip()
             headers.append(header_name)
-            header_names.append(header_name)
         else:
             headers.append(None)
-            header_names.append(None)
 
     print(f"📋 컬럼: {[h for h in headers if h]}")
 
@@ -105,7 +114,7 @@ def upload_excel_data(cookies, users_data, file_name):
 
     response = requests.post(
         f"{BASE_URL}/api/admin/users/bulk",
-        json={"users": users_data},
+        json={"users": users_data, "fileName": file_name},
         cookies=cookies
     )
 
@@ -119,7 +128,7 @@ def upload_excel_data(cookies, users_data, file_name):
 
         if result.get('errors'):
             print(f"\n❌ 오류 목록:")
-            for error in result.get('errors', [])[:5]:  # 최대 5개만 표시
+            for error in result.get('errors', [])[:5]:
                 print(f"  • {error}")
             if len(result.get('errors', [])) > 5:
                 print(f"  ... 외 {len(result.get('errors', [])) - 5}개")
@@ -193,11 +202,16 @@ def verify_users(cookies):
         return []
 
 def main():
-    if len(sys.argv) < 2:
-        print("사용법: python3 scripts/test/test_excel_upload.py [7월|8-9월|all]")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description='엑셀 업로드 테스트')
+    parser.add_argument('month', help='월 (7월, 8월, 9월, 10월, 11월, all)')
+    parser.add_argument('--folder', '-f', default='test',
+                        choices=['test', 'verify', 'verfify2'],
+                        help='데이터 폴더 (기본: test)')
 
-    test_type = sys.argv[1]
+    args = parser.parse_args()
+
+    # 폴더별 파일 목록 가져오기
+    excel_files = FOLDER_FILES.get(args.folder, FOLDER_FILES['test'])
 
     # 프로젝트 루트로 이동
     project_root = Path(__file__).parent.parent.parent
@@ -205,14 +219,14 @@ def main():
     # 로그인
     cookies = login_admin()
 
-    if test_type == "all":
+    if args.month == "all":
         # 전체 순차 테스트
-        print("\n" + "="*60)
-        print("🚀 전체 엑셀 업로드 테스트 시작")
-        print("="*60 + "\n")
+        print(f"\n{'='*60}")
+        print(f"🚀 전체 엑셀 업로드 테스트 시작 (폴더: {args.folder})")
+        print(f"{'='*60}\n")
 
-        for file_key in ["7월", "8월", "9월", "10월"]:
-            file_path = project_root / EXCEL_FILES[file_key]
+        for file_key in sorted(excel_files.keys()):
+            file_path = project_root / excel_files[file_key]
 
             if not file_path.exists():
                 print(f"❌ 파일 없음: {file_path}")
@@ -228,27 +242,27 @@ def main():
             if result:
                 verify_users(cookies)
 
-    elif test_type in EXCEL_FILES:
+    elif args.month in excel_files:
         # 개별 파일 테스트
-        file_path = project_root / EXCEL_FILES[test_type]
+        file_path = project_root / excel_files[args.month]
 
         if not file_path.exists():
             print(f"❌ 파일 없음: {file_path}")
             sys.exit(1)
 
         print(f"\n{'='*60}")
-        print(f"🚀 {test_type} 엑셀 업로드 테스트")
+        print(f"🚀 {args.month} 엑셀 업로드 테스트 (폴더: {args.folder})")
         print(f"{'='*60}\n")
 
         users_data = read_excel_to_json(file_path)
-        result = upload_excel_data(cookies, users_data, test_type)
+        result = upload_excel_data(cookies, users_data, args.month)
 
         if result:
             verify_users(cookies)
 
     else:
-        print(f"❌ 알 수 없는 테스트 타입: {test_type}")
-        print(f"사용 가능: {', '.join(EXCEL_FILES.keys())}, all")
+        print(f"❌ 알 수 없는 월: {args.month}")
+        print(f"사용 가능 ({args.folder}): {', '.join(excel_files.keys())}, all")
         sys.exit(1)
 
 if __name__ == "__main__":

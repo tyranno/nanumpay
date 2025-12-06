@@ -523,12 +523,9 @@ function getFirstFridayOfMonth(monthKey) {
  */
 export async function checkAndCreateAdditionalPlan(completedPlan) {
 	try {
-		// User 모델에서 최신 등급 및 보험 정보 조회 (UserAccount populate)
+		// User 모델에서 최신 등급 및 보험 정보 조회
 		const User = mongoose.model('User');
-		const user = await User.findOne({ loginId: completedPlan.userId }).populate(
-			'userAccountId',
-			'insuranceAmount'
-		);
+		const user = await User.findOne({ loginId: completedPlan.userId });
 
 		if (!user) {
 			return null;
@@ -560,7 +557,7 @@ export async function checkAndCreateAdditionalPlan(completedPlan) {
 				F7: 100000,
 				F8: 100000
 			};
-			const insuranceAmount = user.userAccountId?.insuranceAmount || 0;
+			const insuranceAmount = user.insuranceAmount || 0;
 			if (insuranceAmount < requiredAmounts[user.grade]) {
 				return null; // 보험 조건 미충족
 			}
@@ -842,7 +839,7 @@ export async function createAdditionalPaymentPlanV8(previousPlan) {
 			const requiredAmounts = {
 				F3: 50000, F4: 50000, F5: 70000, F6: 70000, F7: 100000, F8: 100000
 			};
-			const insuranceAmount = user.userAccountId?.insuranceAmount || 0;
+			const insuranceAmount = user.insuranceAmount || 0;
 			if (insuranceAmount < requiredAmounts[baseGrade]) {
 				console.log(`[createAdditionalPaymentPlanV8] ${previousPlan.userId} 보험 미충족: ${insuranceAmount} < ${requiredAmounts[baseGrade]}`);
 				return null;
