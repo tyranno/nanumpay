@@ -266,12 +266,14 @@ export async function getRangePayments(startYear, startMonth, endYear, endMonth,
 				const gradeInfo = allGradeInfos.length > 0 ? allGradeInfos[0] : '-';
 
 				return {
-					no: (page - 1) * limit + idx + 1,
-					userId: userId,
-					userName: user.name,
-					planner: plannerAccount.name || '',
-					bank: userAccount.bank || '',
-					accountNumber: userAccount.accountNumber || '',
+				no: (page - 1) * limit + idx + 1,
+				userId: userId,
+				userName: user.name,
+				userAccountId: user.userAccountId?._id?.toString() || '',
+				accountName: userAccount.name || user.name,
+				planner: plannerAccount.name || '',
+				bank: userAccount.bank || '',
+				accountNumber: userAccount.accountNumber || '',
 					grade: periodGrade,
 					gradeInfo,
 				totalAmount: weeks.reduce((sum, week) => {

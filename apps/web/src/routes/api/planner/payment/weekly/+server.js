@@ -31,7 +31,8 @@ export async function GET({ url, locals }) {
 
 		// 페이지네이션
 		const page = parseInt(url.searchParams.get('page')) || 1;
-		const limit = parseInt(url.searchParams.get('limit')) || 20;
+		const fetchAll = url.searchParams.get('fetchAll') === 'true'; // ⭐ 전체 데이터 조회 옵션
+		const limit = fetchAll ? 10000 : (parseInt(url.searchParams.get('limit')) || 20); // ⭐ fetchAll이면 큰 숫자
 		const search = url.searchParams.get('search') || '';
 		const searchCategory = url.searchParams.get('searchCategory') || 'name';
 

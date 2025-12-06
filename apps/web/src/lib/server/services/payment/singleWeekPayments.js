@@ -110,13 +110,14 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
 		{
 			$addFields: {
 				registrationNumber: { $arrayElemAt: ['$userInfo.registrationNumber', 0] },
-				registrationDate: { $arrayElemAt: ['$userInfo.registrationDate', 0] },
-				createdAt: { $arrayElemAt: ['$userInfo.createdAt', 0] },
-			sequence: { $arrayElemAt: ['$userInfo.sequence', 0] },  // ⭐ 등록 순서
-			userObjectId: { $arrayElemAt: ['$userInfo._id', 0] },
-				plannerAccountId: { $arrayElemAt: ['$userInfo.plannerAccountId', 0] },
-				bank: { $arrayElemAt: ['$userInfo.bank', 0] },
-				accountNumber: { $arrayElemAt: ['$userInfo.accountNumber', 0] }
+			registrationDate: { $arrayElemAt: ['$userInfo.registrationDate', 0] },
+			createdAt: { $arrayElemAt: ['$userInfo.createdAt', 0] },
+		sequence: { $arrayElemAt: ['$userInfo.sequence', 0] },  // ⭐ 등록 순서
+		userObjectId: { $arrayElemAt: ['$userInfo._id', 0] },
+			plannerAccountId: { $arrayElemAt: ['$userInfo.plannerAccountId', 0] },
+			userAccountId: { $arrayElemAt: ['$userInfo.userAccountId', 0] },  // ⭐ 계좌 ID (그룹핑용)
+			bank: { $arrayElemAt: ['$userInfo.bank', 0] },
+			accountNumber: { $arrayElemAt: ['$userInfo.accountNumber', 0] }
 			}
 		},
 		{
@@ -218,6 +219,8 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
 			no: (page - 1) * limit + idx + 1,
 			userId: payment._id,
 			userName: payment.userName,
+			userAccountId: user.userAccountId?._id?.toString() || '',
+			accountName: userAccount.name || payment.userName,
 			planner: plannerAccount.name || '',
 			bank: userAccount.bank || '',
 			accountNumber: userAccount.accountNumber || '',

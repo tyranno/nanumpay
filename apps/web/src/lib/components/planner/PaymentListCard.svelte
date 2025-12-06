@@ -3,7 +3,7 @@
 	import { paymentPageFilterState } from '$lib/stores/dashboardStore';
 	import { plannerPaymentService } from '$lib/services/plannerPaymentService';
 	import PaymentHeader from '$lib/components/shared/payment/PaymentHeader.svelte';
-	import PaymentTable from '$lib/components/shared/payment/PaymentTable.svelte';
+	import PlannerPaymentTable from '$lib/components/planner/PlannerPaymentTable.svelte';
 
 	// 지급명부 상태 변수
 	let paymentList = [];
@@ -41,11 +41,12 @@
 				startMonth: filterState.startMonth,
 				endYear: filterState.endYear,
 				endMonth: filterState.endMonth,
-				page,
-				limit: filterState.itemsPerPage,
+				page: 1,  // ⭐ 항상 1페이지 (프론트엔드 페이지네이션)
+				limit: 10000,  // ⭐ 전체 데이터 조회
 				searchQuery: filterState.searchQuery,
 				searchCategory: filterState.searchCategory,
-				periodType: filterState.periodType
+				periodType: filterState.periodType,
+				fetchAll: true  // ⭐ 전체 데이터 조회 (그룹핑용)
 			});
 
 			paymentList = result.paymentList;
@@ -100,14 +101,14 @@
 		net: apiGrandTotal.totalNet || 0
 	} : { amount: 0, tax: 0, net: 0 };
 
-	// 엑셀 다운로드
+	// ⭐ 설계사 전용 엑셀 다운로드 (그룹핑 + 소계 포함)
 	async function handleExcelExport() {
 		try {
-			const { PaymentExcelExporter } = await import('$lib/utils/paymentExcelExporter.js');
+			const { PlannerPaymentExcelExporter } = await import('$lib/utils/plannerPaymentExcelExporter.js');
 
-			const filterState = $paymentPageFilterState; // ⭐ 스냅샷 사용
+			const filterState = $paymentPageFilterState;
 
-			const exporter = new PaymentExcelExporter({
+			const exporter = new PlannerPaymentExcelExporter({
 				filterType: filterState.filterType,
 				selectedDate: filterState.selectedDate,
 				startYear: filterState.startYear,
@@ -115,16 +116,15 @@
 				endYear: filterState.endYear,
 				endMonth: filterState.endMonth,
 				periodType: filterState.periodType,
-				showGradeInfoColumn: filterState.showGradeInfoColumn, // ⭐ 등급(회수)
+				showGradeInfoColumn: filterState.showGradeInfoColumn,
 				showTaxColumn: filterState.showTaxColumn,
 				showNetColumn: filterState.showNetColumn,
 				searchQuery: filterState.searchQuery,
 				searchCategory: filterState.searchCategory,
-				plannerName: '',
-				isPlanner: true
+				plannerName: ''
 			});
 
-			await exporter.export(filteredPaymentList, weeklyColumns, apiGrandTotal);
+			await exporter.export(filteredPaymentList, weeklyColumns, grandTotal);
 		} catch (err) {
 			console.error('엑셀 내보내기 오류:', err);
 			alert('엑셀 파일 생성 중 오류가 발생했습니다.');
@@ -162,20 +162,13 @@
 		showPlannerOption={false}
 	/>
 
-	<PaymentTable
-		{paymentList}
-		{filteredPaymentList}
+	<PlannerPaymentTable
+		paymentList={filteredPaymentList}
 		{weeklyColumns}
 		{isLoading}
 		{error}
-		{currentPage}
-		{totalPages}
-		{totalPaymentTargets}
-		itemsPerPage={$paymentPageFilterState.itemsPerPage}
-		onPageChange={goToPage}
 		{grandTotal}
 		{weeklyTotals}
 		{monthlyTotals}
-		showPlannerColumn={false}
 	/>
 </div>
