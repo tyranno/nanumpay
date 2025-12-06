@@ -1,6 +1,37 @@
 <script>
 	import { paymentPageFilterState } from '$lib/stores/dashboardStore';
 	import Pagination from '$lib/components/Pagination.svelte';
+	import PaymentDetailModal from './PaymentDetailModal.svelte';
+
+	// 모달 상태
+	let isModalOpen = false;
+	let selectedUserName = '';
+	let selectedWeekLabel = '';
+	let selectedUserId = '';
+	let selectedWeekInfo = null;  // { year, month, week }
+
+	// 등급(회수) 클릭 핸들러 (주별/주간 조회에서만 동작, 월별은 제외)
+	function handleGradeInfoClick(user, payment, week) {
+		// 월별 조회 시 모달 미표시
+		if (periodType === 'monthly') return;
+
+		if (user?.userId && payment?.gradeInfo && payment.gradeInfo !== '-') {
+			selectedUserName = user.name;
+			selectedWeekLabel = week.label;
+			selectedUserId = user.userId;
+			selectedWeekInfo = { year: week.year, month: week.month, week: week.week };
+			isModalOpen = true;
+		}
+	}
+
+	// 모달 닫기 핸들러
+	function handleModalClose() {
+		isModalOpen = false;
+		selectedUserName = '';
+		selectedWeekLabel = '';
+		selectedUserId = '';
+		selectedWeekInfo = null;
+	}
 
 	// Props
 	export let paymentList = [];
@@ -209,18 +240,19 @@
 											: `${week.year}_${week.month}_${week.week}`}
 									{@const payment = user.payments[key]}
 				{#if showGradeInfoColumn}
-					<td class="td-grade-info">
+					<!-- svelte-ignore a11y_click_events_have_key_events -->
+					<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+					<td
+						class="td-grade-info{periodType !== 'monthly' && payment?.gradeInfo && payment?.gradeInfo !== '-' ? ' clickable-cell' : ''}"
+						title={payment?.installmentDetails
+							? payment.installmentDetails.map((d) => `${d.revenueMonth} ${d.week}회차`).join(', ')
+							: ''}
+						on:click={() => handleGradeInfoClick(user, payment, week)}
+					>
 						{payment?.gradeInfo || '-'}
 					</td>
 				{/if}
-				<td
-					class="td-amount{showGradeInfoColumn ? '' : ' period-border'}"
-					title={payment?.installmentDetails
-			? payment.installmentDetails
-				.map((d) => `${d.revenueMonth} ${d.week}회차`)
-				.join(', ')
-			: ''}
-				>
+				<td class="td-amount{showGradeInfoColumn ? '' : ' period-border'}">
 					{formatAmount(payment?.amount)}
 				</td>
 				{#if showTaxColumn}
@@ -289,6 +321,16 @@
 		{/if}
 	</div>
 {/if}
+
+<!-- 지급 상세 모달 -->
+<PaymentDetailModal
+	isOpen={isModalOpen}
+	userName={selectedUserName}
+	weekLabel={selectedWeekLabel}
+	userId={selectedUserId}
+	weekInfo={selectedWeekInfo}
+	onClose={handleModalClose}
+/>
 
 <style>
 	@reference "$lib/../app.css";
@@ -569,6 +611,15 @@
 
 	.grand-total-tax {
 		@apply bg-red-200 text-red-700;
+	}
+
+	/* 클릭 가능한 셀 */
+	.clickable-cell {
+		@apply cursor-pointer transition-colors;
+	}
+
+	.clickable-cell:hover {
+		@apply bg-yellow-300 !important;
 	}
 
 	/* 모바일에서 sticky 제거 */
