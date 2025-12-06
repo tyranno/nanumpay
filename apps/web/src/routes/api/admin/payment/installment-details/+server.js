@@ -62,7 +62,7 @@ export async function GET({ url, locals }) {
 					baseGrade: plan.baseGrade,
 					planType: plan.planType,
 					추가지급단계: plan.추가지급단계 || 0,
-					baseDate: plan.additionalPaymentBaseDate, // 등록/승급일
+					baseDate: plan.additionalPaymentBaseDate || plan.createdAt, // 등록/승급일 (없으면 생성일)
 					startDate: plan.startDate, // 첫 지급일
 					revenueMonth: inst.revenueMonth,
 					week: inst.week,
