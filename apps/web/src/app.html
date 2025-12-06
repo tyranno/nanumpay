@@ -10,6 +10,10 @@
 			/* 폰트 크기: 모바일 100%, PC 110% - 가장 먼저 적용 */
 			html { font-size: 100%; }
 			@media (min-width: 768px) { html { font-size: 110%; } }
+			/* 텍스트 선택 방지 */
+			body { user-select: none; -webkit-user-select: none; }
+			/* 입력 필드는 선택 가능하게 */
+			input, textarea { user-select: text; -webkit-user-select: text; }
 		</style>
 		%sveltekit.head%
 		<script>
