@@ -619,7 +619,7 @@
 	}
 
 	.clickable-cell:hover {
-		@apply bg-yellow-300 !important;
+		background-color: #fde047 !important; /* yellow-300 */
 	}
 
 	/* 모바일에서 sticky 제거 */
