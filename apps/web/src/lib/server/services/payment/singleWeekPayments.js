@@ -112,7 +112,8 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
 				registrationNumber: { $arrayElemAt: ['$userInfo.registrationNumber', 0] },
 				registrationDate: { $arrayElemAt: ['$userInfo.registrationDate', 0] },
 				createdAt: { $arrayElemAt: ['$userInfo.createdAt', 0] },
-				userObjectId: { $arrayElemAt: ['$userInfo._id', 0] },
+			sequence: { $arrayElemAt: ['$userInfo.sequence', 0] },  // ⭐ 등록 순서
+			userObjectId: { $arrayElemAt: ['$userInfo._id', 0] },
 				plannerAccountId: { $arrayElemAt: ['$userInfo.plannerAccountId', 0] },
 				bank: { $arrayElemAt: ['$userInfo.bank', 0] },
 				accountNumber: { $arrayElemAt: ['$userInfo.accountNumber', 0] }
@@ -151,7 +152,7 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
 		}] : []),
 		// ⭐ 정렬: 이름순 또는 등록일순
 		{
-			$sort: sortByName ? { userName: 1 } : { createdAt: 1 }
+			$sort: sortByName ? { userName: 1 } : { sequence: 1 }
 		},
 		// ⭐ $facet으로 grandTotal과 페이지네이션 데이터 동시 계산
 		{
@@ -368,8 +369,9 @@ export async function getSingleWeekPaymentsByGrade(year, month, week, page, limi
 		},
 		{
 			$addFields: {
-				plannerAccountId: '$userDetails.plannerAccountId'
-			}
+			plannerAccountId: '$userDetails.plannerAccountId',
+			sequence: '$userDetails.sequence'  // ⭐ 등록 순서
+		}
 		},
 		// ⭐ 설계사 필터 적용
 		...(plannerAccountId ? [{
@@ -379,7 +381,7 @@ export async function getSingleWeekPaymentsByGrade(year, month, week, page, limi
 		}] : []),
 		// ⭐ 정렬: 이름순 또는 등록일순
 		{
-			$sort: sortByName ? { userName: 1 } : { createdAt: 1 }
+			$sort: sortByName ? { userName: 1 } : { sequence: 1 }
 		},
 		// ⭐ $facet으로 grandTotal과 페이지네이션 데이터 동시 계산
 		{

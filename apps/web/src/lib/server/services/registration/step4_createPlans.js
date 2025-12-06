@@ -55,7 +55,7 @@ export async function executeStep4(promoted, targets, gradePayments, monthlyReg,
       // ⭐ 승급한 경우: newGrade Promotion만 생성 (oldGrade Initial 생성 안 함!)
       // ⭐ 등록일 기준으로 지급 계획 시작 (귀속월에 등록+승급한 경우)
 
-      // newGrade Promotion 계획만 생성
+      // ⭐ v8.0: 새 플랜 먼저 생성
       const promotionPlan = await createPromotionPaymentPlan(
         userId,
         userName,
@@ -63,18 +63,22 @@ export async function executeStep4(promoted, targets, gradePayments, monthlyReg,
         registrationDate,  // ⭐ 등록일 기준 (등록한 달에 승급)
         monthlyReg
       );
+
+      // ⭐ v8.0: 새 플랜의 첫 지급일 기준으로 기존 플랜 terminate
+      const newPlanFirstPayment = promotionPlan.installments[0]?.scheduledDate;
+      if (newPlanFirstPayment) {
+        const terminatedCount = await terminateActivePlansFromDate(userId, newPlanFirstPayment, promotionPlan._id);
+        if (terminatedCount > 0) {
+          console.log(`[Step4] ${userName}: ${terminatedCount}개 기존 플랜 종료 (기준일: ${newPlanFirstPayment.toISOString().split('T')[0]})`);
+        }
+      }
+
       promotionPlans.push({
         userId,
         type: 'promotion',
         grade: promotion.newGrade,
         plan: promotionPlan._id
-      });
-
-      // ⭐ 기존 추가지급 계획 중단 (승급 시)
-      // v8.0: 등록일 = 승급일 (등록한 달에 승급한 경우)
-      const terminatedCount = await terminateAdditionalPaymentPlans(userId, registrationDate);
-      if (terminatedCount > 0) {
-      }
+      })
 
     } else {
       // 미승급 경우: 현재 등급으로 Initial 계획 생성
@@ -127,7 +131,7 @@ export async function executeStep4(promoted, targets, gradePayments, monthlyReg,
 
       console.log(`[기존 승급자] ${prom.userName}: 승급일 = ${promotionDate.toISOString().split('T')[0]}`);
 
-      // newGrade Promotion 계획 생성
+      // ⭐ v8.0: 새 플랜 먼저 생성
       const promotionPlan = await createPromotionPaymentPlan(
         prom.userId,
         prom.userName,
@@ -135,18 +139,21 @@ export async function executeStep4(promoted, targets, gradePayments, monthlyReg,
         promotionDate,  // ⭐ 첫 승급일 기준
         monthlyReg
       );
+
+      // ⭐ v8.0: 새 플랜의 첫 지급일 기준으로 기존 플랜 terminate
+      const newPlanFirstPayment = promotionPlan.installments[0]?.scheduledDate;
+      if (newPlanFirstPayment) {
+        const terminatedCount = await terminateActivePlansFromDate(prom.userId, newPlanFirstPayment, promotionPlan._id);
+        if (terminatedCount > 0) {
+          console.log(`[Step4] ${prom.userName}: ${terminatedCount}개 기존 플랜 종료 (기준일: ${newPlanFirstPayment.toISOString().split('T')[0]})`);
+        }
+      }
       promotionPlans.push({
         userId: prom.userId,
         type: 'promotion',
         grade: prom.grade,
         plan: promotionPlan._id
-      });
-
-      // 기존 추가지급 계획 중단
-      // v8.0: promotionDate 사용 (승급 다음달 첫 금요일부터 중단)
-      const terminatedCount = await terminateAdditionalPaymentPlans(prom.userId, promotionDate);
-      if (terminatedCount > 0) {
-      }
+      })
     }
   } else {
   }
@@ -382,6 +389,178 @@ async function terminateAdditionalPaymentPlans(userId, promotionDate) {
 
   } catch (error) {
     console.error(`[terminateAdditionalPaymentPlans] ${userId} 오류:`, error);
+    return 0;
+  }
+}
+
+
+/**
+ * ⭐ v8.0: 특정 날짜부터 기존 플랜 부분 종료
+ * - 새 플랜의 첫 지급일 기준으로 기존 플랜 terminate
+ * - excludePlanId: 새로 생성된 플랜은 제외
+ *
+ * @param {string} userId - 사용자 ID
+ * @param {Date} firstPaymentDate - 새 플랜의 첫 지급일
+ * @param {ObjectId} excludePlanId - 제외할 플랜 ID (새로 생성된 플랜)
+ * @returns {Promise<number>} 처리된 플랜 수
+ */
+async function terminateActivePlansFromDate(userId, firstPaymentDate, excludePlanId) {
+  try {
+    console.log(`[승급 처리] userId=${userId}: 첫 지급일=${firstPaymentDate.toISOString().split('T')[0]} 기준으로 기존 플랜 종료`);
+
+    // 모든 active 플랜 조회 (새로 생성된 플랜 제외)
+    const plans = await WeeklyPaymentPlans.find({
+      userId: userId,
+      planStatus: 'active',
+      _id: { $ne: excludePlanId }
+    });
+
+    if (plans.length === 0) {
+      return 0;
+    }
+
+    console.log(`[승급 처리] userId=${userId}: ${plans.length}개 active 플랜 확인`);
+
+    let terminatedCount = 0;
+
+    for (const plan of plans) {
+      let hasRemainingPending = false;
+      let terminatedInstallments = 0;
+
+      for (const inst of plan.installments) {
+        if (inst.status === 'pending') {
+          const instDate = new Date(inst.scheduledDate);
+          if (instDate >= firstPaymentDate) {
+            // 새 플랜 첫 지급일 이후 → terminated
+            inst.status = 'terminated';
+            inst.terminatedReason = 'promotion';
+            terminatedInstallments++;
+          } else {
+            // 새 플랜 첫 지급일 이전 → 유지 (정상 지급)
+            hasRemainingPending = true;
+          }
+        }
+      }
+
+      // 플랜 상태 결정
+      let newPlanStatus = plan.planStatus;
+      if (terminatedInstallments > 0 && !hasRemainingPending) {
+        newPlanStatus = 'terminated';
+      }
+
+      const updateFields = {
+        installments: plan.installments,
+        planStatus: newPlanStatus,
+        ...(newPlanStatus === 'terminated' && {
+          terminatedAt: new Date(),
+          terminationReason: 'promotion',
+          terminatedBy: 'promotion_additional_stop'
+        })
+      };
+
+      await WeeklyPaymentPlans.updateOne(
+        { _id: plan._id },
+        { $set: updateFields },
+        { strict: false }
+      );
+
+      if (terminatedInstallments > 0) {
+        terminatedCount++;
+        const statusLabel = newPlanStatus === 'terminated' ? '종료' : '부분종료';
+        console.log(`  - [${statusLabel}] ${plan.planType} ${plan.baseGrade} (${plan.revenueMonth}): ${terminatedInstallments}개 installment terminated, 남은 pending: ${hasRemainingPending}`);
+      }
+    }
+
+    console.log(`[승급 처리] userId=${userId}: ${terminatedCount}개 플랜 처리 완료`);
+    return terminatedCount;
+
+  } catch (error) {
+    console.error(`[terminateActivePlansFromDate] ${userId} 오류:`, error);
+    return 0;
+  }
+}
+
+
+/**
+ * ⭐ v8.0: 승급 시 기존 플랜 부분 종료 (레거시 - promotionDate 기반)
+ * - 승급 플랜의 첫 지급 주차부터 기존 플랜의 지급을 멈춤
+ * - 그 이전 주차의 pending installments는 정상 지급
+ */
+async function terminateAllActivePlans(userId, promotionDate) {
+  try {
+    // 승급 플랜의 첫 지급일 계산 (승급일 기준 다음 금요일)
+    const firstPaymentDate = calculateNextFriday(promotionDate);
+
+    console.log(`[승급 처리] userId=${userId}: 승급일=${promotionDate.toISOString().split('T')[0]}, 첫 지급일=${firstPaymentDate.toISOString().split('T')[0]}`);
+
+    // 모든 active 플랜 조회 (initial, promotion, additional 모두)
+    const plans = await WeeklyPaymentPlans.find({
+      userId: userId,
+      planStatus: 'active'
+    });
+
+    if (plans.length === 0) {
+      return 0;
+    }
+
+    console.log(`[승급 처리] userId=${userId}: ${plans.length}개 active 플랜 확인`);
+
+    let terminatedCount = 0;
+
+    for (const plan of plans) {
+      // ⭐ v8.0: 승급 첫 지급일 이후의 pending installments만 terminated로 변경
+      let hasRemainingPending = false;
+      let terminatedInstallments = 0;
+
+      for (const inst of plan.installments) {
+        if (inst.status === 'pending') {
+          const instDate = new Date(inst.scheduledDate);
+          if (instDate >= firstPaymentDate) {
+            // 승급 첫 지급일 이후 → terminated
+            inst.status = 'terminated';
+            inst.terminatedReason = 'promotion';
+            terminatedInstallments++;
+          } else {
+            // 승급 첫 지급일 이전 → 유지 (정상 지급)
+            hasRemainingPending = true;
+          }
+        }
+      }
+
+      // 플랜 상태 결정: 남은 pending이 없으면 terminated, 있으면 active 유지
+      let newPlanStatus = plan.planStatus;
+      if (terminatedInstallments > 0 && !hasRemainingPending) {
+        newPlanStatus = 'terminated';
+      }
+
+      const updateFields = {
+        installments: plan.installments,
+        planStatus: newPlanStatus,
+        ...(newPlanStatus === 'terminated' && {
+          terminatedAt: new Date(),
+          terminationReason: 'promotion',
+          terminatedBy: 'promotion_additional_stop'
+        })
+      };
+
+      await WeeklyPaymentPlans.updateOne(
+        { _id: plan._id },
+        { $set: updateFields },
+        { strict: false }
+      );
+
+      if (terminatedInstallments > 0) {
+        terminatedCount++;
+        const statusLabel = newPlanStatus === 'terminated' ? '종료' : '부분종료';
+        console.log(`  - [${statusLabel}] ${plan.planType} ${plan.baseGrade} (${plan.revenueMonth}): ${terminatedInstallments}개 installment terminated, 남은 pending: ${hasRemainingPending}`);
+      }
+    }
+
+    console.log(`[승급 처리] userId=${userId}: ${terminatedCount}개 플랜 처리 완료`);
+    return terminatedCount;
+
+  } catch (error) {
+    console.error(`[terminateAllActivePlans] ${userId} 오류:`, error);
     return 0;
   }
 }

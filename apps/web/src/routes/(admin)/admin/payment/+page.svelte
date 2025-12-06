@@ -176,6 +176,7 @@
 		{grandTotal}
 		{totalPaymentTargets}
 		hasData={filteredPaymentList.length > 0}
+		enablePeriodLimit={false}
 		onFilterChange={handleFilterTypeChange}
 		onPeriodChange={handlePeriodChange}
 		onDateChange={() => loadPaymentData()}

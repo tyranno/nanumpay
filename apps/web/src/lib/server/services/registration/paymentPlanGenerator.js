@@ -68,6 +68,33 @@ export async function createPromotionPlans(promoted, promotionDate, updatedMonth
       continue;
     }
 
+    // ⭐ v8.0: 승급 시 기존 모든 active 플랜 종료 (병행 지급 제거)
+    const activePlans = await WeeklyPaymentPlans.find({
+      userId: user._id,
+      planStatus: 'active'
+    });
+
+    if (activePlans.length > 0) {
+      console.log(`[승급 처리] ${user.name}: 기존 active 플랜 ${activePlans.length}건 종료`);
+      
+      for (const plan of activePlans) {
+        // pending 상태인 installments를 terminated로 변경
+        plan.installments.forEach(inst => {
+          if (inst.status === 'pending') {
+            inst.status = 'terminated';
+          }
+        });
+        
+        plan.planStatus = 'terminated';
+        plan.terminatedAt = new Date();
+        plan.terminationReason = 'promotion';
+        plan.terminatedBy = 'promotion_additional_stop';
+        
+        await plan.save();
+        console.log(`  - [종료] ${plan.planType} ${plan.baseGrade} (${plan.revenueMonth}): ${plan.completedInstallments}/${plan.totalInstallments}회 완료`);
+      }
+    }
+
     // ⭐ 중요: 업데이트된 monthlyReg 객체를 직접 전달!
     const promotionPlan = await createPromotionPaymentPlan(
       user._id,
@@ -77,24 +104,12 @@ export async function createPromotionPlans(promoted, promotionDate, updatedMonth
       updatedMonthlyReg
     );
 
-
-    // ⭐ 중요: 같은 달에 등록+승급이 일어난 경우, Initial 계획 삭제!
-    const initialPlan = await WeeklyPaymentPlans.findOne({
-      userId: user._id,
-      planType: 'initial',
-      revenueMonth: promotionPlan.revenueMonth  // 같은 매출월
-    });
-
-    if (initialPlan) {
-      await WeeklyPaymentPlans.deleteOne({ _id: initialPlan._id });
-    }
-
     plans.push({
       userId: user._id.toString(),
       type: 'promotion',
       plan: promotionPlan._id,
       planObject: promotionPlan,
-      deletedInitialPlan: initialPlan?._id
+      terminatedPlans: activePlans.map(p => p._id)
     });
   }
 

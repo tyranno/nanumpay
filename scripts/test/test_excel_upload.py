@@ -36,6 +36,7 @@ FOLDER_FILES = {
         "10월": "test-data/verify/10월_용역자명단_간단.xlsx",
     },
     "verfify2": {
+        "기본3명": "test-data/verfify2/용역자명단_기본3명.xlsx",
         "10월": "test-data/verfify2/계약자관리명부(10월).xlsx",
         "11월": "test-data/verfify2/계약자관리명부(11월).xlsx",
     }

@@ -15,6 +15,7 @@
 	export let totalPaymentTargets = 0;
 	export let hasData = false;
 	export let showPlannerOption = true; // ⭐ 설계자 옵션 표시 여부 (기본값 true)
+	export let enablePeriodLimit = true; // ⭐ 기간 제한 활성화 (설계사/사용자만, 관리자는 false)
 
 	// Event handler props (Svelte 5 style)
 	export let onFilterChange = () => {};
@@ -114,30 +115,32 @@
 	}
 
 	function handlePeriodChange() {
-		// ⭐ 미래 제한: 현재월 + 1개월까지만 허용
-		const now = new Date();
-		const maxYear = now.getMonth() === 11 ? now.getFullYear() + 1 : now.getFullYear();
-		const maxMonthNum = now.getMonth() === 11 ? 1 : now.getMonth() + 2;
+		// ⭐ 기간 제한 (설계사/사용자만, 관리자는 제한 없음)
+		if (enablePeriodLimit) {
+			const now = new Date();
+			const maxYear = now.getMonth() === 11 ? now.getFullYear() + 1 : now.getFullYear();
+			const maxMonthNum = now.getMonth() === 11 ? 1 : now.getMonth() + 2;
 
-		let wasAdjusted = false;
+			let wasAdjusted = false;
 
-		// 시작 기간 제한
-		if (startYear > maxYear || (startYear === maxYear && startMonth > maxMonthNum)) {
-			startYear = maxYear;
-			startMonth = maxMonthNum;
-			wasAdjusted = true;
-		}
+			// 시작 기간 제한
+			if (startYear > maxYear || (startYear === maxYear && startMonth > maxMonthNum)) {
+				startYear = maxYear;
+				startMonth = maxMonthNum;
+				wasAdjusted = true;
+			}
 
-		// 종료 기간 제한
-		if (endYear > maxYear || (endYear === maxYear && endMonth > maxMonthNum)) {
-			endYear = maxYear;
-			endMonth = maxMonthNum;
-			wasAdjusted = true;
-		}
+			// 종료 기간 제한
+			if (endYear > maxYear || (endYear === maxYear && endMonth > maxMonthNum)) {
+				endYear = maxYear;
+				endMonth = maxMonthNum;
+				wasAdjusted = true;
+			}
 
-		// ⭐ 제한 초과 시 알림 모달 표시
-		if (wasAdjusted) {
-			showPeriodLimitAlert = true;
+			// 제한 초과 시 알림 모달 표시
+			if (wasAdjusted) {
+				showPeriodLimitAlert = true;
+			}
 		}
 
 		updateStore();

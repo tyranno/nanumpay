@@ -38,7 +38,7 @@ export async function getRangePayments(startYear, startMonth, endYear, endMonth,
 	let allUsers = await User.find(userQuery)
 		.populate('plannerAccountId')
 		.populate('userAccountId')
-		.sort(sortByName ? { name: 1 } : { createdAt: 1 })
+		.sort(sortByName ? { name: 1 } : { sequence: 1 })
 		.lean();
 
 	// 검색 필터 적용
@@ -392,7 +392,7 @@ export async function getRangePaymentsByGrade(startYear, startMonth, endYear, en
 	const allUsers = await User.find({ _id: { $in: userIds } })
 		.populate('plannerAccountId')
 		.populate('userAccountId')
-		.sort(sortByName ? { name: 1 } : { createdAt: 1 })
+		.sort(sortByName ? { name: 1 } : { sequence: 1 })
 		.lean();
 
 	// 6. 주차별 데이터 생성 (전체 사용자 기준)
