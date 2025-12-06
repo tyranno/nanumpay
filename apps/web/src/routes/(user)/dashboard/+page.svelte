@@ -2,6 +2,10 @@
 	import { onMount } from 'svelte';
 	import GradeBadge from '$lib/components/GradeBadge.svelte';
 	import UserProfileModal from '$lib/components/user/UserProfileModal.svelte';
+	import WindowsModal from '$lib/components/WindowsModal.svelte';
+
+	// 기간 제한 알림 모달 상태
+	let showPeriodLimitAlert = $state(false);
 
 	let userInfo = $state(null);
 	let allRegistrations = $state([]); // ⭐ v8.0: 모든 등록 정보
@@ -77,6 +81,33 @@
 			error = err.message;
 		} finally {
 			isLoading = false;
+		}
+	});
+
+	// ⭐ 기간 제한 검증 (현재월 + 1개월 초과 시 경고)
+	$effect(() => {
+		const now = new Date();
+		const maxYear = now.getMonth() === 11 ? now.getFullYear() + 1 : now.getFullYear();
+		const maxMonthNum = now.getMonth() === 11 ? 1 : now.getMonth() + 2;
+		const maxMonthStr = `${maxYear}-${String(maxMonthNum).padStart(2, '0')}`;
+
+		let wasAdjusted = false;
+
+		// 시작 기간 제한
+		if (filters.startMonth > maxMonthStr) {
+			filters.startMonth = maxMonthStr;
+			wasAdjusted = true;
+		}
+
+		// 종료 기간 제한
+		if (filters.endMonth > maxMonthStr) {
+			filters.endMonth = maxMonthStr;
+			wasAdjusted = true;
+		}
+
+		// ⭐ 제한 초과 시 알림 모달 표시
+		if (wasAdjusted) {
+			showPeriodLimitAlert = true;
 		}
 	});
 
@@ -556,6 +587,27 @@
 	isOpen={isProfileModalOpen}
 	onClose={() => (isProfileModalOpen = false)}
 />
+
+<!-- 기간 제한 알림 모달 -->
+<WindowsModal
+	isOpen={showPeriodLimitAlert}
+	title="알림"
+	size="xs"
+	onClose={() => showPeriodLimitAlert = false}
+	showFooter={true}
+>
+	<div class="text-center py-2">
+		<p class="text-sm text-gray-700">현재 기준 다음달까지만 자료 도출이 가능합니다.</p>
+	</div>
+	<svelte:fragment slot="footer">
+		<button
+			onclick={() => showPeriodLimitAlert = false}
+			class="px-4 py-1.5 bg-blue-500 text-white text-sm rounded hover:bg-blue-600 transition-colors"
+		>
+			확인
+		</button>
+	</svelte:fragment>
+</WindowsModal>
 
 <style>
 	@reference "$lib/../app.css";

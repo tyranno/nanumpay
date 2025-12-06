@@ -3,6 +3,10 @@
 	import { browser } from '$app/environment';
 	import { paymentPageFilterState } from '$lib/stores/dashboardStore';
 	import PaymentColumnSettingsModal from './PaymentColumnSettingsModal.svelte';
+	import WindowsModal from '$lib/components/WindowsModal.svelte';
+
+	// 기간 제한 알림 모달 상태
+	let showPeriodLimitAlert = false;
 
 	// Props
 	export let isLoading = false;
@@ -115,16 +119,25 @@
 		const maxYear = now.getMonth() === 11 ? now.getFullYear() + 1 : now.getFullYear();
 		const maxMonthNum = now.getMonth() === 11 ? 1 : now.getMonth() + 2;
 
+		let wasAdjusted = false;
+
 		// 시작 기간 제한
 		if (startYear > maxYear || (startYear === maxYear && startMonth > maxMonthNum)) {
 			startYear = maxYear;
 			startMonth = maxMonthNum;
+			wasAdjusted = true;
 		}
 
 		// 종료 기간 제한
 		if (endYear > maxYear || (endYear === maxYear && endMonth > maxMonthNum)) {
 			endYear = maxYear;
 			endMonth = maxMonthNum;
+			wasAdjusted = true;
+		}
+
+		// ⭐ 제한 초과 시 알림 모달 표시
+		if (wasAdjusted) {
+			showPeriodLimitAlert = true;
 		}
 
 		updateStore();
@@ -649,6 +662,27 @@
 	onApply={handleApplyColumnSettings}
 	{showPlannerOption}
 />
+
+<!-- 기간 제한 알림 모달 -->
+<WindowsModal
+	isOpen={showPeriodLimitAlert}
+	title="알림"
+	size="xs"
+	onClose={() => showPeriodLimitAlert = false}
+	showFooter={true}
+>
+	<div class="text-center py-2">
+		<p class="text-sm text-gray-700">현재 기준 다음달까지만 자료 도출이 가능합니다.</p>
+	</div>
+	<svelte:fragment slot="footer">
+		<button
+			onclick={() => showPeriodLimitAlert = false}
+			class="px-4 py-1.5 bg-blue-500 text-white text-sm rounded hover:bg-blue-600 transition-colors"
+		>
+			확인
+		</button>
+	</svelte:fragment>
+</WindowsModal>
 
 <style>
 	@reference "$lib/../app.css";
