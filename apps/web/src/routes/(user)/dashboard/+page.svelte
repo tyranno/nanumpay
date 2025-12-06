@@ -18,6 +18,13 @@
 		return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 	})();
 
+	// ⭐ 최대 선택 가능 월 (현재월 + 1개월)
+	const maxMonth = (() => {
+		const now = new Date();
+		const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+		return `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}`;
+	})();
+
 	// 필터 상태
 	let filters = $state({
 		startMonth: currentMonth,
@@ -375,6 +382,7 @@
 						<input
 							type="month"
 							bind:value={filters.startMonth}
+							max={maxMonth}
 							class="w-full rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
 						/>
 					</div>
@@ -385,6 +393,7 @@
 						<input
 							type="month"
 							bind:value={filters.endMonth}
+							max={maxMonth}
 							class="w-full rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
 						/>
 					</div>

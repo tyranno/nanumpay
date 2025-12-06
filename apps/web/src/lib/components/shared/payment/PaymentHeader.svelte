@@ -110,6 +110,23 @@
 	}
 
 	function handlePeriodChange() {
+		// ⭐ 미래 제한: 현재월 + 1개월까지만 허용
+		const now = new Date();
+		const maxYear = now.getMonth() === 11 ? now.getFullYear() + 1 : now.getFullYear();
+		const maxMonthNum = now.getMonth() === 11 ? 1 : now.getMonth() + 2;
+
+		// 시작 기간 제한
+		if (startYear > maxYear || (startYear === maxYear && startMonth > maxMonthNum)) {
+			startYear = maxYear;
+			startMonth = maxMonthNum;
+		}
+
+		// 종료 기간 제한
+		if (endYear > maxYear || (endYear === maxYear && endMonth > maxMonthNum)) {
+			endYear = maxYear;
+			endMonth = maxMonthNum;
+		}
+
 		updateStore();
 		onPeriodChange();
 	}
@@ -156,6 +173,15 @@
 		if (!amount && amount !== 0) return '-';
 		return amount.toLocaleString();
 	}
+
+	// ⭐ 최대 선택 가능 월 계산 (현재월 + 1개월)
+	function getMaxMonth() {
+		const now = new Date();
+		const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+		return `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}`;
+	}
+
+	const maxMonth = getMaxMonth();
 
 	// 컬럼 설정 모달 핸들러
 	function handleShowAllColumns() {
@@ -233,6 +259,7 @@
 						<input
 							type="month"
 							value="{startYear}-{String(startMonth).padStart(2, '0')}"
+							max={maxMonth}
 							onchange={(e) => {
 								const [year, month] = e.target.value.split('-');
 								startYear = parseInt(year);
@@ -245,6 +272,7 @@
 						<input
 							type="month"
 							value="{endYear}-{String(endMonth).padStart(2, '0')}"
+							max={maxMonth}
 							onchange={(e) => {
 								const [year, month] = e.target.value.split('-');
 								endYear = parseInt(year);
