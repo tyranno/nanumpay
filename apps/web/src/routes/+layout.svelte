@@ -1,23 +1,8 @@
 <script>
 	import '../app.css';
-	import { onMount } from 'svelte';
 
 	let { children } = $props();
-
-	// 고정 폰트 크기 설정: 모바일 100%, PC 110%
-	onMount(() => {
-		function applyFontSize() {
-			const isMobile = window.innerWidth < 768;
-			document.documentElement.style.fontSize = isMobile ? '100%' : '110%';
-		}
-
-		applyFontSize();
-		window.addEventListener('resize', applyFontSize);
-
-		return () => {
-			window.removeEventListener('resize', applyFontSize);
-		};
-	});
+	// 폰트 크기 설정은 app.css에서 CSS 미디어 쿼리로 처리
 </script>
 
 {@render children?.()}
