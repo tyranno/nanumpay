@@ -672,7 +672,7 @@
 	showFooter={true}
 >
 	<div class="text-center py-2">
-		<p class="text-sm text-gray-700">현재 기준 다음달까지만 자료 도출이 가능합니다.</p>
+		<p class="text-sm text-gray-700">다음 달까지만 조회할 수 있어요.</p>
 	</div>
 	<svelte:fragment slot="footer">
 		<button
