@@ -12,6 +12,9 @@
 
 	// 등급(회수) 클릭 핸들러 (주별/주간 조회에서만 동작, 월별은 제외)
 	function handleGradeInfoClick(user, payment, week) {
+		// TODO: 기능 임시 비활성화 - 등록/승급일 표시 문제 수정 후 활성화
+		return;
+
 		// 월별 조회 시 모달 미표시
 		if (periodType === 'monthly') return;
 
