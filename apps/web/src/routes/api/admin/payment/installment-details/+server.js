@@ -44,7 +44,12 @@ export async function GET({ url, locals }) {
 
 		// 사용자 정보 조회 (등록일 확보) - userId는 User._id를 문자열로 저장
 		const user = await User.findById(userId).lean();
+		console.log('[installment-details] userId:', userId);
+		console.log('[installment-details] user found:', !!user);
+		console.log('[installment-details] user.createdAt:', user?.createdAt);
+		console.log('[installment-details] user.joinedAt:', user?.joinedAt);
 		const userRegistrationDate = user?.createdAt || user?.joinedAt;
+		console.log('[installment-details] userRegistrationDate:', userRegistrationDate);
 
 		// 해당 사용자의 지급 계획 중 해당 주차에 지급되는 installment 조회
 		const plans = await WeeklyPaymentPlans.find({
