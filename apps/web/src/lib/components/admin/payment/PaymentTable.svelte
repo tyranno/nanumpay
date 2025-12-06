@@ -142,7 +142,7 @@
 					{#if filterType === 'period'}
 				<th class="th-sub th-total-sub">지급액</th>
 					{#if showTaxColumn}
-						<th class="th-sub th-total-sub th-tax">원천징수(3.3%)</th>
+						<th class="th-sub th-total-sub th-tax">세지원(3.3%)</th>
 					{/if}
 					{#if showNetColumn}
 						<th class="th-sub th-total-sub">실지급액</th>
@@ -154,7 +154,7 @@
 					{/if}
 					<th class="th-sub{showGradeInfoColumn ? '' : ' period-border'}">지급액</th>
 							{#if showTaxColumn}
-								<th class="th-sub th-tax">원천징수(3.3%)</th>
+								<th class="th-sub th-tax">세지원(3.3%)</th>
 							{/if}
 							{#if showNetColumn}
 								<th class="th-sub">실지급액</th>
@@ -475,7 +475,7 @@
 		@apply bg-yellow-200;
 	}
 
-	/* 데이터 셀 - 원천징수 */
+	/* 데이터 셀 - 세지원 */
 	.td-tax {
 		@apply border-b border-r border-gray-300 bg-red-50;
 		@apply whitespace-nowrap p-1.5 pr-3 text-right text-sm text-red-600;

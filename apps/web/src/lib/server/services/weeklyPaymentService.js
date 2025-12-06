@@ -237,14 +237,14 @@ async function calculatePaymentAmount(grade, revenueMonth) {
     // 10분할 및 100원 단위 절삭
     const installmentAmount = Math.floor(baseAmount / 10 / 100) * 100;
 
-    // 원천징수 계산 (3.3%)
+    // 세지원 계산 (3.3%)
     const withholdingTax = Math.round(installmentAmount * 0.033);
     const netAmount = installmentAmount - withholdingTax;
 
     return {
       baseAmount,         // 등급별 총 지급액 (절삭 전)
       installmentAmount,  // 회차당 지급액 (100원 단위 절삭)
-      withholdingTax,     // 원천징수액
+      withholdingTax,     // 세지원액
       netAmount           // 실지급액
     };
   } catch (error) {

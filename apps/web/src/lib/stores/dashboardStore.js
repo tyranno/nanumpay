@@ -38,7 +38,7 @@ export const paymentPageFilterState = writable({
 	itemsPerPage: 20,
 	// 컬럼 표시 설정
 	showGradeInfoColumn: true, // 등급(회수) 컬럼 표시 ⭐ 신규
-	showTaxColumn: true, // 원천징수 컬럼 표시
+	showTaxColumn: true, // 세지원 컬럼 표시
 	showNetColumn: true, // 실지급액 컬럼 표시
 	showPlannerColumn: true, // 설계자 컬럼 표시 (관리자 전용)
 	showBankColumn: true, // 은행 컬럼 표시

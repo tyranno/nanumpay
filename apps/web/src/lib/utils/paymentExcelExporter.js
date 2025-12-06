@@ -178,7 +178,7 @@ export class PaymentExcelExporter {
 		// 총액 정보
 		const summaryRow = worksheet.addRow([
 			'총 지급액:', `${totalSummary.amount.toLocaleString()}원`, '',
-			'총 원천징수:', `${totalSummary.tax.toLocaleString()}원`, '',
+			'총 세지원:', `${totalSummary.tax.toLocaleString()}원`, '',
 			'총 실지급액:', `${totalSummary.net.toLocaleString()}원`
 		]);
 		[1, 4, 7].forEach(col => {
@@ -264,7 +264,7 @@ export class PaymentExcelExporter {
 		if (this.filterType === 'period') {
 			headerRow2Data.push('지급액');
 			if (this.showTaxColumn) {
-				headerRow2Data.push('원천징수(3.3%)');
+				headerRow2Data.push('세지원(3.3%)');
 			}
 			if (this.showNetColumn) {
 				headerRow2Data.push('실지급액');
@@ -277,7 +277,7 @@ export class PaymentExcelExporter {
 				headerRow2Data.push('등급(회수)');
 			}
 			if (this.showTaxColumn) {
-				headerRow2Data.push('원천징수(3.3%)');
+				headerRow2Data.push('세지원(3.3%)');
 			}
 			if (this.showNetColumn) {
 				headerRow2Data.push('실지급액');
@@ -395,7 +395,7 @@ export class PaymentExcelExporter {
 			dataRow.getCell(col).alignment = { vertical: 'middle', horizontal: 'right' };
 			col++;
 
-			// 원천징수
+			// 세지원
 			if (this.showTaxColumn) {
 				dataRow.getCell(col).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEEEE' } };
 				dataRow.getCell(col).font = { color: { argb: 'FFD9534F' } };
@@ -430,7 +430,7 @@ export class PaymentExcelExporter {
 				col++;
 			}
 
-			// 원천징수
+			// 세지원
 			if (this.showTaxColumn) {
 				dataRow.getCell(col).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEEEE' } };
 				dataRow.getCell(col).font = { color: { argb: 'FFD9534F' } };

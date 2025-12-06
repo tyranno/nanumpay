@@ -91,7 +91,7 @@ const weeklyPaymentPlansSchema = new mongoose.Schema(
       // 금액 (주간 지급 시 확정)
       baseAmount: { type: Number },       // 등급별 총 지급액
       installmentAmount: { type: Number }, // 회차당 지급액 (100원 단위 절삭)
-      withholdingTax: { type: Number },   // 원천징수 (3.3%)
+      withholdingTax: { type: Number },   // 세지원 (3.3%)
       netAmount: { type: Number },        // 실지급액
 
       status: {

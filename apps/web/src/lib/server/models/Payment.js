@@ -15,7 +15,7 @@ const paymentRecordSchema = new mongoose.Schema({
 	},
 	baseAmount: Number, // 등급별 기본 지급액
 	actualAmount: Number, // 실제 지급액
-	taxAmount: Number, // 원천징수액
+	taxAmount: Number, // 세지원액
 	netAmount: Number // 실지급액
 });
 

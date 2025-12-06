@@ -187,7 +187,7 @@ export async function POST({ request, locals }) {
 				gradeStats[grade].amount = perInstallment;
 			}
 
-			// 모든 installment 업데이트 (지급액, 원천징수, 실지급액)
+			// 모든 installment 업데이트 (지급액, 세지원, 실지급액)
 			// 배열을 완전히 새로 만들어서 재할당
 			plan.installments = plan.installments.map(installment => {
 				const withholdingTax = Math.floor(perInstallment * 0.033);

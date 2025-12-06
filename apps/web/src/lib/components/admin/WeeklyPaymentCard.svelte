@@ -61,7 +61,7 @@
 					</p>
 				</div>
 				<div class="bg-gradient-to-br from-red-50 to-red-100 rounded-lg p-2 text-center">
-					<p class="text-xs text-gray-600">원천징수 (3.3%)</p>
+					<p class="text-xs text-gray-600">세지원 (3.3%)</p>
 					<p class="text-base sm:text-lg font-bold text-red-900">
 						{weeklyPaymentInfo ? weeklyPaymentInfo.totalTax.toLocaleString() : '0'}원
 					</p>

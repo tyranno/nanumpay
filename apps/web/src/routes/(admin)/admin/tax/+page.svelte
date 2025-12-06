@@ -7,7 +7,7 @@
 	let totalActualPayment = 0;
 	let currentDate = '';
 	let isLoading = true;
-	const TAX_RATE = 0.033; // 3.3% 원천징수세율
+	const TAX_RATE = 0.033; // 3.3% 세지원세율
 
 	onMount(async () => {
 		const today = new Date();
@@ -43,7 +43,7 @@
 </script>
 
 <svelte:head>
-	<title>원천징수 지급명부 - 나눔페이</title>
+	<title>세지원 지급명부 - 나눔페이</title>
 </svelte:head>
 
 {#if isLoading}
@@ -54,9 +54,9 @@
 	<div class="px-4 py-6 sm:px-0">
 		<div class="bg-white border-2 border-gray-200 shadow-lg overflow-hidden sm:rounded-lg">
 			<div class="px-4 py-5 sm:px-6 border-b border-gray-200 bg-gray-50">
-				<h3 class="text-lg leading-6 font-medium text-gray-900">원천징수 지급명부</h3>
+				<h3 class="text-lg leading-6 font-medium text-gray-900">세지원 지급명부</h3>
 				<p class="mt-1 text-sm text-gray-600">
-					지급일: {currentDate} | 원천징수세율: 3.3%
+					지급일: {currentDate} | 세지원세율: 3.3%
 				</p>
 			</div>
 			<div class="px-4 py-3">
@@ -69,7 +69,7 @@
 								<th class="px-3 py-3 text-left text-xs font-medium text-gray-700 uppercase">은행</th>
 								<th class="px-3 py-3 text-left text-xs font-medium text-gray-700 uppercase">계좌번호</th>
 								<th class="px-3 py-3 text-right text-xs font-medium text-gray-700 uppercase">지급액</th>
-								<th class="px-3 py-3 text-right text-xs font-medium text-gray-700 uppercase">원천징수(3.3%)</th>
+								<th class="px-3 py-3 text-right text-xs font-medium text-gray-700 uppercase">세지원(3.3%)</th>
 								<th class="px-3 py-3 text-right text-xs font-medium text-gray-700 uppercase">실지급액</th>
 							</tr>
 						</thead>
@@ -121,14 +121,14 @@
 				</div>
 
 				<div class="mt-6 bg-blue-50 rounded-lg p-4">
-					<h4 class="text-sm font-medium text-blue-900 mb-2">원천징수 요약</h4>
+					<h4 class="text-sm font-medium text-blue-900 mb-2">세지원 요약</h4>
 					<div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
 						<div>
 							<span class="text-gray-600">총 지급액:</span>
 							<span class="ml-2 font-medium">₩{formatNumber(totalAmount)}</span>
 						</div>
 						<div>
-							<span class="text-gray-600">원천징수세액(3.3%):</span>
+							<span class="text-gray-600">세지원세액(3.3%):</span>
 							<span class="ml-2 font-medium text-red-600">₩{formatNumber(totalTax)}</span>
 						</div>
 						<div>
@@ -139,9 +139,9 @@
 				</div>
 
 				<div class="mt-4 text-xs text-gray-500">
-					<p>* 원천징수세율 3.3% (소득세 3% + 지방소득세 0.3%)</p>
-					<p>* 실지급액 = 지급액 - 원천징수세액</p>
-					<p>* 원천징수세액은 익월 10일까지 세무서에 신고 및 납부</p>
+					<p>* 세지원세율 3.3% (소득세 3% + 지방소득세 0.3%)</p>
+					<p>* 실지급액 = 지급액 - 세지원세액</p>
+					<p>* 세지원세액은 익월 10일까지 세무서에 신고 및 납부</p>
 				</div>
 			</div>
 		</div>

@@ -28,7 +28,7 @@ const weeklyPaymentSummarySchema = new mongoose.Schema(
     },
     totalTax: {
       type: Number,
-      default: 0  // 전체 원천징수 합계
+      default: 0  // 전체 세지원 합계
     },
     totalNet: {
       type: Number,
