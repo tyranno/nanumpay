@@ -45,5 +45,7 @@ export const paymentPageFilterState = writable({
 	showAccountColumn: true, // 계좌번호 컬럼 표시
 	// 검색 관련
 	searchQuery: '', // 검색어
-	searchCategory: 'name' // 'name' | 'planner'
+	searchCategory: 'name', // 'name' | 'planner'
+	// 정렬 관련
+	sortByName: true // true: 이름순, false: 등록일순
 });

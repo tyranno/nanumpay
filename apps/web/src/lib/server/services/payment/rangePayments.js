@@ -9,7 +9,7 @@ import mongoose from 'mongoose';
 /**
  * 기간 조회
  */
-export async function getRangePayments(startYear, startMonth, endYear, endMonth, page, limit, search, searchCategory, plannerAccountId = null) {
+export async function getRangePayments(startYear, startMonth, endYear, endMonth, page, limit, search, searchCategory, plannerAccountId = null, sortByName = true) {
 	// 1. 기간 내 모든 금요일 날짜 수집
 	const allFridays = [];
 	let currentYear = startYear;
@@ -38,7 +38,7 @@ export async function getRangePayments(startYear, startMonth, endYear, endMonth,
 	let allUsers = await User.find(userQuery)
 		.populate('plannerAccountId')
 		.populate('userAccountId')
-		.sort({ _id: 1 })
+		.sort(sortByName ? { name: 1 } : { createdAt: 1 })
 		.lean();
 
 	// 검색 필터 적용
@@ -302,7 +302,7 @@ export async function getRangePayments(startYear, startMonth, endYear, endMonth,
  * - 등급으로 필터링
  * - 페이지네이션 적용
  */
-export async function getRangePaymentsByGrade(startYear, startMonth, endYear, endMonth, page, limit, gradeFilter, plannerAccountId = null) {
+export async function getRangePaymentsByGrade(startYear, startMonth, endYear, endMonth, page, limit, gradeFilter, plannerAccountId = null, sortByName = true) {
 	// 1. 기간 내 모든 금요일 날짜 수집
 	const allFridays = [];
 	let currentYear = startYear;
@@ -392,7 +392,7 @@ export async function getRangePaymentsByGrade(startYear, startMonth, endYear, en
 	const allUsers = await User.find({ _id: { $in: userIds } })
 		.populate('plannerAccountId')
 		.populate('userAccountId')
-		.sort({ _id: 1 })
+		.sort(sortByName ? { name: 1 } : { createdAt: 1 })
 		.lean();
 
 	// 6. 주차별 데이터 생성 (전체 사용자 기준)

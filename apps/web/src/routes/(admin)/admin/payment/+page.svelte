@@ -47,7 +47,8 @@
 				limit: filterState.itemsPerPage,
 				searchQuery: filterState.searchQuery,
 				searchCategory: filterState.searchCategory,
-				periodType: filterState.periodType
+				periodType: filterState.periodType,
+				sortByName: filterState.sortByName  // ⭐ 정렬 옵션 전달
 			});
 
 			paymentList = result.paymentList;
@@ -93,6 +94,11 @@
 		if ($paymentPageFilterState.filterType === 'period') {
 			loadPaymentData(1);
 		}
+	}
+
+	// 정렬 변경
+	function handleSortChange() {
+		loadPaymentData(1);
 	}
 
 	// Excel export
@@ -177,6 +183,7 @@
 		onItemsPerPageChange={handleItemsPerPageChange}
 		onExport={exportToExcel}
 		onProcessPast={processPastPayments}
+		onSortChange={handleSortChange}
 	/>
 
 	<!-- PaymentTable 컴포넌트 사용 -->

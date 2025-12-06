@@ -27,6 +27,9 @@ export async function GET({ url, locals }) {
 		const search = url.searchParams.get('search') || '';
 		const searchCategory = url.searchParams.get('searchCategory') || 'name';
 
+		// ⭐ 정렬 옵션: 이름순(true) 또는 등록일순(false)
+		const sortByName = url.searchParams.get('sortByName') !== 'false';
+
 		// ⭐ 설계사 필터 (설계사 계정인 경우 자동 적용)
 		let plannerAccountId = url.searchParams.get('plannerAccountId');
 		if (locals.user?.accountType === 'planner') {
@@ -37,11 +40,11 @@ export async function GET({ url, locals }) {
 		if (month && week) {
 			// ⭐ 등급 검색일 경우 전용 함수 사용
 			if (searchCategory === 'grade' && search) {
-				const result = await getSingleWeekPaymentsByGrade(year, month, week, page, limit, search, plannerAccountId);
+				const result = await getSingleWeekPaymentsByGrade(year, month, week, page, limit, search, plannerAccountId, sortByName);
 				return json(result);
 			}
-			
-			const result = await getSingleWeekPayments(year, month, week, page, limit, search, searchCategory, plannerAccountId);
+
+			const result = await getSingleWeekPayments(year, month, week, page, limit, search, searchCategory, plannerAccountId, sortByName);
 			return json(result);
 		}
 
@@ -49,11 +52,11 @@ export async function GET({ url, locals }) {
 		if (startYear && startMonth && endYear && endMonth) {
 			// ⭐ 등급 검색일 경우 전용 함수 사용
 			if (searchCategory === 'grade' && search) {
-				const result = await getRangePaymentsByGrade(startYear, startMonth, endYear, endMonth, page, limit, search, plannerAccountId);
+				const result = await getRangePaymentsByGrade(startYear, startMonth, endYear, endMonth, page, limit, search, plannerAccountId, sortByName);
 				return json(result);
 			}
 
-			const result = await getRangePayments(startYear, startMonth, endYear, endMonth, page, limit, search, searchCategory, plannerAccountId);
+			const result = await getRangePayments(startYear, startMonth, endYear, endMonth, page, limit, search, searchCategory, plannerAccountId, sortByName);
 			return json(result);
 		}
 
@@ -62,11 +65,11 @@ export async function GET({ url, locals }) {
 
 		// ⭐ 등급 검색일 경우 전용 함수 사용
 		if (searchCategory === 'grade' && search) {
-			const result = await getRangePaymentsByGrade(year, currentMonth, year, currentMonth, page, limit, search, plannerAccountId);
+			const result = await getRangePaymentsByGrade(year, currentMonth, year, currentMonth, page, limit, search, plannerAccountId, sortByName);
 			return json(result);
 		}
 
-		const result = await getRangePayments(year, currentMonth, year, currentMonth, page, limit, search, searchCategory, plannerAccountId);
+		const result = await getRangePayments(year, currentMonth, year, currentMonth, page, limit, search, searchCategory, plannerAccountId, sortByName);
 		return json(result);
 
 	} catch (error) {

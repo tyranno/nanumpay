@@ -18,6 +18,7 @@
 	export let onDateChange = () => {};
 	export let onSearch = () => {};
 	export let onItemsPerPageChange = () => {};
+	export let onSortChange = () => {}; // 정렬 변경 핸들러
 	export let onExport = () => {};
 	export let onProcessPast = () => {};
 
@@ -65,6 +66,7 @@
 	let showAccountColumn = $paymentPageFilterState.showAccountColumn;
 	let searchQuery = $paymentPageFilterState.searchQuery;
 	let searchCategory = $paymentPageFilterState.searchCategory;
+	let sortByName = $paymentPageFilterState.sortByName ?? true; // 기본값: 이름순
 
 	// 컬럼 설정 모달 상태
 	let showColumnSettings = false;
@@ -90,12 +92,18 @@
 				showBankColumn,
 				showAccountColumn,
 				searchQuery,
-				searchCategory
+				searchCategory,
+				sortByName
 			});
 		}
 	}
 
 	// 이벤트 핸들러
+	function handleSortChange() {
+		updateStore();
+		onSortChange();
+	}
+
 	function handleFilterTypeChange() {
 		updateStore();
 		onFilterChange();
@@ -338,6 +346,17 @@
 
 		<!-- 설정 -->
 		<div class="settings-row-mobile">
+			<!-- 이름순 정렬 체크박스 -->
+			<label class="flex items-center gap-1 cursor-pointer">
+				<input
+					type="checkbox"
+					bind:checked={sortByName}
+					onchange={handleSortChange}
+					class="cursor-pointer"
+				/>
+				<span class="text-xs text-gray-600">이름순</span>
+			</label>
+
 			<label class="flex items-center gap-1">
 				<span class="text-gray-600">페이지:</span>
 				<select
@@ -536,6 +555,19 @@
 
 		<!-- 우측 버튼 그룹 -->
 		<div class="flex items-center gap-2">
+			<!-- 이름순 정렬 체크박스 -->
+			<label class="label-desktop cursor-pointer">
+				<input
+					type="checkbox"
+					bind:checked={sortByName}
+					onchange={handleSortChange}
+					class="mr-1 cursor-pointer"
+				/>
+				이름순
+			</label>
+
+			<div class="divider-vertical"></div>
+
 			<!-- 페이지당 항목 수 -->
 		<label class="label-desktop">
 			페이지당

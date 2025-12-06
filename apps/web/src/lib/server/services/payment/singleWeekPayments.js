@@ -9,7 +9,7 @@ import mongoose from 'mongoose';
 /**
  * 단일 주차 지급 데이터 조회
  */
-export async function getSingleWeekPayments(year, month, week, page, limit, search, searchCategory, plannerAccountId = null) {
+export async function getSingleWeekPayments(year, month, week, page, limit, search, searchCategory, plannerAccountId = null, sortByName = true) {
 	// 1. 해당 주차의 날짜 계산
 	const fridays = getFridaysInMonth(year, month);
 	const targetWeek = fridays.find(w => w.weekNumber === week);
@@ -149,8 +149,9 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
 				plannerName: { $regex: searchFilter.plannerSearch, $options: 'i' }
 			}
 		}] : []),
+		// ⭐ 정렬: 이름순 또는 등록일순
 		{
-			$sort: { userObjectId: 1 }
+			$sort: sortByName ? { userName: 1 } : { createdAt: 1 }
 		},
 		// ⭐ $facet으로 grandTotal과 페이지네이션 데이터 동시 계산
 		{
@@ -271,7 +272,7 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
  * - 등급 검색에 최적화
  * - getSingleWeekPayments의 복잡도를 줄이기 위해 분리
  */
-export async function getSingleWeekPaymentsByGrade(year, month, week, page, limit, gradeFilter, plannerAccountId = null) {
+export async function getSingleWeekPaymentsByGrade(year, month, week, page, limit, gradeFilter, plannerAccountId = null, sortByName = true) {
 	// 1. 해당 주차의 날짜 계산
 	const fridays = getFridaysInMonth(year, month);
 	const targetWeek = fridays.find(w => w.weekNumber === week);
@@ -376,8 +377,9 @@ export async function getSingleWeekPaymentsByGrade(year, month, week, page, limi
 				plannerAccountId: new mongoose.Types.ObjectId(plannerAccountId)
 			}
 		}] : []),
+		// ⭐ 정렬: 이름순 또는 등록일순
 		{
-			$sort: { userObjectId: 1 }
+			$sort: sortByName ? { userName: 1 } : { createdAt: 1 }
 		},
 		// ⭐ $facet으로 grandTotal과 페이지네이션 데이터 동시 계산
 		{
