@@ -67,6 +67,9 @@ export async function GET({ url, locals }) {
 				(inst) => inst.weekNumber === weekNumber && ['paid', 'pending'].includes(inst.status)
 			);
 
+			console.log('[installment-details] plan.planType:', plan.planType);
+			console.log('[installment-details] plan.additionalPaymentBaseDate:', plan.additionalPaymentBaseDate);
+
 			for (const inst of matchingInstallments) {
 				// 등록/승급일 결정:
 				// - 승급(promotion): plan.additionalPaymentBaseDate (승급일)
@@ -74,8 +77,10 @@ export async function GET({ url, locals }) {
 				let baseDate;
 				if (plan.planType === 'initial') {
 					baseDate = userRegistrationDate;
+					console.log('[installment-details] initial -> baseDate:', baseDate);
 				} else {
 					baseDate = plan.additionalPaymentBaseDate;
+					console.log('[installment-details] promotion -> baseDate:', baseDate);
 				}
 
 				installmentDetails.push({
