@@ -48,9 +48,16 @@ export async function GET({ locals, url }) {
 		.lean();
 
 	// 이번주 금요일 계산 (지급일)
+	// ⭐ 금요일이 지났으면(토/일) 다음 주 금요일을 "이번주"로 표시
 	const now = new Date();
+	const dayOfWeek = now.getDay(); // 0(일) ~ 6(토)
+	const isFridayPassed = dayOfWeek === 0 || dayOfWeek === 6; // 토요일(6) 또는 일요일(0)
+
+	// ⭐ 금요일이 지났으면 다음 주 기준으로 계산
+	const weekOffset = isFridayPassed ? 7 : 0;
+
 	const thisWeekStart = new Date(now);
-	thisWeekStart.setDate(now.getDate() - now.getDay()); // 이번 주 일요일
+	thisWeekStart.setDate(now.getDate() - dayOfWeek + weekOffset); // 이번 주 일요일 (또는 다음 주)
 	thisWeekStart.setHours(0, 0, 0, 0);
 
 	const thisWeekEnd = new Date(thisWeekStart);
