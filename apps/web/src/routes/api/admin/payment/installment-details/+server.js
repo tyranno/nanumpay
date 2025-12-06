@@ -11,6 +11,7 @@
 import { json } from '@sveltejs/kit';
 import { connectDB } from '$lib/server/db.js';
 import WeeklyPaymentPlans from '$lib/server/models/WeeklyPaymentPlans.js';
+import User from '$lib/server/models/User.js';
 import { getFridaysInMonth } from '$lib/utils/fridayWeekCalculator.js';
 
 export async function GET({ url, locals }) {
@@ -41,6 +42,10 @@ export async function GET({ url, locals }) {
 	try {
 		await connectDB();
 
+		// 사용자 정보 조회 (등록일 확보) - userId는 User._id를 문자열로 저장
+		const user = await User.findById(userId).lean();
+		const userRegistrationDate = user?.createdAt || user?.joinedAt;
+
 		// 해당 사용자의 지급 계획 중 해당 주차에 지급되는 installment 조회
 		const plans = await WeeklyPaymentPlans.find({
 			userId: userId,
@@ -58,11 +63,21 @@ export async function GET({ url, locals }) {
 			);
 
 			for (const inst of matchingInstallments) {
+				// 등록/승급일 결정:
+				// - 승급(promotion): plan.additionalPaymentBaseDate (승급일)
+				// - 등록(initial): user.createdAt (등록일)
+				let baseDate;
+				if (plan.planType === 'initial') {
+					baseDate = userRegistrationDate;
+				} else {
+					baseDate = plan.additionalPaymentBaseDate;
+				}
+
 				installmentDetails.push({
 					baseGrade: plan.baseGrade,
 					planType: plan.planType,
 					추가지급단계: plan.추가지급단계 || 0,
-					baseDate: plan.additionalPaymentBaseDate || plan.createdAt, // 등록/승급일 (없으면 생성일)
+					baseDate: baseDate,
 					startDate: plan.startDate, // 첫 지급일
 					revenueMonth: inst.revenueMonth,
 					week: inst.week,
