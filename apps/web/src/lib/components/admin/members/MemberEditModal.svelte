@@ -34,8 +34,6 @@
 			parentId: member.parentId,
 			planner: member.planner,
 			plannerPhone: member.plannerPhone,
-			plannerBank: member.plannerBank,  // ⭐ 설계사 은행
-			plannerAccountNumber: member.plannerAccountNumber,  // ⭐ 설계사 계좌번호
 			branch: member.branch,
 			canViewSubordinates: member.canViewSubordinates
 		};
@@ -64,8 +62,6 @@
 			originalMember.parentId !== member.parentId ||
 			originalMember.planner !== member.planner ||
 			originalMember.plannerPhone !== member.plannerPhone ||
-			originalMember.plannerBank !== member.plannerBank ||  // ⭐ 설계사 은행
-			originalMember.plannerAccountNumber !== member.plannerAccountNumber ||  // ⭐ 설계사 계좌번호
 			originalMember.branch !== member.branch ||
 			originalMember.canViewSubordinates !== member.canViewSubordinates
 		);
@@ -95,8 +91,6 @@
 	function handlePlannerSelect(planner) {
 		member.planner = planner.name;
 		member.plannerPhone = planner.phone || '';
-		member.plannerBank = planner.bank || '';  // ⭐ 설계사 은행
-		member.plannerAccountNumber = planner.accountNumber || '';  // ⭐ 설계사 계좌번호
 	}
 
 	// 판매인 이름 변경 시 자동으로 연락처 추출
@@ -123,13 +117,11 @@
 		}
 	}
 
-	// 설계사 이름 변경 시 자동으로 연락처/계좌 추출
+	// 설계사 이름 변경 시 자동으로 연락처 추출
 	async function handlePlannerNameChange(event) {
 		const name = event.target.value.trim();
 		if (!name) {
 			member.plannerPhone = '';
-			member.plannerBank = '';
-			member.plannerAccountNumber = '';
 			return;
 		}
 
@@ -141,8 +133,6 @@
 			const exactMatch = data.planners?.find(p => p.name === name);
 			if (exactMatch) {
 				member.plannerPhone = exactMatch.phone || '';
-				member.plannerBank = exactMatch.bank || '';  // ⭐ 설계사 은행
-				member.plannerAccountNumber = exactMatch.accountNumber || '';  // ⭐ 설계사 계좌번호
 			}
 		} catch (error) {
 			console.error('Failed to fetch planner data:', error);
@@ -311,28 +301,6 @@
 							bind:value={member.plannerPhone}
 							class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
 							readonly
-						/>
-					</div>
-				</div>
-
-				<!-- ⭐ 설계사 계좌 정보 -->
-				<div class="grid grid-cols-2 gap-3">
-					<div>
-						<label class="block text-xs font-medium text-gray-700 mb-0.5">설계사 은행</label>
-						<input
-							type="text"
-							bind:value={member.plannerBank}
-							class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-							placeholder="설계사 은행"
-						/>
-					</div>
-					<div>
-						<label class="block text-xs font-medium text-gray-700 mb-0.5">설계사 계좌번호</label>
-						<input
-							type="text"
-							bind:value={member.plannerAccountNumber}
-							class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-							placeholder="설계사 계좌번호"
 						/>
 					</div>
 				</div>

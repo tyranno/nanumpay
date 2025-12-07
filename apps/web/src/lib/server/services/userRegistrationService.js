@@ -368,12 +368,12 @@ export class UserRegistrationService {
 				]);
 
 				// ⭐ v8.0: 설계사 계좌번호 (설계사 지급명부에 표시)
+				// 주의: __EMPTY_12는 설계사 연락처이므로 fallback에서 제외
 				const plannerAccountNumber = getValue(userData, [
 					'설계사 계좌번호',
 					'설계사계좌번호',
 					'plannerAccountNumber',
-					'__EMPTY_13',
-					'__EMPTY_12'
+					'__EMPTY_13'
 				]);
 
 				// ⭐ v8.0: 설계사 은행 (설계사 지급명부에 표시)

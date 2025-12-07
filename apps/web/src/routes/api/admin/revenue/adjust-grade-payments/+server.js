@@ -68,9 +68,9 @@ export async function POST({ request, locals }) {
 		const gradePayments = calculateGradePayments(revenue, monthlyData.gradeDistribution);
 
 		for (const grade of grades) {
-			// 해당 등급의 지급 계획 찾기 (forceUpdate 시 completed도 포함)
-			const planStatusFilter = forceUpdate 
-				? { $in: ['active', 'pending', 'completed'] }
+			// 해당 등급의 지급 계획 찾기 (forceUpdate 시 모든 상태 포함)
+			const planStatusFilter = forceUpdate
+				? { $in: ['active', 'pending', 'completed', 'terminated'] }
 				: { $in: ['active', 'pending'] };
 			const plans = await WeeklyPaymentPlans.find({
 				revenueMonth: monthKey,
