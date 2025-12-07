@@ -95,6 +95,18 @@ const userSchema = new mongoose.Schema({
 		type: Date,
 		default: Date.now
 	},
+	// ⭐ v8.0: 등급 변동 히스토리 (등록일, 승급일 기록)
+	gradeHistory: [{
+		date: { type: Date, required: true },           // 변동일 (등록일 또는 승급일)
+		fromGrade: { type: String, default: null },     // 이전 등급 (등록 시 null)
+		toGrade: { type: String, required: true },      // 변동 후 등급
+		type: { 
+			type: String, 
+			enum: ['registration', 'promotion'],
+			required: true 
+		},
+		revenueMonth: { type: String, required: true }  // 매출월 (YYYY-MM)
+	}],
 	consecutiveGradeWeeks: {
 		type: Number,
 		default: 0

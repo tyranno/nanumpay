@@ -10,7 +10,9 @@
 import WeeklyPaymentSummary from '../../models/WeeklyPaymentSummary.js';
 import WeeklyPaymentPlans from '../../models/WeeklyPaymentPlans.js';
 import MonthlyRegistrations from '../../models/MonthlyRegistrations.js';
+import User from '../../models/User.js';
 import { getWeekNumber } from '../../utils/dateUtils.js';
+import { GRADE_LIMITS } from '../../utils/constants.js';
 
 /**
  * Step 5 실행
@@ -116,10 +118,29 @@ export async function executeStep5(plans, registrationMonth) {
       });
 
       if (inst && inst.status !== 'canceled') {  // ⭐ canceled 제외
+        // ⭐ v8.0: 보험 조건 체크 - F4+ 보험 미가입 시 금액 0으로 처리
+        let installmentAmount = inst.installmentAmount || 0;
+        let withholdingTax = inst.withholdingTax || Math.round(installmentAmount * 0.033);
+        let netAmount = inst.netAmount || (installmentAmount - withholdingTax);
+
+        const gradeLimit = GRADE_LIMITS[grade];
+        if (gradeLimit?.insuranceRequired) {
+          const user = await User.findById(plan.userId);
+          const userInsurance = user?.insuranceAmount || 0;
+          const requiredInsurance = gradeLimit.insuranceAmount || 0;
+
+          if (userInsurance < requiredInsurance) {
+            // 보험 미가입 시 금액 0으로 처리 (userCount는 유지)
+            installmentAmount = 0;
+            withholdingTax = 0;
+            netAmount = 0;
+          }
+        }
+
         byGrade[grade].userIds.add(plan.userId);
-        byGrade[grade].totalAmount += inst.installmentAmount || 0;
-        byGrade[grade].totalTax += inst.withholdingTax || Math.round((inst.installmentAmount || 0) * 0.033);
-        byGrade[grade].totalNet += inst.netAmount || (inst.installmentAmount || 0) - Math.round((inst.installmentAmount || 0) * 0.033);
+        byGrade[grade].totalAmount += installmentAmount;
+        byGrade[grade].totalTax += withholdingTax;
+        byGrade[grade].totalNet += netAmount;
         byGrade[grade].paymentCount += 1;
       }
     }
@@ -218,7 +239,21 @@ export async function executeStep5(plans, registrationMonth) {
       if (inst.status === 'cancelled') continue;
 
       if (monthlyData.byGrade[grade]) {
-        monthlyData.byGrade[grade].totalAmount += inst.installmentAmount || 0;
+        // ⭐ v8.0: 보험 조건 체크 - F4+ 보험 미가입 시 금액 0으로 처리
+        let installmentAmount = inst.installmentAmount || 0;
+
+        const gradeLimit = GRADE_LIMITS[grade];
+        if (gradeLimit?.insuranceRequired) {
+          const user = await User.findById(plan.userId);
+          const userInsurance = user?.insuranceAmount || 0;
+          const requiredInsurance = gradeLimit.insuranceAmount || 0;
+
+          if (userInsurance < requiredInsurance) {
+            installmentAmount = 0;
+          }
+        }
+
+        monthlyData.byGrade[grade].totalAmount += installmentAmount;
         monthlyData.byGrade[grade].userIds.add(plan.userId);
       }
     }

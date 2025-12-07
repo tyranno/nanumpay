@@ -12,6 +12,8 @@ import mongoose from 'mongoose';
 import WeeklyPaymentPlans from '../models/WeeklyPaymentPlans.js';
 import WeeklyPaymentSummary from '../models/WeeklyPaymentSummary.js';
 import MonthlyRegistrations from '../models/MonthlyRegistrations.js';
+import User from '../models/User.js';
+import { GRADE_LIMITS } from '../utils/constants.js';
 
 // 등급별 최대 수령 횟수 정의
 const MAX_INSTALLMENTS = {
@@ -387,9 +389,24 @@ async function updateWeeklyProjections(plan, operation) {
 		}
 
 		// 10분할 및 100원 단위 절삭
-		const installmentAmount = Math.floor(baseAmount / 10 / 100) * 100;
-		const withholdingTax = Math.round(installmentAmount * 0.033);
-		const netAmount = installmentAmount - withholdingTax;
+		let installmentAmount = Math.floor(baseAmount / 10 / 100) * 100;
+		let withholdingTax = Math.round(installmentAmount * 0.033);
+		let netAmount = installmentAmount - withholdingTax;
+
+		// ⭐ v8.0: 보험 조건 체크 - F4+ 보험 미가입 시 금액 0으로 처리
+		const gradeLimit = GRADE_LIMITS[plan.baseGrade];
+		if (gradeLimit?.insuranceRequired) {
+			const user = await User.findById(plan.userId);
+			const userInsurance = user?.insuranceAmount || 0;
+			const requiredInsurance = gradeLimit.insuranceAmount || 0;
+			
+			if (userInsurance < requiredInsurance) {
+				console.log(`⚠️ [updateWeeklyProjections] ${plan.userName}(${plan.baseGrade}) 보험 미가입 - 금액 0으로 처리`);
+				installmentAmount = 0;
+				withholdingTax = 0;
+				netAmount = 0;
+			}
+		}
 
 		// 주차별 업데이트
 		const uniqueWeeks = [

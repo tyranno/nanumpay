@@ -16,33 +16,33 @@ export const GRADE_LIMITS = {
   },
   F3: {
     maxInstallments: 40,
-    insuranceRequired: true,
-    insuranceAmount: 50000
+    insuranceRequired: false  // ⭐ v8.0 변경: 보험 불필요
   },
   F4: {
     maxInstallments: 40,
     insuranceRequired: true,
-    insuranceAmount: 50000
+    insuranceAmount: 70000,  // ⭐ v8.0 변경: 5만원 → 7만원
+    insuranceDeadlinePayments: 4  // ⭐ v8.0 신규: 승급 후 4번(한달) 이내 가입 필요
   },
   F5: {
     maxInstallments: 50,
     insuranceRequired: true,
-    insuranceAmount: 70000
+    insuranceAmount: 70000  // 7만원 (동일)
   },
   F6: {
     maxInstallments: 50,
     insuranceRequired: true,
-    insuranceAmount: 70000
+    insuranceAmount: 90000  // ⭐ v8.0 변경: 7만원 → 9만원
   },
   F7: {
     maxInstallments: 60,
     insuranceRequired: true,
-    insuranceAmount: 100000
+    insuranceAmount: 90000  // ⭐ v8.0 변경: 10만원 → 9만원
   },
   F8: {
     maxInstallments: 60,
     insuranceRequired: true,
-    insuranceAmount: 100000
+    insuranceAmount: 110000  // ⭐ v8.0 변경: 10만원 → 11만원
   }
 };
 

@@ -2,6 +2,7 @@ import { json } from '@sveltejs/kit';
 import { connectDB } from '$lib/server/db.js';
 import WeeklyPaymentSummary from '$lib/server/models/WeeklyPaymentSummary.js';
 import WeeklyPaymentPlans from '$lib/server/models/WeeklyPaymentPlans.js';
+import { GRADE_LIMITS } from '$lib/server/utils/constants.js';
 
 /**
  * v5.0: 주차별 지급 스케줄 조회
@@ -64,17 +65,44 @@ export async function GET({ url }) {
 					userId: '$user._id',
 					userName: '$user.name',
 					userGrade: '$user.grade',
+					userInsuranceAmount: '$user.insuranceAmount',  // ⭐ v8.0: 보험금액 추가
 					amount: '$installments.amount',
+					installmentAmount: '$installments.installmentAmount',
 					status: '$installments.status',
 					scheduledDate: '$installments.scheduledDate',
 					paidDate: '$installments.paidDate',
 					planType: '$planType',
+					baseGrade: '$baseGrade',  // ⭐ v8.0: 계획 등급 추가
 					installmentNumber: '$installments.installmentNumber'
 				}
 			}
 		]);
 
 		console.log(`[API] 조회된 분할금 수: ${installments.length}`);
+
+		// ⭐ v8.0: 보험 조건 체크 - F4+ 보험 미가입 시 금액 0으로 처리
+		const processedInstallments = installments.map(inst => {
+			const grade = inst.baseGrade || inst.userGrade;
+			const gradeLimit = GRADE_LIMITS[grade];
+			
+			// 보험 필수 등급이고 보험 미가입인 경우
+			if (gradeLimit?.insuranceRequired) {
+				const userInsurance = inst.userInsuranceAmount || 0;
+				const requiredInsurance = gradeLimit.insuranceAmount || 0;
+				
+				if (userInsurance < requiredInsurance) {
+					return {
+						...inst,
+						amount: 0,
+						installmentAmount: 0,
+						insuranceSkip: true,  // 보험 미가입으로 skip 표시
+						skipReason: `보험 미가입 (${userInsurance.toLocaleString()}원 < ${requiredInsurance.toLocaleString()}원 필요)`
+					};
+				}
+			}
+			
+			return inst;
+		});
 
 		return json({
 			success: true,
@@ -90,7 +118,7 @@ export async function GET({ url }) {
 				status: summary.status,
 				processedAt: summary.processedAt
 			} : null,
-			installments
+			installments: processedInstallments  // ⭐ v8.0: 보험 조건 반영된 결과
 		});
 	} catch (error) {
 		console.error('[API] 스케줄 조회 오류:', error);

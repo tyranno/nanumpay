@@ -229,10 +229,11 @@ export class PaymentExcelExporter {
 			: ['순번', '성명', '설계자', '은행', '계좌번호'];
 		const colsPerWeek = (this.showGradeInfoColumn ? 1 : 0) + 1 + (this.showTaxColumn ? 1 : 0) + (this.showNetColumn ? 1 : 0);
 
-		// 기간 조회일 때만 기간 합계 컬럼 추가
+		// 기간 조회일 때만 기간 합계 컬럼 추가 (등급(회수) 제외)
+		const periodColCount = 1 + (this.showTaxColumn ? 1 : 0) + (this.showNetColumn ? 1 : 0);
 		if (this.filterType === 'period') {
 			headerRow1Data.push('기간 합계');
-			for (let i = 1; i < colsPerWeek; i++) {
+			for (let i = 1; i < periodColCount; i++) {
 				headerRow1Data.push('');
 			}
 		}
@@ -272,10 +273,11 @@ export class PaymentExcelExporter {
 		}
 
 		allWeeks.forEach(() => {
-			headerRow2Data.push('지급액');
+			// ⭐ 웹 화면 순서와 동일하게: 등급(회수) → 지급액
 			if (this.showGradeInfoColumn) {
 				headerRow2Data.push('등급(회수)');
 			}
+			headerRow2Data.push('지급액');
 			if (this.showTaxColumn) {
 				headerRow2Data.push('세지원(3.3%)');
 			}
@@ -299,8 +301,17 @@ export class PaymentExcelExporter {
 			worksheet.mergeCells(headerRow1.number, i, headerRow2.number, i);
 		}
 
-		// 주차 헤더 병합
+		// 기간 합계 헤더 병합 (등급(회수) 제외)
 		let colStart = fixedColCount + 1;
+		if (this.filterType === 'period') {
+			worksheet.mergeCells(headerRow1.number, colStart, headerRow1.number, colStart + periodColCount - 1);
+			for (let c = colStart; c < colStart + periodColCount; c++) {
+				headerRow1.getCell(c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE1BEE7' } }; // 보라색
+			}
+			colStart += periodColCount;
+		}
+
+		// 주차 헤더 병합
 		allWeeks.forEach(() => {
 			worksheet.mergeCells(headerRow1.number, colStart, headerRow1.number, colStart + colsPerWeek - 1);
 			for (let c = colStart; c < colStart + colsPerWeek; c++) {
@@ -359,10 +370,11 @@ export class PaymentExcelExporter {
 				const key = this.getPaymentKey(week);
 				const payment = user.payments[key];
 
-				rowData.push(payment?.amount || 0);
+				// ⭐ 웹 화면 순서와 동일하게: 등급(회수) → 지급액
 				if (this.showGradeInfoColumn) {
 					rowData.push(payment?.gradeInfo || '-');
 				}
+				rowData.push(payment?.amount || 0);
 				if (this.showTaxColumn) {
 					rowData.push(payment?.tax || 0);
 				}
@@ -413,22 +425,22 @@ export class PaymentExcelExporter {
 			}
 		}
 		
-		// 주차별 컬럼 스타일
+		// 주차별 컬럼 스타일 - ⭐ 웹 화면 순서와 동일하게: 등급(회수) → 지급액
 		for (let w = 0; w < weekCount; w++) {
-			// 지급액
-			dataRow.getCell(col).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFCC' } };
-			dataRow.getCell(col).font = { bold: true };
-			dataRow.getCell(col).numFmt = '#,##0';
-			dataRow.getCell(col).alignment = { vertical: 'middle', horizontal: 'right' };
-			col++;
-			
-			// 등급(회수)
+			// 등급(회수) - 첫 번째
 			if (this.showGradeInfoColumn) {
 				dataRow.getCell(col).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE3F2FD' } }; // 연한 파란색
 				dataRow.getCell(col).font = { size: 10 };
 				dataRow.getCell(col).alignment = { vertical: 'middle', horizontal: 'center' };
 				col++;
 			}
+
+			// 지급액 - 두 번째
+			dataRow.getCell(col).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFCC' } };
+			dataRow.getCell(col).font = { bold: true };
+			dataRow.getCell(col).numFmt = '#,##0';
+			dataRow.getCell(col).alignment = { vertical: 'middle', horizontal: 'right' };
+			col++;
 
 			// 세지원
 			if (this.showTaxColumn) {
@@ -470,13 +482,13 @@ export class PaymentExcelExporter {
 			}
 		}
 		
-		// 주차별 합계 추가
+		// 주차별 합계 추가 - ⭐ 웹 화면 순서와 동일하게: 등급(회수) → 지급액
 		allWeeks.forEach(week => {
 			const total = this.calculateWeekTotal(allData, week);
-			totalRowData.push(total.amount);
 			if (this.showGradeInfoColumn) {
 				totalRowData.push('-'); // 등급(회수)는 총계에서 '-' 표시
 			}
+			totalRowData.push(total.amount);
 			if (this.showTaxColumn) {
 				totalRowData.push(total.tax);
 			}

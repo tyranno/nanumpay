@@ -105,7 +105,7 @@
 	async function exportToExcel() {
 		const filterState = $paymentPageFilterState;
 
-		// 전체 데이터 가져오기
+		// 전체 데이터 가져오기 - ⭐ sortByName 파라미터 추가
 		const { users: allData, weeks: allWeeks } = await paymentService.getAllPaymentData({
 			filterType: filterState.filterType,
 			selectedDate: filterState.selectedDate,
@@ -115,7 +115,8 @@
 			endMonth: filterState.endMonth,
 			searchQuery: filterState.searchQuery,
 			searchCategory: filterState.searchCategory,
-			periodType: filterState.periodType
+			periodType: filterState.periodType,
+			sortByName: filterState.sortByName  // ⭐ 정렬 옵션 전달
 		});
 
 		// Excel 내보내기

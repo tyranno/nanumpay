@@ -317,7 +317,8 @@ export const paymentService = {
 			endMonth,
 			searchQuery = '',
 			searchCategory = 'name',
-			periodType = 'weekly'
+			periodType = 'weekly',
+			sortByName = true  // ⭐ 정렬 옵션 추가
 		} = params;
 
 		// limit을 충분히 크게 설정하여 전체 데이터 가져오기

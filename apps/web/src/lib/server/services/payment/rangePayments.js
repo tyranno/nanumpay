@@ -3,7 +3,7 @@ import User from '$lib/server/models/User.js';
 import UserAccount from '$lib/server/models/UserAccount.js';
 import PlannerAccount from '$lib/server/models/PlannerAccount.js';
 import { getFridaysInMonth } from '$lib/utils/fridayWeekCalculator.js';
-import { buildSearchFilter, generateGradeInfo, calculatePeriodGrade } from './utils.js';
+import { buildSearchFilter, generateGradeInfo, calculatePeriodGrade, applyInsuranceCondition } from './utils.js';
 import mongoose from 'mongoose';
 
 /**
@@ -151,6 +151,18 @@ export async function getRangePayments(startYear, startMonth, endYear, endMonth,
 				? calculatePeriodGrade(payment.payments, user.grade || 'F1')
 				: (user.grade || 'F1');
 
+			// ⭐ v8.0: 보험 조건 체크 - F4+ 보험 미가입 시 금액 0으로 처리
+			const userInsurance = user.insuranceAmount || 0;
+			const actualAmount = payment
+				? applyInsuranceCondition(periodGrade, userInsurance, payment.installmentAmount)
+				: 0;
+			const taxAmount = payment
+				? applyInsuranceCondition(periodGrade, userInsurance, payment.withholdingTax)
+				: 0;
+			const netAmount = payment
+				? applyInsuranceCondition(periodGrade, userInsurance, payment.netAmount)
+				: 0;
+
 			return {
 				userId: userId,
 				userName: user.name,
@@ -158,9 +170,9 @@ export async function getRangePayments(startYear, startMonth, endYear, endMonth,
 				bank: userAccount.bank || '',
 				accountNumber: userAccount.accountNumber || '',
 				grade: periodGrade,
-				actualAmount: payment ? payment.installmentAmount : 0,
-				taxAmount: payment ? payment.withholdingTax : 0,
-				netAmount: payment ? payment.netAmount : 0,
+				actualAmount,
+				taxAmount,
+				netAmount,
 				installments: payment ? payment.payments : [],
 				gradeInfo
 			};
@@ -463,16 +475,29 @@ export async function getRangePaymentsByGrade(startYear, startMonth, endYear, en
 				? generateGradeInfo(payment.payments)
 				: '-';
 
+			// ⭐ v8.0: 보험 조건 체크 - F4+ 보험 미가입 시 금액 0으로 처리
+			const grade = payment?.baseGrade || user.grade || 'F1';
+			const userInsurance = user.insuranceAmount || 0;
+			const actualAmount = payment
+				? applyInsuranceCondition(grade, userInsurance, payment.installmentAmount)
+				: 0;
+			const taxAmount = payment
+				? applyInsuranceCondition(grade, userInsurance, payment.withholdingTax)
+				: 0;
+			const netAmount = payment
+				? applyInsuranceCondition(grade, userInsurance, payment.netAmount)
+				: 0;
+
 			return {
 				userId,
 				userName: payment?.userName || user.name,
 				planner: plannerAccount.name || '-',
 				bank: userAccount.bank || user.bank || '-',
 				accountNumber: userAccount.accountNumber || user.accountNumber || '-',
-				grade: payment?.baseGrade || user.grade || 'F1',
-				actualAmount: payment?.installmentAmount || 0,
-				taxAmount: payment?.withholdingTax || 0,
-				netAmount: payment?.netAmount || 0,
+				grade,
+				actualAmount,
+				taxAmount,
+				netAmount,
 				installments: payment ? payment.payments : [],
 				gradeInfo
 			};

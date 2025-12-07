@@ -3,7 +3,7 @@ import User from '$lib/server/models/User.js';
 import UserAccount from '$lib/server/models/UserAccount.js';
 import PlannerAccount from '$lib/server/models/PlannerAccount.js';
 import { getFridaysInMonth } from '$lib/utils/fridayWeekCalculator.js';
-import { buildSearchFilter, generateGradeInfo, calculatePeriodGrade } from './utils.js';
+import { buildSearchFilter, generateGradeInfo, calculatePeriodGrade, applyInsuranceCondition } from './utils.js';
 import mongoose from 'mongoose';
 
 /**
@@ -215,6 +215,12 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
 		// 선택된 기간의 최고 등급 계산
 		const periodGrade = calculatePeriodGrade(payment.payments, user.grade || 'F1');
 
+		// ⭐ v8.0: 보험 조건 체크 - F4+ 보험 미가입 시 금액 0으로 처리
+		const userInsurance = user.insuranceAmount || 0;
+		const actualAmount = applyInsuranceCondition(periodGrade, userInsurance, payment.totalAmount || 0);
+		const taxAmount = applyInsuranceCondition(periodGrade, userInsurance, payment.totalTax || 0);
+		const netAmount = applyInsuranceCondition(periodGrade, userInsurance, payment.totalNet || 0);
+
 		return {
 			no: (page - 1) * limit + idx + 1,
 			userId: payment._id,
@@ -225,9 +231,9 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
 			bank: userAccount.bank || '',
 			accountNumber: userAccount.accountNumber || '',
 			grade: periodGrade,
-			actualAmount: payment.totalAmount || 0,
-			taxAmount: payment.totalTax || 0,
-			netAmount: payment.totalNet || 0,
+			actualAmount,
+			taxAmount,
+			netAmount,
 			installments: payment.payments,
 			gradeInfo
 		};
@@ -440,6 +446,12 @@ export async function getSingleWeekPaymentsByGrade(year, month, week, page, limi
 		// 선택된 기간의 최고 등급 계산
 		const periodGrade = calculatePeriodGrade(payment.payments, user.grade || 'F1');
 
+		// ⭐ v8.0: 보험 조건 체크 - F4+ 보험 미가입 시 금액 0으로 처리
+		const userInsurance = user.insuranceAmount || 0;
+		const actualAmount = applyInsuranceCondition(periodGrade, userInsurance, payment.totalAmount || 0);
+		const taxAmount = applyInsuranceCondition(periodGrade, userInsurance, payment.totalTax || 0);
+		const netAmount = applyInsuranceCondition(periodGrade, userInsurance, payment.totalNet || 0);
+
 		return {
 			userId: payment._id,
 			userName: payment.userName || user.name || 'Unknown',
@@ -447,9 +459,9 @@ export async function getSingleWeekPaymentsByGrade(year, month, week, page, limi
 			bank: userAccount.bank || '',
 			accountNumber: userAccount.accountNumber || '',
 			grade: periodGrade,
-			actualAmount: payment.totalAmount || 0,
-			taxAmount: payment.totalTax || 0,
-			netAmount: payment.totalNet || 0,
+			actualAmount,
+			taxAmount,
+			netAmount,
 			installments: payment.payments || [],
 			gradeInfo
 		};
@@ -461,12 +473,13 @@ export async function getSingleWeekPaymentsByGrade(year, month, week, page, limi
 		net: enrichedPayments.reduce((sum, p) => sum + p.netAmount, 0)
 	};
 
+	// ⭐ v8.0: 보험 조건 반영된 weeklyTotals 계산
 	const weekKey = `${year}-${month}-${week}`;
 	const weeklyTotals = {
 		[weekKey]: {
-			totalAmount: grandTotal.totalAmount,
-			totalTax: grandTotal.totalTax,
-			totalNet: grandTotal.totalNet
+			totalAmount: pageTotal.amount,
+			totalTax: pageTotal.tax,
+			totalNet: pageTotal.net
 		}
 	};
 

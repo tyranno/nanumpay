@@ -7,6 +7,7 @@ import WeeklyPaymentPlans from '../models/WeeklyPaymentPlans.js';
 import WeeklyPaymentSummary from '../models/WeeklyPaymentSummary.js';
 import MonthlyRegistrations from '../models/MonthlyRegistrations.js';
 import User from '../models/User.js';
+import { GRADE_LIMITS } from '../utils/constants.js';
 
 /**
  * 매주 금요일 지급 처리 메인 함수
@@ -72,25 +73,16 @@ export async function processWeeklyPayments(date = new Date()) {
         continue;
       }
 
-      // insuranceSkipped 플래그 확인 (보험 해지로 인한 건너뜀)
-      if (installment.insuranceSkipped) {
-        installment.status = 'skipped';
-        installment.skipReason = 'insurance_not_maintained';
-        plan.completedInstallments += 1;  // 회차는 증가하지만 지급 안함
-        await plan.save();
-        console.log(`${user.name} 지급 건너뜀 (보험 미유지): 회차 ${plan.completedInstallments}`);
-        continue;
-      }
-
-      // 보험 조건 확인
+      // 보험 조건 확인 (F4-F8만 해당, F3 이하는 보험 불필요)
       const skipPayment = await checkInsuranceCondition(user, plan.baseGrade);
       if (skipPayment) {
+        // ⭐ v8.0: F4-F8 보험 미가입 시 skip + 횟수 증가 (지급한 것으로 인정)
+        // 나중에 보험 가입하면 이후 회차부터 정상 지급
         installment.status = 'skipped';
         installment.skipReason = skipPayment.reason;
-        installment.insuranceSkipped = true;  // 플래그 설정
-        plan.completedInstallments += 1;  // 회차는 증가
+        plan.completedInstallments += 1;  // 회차는 증가 (지급한 것으로 인정)
         await plan.save();
-        console.log(`${user.name} 지급 건너뜀: ${skipPayment.reason}`);
+        console.log(`⚠️ ${user.name}(${plan.baseGrade}) 지급 건너뜀 (보험 부족): 회차 ${plan.completedInstallments}/${plan.totalInstallments}`);
         continue;
       }
 
@@ -180,27 +172,33 @@ export async function processWeeklyPayments(date = new Date()) {
 
 /**
  * 보험 조건 확인
+ * ⭐ v8.0 변경:
+ * - F1-F3: 보험 불필요
+ * - F4-F8: 보험 필수 (등급별 금액 다름)
+ *   - F4: 7만원, F5: 7만원, F6: 9만원, F7: 9만원, F8: 11만원
+ * - 보험 미가입 시: skip + 횟수 증가 (지급한 것으로 인정)
+ * - 나중에 보험 가입하면 이후 회차부터 정상 지급
+ * 
+ * @returns {null} 보험 조건 충족 또는 보험 불필요
+ * @returns {{skip: true, reason: string}} 보험 부족으로 skip 필요
  */
 async function checkInsuranceCondition(user, grade) {
-  // F3 미만은 보험 조건 없음
-  if (['F1', 'F2'].includes(grade)) {
+  // GRADE_LIMITS에서 보험 조건 확인
+  const gradeLimit = GRADE_LIMITS[grade];
+  
+  // 보험 필수가 아니면 패스
+  if (!gradeLimit?.insuranceRequired) {
     return null;
   }
 
-  // 보험 필수 금액
-  const requiredAmounts = {
-    F3: 50000, F4: 50000,
-    F5: 70000, F6: 70000,
-    F7: 100000, F8: 100000
-  };
-
   // User에서 보험 금액 조회
   const insuranceAmount = user.insuranceAmount || 0;
+  const requiredAmount = gradeLimit.insuranceAmount || 0;
 
-  if (insuranceAmount < requiredAmounts[grade]) {
+  if (insuranceAmount < requiredAmount) {
     return {
       skip: true,
-      reason: `insufficient_insurance_amount: ${insuranceAmount} < ${requiredAmounts[grade]}`
+      reason: `insufficient_insurance_amount: ${insuranceAmount} < ${requiredAmount}`
     };
   }
 

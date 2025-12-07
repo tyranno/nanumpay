@@ -313,16 +313,12 @@ async function checkAdditionalPaymentConditions(userId, grade, revenueMonth, mon
 	// 이미 최대 추가지급 횟수에 도달했으면 제외
 	if (nextAdditionalStage > maxAllowed) return null;
 
-	// F3+ 보험 확인 (UserAccount.insuranceAmount 기준)
-	if (grade >= 'F3') {
-		const requiredAmounts = {
-			F3: 50000, F4: 50000,
-			F5: 70000, F6: 70000,
-			F7: 100000, F8: 100000
-		};
-
+	// ⭐ v8.0 변경: F4+ 보험 확인 (F3는 보험 불필요)
+	// GRADE_LIMITS에서 보험 조건 가져오기
+	const gradeLimit = GRADE_LIMITS[grade];
+	if (gradeLimit?.insuranceRequired) {
 		const insuranceAmount = user.insuranceAmount || 0;
-		const requiredAmount = requiredAmounts[grade] || 0;
+		const requiredAmount = gradeLimit.insuranceAmount || 0;
 
 		if (insuranceAmount < requiredAmount) {
 			return null; // 보험 금액 부족 → 추가지급 생성 안 함
