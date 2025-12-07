@@ -211,8 +211,15 @@ export async function executeStep2(users) {
 		}
 	}
 
-	// 2-5. 매출 업데이트 (등록자 수 × 1,000,000)
-	monthlyReg.totalRevenue = monthlyReg.registrationCount * 1000000;
+	// 2-5. 매출 업데이트 (⭐ v8.0: 각 등록자의 100만원 × ratio 합산)
+	// 등록자들의 ratio를 조회하여 매출 계산
+	let totalRevenue = 0;
+	for (const reg of monthlyReg.registrations) {
+		const userDoc = await User.findById(reg.userId);
+		const ratio = userDoc?.ratio ?? 1;
+		totalRevenue += Math.floor(1000000 * ratio);
+	}
+	monthlyReg.totalRevenue = totalRevenue;
 
 	// 2-6. 승급자 수 계산 (이번 달 등록자 중 승급한 사람)
 	const registrantIds = monthlyReg.registrations.map((r) => r.userId);
@@ -227,10 +234,8 @@ export async function executeStep2(users) {
 		console.log(`
 📅 [Step2-7-2] 승급자 등급 변동 기록 업데이트: ${promoted.length}명`);
 		for (const prom of promoted) {
-			// lastGradeChangeDate 업데이트 (호환성 유지)
+			// ⭐ v8.0: gradeHistory에 승급 기록 추가 (lastGradeChangeDate는 virtual로 제공)
 			await User.findByIdAndUpdate(prom.userId, {
-				lastGradeChangeDate: prom.promotionDate,
-				// ⭐ gradeHistory에 승급 기록 추가
 				$push: {
 					gradeHistory: {
 						date: prom.promotionDate,

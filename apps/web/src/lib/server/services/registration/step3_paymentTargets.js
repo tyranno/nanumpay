@@ -15,7 +15,7 @@ import User from '../../models/User.js';
 import MonthlyRegistrations from '../../models/MonthlyRegistrations.js';
 import WeeklyPaymentPlans from '../../models/WeeklyPaymentPlans.js';
 import { calculateGradePayments } from '../../utils/paymentCalculator.js';
-import { GRADE_LIMITS } from '../../utils/constants.js';
+// ⭐ v8.0: GRADE_LIMITS 제거 - 보험 체크는 지급 시점(weeklyPaymentService)에서만 수행
 
 /**
  * Step 3 실행
@@ -98,6 +98,17 @@ export async function executeStep3(promoted, monthlyReg, registrationMonth) {
 	// 등급별 지급 금액 산출
 	const revenue = monthlyReg.getEffectiveRevenue();
 	const gradePayments = calculateGradePayments(revenue, gradeDistribution);
+
+	// ⭐ v8.0: adjustedGradePayments가 있으면 조정값 우선 사용
+	if (monthlyReg.adjustedGradePayments) {
+		for (const [grade, adjustment] of Object.entries(monthlyReg.adjustedGradePayments)) {
+			if (adjustment && adjustment.totalAmount !== null && adjustment.totalAmount !== undefined) {
+				// 조정값이 설정된 등급은 조정값 사용 (0 포함)
+				gradePayments[grade] = adjustment.totalAmount;
+				console.log(`  [Step3] ${grade} 조정값 적용: ${adjustment.totalAmount.toLocaleString()}원`);
+			}
+		}
+	}
 
 	// MonthlyRegistrations에 저장
 	monthlyReg.paymentTargets.registrants = registrantF1Targets.map((t) => ({
@@ -313,17 +324,8 @@ async function checkAdditionalPaymentConditions(userId, grade, revenueMonth, mon
 	// 이미 최대 추가지급 횟수에 도달했으면 제외
 	if (nextAdditionalStage > maxAllowed) return null;
 
-	// ⭐ v8.0 변경: F4+ 보험 확인 (F3는 보험 불필요)
-	// GRADE_LIMITS에서 보험 조건 가져오기
-	const gradeLimit = GRADE_LIMITS[grade];
-	if (gradeLimit?.insuranceRequired) {
-		const insuranceAmount = user.insuranceAmount || 0;
-		const requiredAmount = gradeLimit.insuranceAmount || 0;
-
-		if (insuranceAmount < requiredAmount) {
-			return null; // 보험 금액 부족 → 추가지급 생성 안 함
-		}
-	}
+	// ⭐ v8.0 변경: 보험 체크는 지급 시점(weeklyPaymentService)에서 수행
+	// 계획은 항상 생성하고, 지급 시점에 보험 미가입이면 skip 처리
 
 	// ⭐ 이번 달에 이미 이 등급으로 추가지급 계획이 생성되었는지 확인 (중복 방지)
 	const alreadyCreated = await WeeklyPaymentPlans.findOne({

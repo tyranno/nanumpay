@@ -192,13 +192,9 @@ export async function executeStep4(promoted, targets, gradePayments, monthlyReg,
   // 4-2. 기존 사용자 중 승급자 계획 생성
   // ⭐ v8.0 FIX: gradeHistory 기반으로 이번 달에 실제로 승급한 사용자만 처리
 
-  // 이번 배치에 등록된 사용자 (4-1에서 이미 처리됨)
-  const currentBatchIds = monthlyReg.registrations
-    .filter(r => {
-      // 이번 달 등록 기록이 있는 사용자만
-      return true; // 일단 모든 registrations 포함
-    })
-    .map(r => r.userId?.toString());
+  // ⭐ v8.0 FIX: 4-1에서 실제로 승급 처리된 사용자 ID 수집
+  // (이번 달 등록 + 승급이 동시에 일어난 경우만)
+  const processedPromotionIds = promotionPlans.map(p => p.userId?.toString());
 
   // ⭐ v8.0 FIX: promotedTargets 대신 gradeHistory에서 이번 달 승급자 직접 조회
   // ⚠️ $elemMatch 사용: 같은 배열 요소에서 type과 revenueMonth가 모두 일치해야 함
@@ -211,11 +207,11 @@ export async function executeStep4(promoted, targets, gradePayments, monthlyReg,
     }
   });
 
-  // 이번 달 승급 기록이 있는 기존 사용자 (이번 배치에 포함 안 된 승급자)
+  // 이번 달 승급 기록이 있는 기존 사용자 (4-1에서 이미 처리된 승급자 제외)
   const existingPromoted = allUsers.filter(u => {
     const userIdStr = u._id.toString();
-    // 이번 배치에 포함되지 않은 승급자
-    return !currentBatchIds.includes(userIdStr);
+    // ⭐ v8.0 FIX: 4-1에서 이미 승급 플랜이 생성된 사용자만 제외
+    return !processedPromotionIds.includes(userIdStr);
   });
 
   console.log(`[Step4] 4-2 기존 승급자: ${existingPromoted.length}명`);
@@ -342,6 +338,7 @@ async function createAdditionalPaymentPlan(userId, userName, grade, 추가지급
     console.log(`[createAdditionalPaymentPlan] ${userName} - grade:${grade}, 단계:${추가지급단계}, 매출월:${revenueMonth}`);
 
     // 1. 지급액 계산 (10분할)
+    // ⭐ v8.0: ratio는 매출 계산 시 적용됨 (step2), 지급액에는 적용 안 함
     const baseAmount = gradePayments[grade] || 0;
     if (baseAmount === 0) {
       console.log(`[createAdditionalPaymentPlan] ${userName} - baseAmount가 0이라 계획 생성 안 함`);
@@ -575,9 +572,10 @@ async function terminateActivePlansFromDate(userId, firstPaymentDate, excludePla
         }
       }
 
-      // 플랜 상태 결정: 남은 pending이 없으면 terminated, 있으면 active 유지
+      // ⭐ v8.0 FIX: 승급으로 인해 terminated installment가 있으면 planStatus도 terminated
+      // 남은 pending은 정상 지급하되, 계획 자체는 종료 상태로 표시
       let newPlanStatus = plan.planStatus;
-      if (terminatedInstallments > 0 && !hasRemainingPending) {
+      if (terminatedInstallments > 0) {
         newPlanStatus = 'terminated';
       }
 
@@ -660,9 +658,10 @@ async function terminateAllActivePlans(userId, promotionDate) {
         }
       }
 
-      // 플랜 상태 결정: 남은 pending이 없으면 terminated, 있으면 active 유지
+      // ⭐ v8.0 FIX: 승급으로 인해 terminated installment가 있으면 planStatus도 terminated
+      // 남은 pending은 정상 지급하되, 계획 자체는 종료 상태로 표시
       let newPlanStatus = plan.planStatus;
-      if (terminatedInstallments > 0 && !hasRemainingPending) {
+      if (terminatedInstallments > 0) {
         newPlanStatus = 'terminated';
       }
 

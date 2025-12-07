@@ -91,10 +91,7 @@ const userSchema = new mongoose.Schema({
 		type: Number,
 		default: 0
 	},
-	lastGradeChangeDate: {
-		type: Date,
-		default: Date.now
-	},
+	// ⭐ v8.0 정리: lastGradeChangeDate 제거 → gradeHistory에서 virtual로 제공
 	// ⭐ v8.0: 등급 변동 히스토리 (등록일, 승급일 기록)
 	gradeHistory: [{
 		date: { type: Date, required: true },           // 변동일 (등록일 또는 승급일)
@@ -119,6 +116,14 @@ const userSchema = new mongoose.Schema({
 	insuranceAmount: {
 		type: Number,
 		default: 0
+	},
+	// ⭐ v8.0: 비율 (엑셀에서 입력, 지급액 계산에 사용)
+	// 1 = 100%, 0.75 = 75%, 0.5 = 50%, 0.25 = 25%
+	ratio: {
+		type: Number,
+		default: 1,
+		min: 0,
+		max: 1
 	},
 	// 상태 관리
 	level: {
@@ -162,6 +167,14 @@ userSchema.virtual('hasLeftChild').get(function() {
 
 userSchema.virtual('hasRightChild').get(function() {
 	return !!this.rightChildId;
+});
+
+// ⭐ v8.0: lastGradeChangeDate virtual (gradeHistory에서 추출)
+userSchema.virtual('lastGradeChangeDate').get(function() {
+	if (!this.gradeHistory || this.gradeHistory.length === 0) {
+		return this.joinedAt || this.createdAt;
+	}
+	return this.gradeHistory[this.gradeHistory.length - 1].date;
 });
 
 // 트리 구조 헬퍼 메서드

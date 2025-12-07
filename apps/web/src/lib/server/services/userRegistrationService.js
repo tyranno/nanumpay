@@ -354,6 +354,32 @@ export class UserRegistrationService {
 					'연락처.2',
 					'plannerPhone'
 				]);
+				// ⭐ v8.0: 비율 (엑셀에서 입력, 지급액 계산에 사용)
+				const ratioRaw = getValue(userData, [
+					'비율',
+					'ratio',
+					'__EMPTY_12',
+					'__EMPTY_11'
+				]);
+				const ratio = parseFloat(ratioRaw) || 1; // 기본값 1 (100%)
+
+				// ⭐ v8.0: 설계사 계좌번호 (설계사 지급명부에 표시)
+				const plannerAccountNumber = getValue(userData, [
+					'설계사 계좌번호',
+					'설계사계좌번호',
+					'plannerAccountNumber',
+					'__EMPTY_13',
+					'__EMPTY_12'
+				]);
+
+				// ⭐ v8.0: 설계사 은행 (설계사 지급명부에 표시)
+				// ⚠️ __EMPTY_XX fallback 제거 - 계좌번호와 충돌 방지
+				const plannerBank = getValue(userData, [
+					'설계사 은행',
+					'설계사은행',
+					'plannerBank'
+				]);
+
 				const insuranceProduct = getValue(userData, [
 					'보험상품명',
 					'보험상품',
@@ -432,6 +458,9 @@ export class UserRegistrationService {
 						passwordHash: plannerPasswordHash,
 						name: plannerName,
 						phone: plannerPhoneFinal,
+					// ⭐ v8.0: 설계사 계좌 정보
+					bank: plannerBank || '',
+					accountNumber: plannerAccountNumber || '',
 						status: 'active',
 						createdAt: createdAt
 					});
@@ -468,10 +497,12 @@ export class UserRegistrationService {
 					branch,
 					grade,
 					gradePaymentCount: 0,
-					lastGradeChangeDate: createdAt,
+					// ⭐ v8.0: lastGradeChangeDate 제거 (gradeHistory virtual로 제공)
 					consecutiveGradeWeeks: 0,
 					insuranceActive: false,
 					insuranceAmount: 0,
+					// ⭐ v8.0: 비율 (지급액 계산에 사용)
+					ratio: ratio,
 					salesperson,
 					salespersonPhone,
 					insuranceProduct,

@@ -32,6 +32,8 @@ const MAX_INSTALLMENTS = {
  */
 export async function createInitialPaymentPlan(userId, userName, grade, registrationDate) {
 	try {
+		// ⭐ v8.0: ratio는 매출 계산 시 적용됨 (step2), 지급액에는 적용 안 함
+
 		// 지급 시작일 계산 (등록일+1개월 후 첫 금요일)
 		const startDate = WeeklyPaymentPlans.getPaymentStartDate(registrationDate);
 
@@ -49,9 +51,11 @@ export async function createInitialPaymentPlan(userId, userName, grade, registra
 		let netAmount = 0;
 
 		if (monthlyReg) {
-			// 조정된 금액이 있으면 사용, 없으면 계산
-			if (monthlyReg.adjustedGradePayments?.[grade]?.totalAmount) {
-				baseAmount = monthlyReg.adjustedGradePayments[grade].totalAmount;
+			// ⭐ v8.0 FIX: 조정된 금액이 있으면 사용, 없으면 계산
+			// - totalAmount가 null/undefined가 아니면 조정값 사용 (0 포함!)
+			const adjustment = monthlyReg.adjustedGradePayments?.[grade];
+			if (adjustment && adjustment.totalAmount !== null && adjustment.totalAmount !== undefined) {
+				baseAmount = adjustment.totalAmount;
 				console.log(
 					`[createInitialPaymentPlan] ${userName} - 조정된 금액 사용: ${grade} = ${baseAmount}원`
 				);
@@ -65,7 +69,7 @@ export async function createInitialPaymentPlan(userId, userName, grade, registra
 			}
 
 			if (baseAmount > 0) {
-				installmentAmount = Math.floor(baseAmount / 10 / 100) * 100;
+				installmentAmount = Math.floor(baseAmount / 10 / 100) * 100;  // 100원 단위 절삭
 
 				withholdingTax = Math.round(installmentAmount * 0.033);
 
@@ -141,6 +145,8 @@ export async function createPromotionPaymentPlan(
 	monthlyRegData = null
 ) {
 	try {
+		// ⭐ v8.0: ratio는 매출 계산 시 적용됨 (step2), 지급액에는 적용 안 함
+
 		// 지급 시작일 계산 (승급일+1개월 후 첫 금요일)
 		const startDate = WeeklyPaymentPlans.getPaymentStartDate(promotionDate);
 
@@ -163,9 +169,11 @@ export async function createPromotionPaymentPlan(
 		let netAmount = 0;
 
 		if (monthlyReg) {
-			// 조정된 금액이 있으면 사용, 없으면 계산
-			if (monthlyReg.adjustedGradePayments?.[newGrade]?.totalAmount) {
-				baseAmount = monthlyReg.adjustedGradePayments[newGrade].totalAmount;
+			// ⭐ v8.0 FIX: 조정된 금액이 있으면 사용, 없으면 계산
+			// - totalAmount가 null/undefined가 아니면 조정값 사용 (0 포함!)
+			const adjustment = monthlyReg.adjustedGradePayments?.[newGrade];
+			if (adjustment && adjustment.totalAmount !== null && adjustment.totalAmount !== undefined) {
+				baseAmount = adjustment.totalAmount;
 				console.log(
 					`[createPromotionPaymentPlan] ${userName} - 조정된 금액 사용: ${newGrade} = ${baseAmount}원`
 				);
@@ -179,7 +187,7 @@ export async function createPromotionPaymentPlan(
 			}
 
 			if (baseAmount > 0) {
-				installmentAmount = Math.floor(baseAmount / 10 / 100) * 100;
+				installmentAmount = Math.floor(baseAmount / 10 / 100) * 100;  // 100원 단위 절삭
 				withholdingTax = Math.round(installmentAmount * 0.033);
 				netAmount = installmentAmount - withholdingTax;
 			}
