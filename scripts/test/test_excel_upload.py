@@ -27,6 +27,8 @@ FOLDER_FILES = {
         "8월": "test-data/test/8월_용역자명단_간단.xlsx",
         "9월": "test-data/test/9월_용역자명단_간단.xlsx",
         "10월": "test-data/test/10월_용역자명단_간단.xlsx",
+        "11월": "test-data/test/11월_용역자명단_간단.xlsx",
+        "12월": "test-data/test/12월_용역자명단_간단.xlsx",
     },
     "verify": {
         "7월": "test-data/verify/7월_용역자명단_간단.xlsx",
@@ -34,6 +36,7 @@ FOLDER_FILES = {
         "8월": "test-data/verify/8월_용역자명단_간단.xlsx",
         "9월": "test-data/verify/9월_용역자명단_간단.xlsx",
         "10월": "test-data/verify/10월_용역자명단_간단.xlsx",
+        "11월": "test-data/verify/11월_용역자명단_간단.xlsx",
     },
     "verfify2": {
         "기본3명": "test-data/verfify2/용역자명단_기본3명.xlsx",
