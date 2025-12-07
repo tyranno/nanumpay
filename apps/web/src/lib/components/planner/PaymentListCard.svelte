@@ -1,6 +1,6 @@
 <script>
 	import { onMount } from 'svelte';
-	import { paymentPageFilterState } from '$lib/stores/dashboardStore';
+	import { plannerPaymentFilterState } from '$lib/stores/dashboardStore';
 	import { plannerPaymentService } from '$lib/services/plannerPaymentService';
 	import PaymentHeader from '$lib/components/shared/payment/PaymentHeader.svelte';
 	import PlannerPaymentTable from '$lib/components/planner/PlannerPaymentTable.svelte';
@@ -18,6 +18,9 @@
 	let weeklyTotals = {};
 	let monthlyTotals = {};
 
+	// ⭐ 소계 표시 모드 (설계사 전용)
+	let subtotalDisplayMode = $plannerPaymentFilterState.subtotalDisplayMode || 'noSubtotals';
+
 	// ⭐ Store 직접 사용 (reactive statement 제거하여 무한 루프 방지)
 
 	// 데이터 로드
@@ -29,8 +32,8 @@
 		try {
 			// ⭐ overrideDate가 있으면 그것을 사용, 없으면 store 값 사용
 			const filterState = overrideDate ?
-				{ ...$paymentPageFilterState, selectedDate: overrideDate } :
-				$paymentPageFilterState;
+				{ ...$plannerPaymentFilterState, selectedDate: overrideDate } :
+				$plannerPaymentFilterState;
 
 			const result = await plannerPaymentService.loadPaymentData({
 				filterType: filterState.filterType,
@@ -89,9 +92,15 @@
 
 	// 기간 변경
 	function handlePeriodChange() {
-		if ($paymentPageFilterState.filterType === 'period') {
+		if ($plannerPaymentFilterState.filterType === 'period') {
 			loadPaymentData(1);
 		}
+	}
+
+	// ⭐ 소계 표시 모드 변경
+	function handleSubtotalModeChange(mode) {
+		subtotalDisplayMode = mode;
+		plannerPaymentFilterState.update(state => ({ ...state, subtotalDisplayMode: mode }));
 	}
 
 	// grandTotal을 reactive 변수로 계산
@@ -106,7 +115,7 @@
 		try {
 			const { PlannerPaymentExcelExporter } = await import('$lib/utils/plannerPaymentExcelExporter.js');
 
-			const filterState = $paymentPageFilterState;
+			const filterState = $plannerPaymentFilterState;
 
 			const exporter = new PlannerPaymentExcelExporter({
 				filterType: filterState.filterType,
@@ -160,6 +169,9 @@
 		hideExportButton={false}
 		onProcessPast={() => {}}
 		showPlannerOption={false}
+		showSubtotalOptions={true}
+		{subtotalDisplayMode}
+		onSubtotalModeChange={handleSubtotalModeChange}
 	/>
 
 	<PlannerPaymentTable
@@ -170,5 +182,6 @@
 		{grandTotal}
 		{weeklyTotals}
 		{monthlyTotals}
+		{subtotalDisplayMode}
 	/>
 </div>

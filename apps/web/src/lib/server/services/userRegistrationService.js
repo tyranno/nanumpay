@@ -131,7 +131,8 @@ export class UserRegistrationService {
 			const phone = getValue(userData, ['__EMPTY_4', '__EMPTY_3', '연락처', '전화번호', 'phone']);
 			const bank = getValue(userData, ['은행', 'bank', '__EMPTY_6', '__EMPTY_5']);
 			const accountNumber = getValue(userData, ['계좌번호', '계좌', 'accountNumber', '__EMPTY_7', '__EMPTY_6']);
-			const plannerName = getValue(userData, ['__EMPTY_10', '__EMPTY_9', '설계사', 'planner']);
+			// ⭐ v8.0 수정: 설계사 컬럼 인덱스 수정 (비율 컬럼 위치 반영)
+			const plannerName = getValue(userData, ['__EMPTY_11', '__EMPTY_10', '설계사', 'planner']);
 
 			if (!name) continue; // 빈 행 건너뛰기
 
@@ -329,39 +330,33 @@ export class UserRegistrationService {
 					idNumber = String(userData.idNumber).trim();
 				}
 				const bank = getValue(userData, ['은행', 'bank', '__EMPTY_6', '__EMPTY_5']);
+				// ⭐ v8.0: 비율 (은행 다음 위치 - 컬럼 7)
+				const ratioRaw = getValue(userData, ['비율', 'ratio', '__EMPTY_7', '__EMPTY_6']);
+				const ratio = parseFloat(ratioRaw) || 1; // 기본값 1 (100%)
 				const accountNumber = getValue(userData, [
 					'계좌번호',
 					'계좌',
 					'accountNumber',
-					'__EMPTY_7',
-					'__EMPTY_6'
-				]);
-				const salesperson = getValue(userData, ['판매인', '추천인', 'salesperson', '__EMPTY_8', '__EMPTY_7']);
-				const salespersonPhone = getValue(userData, [
-					'__EMPTY_9',
 					'__EMPTY_8',
+					'__EMPTY_7'
+				]);
+				const salesperson = getValue(userData, ['판매인', '추천인', 'salesperson', '__EMPTY_9', '__EMPTY_8']);
+				const salespersonPhone = getValue(userData, [
+					'__EMPTY_10',
+					'__EMPTY_9',
 					'판매인 연락처',
 					'연락처.1',
 					'salespersonPhone'
 				]);
-				const plannerName = getValue(userData, ['__EMPTY_10', '__EMPTY_9', '설계사', 'planner']);
-				// ⚠️ plannerPhone은 userData에서 '연락처' 키로 마지막 중복 값(설계사 연락처)을 가져옴
+				// ⭐ v8.0 수정: 설계사 컬럼 인덱스 수정 (비율 컬럼 위치 반영)
+				const plannerName = getValue(userData, ['__EMPTY_11', '__EMPTY_10', '설계사', 'planner']);
 				const plannerPhone = getValue(userData, [
+					'__EMPTY_12',
 					'__EMPTY_11',
-					'__EMPTY_10',
-					'연락처',  // Excel 중복 헤더의 마지막 값
 					'설계사 연락처',
 					'연락처.2',
 					'plannerPhone'
 				]);
-				// ⭐ v8.0: 비율 (엑셀에서 입력, 지급액 계산에 사용)
-				const ratioRaw = getValue(userData, [
-					'비율',
-					'ratio',
-					'__EMPTY_12',
-					'__EMPTY_11'
-				]);
-				const ratio = parseFloat(ratioRaw) || 1; // 기본값 1 (100%)
 
 				// ⭐ v8.0: 설계사 계좌번호 (설계사 지급명부에 표시)
 				const plannerAccountNumber = getValue(userData, [
@@ -373,7 +368,6 @@ export class UserRegistrationService {
 				]);
 
 				// ⭐ v8.0: 설계사 은행 (설계사 지급명부에 표시)
-				// ⚠️ __EMPTY_XX fallback 제거 - 계좌번호와 충돌 방지
 				const plannerBank = getValue(userData, [
 					'설계사 은행',
 					'설계사은행',
@@ -384,11 +378,11 @@ export class UserRegistrationService {
 					'보험상품명',
 					'보험상품',
 					'insuranceProduct',
-					'__EMPTY_12',
-					'__EMPTY_11'
+					'__EMPTY_14',
+					'__EMPTY_13'
 				]);
-				const insuranceCompany = getValue(userData, ['보험회사', 'insuranceCompany', '__EMPTY_13', '__EMPTY_12']);
-				const branch = getValue(userData, ['지사', '소속/지사', 'branch', '__EMPTY_14', '__EMPTY_13']);
+				const insuranceCompany = getValue(userData, ['보험회사', 'insuranceCompany', '__EMPTY_15', '__EMPTY_14']);
+				const branch = getValue(userData, ['지사', '소속/지사', 'branch', '__EMPTY_16', '__EMPTY_15']);
 
 				// v8.0: 필수 필드 검증
 				if (!loginId) {

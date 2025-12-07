@@ -234,6 +234,9 @@ export const paymentService = {
 					bank: p.bank || '',
 					accountNumber: p.accountNumber || '',
 					grade: p.grade || 'F1',
+					// ⭐ v8.0: 유/비 컬럼 표시용
+					ratio: p.ratio ?? 1,
+					insuranceActive: p.insuranceActive || false,
 					payments: {}
 				});
 			});

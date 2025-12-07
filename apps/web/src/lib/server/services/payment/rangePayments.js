@@ -170,6 +170,9 @@ export async function getRangePayments(startYear, startMonth, endYear, endMonth,
 				bank: userAccount.bank || '',
 				accountNumber: userAccount.accountNumber || '',
 				grade: periodGrade,
+				// ⭐ v8.0: 유/비 컬럼 표시용
+				ratio: user.ratio ?? 1,
+				insuranceActive: user.insuranceActive || false,
 				actualAmount,
 				taxAmount,
 				netAmount,
@@ -287,6 +290,9 @@ export async function getRangePayments(startYear, startMonth, endYear, endMonth,
 				bank: userAccount.bank || '',
 				accountNumber: userAccount.accountNumber || '',
 					grade: periodGrade,
+					// ⭐ v8.0: 유/비 컬럼 표시용
+					ratio: user.ratio ?? 1,
+					insuranceActive: user.insuranceActive || false,
 					gradeInfo,
 				totalAmount: weeks.reduce((sum, week) => {
 						const payment = week.payments.find(p => p.userId === userId);
@@ -495,6 +501,9 @@ export async function getRangePaymentsByGrade(startYear, startMonth, endYear, en
 				bank: userAccount.bank || user.bank || '-',
 				accountNumber: userAccount.accountNumber || user.accountNumber || '-',
 				grade,
+				// ⭐ v8.0: 유/비 컬럼 표시용
+				ratio: user.ratio ?? 1,
+				insuranceActive: user.insuranceActive || false,
 				actualAmount,
 				taxAmount,
 				netAmount,
@@ -549,6 +558,9 @@ export async function getRangePaymentsByGrade(startYear, startMonth, endYear, en
 			bank: userAccount.bank || '',
 			accountNumber: userAccount.accountNumber || '',
 			grade: currentGrade,
+			// ⭐ v8.0: 유/비 컬럼 표시용
+			ratio: user.ratio ?? 1,
+			insuranceActive: user.insuranceActive || false,
 			gradeInfo,
 			weeks: weeks.map(week => {
 				const payment = week.payments.find(p => p.userId === userId);

@@ -16,6 +16,12 @@
 	export let hasData = false;
 	export let showPlannerOption = true; // ⭐ 설계자 옵션 표시 여부 (기본값 true)
 	export let enablePeriodLimit = true; // ⭐ 기간 제한 활성화 (설계사/사용자만, 관리자는 false)
+	export let showSubtotalOptions = false; // ⭐ 소계 표시 옵션 (설계사 전용)
+	export let subtotalDisplayMode = 'noSubtotals'; // 'noSubtotals' | 'withSubtotals' | 'subtotalsOnly'
+
+	// ⭐ 체크박스 상태 (subtotalDisplayMode에서 파생)
+	let showSubtotals = subtotalDisplayMode === 'withSubtotals' || subtotalDisplayMode === 'subtotalsOnly';
+	let subtotalsOnly = subtotalDisplayMode === 'subtotalsOnly';
 
 	// Event handler props (Svelte 5 style)
 	export let onFilterChange = () => {};
@@ -24,6 +30,7 @@
 	export let onSearch = () => {};
 	export let onItemsPerPageChange = () => {};
 	export let onSortChange = () => {}; // 정렬 변경 핸들러
+	export let onSubtotalModeChange = () => {}; // ⭐ 소계 표시 모드 변경 핸들러
 	export let onExport = () => {};
 	export let onProcessPast = () => {};
 
@@ -107,6 +114,20 @@
 	function handleSortChange() {
 		updateStore();
 		onSortChange();
+	}
+
+	// ⭐ 소계 표시 모드 변경 핸들러 (체크박스 → 모드 변환)
+	function handleSubtotalModeChange() {
+		// 체크박스 상태에서 모드 계산
+		if (subtotalsOnly) {
+			subtotalDisplayMode = 'subtotalsOnly';
+			showSubtotals = true;  // "소계만"이면 소계 표시 자동 활성화
+		} else if (showSubtotals) {
+			subtotalDisplayMode = 'withSubtotals';
+		} else {
+			subtotalDisplayMode = 'noSubtotals';
+		}
+		onSubtotalModeChange(subtotalDisplayMode);
 	}
 
 	function handleFilterTypeChange() {
@@ -390,16 +411,40 @@
 
 		<!-- 설정 -->
 		<div class="settings-row-mobile">
-			<!-- 이름순 정렬 체크박스 -->
-			<label class="flex items-center gap-1 cursor-pointer">
-				<input
-					type="checkbox"
-					bind:checked={sortByName}
-					onchange={handleSortChange}
-					class="cursor-pointer"
-				/>
-				<span class="text-xs text-gray-600">이름순</span>
-			</label>
+			<!-- ⭐ 설계사: 소계 표시 옵션 / 관리자: 이름순 체크박스 -->
+			{#if showSubtotalOptions}
+				<div class="flex items-center gap-2 text-xs">
+					<label class="flex items-center gap-1 cursor-pointer">
+						<input
+							type="checkbox"
+							bind:checked={showSubtotals}
+							onchange={handleSubtotalModeChange}
+							disabled={subtotalsOnly}
+							class="cursor-pointer"
+						/>
+						<span class="text-gray-600" class:text-gray-400={subtotalsOnly}>소계포함</span>
+					</label>
+					<label class="flex items-center gap-1 cursor-pointer">
+						<input
+							type="checkbox"
+							bind:checked={subtotalsOnly}
+							onchange={handleSubtotalModeChange}
+							class="cursor-pointer"
+						/>
+						<span class="text-gray-600">소계만</span>
+					</label>
+				</div>
+			{:else}
+				<label class="flex items-center gap-1 cursor-pointer">
+					<input
+						type="checkbox"
+						bind:checked={sortByName}
+						onchange={handleSortChange}
+						class="cursor-pointer"
+					/>
+					<span class="text-xs text-gray-600">이름순</span>
+				</label>
+			{/if}
 
 			<label class="flex items-center gap-1">
 				<span class="text-gray-600">페이지:</span>
@@ -599,16 +644,40 @@
 
 		<!-- 우측 버튼 그룹 -->
 		<div class="flex items-center gap-2">
-			<!-- 이름순 정렬 체크박스 -->
-			<label class="label-desktop cursor-pointer">
-				<input
-					type="checkbox"
-					bind:checked={sortByName}
-					onchange={handleSortChange}
-					class="mr-1 cursor-pointer"
-				/>
-				이름순
-			</label>
+			<!-- ⭐ 설계사: 소계 표시 옵션 / 관리자: 이름순 체크박스 -->
+			{#if showSubtotalOptions}
+				<div class="flex items-center gap-2">
+					<label class="label-desktop cursor-pointer" class:text-gray-400={subtotalsOnly}>
+						<input
+							type="checkbox"
+							bind:checked={showSubtotals}
+							onchange={handleSubtotalModeChange}
+							disabled={subtotalsOnly}
+							class="mr-1 cursor-pointer"
+						/>
+						소계포함
+					</label>
+					<label class="label-desktop cursor-pointer">
+						<input
+							type="checkbox"
+							bind:checked={subtotalsOnly}
+							onchange={handleSubtotalModeChange}
+							class="mr-1 cursor-pointer"
+						/>
+						소계만
+					</label>
+				</div>
+			{:else}
+				<label class="label-desktop cursor-pointer">
+					<input
+						type="checkbox"
+						bind:checked={sortByName}
+						onchange={handleSortChange}
+						class="mr-1 cursor-pointer"
+					/>
+					이름순
+				</label>
+			{/if}
 
 			<div class="divider-vertical"></div>
 

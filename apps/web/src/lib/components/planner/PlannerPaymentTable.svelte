@@ -1,5 +1,5 @@
 <script>
-	import { paymentPageFilterState } from '$lib/stores/dashboardStore';
+	import { plannerPaymentFilterState } from '$lib/stores/dashboardStore';
 	import Pagination from '$lib/components/Pagination.svelte';
 
 	// Props
@@ -10,16 +10,17 @@
 	export let grandTotal = { amount: 0, tax: 0, net: 0 };
 	export let weeklyTotals = {};
 	export let monthlyTotals = {};
+	export let subtotalDisplayMode = 'noSubtotals'; // ⭐ 'noSubtotals' | 'withSubtotals' | 'subtotalsOnly'
 
 	// Store에서 컬럼 표시 설정 가져오기
-	$: showGradeInfoColumn = $paymentPageFilterState.showGradeInfoColumn;
-	$: showTaxColumn = $paymentPageFilterState.showTaxColumn;
-	$: showNetColumn = $paymentPageFilterState.showNetColumn;
-	$: showBankColumn = $paymentPageFilterState.showBankColumn;
-	$: showAccountColumn = $paymentPageFilterState.showAccountColumn;
-	$: periodType = $paymentPageFilterState.periodType;
-	$: filterType = $paymentPageFilterState.filterType;
-	$: itemsPerPage = $paymentPageFilterState.itemsPerPage || 20;
+	$: showGradeInfoColumn = $plannerPaymentFilterState.showGradeInfoColumn;
+	$: showTaxColumn = $plannerPaymentFilterState.showTaxColumn;
+	$: showNetColumn = $plannerPaymentFilterState.showNetColumn;
+	$: showBankColumn = $plannerPaymentFilterState.showBankColumn;
+	$: showAccountColumn = $plannerPaymentFilterState.showAccountColumn;
+	$: periodType = $plannerPaymentFilterState.periodType;
+	$: filterType = $plannerPaymentFilterState.filterType;
+	$: itemsPerPage = $plannerPaymentFilterState.itemsPerPage || 20;
 
 	// 페이지 상태
 	let currentPage = 1;
@@ -27,9 +28,16 @@
 	// ⭐ userAccountId로 그룹핑 + 소계 행 생성
 	$: groupedData = createGroupedDataWithSubtotals(paymentList);
 
-	// ⭐ 가상 페이지네이션 (소계 행 포함)
-	$: totalPages = Math.ceil(groupedData.length / itemsPerPage) || 1;
-	$: currentPageData = groupedData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+	// ⭐ 소계 표시 모드에 따라 필터링
+	$: filteredData = subtotalDisplayMode === 'subtotalsOnly'
+		? groupedData.filter(row => row.isSubtotalRow)
+		: subtotalDisplayMode === 'noSubtotals'
+		? groupedData.filter(row => !row.isSubtotalRow)
+		: groupedData;
+
+	// ⭐ 가상 페이지네이션 (필터링된 데이터 기준)
+	$: totalPages = Math.ceil(filteredData.length / itemsPerPage) || 1;
+	$: currentPageData = filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
 	/**
 	 * 데이터를 userAccountId로 그룹핑하고 소계 행 삽입
@@ -174,8 +182,8 @@
 		}
 	}
 
-	// 데이터 변경 시 페이지 리셋
-	$: if (paymentList) {
+	// 데이터 변경 또는 표시 모드 변경 시 페이지 리셋
+	$: if (paymentList || subtotalDisplayMode) {
 		currentPage = 1;
 	}
 </script>
@@ -234,7 +242,7 @@
 					</tr>
 				</thead>
 				<tbody>
-					{#if groupedData.length > 0}
+					{#if filteredData.length > 0}
 						{#each currentPageData as row}
 							{#if row.isSubtotalRow}
 								<!-- ⭐ 소계 행 -->
@@ -390,11 +398,11 @@
 		</div>
 
 		<!-- 페이지네이션 -->
-		{#if groupedData.length > 0}
+		{#if filteredData.length > 0}
 			<Pagination
 				{currentPage}
 				{totalPages}
-				totalItems={groupedData.length}
+				totalItems={filteredData.length}
 				{itemsPerPage}
 				onPageChange={goToPage}
 			/>

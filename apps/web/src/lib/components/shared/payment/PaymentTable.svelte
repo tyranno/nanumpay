@@ -2,6 +2,7 @@
 	import { paymentPageFilterState } from '$lib/stores/dashboardStore';
 	import Pagination from '$lib/components/Pagination.svelte';
 	import PaymentDetailModal from './PaymentDetailModal.svelte';
+	import { GRADE_LIMITS } from '$lib/utils/constants.js';
 
 	// 모달 상태
 	let isModalOpen = false;
@@ -61,15 +62,24 @@
 	$: periodType = $paymentPageFilterState.periodType;
 	$: filterType = $paymentPageFilterState.filterType;
 
-	// Sticky 컬럼 위치 계산
-	$: plannerLeft = 180; // 순번(60) + 성명(120) = 180
-	$: bankLeft = showPlannerColumn ? 280 : 180; // 설계자 표시 여부에 따라 위치 변경
-	$: accountLeft = (showPlannerColumn ? 280 : 180) + (showBankColumn ? 100 : 0); // 설계자+은행 표시 여부에 따라 위치 변경
+	// Sticky 컬럼 위치 계산: 순번(60) + 유/비(55) + 성명(120) = 235
+	$: plannerLeft = 235; // 순번(60) + 유/비(55) + 성명(120) = 235
+	$: bankLeft = showPlannerColumn ? 335 : 235; // 설계자 표시 여부에 따라 위치 변경
+	$: accountLeft = (showPlannerColumn ? 335 : 235) + (showBankColumn ? 100 : 0); // 설계자+은행 표시 여부에 따라 위치 변경
 
 	// 금액 포맷
 	function formatAmount(amount) {
 		if (!amount && amount !== 0) return '-';
 		return amount.toLocaleString();
+	}
+
+	// ⭐ v8.0: 유지 상태 및 비율 계산
+	function getInsuranceInfo(user) {
+		const gradeLimit = GRADE_LIMITS[user.grade];
+		const isRequired = gradeLimit?.insuranceRequired || false;
+		const isActive = user.insuranceActive || false;
+		const ratio = user.ratio ?? 1;
+		return { isRequired, isActive, ratio };
 	}
 
 	// 개인별 기간 합산 계산
@@ -154,6 +164,7 @@
 					<!-- 첫 번째 헤더 행 -->
 					<tr>
 						<th rowspan="2" class="th-base th-sticky-0">순번</th>
+						<th rowspan="2" class="th-base th-sticky-ins">유/비</th>
 						<th rowspan="2" class="th-base th-sticky-1">성명</th>
 						{#if showPlannerColumn}
 							<th rowspan="2" class="th-base th-sticky-2">설계자</th>
@@ -200,8 +211,21 @@
 					{#if paymentList.length > 0}
 						{#each getCurrentPageData() as user}
 							{@const userTotal = calculateUserTotal(user)}
+							{@const insuranceInfo = getInsuranceInfo(user)}
 							<tr class="data-row">
 								<td class="td-sticky-0">{user.no}</td>
+								<td class="td-sticky-ins">
+									<div class="insurance-cell">
+										{#if !insuranceInfo.isRequired}
+											<span class="insurance-badge insurance-badge-na" title="보험 불필요">-</span>
+										{:else if insuranceInfo.isActive}
+											<span class="insurance-badge insurance-badge-active" title="보험 유지됨">유</span>
+										{:else}
+											<span class="insurance-badge insurance-badge-inactive" title="보험 미유지">✕</span>
+										{/if}
+										<span class="insurance-ratio" class:insurance-ratio-warn={insuranceInfo.isRequired && !insuranceInfo.isActive}>{insuranceInfo.ratio}</span>
+									</div>
+								</td>
 								<td class="td-sticky-1">
 									<div class="flex items-center justify-center">
 										<div class="relative inline-flex items-baseline">
@@ -269,7 +293,7 @@
 						{/each}
 
 						<!-- 총금액 행 -->
-					{@const labelColspan = 2 + (showPlannerColumn ? 1 : 0) + (showBankColumn ? 1 : 0) + (showAccountColumn ? 1 : 0)}
+					{@const labelColspan = 3 + (showPlannerColumn ? 1 : 0) + (showBankColumn ? 1 : 0) + (showAccountColumn ? 1 : 0)}
 					<tr class="grand-total-row">
 						<td colspan={labelColspan} class="grand-total-label">총금액</td>
 							<!-- 기간 합계 컬럼 -->
@@ -298,7 +322,7 @@
 							{/each}
 						</tr>
 					{:else}
-					{@const fixedCols = 2 + (showPlannerColumn ? 1 : 0) + (showBankColumn ? 1 : 0) + (showAccountColumn ? 1 : 0)}
+					{@const fixedCols = 3 + (showPlannerColumn ? 1 : 0) + (showBankColumn ? 1 : 0) + (showAccountColumn ? 1 : 0)}
 					{@const colsPerWeek = (showGradeInfoColumn ? 1 : 0) + 1 + (showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0)}
 					{@const periodCols = filterType === 'period' ? colsPerWeek : 0}
 					{@const totalCols = fixedCols + periodCols + weeklyColumns.length * colsPerWeek}
@@ -418,20 +442,25 @@
 		@apply sticky left-0 z-20 min-w-[60px];
 	}
 
+	/* 유/비 컬럼 */
+	.th-sticky-ins {
+		@apply sticky left-[60px] z-[19] min-w-[55px] max-w-[55px] w-[55px];
+	}
+
 	.th-sticky-1 {
-		@apply sticky left-[60px] z-[19] min-w-[120px];
+		@apply sticky left-[115px] z-[18] min-w-[120px];
 	}
 
 	.th-sticky-2 {
-		@apply sticky left-[180px] z-[18] min-w-[100px];
+		@apply sticky left-[235px] z-[17] min-w-[100px];
 	}
 
 	.th-sticky-3 {
-		@apply sticky left-[280px] z-[17] min-w-[100px];
+		@apply sticky left-[335px] z-[16] min-w-[100px];
 	}
 
 	.th-sticky-4 {
-		@apply sticky left-[380px] z-[16] min-w-[150px];
+		@apply sticky left-[435px] z-[15] min-w-[150px];
 	}
 
 	/* 데이터 행 */
@@ -462,52 +491,66 @@
 		z-index: 10 !important;
 	}
 
-	.td-sticky-1 {
+	/* 유/비 데이터 셀 */
+	.td-sticky-ins {
 		@apply sticky left-[60px] bg-white;
 		@apply border-b border-r border-gray-300;
-		@apply whitespace-nowrap p-1.5 text-center text-sm;
+		@apply whitespace-nowrap p-0.5 text-center text-sm;
+		@apply min-w-[55px] max-w-[55px] w-[55px];
 		z-index: 9 !important;
+	}
+
+	.data-row:hover .td-sticky-ins {
+		background-color: #fafafa !important;
+		z-index: 9 !important;
+	}
+
+	.td-sticky-1 {
+		@apply sticky left-[115px] bg-white;
+		@apply border-b border-r border-gray-300;
+		@apply whitespace-nowrap p-1.5 text-center text-sm;
+		z-index: 8 !important;
 	}
 
 	.data-row:hover .td-sticky-1 {
 		background-color: #fafafa !important;
-		z-index: 9 !important;
+		z-index: 8 !important;
 	}
 
 	.td-sticky-2 {
-		@apply sticky left-[180px] bg-white;
+		@apply sticky left-[235px] bg-white;
 		@apply border-b border-r border-gray-300;
 		@apply whitespace-nowrap p-1.5 text-center text-sm;
-		z-index: 8 !important;
+		z-index: 7 !important;
 	}
 
 	.data-row:hover .td-sticky-2 {
 		background-color: #fafafa !important;
-		z-index: 8 !important;
+		z-index: 7 !important;
 	}
 
 	.td-sticky-3 {
-		@apply sticky left-[280px] bg-white;
+		@apply sticky left-[335px] bg-white;
 		@apply border-b border-r border-gray-300;
 		@apply whitespace-nowrap p-1.5 text-center text-sm;
-		z-index: 7 !important;
+		z-index: 6 !important;
 	}
 
 	.data-row:hover .td-sticky-3 {
 		background-color: #fafafa !important;
-		z-index: 7 !important;
+		z-index: 6 !important;
 	}
 
 	.td-sticky-4 {
-		@apply sticky left-[380px] bg-white;
+		@apply sticky left-[435px] bg-white;
 		@apply border-b border-r border-gray-300;
 		@apply whitespace-nowrap p-1.5 text-center text-sm;
-		z-index: 6 !important;
+		z-index: 5 !important;
 	}
 
 	.data-row:hover .td-sticky-4 {
 		background-color: #fafafa !important;
-		z-index: 6 !important;
+		z-index: 5 !important;
 	}
 
 	/* 데이터 셀 - 지급액 */
@@ -625,14 +668,50 @@
 		background-color: #fde047 !important; /* yellow-300 */
 	}
 
+	/* 유/비 셀 내부 레이아웃 */
+	.insurance-cell {
+		@apply flex items-center justify-center gap-0.5;
+	}
+
+	/* 유지 배지 - 기본 (고정 너비) */
+	.insurance-badge {
+		@apply inline-flex items-center justify-center w-4 h-4 rounded text-[10px] font-bold flex-shrink-0;
+	}
+
+	/* 비율 텍스트 (고정 너비) */
+	.insurance-ratio {
+		@apply text-[10px] text-gray-600 w-5 text-left tabular-nums;
+	}
+
+	.insurance-ratio-warn {
+		@apply text-red-500;
+	}
+
+	/* 유지됨 (녹색) */
+	.insurance-badge-active {
+		@apply bg-green-100 text-green-700 border border-green-300;
+	}
+
+	/* 미유지 (빨강) */
+	.insurance-badge-inactive {
+		@apply bg-red-100 text-red-600 border border-red-300;
+	}
+
+	/* 불필요 (회색) */
+	.insurance-badge-na {
+		@apply bg-gray-100 text-gray-400 border border-gray-200;
+	}
+
 	/* 모바일에서 sticky 제거 */
 	@media (max-width: 768px) {
 		.th-sticky-0,
+		.th-sticky-ins,
 		.th-sticky-1,
 		.th-sticky-2,
 		.th-sticky-3,
 		.th-sticky-4,
 		.td-sticky-0,
+		.td-sticky-ins,
 		.td-sticky-1,
 		.td-sticky-2,
 		.td-sticky-3,

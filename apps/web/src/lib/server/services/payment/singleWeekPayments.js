@@ -231,6 +231,9 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
 			bank: userAccount.bank || '',
 			accountNumber: userAccount.accountNumber || '',
 			grade: periodGrade,
+			// ⭐ v8.0: 유/비 컬럼 표시용
+			ratio: user.ratio ?? 1,
+			insuranceActive: user.insuranceActive || false,
 			actualAmount,
 			taxAmount,
 			netAmount,
@@ -459,6 +462,9 @@ export async function getSingleWeekPaymentsByGrade(year, month, week, page, limi
 			bank: userAccount.bank || '',
 			accountNumber: userAccount.accountNumber || '',
 			grade: periodGrade,
+			// ⭐ v8.0: 유/비 컬럼 표시용
+			ratio: user.ratio ?? 1,
+			insuranceActive: user.insuranceActive || false,
 			actualAmount,
 			taxAmount,
 			netAmount,

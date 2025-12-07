@@ -2,6 +2,8 @@ import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db.js';
 import User from '$lib/server/models/User.js';
 import PlannerAccount from '$lib/server/models/PlannerAccount.js';
+import WeeklyPaymentPlans from '$lib/server/models/WeeklyPaymentPlans.js';
+import { GRADE_LIMITS } from '$lib/server/utils/constants.js';
 
 export async function GET({ url, locals }) {
 	// 관리자 권한 확인
@@ -68,11 +70,28 @@ export async function GET({ url, locals }) {
 			.limit(limit)
 			.lean();
 
+		// 사용자들의 지급 진행률 조회 (completedInstallments 합계)
+		const userIds = users.map(u => u._id.toString());
+		const paymentProgress = await WeeklyPaymentPlans.aggregate([
+			{ $match: { userId: { $in: userIds } } },
+			{ $group: {
+				_id: '$userId',
+				completedInstallments: { $sum: '$completedInstallments' }
+			}}
+		]);
+		const progressMap = new Map(paymentProgress.map(p => [p._id, p.completedInstallments]));
+
 		// 각 사용자의 등급 정보 추가 + UserAccount, PlannerAccount 필드 병합
 		const usersWithGrade = users.map((user) => {
+			const grade = user.grade || 'F1';
+			const maxInstallments = GRADE_LIMITS[grade]?.maxInstallments || 20;
+			const completed = progressMap.get(user._id.toString()) || 0;
+			// ⭐ v8.0: 비율은 User 모델에서 가져옴 (엑셀 업로드 시 저장된 값)
+			const paymentRatio = user.ratio ?? 1;
+
 			return {
 				...user,
-				grade: user.grade || 'F1',
+				grade,
 				totalDescendants: 0,  // 필요 시 계산
 				leftCount: 0,
 				rightCount: 0,
@@ -86,14 +105,18 @@ export async function GET({ url, locals }) {
 				insuranceAmount: user.insuranceAmount || 0,
 				insuranceActive: user.insuranceActive || false,
 				insuranceDate: user.insuranceDate || null,
+				// ⭐ v8.0: 지급 진행률
+				completedInstallments: completed,
+				maxInstallments,
+				paymentRatio,
 				// ⭐ v8.0: PlannerAccount 필드들
 				planner: user.plannerAccountId?.name || '',
 				plannerPhone: user.plannerAccountId?.phone || '',
-			// User 모델 필드들 (지사, 보험상품, 보험회사)
-			branch: user.branch || '',
-			insuranceProduct: user.insuranceProduct || '',
-			insuranceCompany: user.insuranceCompany || ''
-		};
+				// User 모델 필드들 (지사, 보험상품, 보험회사)
+				branch: user.branch || '',
+				insuranceProduct: user.insuranceProduct || '',
+				insuranceCompany: user.insuranceCompany || ''
+			};
 		});
 
 		return json({
