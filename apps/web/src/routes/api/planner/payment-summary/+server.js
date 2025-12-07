@@ -27,12 +27,12 @@ export async function GET({ locals }) {
 		}
 
 		// 이번 주 금요일 계산 (UTC 기준)
-		// ⭐ 금요일이 지났으면(토/일) 다음 주 금요일을 "이번주"로 표시
+		// ⭐ 토요일만 "금요일 지급 완료"로 처리 (일요일은 새 주의 시작)
 		const now = new Date();
 		const dayOfWeek = now.getUTCDay(); // 0(일) ~ 6(토)
-		const isFridayPassed = dayOfWeek === 0 || dayOfWeek === 6; // 토요일(6) 또는 일요일(0)
+		const isFridayPassed = dayOfWeek === 6; // 토요일(6)만 금요일 지남 처리
 
-		// ⭐ 금요일이 지났으면 다음 주 기준으로 계산
+		// ⭐ 토요일이면 다음 주 금요일, 그 외는 이번 주 금요일
 		const weekOffset = isFridayPassed ? 7 : 0;
 
 		// 이번 주 일요일 (UTC 기준) - 금요일 지났으면 다음 주 일요일
