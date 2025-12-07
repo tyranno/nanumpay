@@ -212,11 +212,28 @@ export async function GET({ url, locals }) {
 				// User 데이터 unwind
 				{ $unwind: '$user' },
 
-				// 설계사별 그룹핑
+				// 설계사별 그룹핑 (⭐ v8.0: 보험 조건 반영 - baseGrade 기준)
 				{
 					$group: {
 						_id: '$user.plannerAccountId',
-						serviceAmount: { $sum: '$installments.installmentAmount' },
+						// ⭐ 보험 조건에 따라 금액 합산 (baseGrade 기준, F4+는 보험 필요)
+						serviceAmount: {
+							$sum: {
+								$switch: {
+									branches: [
+										// F1, F2, F3: 보험 불필요 - 금액 그대로
+										{ case: { $in: ['$baseGrade', ['F1', 'F2', 'F3']] }, then: '$installments.installmentAmount' },
+										// F4, F5: 70,000원 이상 보험 필요
+										{ case: { $and: [{ $in: ['$baseGrade', ['F4', 'F5']] }, { $gte: [{ $ifNull: ['$user.insuranceAmount', 0] }, 70000] }] }, then: '$installments.installmentAmount' },
+										// F6, F7: 90,000원 이상 보험 필요
+										{ case: { $and: [{ $in: ['$baseGrade', ['F6', 'F7']] }, { $gte: [{ $ifNull: ['$user.insuranceAmount', 0] }, 90000] }] }, then: '$installments.installmentAmount' },
+										// F8: 110,000원 이상 보험 필요
+										{ case: { $and: [{ $eq: ['$baseGrade', 'F8'] }, { $gte: [{ $ifNull: ['$user.insuranceAmount', 0] }, 110000] }] }, then: '$installments.installmentAmount' }
+									],
+									default: 0  // 보험 미충족 시 0원
+								}
+							}
+						},
 						userIds: { $addToSet: '$userId' }
 					}
 				}
