@@ -648,9 +648,10 @@
 					<tr>
 						<th rowspan="2" class="th-number th-sticky-0">순번</th>
 						<th rowspan="2" class="th-name th-sticky-1">설계사</th>
-						<th rowspan="2" class="th-name th-sticky-2">계좌번호</th>
+						<th rowspan="2" class="th-name th-sticky-2">계좌은행</th>
+						<th rowspan="2" class="th-name th-sticky-3">계좌번호</th>
 						{#if showPhoneColumn}
-							<th rowspan="2" class="th-name th-sticky-3">연락처</th>
+							<th rowspan="2" class="th-name th-sticky-4">연락처</th>
 						{/if}
 						<th rowspan="2" class="th-planner-total">전체 총액</th>
 						<th rowspan="2" class="th-planner-total">설계 총액</th>
@@ -678,7 +679,7 @@
 				<tbody>
 				{#if commissions.length === 0}
 					{@const colCount = 3 + (showUserCountColumn ? 1 : 0) + (showRevenueColumn ? 1 : 0)}
-					{@const baseColCount = 3 + (showPhoneColumn ? 1 : 0)}
+					{@const baseColCount = 4 + (showPhoneColumn ? 1 : 0)}
 					{@const plannerSummaryCols = 3}
 					<!-- 빈 데이터 메시지 -->
 					<tr>
@@ -709,10 +710,11 @@
 									{planner.plannerName}
 								</button>
 							</td>
-							<td class="td-account td-sticky-2">{planner.plannerAccountId?.accountNumber || '-'}</td>
-							{#if showPhoneColumn}
-								<td class="td-phone td-sticky-3">{planner.plannerAccountId?.phone || '-'}</td>
-							{/if}
+							<td class="td-bank td-sticky-2">{planner.plannerAccountId?.bank || '-'}</td>
+						<td class="td-account td-sticky-3">{planner.plannerAccountId?.accountNumber || '-'}</td>
+						{#if showPhoneColumn}
+							<td class="td-phone td-sticky-4">{planner.plannerAccountId?.phone || '-'}</td>
+						{/if}
 							<!-- 설계사별 총액 -->
 							<td class="td-amount planner-total highlight-total">{formatAmount(plannerTotal.totalAmount)}</td>
 							<td class="td-amount planner-total highlight-commission">{formatAmount(plannerTotal.commissionAmount)}</td>
@@ -735,7 +737,7 @@
 
 					<!-- 총계 행 -->
 					<tr class="grand-total-row">
-						<td colspan={3 + (showPhoneColumn ? 1 : 0)} class="grand-total-label td-sticky-0">총계</td>
+						<td colspan={4 + (showPhoneColumn ? 1 : 0)} class="grand-total-label td-sticky-0">총계</td>
 						<!-- 설계사별 총액 합계 -->
 						<td class="grand-total-value planner-total highlight-total">{formatAmount(summary.grandTotal)}</td>
 						<td class="grand-total-value planner-total highlight-commission">{formatAmount(summary.totalCommission)}</td>
@@ -1041,13 +1043,18 @@
 	}
 
 	.th-sticky-2 {
-		@apply min-w-[140px];
+		@apply min-w-[80px];
 		@apply md:sticky md:left-[180px] md:z-[18];
 	}
 
 	.th-sticky-3 {
+		@apply min-w-[140px];
+		@apply md:sticky md:left-[260px] md:z-[17];
+	}
+
+	.th-sticky-4 {
 		@apply min-w-[120px];
-		@apply md:sticky md:left-[320px] md:z-[17];
+		@apply md:sticky md:left-[400px] md:z-[16];
 	}
 
 	/* 데이터 행 */
@@ -1107,7 +1114,7 @@
 	.td-sticky-3 {
 		@apply border-b border-r border-gray-300;
 		@apply whitespace-nowrap p-1.5 text-center text-sm;
-		@apply md:sticky md:left-[320px] md:bg-white;
+		@apply md:sticky md:left-[260px] md:bg-white;
 	}
 
 	@media (min-width: 768px) {
@@ -1120,10 +1127,27 @@
 		}
 	}
 
+	.td-sticky-4 {
+		@apply border-b border-r border-gray-300;
+		@apply whitespace-nowrap p-1.5 text-center text-sm;
+		@apply md:sticky md:left-[400px] md:bg-white;
+	}
+
+	@media (min-width: 768px) {
+		.td-sticky-4 {
+			z-index: 6 !important;
+		}
+		.data-row:hover .td-sticky-4 {
+			background-color: #fafafa !important;
+			z-index: 7 !important;
+		}
+	}
+
 	/* 데이터 셀 - 일반 */
 	.td-number,
 	.td-name,
 	.td-phone,
+	.td-bank,
 	.td-account,
 	.td-count {
 		@apply border-b border-r border-gray-300;
