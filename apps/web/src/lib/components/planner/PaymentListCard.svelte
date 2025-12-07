@@ -19,7 +19,7 @@
 	let monthlyTotals = {};
 
 	// ⭐ 소계 표시 모드 (설계사 전용)
-	let subtotalDisplayMode = $plannerPaymentFilterState.subtotalDisplayMode || 'noSubtotals';
+	let subtotalDisplayMode = $plannerPaymentFilterState.subtotalDisplayMode || 'withSubtotals';
 
 	// ⭐ Store 직접 사용 (reactive statement 제거하여 무한 루프 방지)
 

@@ -72,5 +72,5 @@ export const plannerPaymentFilterState = writable({
 	searchQuery: '', // 검색어
 	searchCategory: 'name', // 'name' | 'grade'
 	// ⭐ 소계 표시 모드 (설계사 전용)
-	subtotalDisplayMode: 'noSubtotals' // 'noSubtotals' (소계없이) | 'withSubtotals' (소계포함) | 'subtotalsOnly' (소계만)
+	subtotalDisplayMode: 'withSubtotals' // 'noSubtotals' (소계없이) | 'withSubtotals' (소계포함) | 'subtotalsOnly' (소계만)
 });
