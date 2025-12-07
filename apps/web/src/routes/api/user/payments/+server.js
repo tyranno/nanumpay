@@ -68,6 +68,14 @@ export async function GET({ locals, url }) {
 	const thisWeekFriday = new Date(thisWeekStart);
 	thisWeekFriday.setDate(thisWeekStart.getDate() + 5); // 금요일
 
+	// 로컬 시간 기준 날짜 포맷 (YYYY-MM-DD)
+	const formatLocalDate = (date) => {
+		const year = date.getFullYear();
+		const month = String(date.getMonth() + 1).padStart(2, '0');
+		const day = String(date.getDate()).padStart(2, '0');
+		return `${year}-${month}-${day}`;
+	};
+
 	// ⭐ v8.0: 사용자별로 개별 행 생성 (합산하지 않음)
 	let paymentRows = [];
 	let thisWeekAmount = 0;
@@ -236,7 +244,7 @@ export async function GET({ locals, url }) {
 		})),
 		summary: {
 			thisWeek: {
-				date: thisWeekFriday.toISOString().split('T')[0], // ⭐ 이번 주 금요일 날짜
+				date: formatLocalDate(thisWeekFriday), // ⭐ 이번 주 금요일 날짜 (로컬 시간 기준)
 				amount: thisWeekAmount,
 				tax: thisWeekTax,
 				net: thisWeekNet
