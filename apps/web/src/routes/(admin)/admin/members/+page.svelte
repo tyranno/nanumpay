@@ -30,6 +30,7 @@
 
 	// 컬럼 표시/숨김 설정
 	let visibleColumns = {
+		insurance: true,  // 유지/비율 (기본 표시)
 		date: true,
 		name: true,
 		phone: true,
@@ -583,6 +584,7 @@
 	// 컬럼 설정 관련 함수
 	function handleShowAllColumns() {
 		tempVisibleColumns = {
+			insurance: true,
 			date: true,
 			name: true,
 			phone: true,

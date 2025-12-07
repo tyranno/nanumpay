@@ -1,5 +1,6 @@
 <script>
 	import GradeBadge from '$lib/components/GradeBadge.svelte';
+	import { GRADE_LIMITS } from '$lib/utils/constants.js';
 
 	export let members = [];
 	export let isLoading = false;
@@ -10,6 +11,29 @@
 	export let visibleColumns = {};
 	export let onSort = (field) => {};
 	export let onEdit = (member) => {};
+
+	// 유지 상태 및 비율 계산
+	function getInsuranceInfo(member) {
+		const gradeLimit = GRADE_LIMITS[member.grade];
+		const isRequired = gradeLimit?.insuranceRequired || false;
+		const requiredAmount = gradeLimit?.insuranceAmount || 0;
+		const currentAmount = member.insuranceAmount || 0;
+		const isActive = member.insuranceActive || false;
+
+		// 비율 계산 (필요 금액 대비 현재 금액)
+		let ratio = 0;
+		if (requiredAmount > 0) {
+			ratio = Math.round((currentAmount / requiredAmount) * 100);
+		}
+
+		return {
+			isRequired,
+			isActive,
+			ratio,
+			currentAmount,
+			requiredAmount
+		};
+	}
 </script>
 
 {#if isLoading}
@@ -21,6 +45,9 @@
 			<thead>
 				<tr>
 					<th class="th-base th-number">순번</th>
+					{#if visibleColumns.insurance}
+						<th class="th-base th-insurance">유지/비율</th>
+					{/if}
 					{#if visibleColumns.name}
 						<th onclick={() => onSort('name')} class="th-base th-sortable th-name">
 							성명 {#if sortBy === 'name'}{sortOrder === 'asc' ? '↑' : '↓'}{/if}
@@ -74,8 +101,31 @@
 					</tr>
 				{:else}
 					{#each members as member, index}
+						{@const insuranceInfo = getInsuranceInfo(member)}
 						<tr class="data-row">
 							<td class="td-base td-number">{(currentPage - 1) * itemsPerPage + index + 1}</td>
+							{#if visibleColumns.insurance}
+								<td class="td-base td-insurance">
+									<div class="insurance-cell">
+										{#if !insuranceInfo.isRequired}
+											<!-- F1-F3: 보험 불필요 -->
+											<span class="insurance-badge insurance-badge-na" title="보험 불필요">-</span>
+										{:else if insuranceInfo.isActive}
+											<!-- 유지됨 -->
+											<span class="insurance-badge insurance-badge-active" title="보험 유지됨">
+												유
+											</span>
+											<span class="insurance-ratio">{insuranceInfo.ratio}%</span>
+										{:else}
+											<!-- 미유지 -->
+											<span class="insurance-badge insurance-badge-inactive" title="보험 미유지">
+												✕
+											</span>
+											<span class="insurance-ratio insurance-ratio-warn">{insuranceInfo.ratio}%</span>
+										{/if}
+									</div>
+								</td>
+							{/if}
 							{#if visibleColumns.name}
 								<td class="td-base td-name">
 									<div class="flex items-center justify-center">
@@ -248,5 +298,58 @@
 	/* 등급 아이콘 */
 	.grade-icon {
 		@apply absolute -right-5 -top-1.5 h-5 w-5;
+	}
+
+	/* 유지/비율 컬럼 */
+	.th-insurance {
+		@apply min-w-[80px] max-w-[80px] w-[80px];
+	}
+
+	.td-insurance {
+		@apply min-w-[80px] max-w-[80px] w-[80px];
+	}
+
+	.insurance-cell {
+		@apply flex items-center justify-center gap-1;
+	}
+
+	/* 유지 배지 - 기본 */
+	.insurance-badge {
+		@apply inline-flex items-center justify-center w-5 h-5 rounded text-xs font-bold;
+	}
+
+	/* 유지됨 (녹색) */
+	.insurance-badge-active {
+		@apply bg-green-100 text-green-700 border border-green-300;
+	}
+
+	/* 미유지 (빨강) */
+	.insurance-badge-inactive {
+		@apply bg-red-100 text-red-600 border border-red-300;
+	}
+
+	/* 불필요 (회색) */
+	.insurance-badge-na {
+		@apply bg-gray-100 text-gray-400 border border-gray-200;
+	}
+
+	/* 비율 텍스트 */
+	.insurance-ratio {
+		@apply text-xs text-gray-600;
+	}
+
+	.insurance-ratio-warn {
+		@apply text-red-500;
+	}
+
+	/* 모바일 대응 */
+	@media (max-width: 768px) {
+		.th-insurance {
+			@apply min-w-[70px] max-w-[70px] w-[70px];
+		}
+
+		.td-insurance {
+			@apply min-w-[70px] max-w-[70px] w-[70px];
+		}
 	}
 </style>

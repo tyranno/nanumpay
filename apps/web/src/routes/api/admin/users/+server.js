@@ -84,6 +84,8 @@ export async function GET({ url, locals }) {
 				accountNumber: user.userAccountId?.accountNumber || '',
 				idNumber: user.userAccountId?.idNumber || '',
 				insuranceAmount: user.insuranceAmount || 0,
+				insuranceActive: user.insuranceActive || false,
+				insuranceDate: user.insuranceDate || null,
 				// ⭐ v8.0: PlannerAccount 필드들
 				planner: user.plannerAccountId?.name || '',
 				plannerPhone: user.plannerAccountId?.phone || '',
