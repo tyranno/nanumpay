@@ -31,7 +31,7 @@ export async function GET({ locals, url }) {
 
 	// ⭐ v8.0: 같은 계정의 모든 User 조회
 	const allUsers = await User.find({ userAccountId: primaryUser.userAccountId })
-		.select('_id name grade registrationNumber createdAt')
+		.select('_id name grade registrationNumber createdAt insuranceActive')
 		.sort({ registrationNumber: 1 })
 		.lean();
 
@@ -240,7 +240,8 @@ export async function GET({ locals, url }) {
 			name: reg.name,
 			grade: reg.grade,
 			registrationNumber: reg.registrationNumber,
-			createdAt: reg.createdAt // ⭐ 등록일 추가
+			createdAt: reg.createdAt, // ⭐ 등록일 추가
+			insuranceActive: reg.insuranceActive || false // ⭐ 보험 유지 여부
 		})),
 		summary: {
 			thisWeek: {

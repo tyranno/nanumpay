@@ -79,6 +79,9 @@
 					{#if visibleColumns.plannerPhone}
 						<th class="th-base">설계사 연락처</th>
 					{/if}
+					{#if visibleColumns.plannerAccountNumber}
+						<th class="th-base">설계사 계좌번호</th>
+					{/if}
 					{#if visibleColumns.insuranceProduct}
 						<th class="th-base">보험상품</th>
 					{/if}
@@ -159,6 +162,9 @@
 							{/if}
 							{#if visibleColumns.plannerPhone}
 								<td class="td-base">{member.plannerPhone || '-'}</td>
+							{/if}
+							{#if visibleColumns.plannerAccountNumber}
+								<td class="td-base">{member.plannerAccountNumber || '-'}</td>
 							{/if}
 							{#if visibleColumns.insuranceProduct}
 								<td class="td-base">{member.insuranceProduct || '-'}</td>

@@ -52,6 +52,7 @@
 	export let weeklyTotals = {}; // 주차별 총계 (API에서 받은 전체 데이터)
 	export let monthlyTotals = {}; // 월별 총계 (API에서 받은 전체 데이터)
 	export let showPlannerColumn = true; // ⭐ prop으로 받음 (기본값 true)
+	export let onPlannerClick = (plannerInfo) => {}; // ⭐ 설계사 클릭 핸들러
 
 	// Store에서 컬럼 표시 설정 가져오기
 	$: showGradeInfoColumn = $paymentPageFilterState.showGradeInfoColumn; // ⭐ 신규
@@ -242,7 +243,24 @@
 									</div>
 								</td>
 								{#if showPlannerColumn}
-									<td class="td-sticky-2">{user.planner || ''}</td>
+									<td class="td-sticky-2">
+										{#if user.planner}
+											<button
+												class="planner-link"
+												onclick={() => onPlannerClick({
+													plannerAccountId: user.plannerAccountId,
+													name: user.planner,
+													phone: user.plannerPhone,
+													bank: user.plannerBank,
+													accountNumber: user.plannerAccountNumber
+												})}
+											>
+												{user.planner}
+											</button>
+										{:else}
+											-
+										{/if}
+									</td>
 								{/if}
 								{#if showBankColumn}
 									<td class="td-sticky-3" style="left: {bankLeft}px;">{user.bank}</td>
@@ -700,6 +718,12 @@
 	/* 불필요 (회색) */
 	.insurance-badge-na {
 		@apply bg-gray-100 text-gray-400 border border-gray-200;
+	}
+
+	/* 설계사 이름 링크 */
+	.planner-link {
+		@apply text-blue-600 hover:text-blue-800 hover:underline cursor-pointer transition-colors;
+		@apply bg-transparent border-none p-0 font-normal text-sm;
 	}
 
 	/* 모바일에서 sticky 제거 */

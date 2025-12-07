@@ -2,6 +2,11 @@
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
 	import { PlannerCommissionExcelExporter } from '$lib/utils/plannerCommissionExcelExporter.js';
+	import PlannerAccountEditModal from '$lib/components/shared/payment/PlannerAccountEditModal.svelte';
+
+	// ⭐ 설계사 수정 모달 상태
+	let showPlannerEditModal = false;
+	let selectedPlannerInfo = null;
 
 	// 상태 변수
 	let commissions = [];
@@ -263,6 +268,24 @@
 			console.error('Excel export error:', error);
 			alert('Excel 다운로드에 실패했습니다.');
 		}
+	}
+
+	// ⭐ 설계사 이름 클릭 핸들러
+	function handlePlannerClick(planner) {
+		selectedPlannerInfo = {
+			plannerAccountId: planner.plannerAccountId?._id || planner.plannerAccountId,
+			name: planner.plannerName,
+			phone: planner.plannerAccountId?.phone || '',
+			bank: planner.plannerAccountId?.bank || '',
+			accountNumber: planner.plannerAccountId?.accountNumber || ''
+		};
+		showPlannerEditModal = true;
+	}
+
+	// ⭐ 설계사 정보 저장 후 핸들러
+	function handlePlannerSaved(updatedPlanner) {
+		// 목록 새로고침
+		loadCommissions(currentPage);
 	}
 </script>
 
@@ -625,8 +648,9 @@
 					<tr>
 						<th rowspan="2" class="th-number th-sticky-0">순번</th>
 						<th rowspan="2" class="th-name th-sticky-1">설계사</th>
+						<th rowspan="2" class="th-name th-sticky-2">계좌번호</th>
 						{#if showPhoneColumn}
-							<th rowspan="2" class="th-name th-sticky-2">연락처</th>
+							<th rowspan="2" class="th-name th-sticky-3">연락처</th>
 						{/if}
 						<th rowspan="2" class="th-planner-total">전체 총액</th>
 						<th rowspan="2" class="th-planner-total">설계 총액</th>
@@ -654,7 +678,7 @@
 				<tbody>
 				{#if commissions.length === 0}
 					{@const colCount = 3 + (showUserCountColumn ? 1 : 0) + (showRevenueColumn ? 1 : 0)}
-					{@const baseColCount = 2 + (showPhoneColumn ? 1 : 0)}
+					{@const baseColCount = 3 + (showPhoneColumn ? 1 : 0)}
 					{@const plannerSummaryCols = 3}
 					<!-- 빈 데이터 메시지 -->
 					<tr>
@@ -677,9 +701,17 @@
 						}, { totalAmount: 0, commissionAmount: 0, serviceAmount: 0 })}
 						<tr class="data-row">
 							<td class="td-number td-sticky-0">{(currentPage - 1) * limit + index + 1}</td>
-							<td class="td-name td-sticky-1">{planner.plannerName}</td>
+							<td class="td-name td-sticky-1">
+								<button
+									onclick={() => handlePlannerClick(planner)}
+									class="planner-link"
+								>
+									{planner.plannerName}
+								</button>
+							</td>
+							<td class="td-account td-sticky-2">{planner.plannerAccountId?.accountNumber || '-'}</td>
 							{#if showPhoneColumn}
-								<td class="td-phone td-sticky-2">{planner.plannerAccountId?.phone || '-'}</td>
+								<td class="td-phone td-sticky-3">{planner.plannerAccountId?.phone || '-'}</td>
 							{/if}
 							<!-- 설계사별 총액 -->
 							<td class="td-amount planner-total highlight-total">{formatAmount(plannerTotal.totalAmount)}</td>
@@ -703,7 +735,7 @@
 
 					<!-- 총계 행 -->
 					<tr class="grand-total-row">
-						<td colspan={2 + (showPhoneColumn ? 1 : 0)} class="grand-total-label td-sticky-0">총계</td>
+						<td colspan={3 + (showPhoneColumn ? 1 : 0)} class="grand-total-label td-sticky-0">총계</td>
 						<!-- 설계사별 총액 합계 -->
 						<td class="grand-total-value planner-total highlight-total">{formatAmount(summary.grandTotal)}</td>
 						<td class="grand-total-value planner-total highlight-commission">{formatAmount(summary.totalCommission)}</td>
@@ -762,6 +794,14 @@
 		{/if}
 	{/if}
 </div>
+
+<!-- ⭐ 설계사 수정 모달 -->
+<PlannerAccountEditModal
+	isOpen={showPlannerEditModal}
+	plannerInfo={selectedPlannerInfo}
+	onClose={() => showPlannerEditModal = false}
+	onSaved={handlePlannerSaved}
+/>
 
 <style>
 	@reference "$lib/../app.css";
@@ -1001,8 +1041,13 @@
 	}
 
 	.th-sticky-2 {
-		@apply min-w-[120px];
+		@apply min-w-[140px];
 		@apply md:sticky md:left-[180px] md:z-[18];
+	}
+
+	.th-sticky-3 {
+		@apply min-w-[120px];
+		@apply md:sticky md:left-[320px] md:z-[17];
 	}
 
 	/* 데이터 행 */
@@ -1059,10 +1104,27 @@
 		}
 	}
 
+	.td-sticky-3 {
+		@apply border-b border-r border-gray-300;
+		@apply whitespace-nowrap p-1.5 text-center text-sm;
+		@apply md:sticky md:left-[320px] md:bg-white;
+	}
+
+	@media (min-width: 768px) {
+		.td-sticky-3 {
+			z-index: 7 !important;
+		}
+		.data-row:hover .td-sticky-3 {
+			background-color: #fafafa !important;
+			z-index: 7 !important;
+		}
+	}
+
 	/* 데이터 셀 - 일반 */
 	.td-number,
 	.td-name,
 	.td-phone,
+	.td-account,
 	.td-count {
 		@apply border-b border-r border-gray-300;
 		@apply whitespace-nowrap p-1.5 text-center text-sm;
@@ -1078,6 +1140,11 @@
 
 	.td-name {
 		@apply font-medium;
+	}
+
+	/* ⭐ 설계사 이름 링크 */
+	.planner-link {
+		@apply text-blue-600 hover:text-blue-800 hover:underline cursor-pointer transition-colors bg-transparent border-none font-medium;
 	}
 
 	.td-phone {

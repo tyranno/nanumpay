@@ -63,7 +63,7 @@ export async function GET({ url, locals }) {
 		// ⭐ v8.0: 사용자 목록 조회 + UserAccount, PlannerAccount populate
 		const users = await User.find(query)
 			.populate('userAccountId', 'loginId canViewSubordinates phone bank accountNumber idNumber')
-			.populate('plannerAccountId', 'name phone')
+			.populate('plannerAccountId', 'name phone bank accountNumber')  // ⭐ 설계사 계좌정보 추가
 			.select('-passwordHash')
 			.sort(sortOptions)
 			.skip(skip)
@@ -112,6 +112,8 @@ export async function GET({ url, locals }) {
 				// ⭐ v8.0: PlannerAccount 필드들
 				planner: user.plannerAccountId?.name || '',
 				plannerPhone: user.plannerAccountId?.phone || '',
+				plannerBank: user.plannerAccountId?.bank || '',  // ⭐ 설계사 은행
+				plannerAccountNumber: user.plannerAccountId?.accountNumber || '',  // ⭐ 설계사 계좌번호
 				// User 모델 필드들 (지사, 보험상품, 보험회사)
 				branch: user.branch || '',
 				insuranceProduct: user.insuranceProduct || '',
@@ -179,6 +181,27 @@ export async function PUT({ request, locals }) {
 		delete updateData.insuranceDate;
 		delete updateData.insuranceActive;
 
+		// ⭐ PlannerAccount 관련 필드 분리
+		const plannerAccountFields = {};
+		if (updateData.plannerBank !== undefined) {
+			plannerAccountFields.bank = updateData.plannerBank;
+			delete updateData.plannerBank;
+		}
+		if (updateData.plannerAccountNumber !== undefined) {
+			plannerAccountFields.accountNumber = updateData.plannerAccountNumber;
+			delete updateData.plannerAccountNumber;
+		}
+		// plannerPhone도 PlannerAccount 필드
+		if (updateData.plannerPhone !== undefined) {
+			plannerAccountFields.phone = updateData.plannerPhone;
+			delete updateData.plannerPhone;
+		}
+		// planner (설계사 이름)도 PlannerAccount 필드
+		if (updateData.planner !== undefined) {
+			plannerAccountFields.name = updateData.planner;
+			delete updateData.planner;
+		}
+
 		// User 업데이트
 		const user = await User.findByIdAndUpdate(
 			userId,
@@ -204,6 +227,15 @@ export async function PUT({ request, locals }) {
 			);
 
 			// ⭐ v8.0: 보험 정보는 별도 API(/api/admin/users/insurance)에서 처리
+		}
+
+		// ⭐ PlannerAccount 업데이트
+		if (Object.keys(plannerAccountFields).length > 0 && user.plannerAccountId) {
+			await PlannerAccount.findByIdAndUpdate(
+				user.plannerAccountId,
+				{ $set: plannerAccountFields },
+				{ new: true }
+			);
 		}
 
 		return json({ user });

@@ -41,6 +41,7 @@
 		salesperson: true,
 		planner: true,
 		plannerPhone: false,
+		plannerAccountNumber: false, // ⭐ 설계사 계좌번호 추가
 		insuranceProduct: false,
 		insuranceCompany: false
 	};
@@ -72,6 +73,7 @@
 	// DB 관리 상태 (개발 환경 전용)
 	let selectedMonth = '';
 	let isProcessingDB = false;
+	let monthlyRegistrations = data.monthlyRegistrations || []; // ⭐ reactive 변수로 관리
 
 	onMount(async () => {
 		// localStorage에서 컬럼 설정 불러오기
@@ -560,6 +562,25 @@
 			uploadFiles = [];
 			uploadProgress = null;
 			await loadMembers();
+
+			// ⭐ 월 목록 갱신 및 마지막 등록 월 자동 선택
+			if (data.isDevelopment && monthKeys.length > 0) {
+				// 성공한 월들을 월 목록에 추가
+				const existingMonths = new Set(monthlyRegistrations.map(m => m.monthKey));
+				for (const result of results) {
+					if (result.success && !existingMonths.has(result.monthKey)) {
+						monthlyRegistrations = [
+							{ monthKey: result.monthKey, registrationCount: result.created || 0 },
+							...monthlyRegistrations
+						];
+					}
+				}
+				// 내림차순 정렬
+				monthlyRegistrations = monthlyRegistrations.sort((a, b) => b.monthKey.localeCompare(a.monthKey));
+				// 마지막으로 처리된 월을 자동 선택
+				const lastMonth = monthKeys[monthKeys.length - 1];
+				selectedMonth = lastMonth;
+			}
 		} catch (error) {
 			console.error('Excel upload error:', error);
 			notificationConfig = {
@@ -595,6 +616,7 @@
 			salesperson: true,
 			planner: true,
 			plannerPhone: true,
+			plannerAccountNumber: true, // ⭐ 설계사 계좌번호 추가
 			insuranceProduct: true,
 			insuranceCompany: true
 		};
@@ -927,7 +949,7 @@
 			<div class="db-compact-controls">
 				<select bind:value={selectedMonth} class="db-compact-select">
 					<option value="">월 선택</option>
-					{#each data.monthlyRegistrations as month}
+					{#each monthlyRegistrations as month}
 						<option value={month.monthKey}>{month.monthKey}</option>
 					{/each}
 				</select>

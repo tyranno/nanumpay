@@ -269,7 +269,14 @@ export async function GET({ url, locals }) {
 
 			if (!plannerMap.has(key)) {
 				plannerMap.set(key, {
-					plannerAccountId: item.plannerId,
+					plannerAccountId: {
+						_id: item.plannerId,
+						name: plannerAccount.name,
+						phone: plannerAccount.phone,
+						bank: plannerAccount.bank || '',
+						accountNumber: plannerAccount.accountNumber || '',
+						email: plannerAccount.email
+					},
 					plannerName: plannerAccount.name,
 					plannerPhone: plannerAccount.phone,
 					plannerEmail: plannerAccount.email,
@@ -400,11 +407,18 @@ export async function GET({ url, locals }) {
 				const plannerAccount = plannerAccountMap.get(key);
 				if (plannerAccount) {
 					plannerData = {
-						plannerAccountId: comm.plannerId,
-						plannerName: plannerAccount.name,
-						plannerPhone: plannerAccount.phone,
-						plannerEmail: plannerAccount.email,
-						periods: {}
+					plannerAccountId: {
+						_id: comm.plannerId,
+						name: plannerAccount.name,
+						phone: plannerAccount.phone,
+						bank: plannerAccount.bank || '',
+						accountNumber: plannerAccount.accountNumber || '',
+						email: plannerAccount.email
+					},
+					plannerName: plannerAccount.name,
+					plannerPhone: plannerAccount.phone,
+					plannerEmail: plannerAccount.email,
+					periods: {}
 					};
 					
 					// 모든 기간에 대해 0원으로 초기화
