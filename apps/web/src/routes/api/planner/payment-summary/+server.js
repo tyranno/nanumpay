@@ -26,36 +26,28 @@ export async function GET({ locals }) {
 			});
 		}
 
-		// 이번 주 금요일 계산 (UTC 기준)
+		// 이번 주 금요일 계산 (로컬 시간 기준)
 		// ⭐ 토요일만 "금요일 지급 완료"로 처리 (일요일은 새 주의 시작)
 		const now = new Date();
-		const dayOfWeek = now.getUTCDay(); // 0(일) ~ 6(토)
+		const dayOfWeek = now.getDay(); // 0(일) ~ 6(토) - 로컬 시간
 		const isFridayPassed = dayOfWeek === 6; // 토요일(6)만 금요일 지남 처리
 
 		// ⭐ 토요일이면 다음 주 금요일, 그 외는 이번 주 금요일
 		const weekOffset = isFridayPassed ? 7 : 0;
 
-		// 이번 주 일요일 (UTC 기준) - 금요일 지났으면 다음 주 일요일
-		const thisWeekStart = new Date(Date.UTC(
-			now.getUTCFullYear(),
-			now.getUTCMonth(),
-			now.getUTCDate() - dayOfWeek + weekOffset
-		));
+		// 이번 주 일요일 (로컬 시간 기준)
+		const thisWeekStart = new Date(now);
+		thisWeekStart.setDate(now.getDate() - dayOfWeek + weekOffset);
+		thisWeekStart.setHours(0, 0, 0, 0);
 
-		// 이번 주 토요일 (UTC 기준) - 금요일 지났으면 다음 주 토요일
-		const thisWeekEnd = new Date(Date.UTC(
-			now.getUTCFullYear(),
-			now.getUTCMonth(),
-			now.getUTCDate() - dayOfWeek + 6 + weekOffset,
-			23, 59, 59, 999
-		));
+		// 이번 주 토요일 (로컬 시간 기준)
+		const thisWeekEnd = new Date(thisWeekStart);
+		thisWeekEnd.setDate(thisWeekStart.getDate() + 6);
+		thisWeekEnd.setHours(23, 59, 59, 999);
 
-		// 이번 주 금요일 날짜 (UTC 기준) - 금요일 지났으면 다음 주 금요일
-		const thisWeekFriday = new Date(Date.UTC(
-			now.getUTCFullYear(),
-			now.getUTCMonth(),
-			now.getUTCDate() - dayOfWeek + 5 + weekOffset
-		));
+		// 이번 주 금요일 날짜 (로컬 시간 기준)
+		const thisWeekFriday = new Date(thisWeekStart);
+		thisWeekFriday.setDate(thisWeekStart.getDate() + 5);
 
 		// 모든 지급 계획 조회
 		const paymentPlans = await WeeklyPaymentPlans.find({
@@ -97,9 +89,17 @@ export async function GET({ locals }) {
 			}
 		}
 
+		// 로컬 시간 기준 날짜 포맷 (YYYY-MM-DD)
+		const formatLocalDate = (date) => {
+			const year = date.getFullYear();
+			const month = String(date.getMonth() + 1).padStart(2, '0');
+			const day = String(date.getDate()).padStart(2, '0');
+			return `${year}-${month}-${day}`;
+		};
+
 		return json({
 			thisWeek: {
-				date: thisWeekFriday.toISOString().split('T')[0],
+				date: formatLocalDate(thisWeekFriday),
 				amount: thisWeekAmount,
 				tax: thisWeekTax,
 				net: thisWeekNet
