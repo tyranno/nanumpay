@@ -259,7 +259,7 @@ export class UserRegistrationService {
 	/**
 	 * 2단계: 사용자 생성
 	 * - loginId 자동 생성
-	 * - sequence 할당
+	 * - sequence 할당 (⭐ 날짜순 정렬 후 할당)
 	 * - User.save()
 	 */
 	async createUsers(users) {
@@ -287,11 +287,12 @@ export class UserRegistrationService {
 			return '';
 		};
 
+		// ⭐ 1단계: 모든 사용자 데이터 파싱 (날짜 포함)
+		const parsedUsers = [];
+		
 		for (let i = 0; i < users.length; i++) {
 			const userData = users[i];
 			const row = i + 1;
-			let name = '';
-			let loginId = '';
 
 			try {
 				// v8.0: 헤더 행 건너뛰기 (ID 컬럼 추가로 인한 변경)
@@ -303,11 +304,15 @@ export class UserRegistrationService {
 				const dateValue = getValue(userData, ['날짜', 'date', '__EMPTY_1', '__EMPTY', 'registrationDate']);
 				let createdAt;
 				if (dateValue) {
-					// Excel 날짜 처리
-					if (!isNaN(dateValue)) {
-						const excelDate = parseInt(dateValue);
-						createdAt = new Date((excelDate - 25569) * 86400 * 1000);
+					// Excel 날짜 처리 (숫자/문자열 혼용 지원)
+					const numValue = Number(dateValue);
+					const isExcelSerial = !isNaN(numValue) && numValue > 40000 && numValue < 60000;
+					
+					if (isExcelSerial) {
+						// 순수 Excel 날짜 시리얼 (예: 45108)
+						createdAt = new Date((numValue - 25569) * 86400 * 1000);
 					} else {
+						// 문자열 날짜 (예: "2024-07-01", "7/1/2024")
 						createdAt = new Date(dateValue);
 					}
 
@@ -315,13 +320,17 @@ export class UserRegistrationService {
 					if (isNaN(createdAt.getTime())) {
 						createdAt = new Date();
 					}
+					
+					// ⭐ 시간 부분 00:00:00으로 통일 (정렬 정확도 향상)
+					createdAt.setHours(0, 0, 0, 0);
 				} else {
 					createdAt = new Date();
+					createdAt.setHours(0, 0, 0, 0);
 				}
 
 				// v8.0: 필드 추출 (순번 컬럼 고려하여 인덱스 +1 추가)
-				loginId = getValue(userData, ['ID', 'id', '__EMPTY_2', '__EMPTY_1']);
-				name = getValue(userData, ['성명', '이름', 'name', '__EMPTY_3', '__EMPTY_2']);
+				const loginId = getValue(userData, ['ID', 'id', '__EMPTY_2', '__EMPTY_1']);
+				const name = getValue(userData, ['성명', '이름', 'name', '__EMPTY_3', '__EMPTY_2']);
 				const phone = getValue(userData, ['__EMPTY_4', '__EMPTY_3', '연락처', '전화번호', 'phone']);
 				// ⭐ idNumber 추출 (여러 필드명 시도)
 				let idNumber = getValue(userData, ['주민번호', 'idNumber', '__EMPTY_5', '__EMPTY_4']);
@@ -407,8 +416,72 @@ export class UserRegistrationService {
 					continue;
 				}
 
-				// ⭐ validateUsers()에서 이미 검증 완료 - 여기서는 생성만 수행
+				// ⭐ 파싱된 데이터 저장 (나중에 정렬용)
+				parsedUsers.push({
+					userData,
+					row,
+					createdAt,
+					loginId,
+					name,
+					phone,
+					idNumber,
+					bank,
+					ratio,
+					accountNumber,
+					salesperson,
+					salespersonPhone,
+					plannerName,
+					plannerPhone,
+					plannerAccountNumber,
+					plannerBank,
+					insuranceProduct,
+					insuranceCompany,
+					branch
+				});
 
+			} catch (error) {
+				results.failed++;
+				results.errors.push(`행 ${row}: 데이터 파싱 실패`);
+				console.error(`행 ${row} 파싱 오류:`, error);
+			}
+		}
+
+		// ⭐ 2단계: 날짜순 정렬 (같은 날짜면 원래 엑셀 행 순서 유지)
+		parsedUsers.sort((a, b) => {
+			const dateCompare = a.createdAt.getTime() - b.createdAt.getTime();
+			if (dateCompare !== 0) return dateCompare;
+			return a.row - b.row; // 같은 날짜면 엑셀 행 순서
+		});
+
+		console.log(`📋 등록 순서 정렬 완료: ${parsedUsers.length}명 (날짜순 → 엑셀행순)`);
+		parsedUsers.forEach((p, idx) => {
+			console.log(`  ${idx + 1}. ${p.name} - ${p.createdAt.toISOString().split('T')[0]} (엑셀행: ${p.row})`);
+		});
+
+		// ⭐ 3단계: 정렬된 순서대로 sequence 할당 및 저장
+		for (const parsed of parsedUsers) {
+			const {
+				row,
+				createdAt,
+				loginId,
+				name,
+				phone,
+				idNumber,
+				bank,
+				ratio,
+				accountNumber,
+				salesperson,
+				salespersonPhone,
+				plannerName,
+				plannerPhone,
+				plannerAccountNumber,
+				plannerBank,
+				insuranceProduct,
+				insuranceCompany,
+				branch
+			} = parsed;
+
+			try {
 				// v8.0: UserAccount 생성 또는 조회
 				let userAccount = await UserAccount.findOne({ loginId: loginId.toLowerCase() });
 
@@ -426,7 +499,7 @@ export class UserRegistrationService {
 						idNumber,
 						bank,
 						accountNumber,
-						email: getValue(userData, ['email', 'Email', '__EMPTY_14']) || null,
+						email: null,
 						status: 'active',
 						createdAt: createdAt
 					});
@@ -462,8 +535,6 @@ export class UserRegistrationService {
 					console.log(`✅ PlannerAccount 자동 생성: ${plannerName} (초기 비밀번호: ${plannerPassword})`);
 				}
 
-				// ⭐ 이름 중복 체크는 validateUsers()에서 이미 완료
-
 				// v8.0: registrationNumber 계산 (같은 UserAccount의 재등록 순번)
 				const existingUsers = await User.find({ userAccountId: userAccount._id })
 					.sort({ registrationNumber: -1 })
@@ -479,7 +550,7 @@ export class UserRegistrationService {
 				// 초기 등급 설정
 				const grade = 'F1';
 
-				// 시퀀스 번호 할당
+				// ⭐ 시퀀스 번호 할당 (정렬된 순서대로)
 				currentSequence++;
 
 				// v8.0: User 생성 (FK 연결)
