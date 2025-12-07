@@ -148,7 +148,11 @@ export async function PUT({ request, locals }) {
 			userAccountFields.idNumber = updateData.idNumber;
 			delete updateData.idNumber;
 		}
-		// ⭐ insuranceAmount는 User에만 저장 (UserAccount에는 저장 안 함)
+		// ⭐ v8.0: 보험 관련 필드는 별도 API(/api/admin/users/insurance)에서 처리
+		// 여기서는 수정하지 않도록 삭제
+		delete updateData.insuranceAmount;
+		delete updateData.insuranceDate;
+		delete updateData.insuranceActive;
 
 		// User 업데이트
 		const user = await User.findByIdAndUpdate(
@@ -174,7 +178,7 @@ export async function PUT({ request, locals }) {
 				{ new: true }
 			);
 
-			// ⭐ insuranceAmount는 이미 User.findByIdAndUpdate에서 업데이트됨
+			// ⭐ v8.0: 보험 정보는 별도 API(/api/admin/users/insurance)에서 처리
 		}
 
 		return json({ user });

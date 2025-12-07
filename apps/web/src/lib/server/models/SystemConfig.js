@@ -31,14 +31,13 @@ const systemConfigSchema = new mongoose.Schema({
 		F8: { type: Number, default: 60 }
 	},
 
-	// F3+ 보험 최소 금액
+	// F4+ 보험 최소 금액 (⭐ v8.0 변경: F3 보험 불필요)
 	minInsuranceAmounts: {
-		F3: { type: Number, default: 50000 },
-		F4: { type: Number, default: 50000 },
+		F4: { type: Number, default: 70000 },
 		F5: { type: Number, default: 70000 },
-		F6: { type: Number, default: 70000 },
-		F7: { type: Number, default: 100000 },
-		F8: { type: Number, default: 100000 }
+		F6: { type: Number, default: 90000 },
+		F7: { type: Number, default: 90000 },
+		F8: { type: Number, default: 110000 }
 	},
 
 	// 시스템 설정

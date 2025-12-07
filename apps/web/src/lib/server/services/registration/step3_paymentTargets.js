@@ -198,7 +198,7 @@ export async function executeStep3(promoted, monthlyReg, registrationMonth) {
  *
  * 3. 조건 확인:
  *    - 최대 횟수 미도달
- *    - F3+ 보험 가입
+ *    - F4+ 보험 가입 (⭐ v8.0: F3 보험 불필요)
  *    - 등급 유지 (하락 시 제외)
  *    - 이번 달 추가지급 미생성
  *

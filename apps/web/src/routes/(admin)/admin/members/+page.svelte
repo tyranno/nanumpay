@@ -883,6 +883,15 @@
 		member={editingMember}
 		onClose={() => (showEditModal = false)}
 		onSubmit={handleEditMember}
+		onChangedInsurance={(userData) => {
+			// 보험 정보 변경 시 editingMember 업데이트
+			editingMember = {
+				...editingMember,
+				insuranceAmount: userData.insuranceAmount,
+				insuranceActive: userData.insuranceActive,
+				insuranceDate: userData.insuranceDate
+			};
+		}}
 	/>
 
 	<!-- 엑셀 업로드 모달 -->

@@ -108,7 +108,7 @@ const userSchema = new mongoose.Schema({
 		type: Number,
 		default: 0
 	},
-	// 보험 관련 (F3+ 필수)
+	// 보험 관련 (F4+ 필수) - ⭐ v8.0 변경
 	insuranceActive: {
 		type: Boolean,
 		default: false
@@ -116,6 +116,11 @@ const userSchema = new mongoose.Schema({
 	insuranceAmount: {
 		type: Number,
 		default: 0
+	},
+	insuranceDate: {
+		type: Date,
+		default: null,
+		comment: '보험 가입일자 - 이 날짜 이후 지급계획부터 활성화'
 	},
 	// ⭐ v8.0: 비율 (엑셀에서 입력, 지급액 계산에 사용)
 	// 1 = 100%, 0.75 = 75%, 0.5 = 50%, 0.25 = 25%

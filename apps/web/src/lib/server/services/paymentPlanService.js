@@ -572,18 +572,11 @@ export async function checkAndCreateAdditionalPlan(completedPlan) {
 			return null;
 		}
 
-		// 3. 보험 확인 (F3 이상은 보험 필수)
-		if (user.grade >= 'F3') {
-			const requiredAmounts = {
-				F3: 50000,
-				F4: 50000,
-				F5: 70000,
-				F6: 70000,
-				F7: 100000,
-				F8: 100000
-			};
+		// 3. 보험 확인 (F4+ 보험 필수) - ⭐ v8.0 변경: GRADE_LIMITS 사용
+		const gradeLimit = GRADE_LIMITS[user.grade];
+		if (gradeLimit?.insuranceRequired) {
 			const insuranceAmount = user.insuranceAmount || 0;
-			if (insuranceAmount < requiredAmounts[user.grade]) {
+			if (insuranceAmount < (gradeLimit.insuranceAmount || 0)) {
 				return null; // 보험 조건 미충족
 			}
 		}
@@ -859,14 +852,13 @@ export async function createAdditionalPaymentPlanV8(previousPlan) {
 			return null;
 		}
 
-		// 3. 보험 확인 (F3 이상)
-		if (baseGrade >= 'F3') {
-			const requiredAmounts = {
-				F3: 50000, F4: 50000, F5: 70000, F6: 70000, F7: 100000, F8: 100000
-			};
+		// 3. 보험 확인 (F4+ 보험 필수) - ⭐ v8.0 변경: GRADE_LIMITS 사용
+		const gradeLimit = GRADE_LIMITS[baseGrade];
+		if (gradeLimit?.insuranceRequired) {
 			const insuranceAmount = user.insuranceAmount || 0;
-			if (insuranceAmount < requiredAmounts[baseGrade]) {
-				console.log(`[createAdditionalPaymentPlanV8] ${previousPlan.userId} 보험 미충족: ${insuranceAmount} < ${requiredAmounts[baseGrade]}`);
+			const requiredAmount = gradeLimit.insuranceAmount || 0;
+			if (insuranceAmount < requiredAmount) {
+				console.log(`[createAdditionalPaymentPlanV8] ${previousPlan.userId} 보험 미충족: ${insuranceAmount} < ${requiredAmount}`);
 				return null;
 			}
 		}
