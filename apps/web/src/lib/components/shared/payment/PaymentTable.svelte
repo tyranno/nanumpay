@@ -292,7 +292,7 @@
 						title={payment?.installmentDetails
 							? payment.installmentDetails.map((d) => `${d.revenueMonth} ${d.week}회차`).join(', ')
 							: ''}
-						on:click={() => handleGradeInfoClick(user, payment, week)}
+						onclick={() => handleGradeInfoClick(user, payment, week)}
 					>
 						{payment?.gradeInfo || '-'}
 					</td>
