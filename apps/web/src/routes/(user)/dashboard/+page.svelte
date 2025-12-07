@@ -566,14 +566,15 @@
 							</tr>
 						{:else}
 							{#each displayedPayments as weekGroup}
+								{@const isPast = new Date(weekGroup.weekDate) < new Date(new Date().setHours(0, 0, 0, 0))}
+								{@const subtotalBreakdown = calculateBreakdown(weekGroup.totalAmount)}
 								{#each weekGroup.users as user, index}
 									{@const breakdown = calculateBreakdown(user.amount)}
-									{@const isPast = new Date(weekGroup.weekDate) < new Date(new Date().setHours(0, 0, 0, 0))}
 
 									<tr class="{isPast ? 'bg-gray-100 hover:bg-gray-200' : 'hover:bg-gray-50'}">
 										{#if index === 0}
-											<!-- 첫 번째 행만 지급일 표시 (rowspan) -->
-											<td class="table-cell" rowspan={weekGroup.users.length}>
+											<!-- 첫 번째 행만 지급일 표시 (rowspan) - 소계 행 포함 -->
+											<td class="table-cell" rowspan={weekGroup.users.length + (weekGroup.users.length >= 2 ? 1 : 0)}>
 												{formatDate(weekGroup.weekDate)}
 												{#if isPast}
 													<span class="ml-1 text-xs font-semibold text-green-600">(완)</span>
@@ -604,6 +605,18 @@
 										<td class="table-cell text-right font-medium">{formatAmount(user.netAmount)}</td>
 									</tr>
 								{/each}
+								<!-- ⭐ 일자별 소계 행 (2개 이상일 때만 표시) -->
+								{#if weekGroup.users.length >= 2}
+									<tr class="bg-purple-100 font-semibold">
+										<td class="table-cell text-center text-purple-800" colspan="2">소계</td>
+										<td class="table-cell text-right text-purple-800">{subtotalBreakdown.영업.toLocaleString()}원</td>
+										<td class="table-cell text-right text-purple-800">{subtotalBreakdown.홍보.toLocaleString()}원</td>
+										<td class="table-cell text-right text-purple-800">{subtotalBreakdown.판촉.toLocaleString()}원</td>
+										<td class="table-cell text-right text-purple-900">{formatAmount(weekGroup.totalAmount)}</td>
+										<td class="table-cell text-right text-purple-800">{formatAmount(weekGroup.totalTax)}</td>
+										<td class="table-cell text-right text-purple-900">{formatAmount(weekGroup.totalNet)}</td>
+									</tr>
+								{/if}
 							{/each}
 						{/if}
 					</tbody>

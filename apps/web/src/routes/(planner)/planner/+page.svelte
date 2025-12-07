@@ -8,15 +8,32 @@
 
 	// 설정 모달 상태
 	let isSettingsModalOpen = false;
+	let plannerInfo = null;
+
+	// 설계사 정보 로드
+	async function loadPlannerInfo() {
+		try {
+			const response = await fetch('/api/planner/info');
+			if (response.ok) {
+				const data = await response.json();
+				// API가 직접 객체를 반환 (planner 래퍼 없음)
+				plannerInfo = data;
+			}
+		} catch (error) {
+			console.error('설계사 정보 로드 실패:', error);
+		}
+	}
 
 	// 설정 모달 열기
-	function openSettingsModal() {
+	async function openSettingsModal() {
+		await loadPlannerInfo();
 		isSettingsModalOpen = true;
 	}
 
 	// 설정 업데이트 핸들러
 	function handleSettingsUpdated(updatedInfo) {
 		console.log('설정 업데이트:', updatedInfo);
+		plannerInfo = updatedInfo;
 	}
 
 	onMount(async () => {
@@ -24,6 +41,7 @@
 		const requirePasswordChange = sessionStorage.getItem('requirePasswordChange');
 		if (requirePasswordChange === 'true') {
 			sessionStorage.removeItem('requirePasswordChange');
+			await loadPlannerInfo();
 			isSettingsModalOpen = true;
 			// PlannerSettingsModal에 암호 탭으로 전환하라는 신호 보내기
 			setTimeout(() => {
@@ -58,6 +76,7 @@
 <!-- 설정 모달 -->
 <PlannerSettingsModal
 	isOpen={isSettingsModalOpen}
+	{plannerInfo}
 	onClose={() => (isSettingsModalOpen = false)}
 	onUpdated={handleSettingsUpdated}
 />

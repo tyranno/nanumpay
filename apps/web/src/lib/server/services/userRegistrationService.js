@@ -367,31 +367,32 @@ export class UserRegistrationService {
 					'plannerPhone'
 				]);
 
+				// ⭐ v8.0: 설계사 은행 (설계사 지급명부에 표시)
+				// Excel 컬럼 순서: 설계사 연락처(__EMPTY_12) → 설계사 은행(__EMPTY_13) → 설계사 계좌번호(__EMPTY_14)
+				const plannerBank = getValue(userData, [
+					'설계사 은행',
+					'설계사은행',
+					'plannerBank',
+					'__EMPTY_13'
+				]);
+
 				// ⭐ v8.0: 설계사 계좌번호 (설계사 지급명부에 표시)
-				// 주의: __EMPTY_12는 설계사 연락처이므로 fallback에서 제외
 				const plannerAccountNumber = getValue(userData, [
 					'설계사 계좌번호',
 					'설계사계좌번호',
 					'plannerAccountNumber',
-					'__EMPTY_13'
-				]);
-
-				// ⭐ v8.0: 설계사 은행 (설계사 지급명부에 표시)
-				const plannerBank = getValue(userData, [
-					'설계사 은행',
-					'설계사은행',
-					'plannerBank'
+					'__EMPTY_14'
 				]);
 
 				const insuranceProduct = getValue(userData, [
 					'보험상품명',
 					'보험상품',
 					'insuranceProduct',
-					'__EMPTY_14',
-					'__EMPTY_13'
+					'__EMPTY_15',
+					'__EMPTY_14'
 				]);
-				const insuranceCompany = getValue(userData, ['보험회사', 'insuranceCompany', '__EMPTY_15', '__EMPTY_14']);
-				const branch = getValue(userData, ['지사', '소속/지사', 'branch', '__EMPTY_16', '__EMPTY_15']);
+				const insuranceCompany = getValue(userData, ['보험회사', 'insuranceCompany', '__EMPTY_16', '__EMPTY_15']);
+				const branch = getValue(userData, ['지사', '소속/지사', 'branch', '__EMPTY_17', '__EMPTY_16']);
 
 				// v8.0: 필수 필드 검증
 				if (!loginId) {
