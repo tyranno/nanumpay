@@ -359,6 +359,7 @@ export async function terminateAdditionalPlans(userId) {
 
 			if (hasTerminated) {
 				plan.planStatus = 'terminated';
+				plan.terminatedBy = 'promotion';
 				plan.terminatedAt = new Date();
 				plan.terminationReason = 'promotion';
 
@@ -433,7 +434,7 @@ async function updateWeeklyProjections(plan, operation) {
 					weekDate: weekInstallment.scheduledDate,
 					weekNumber,
 					monthKey: WeeklyPaymentSummary.generateMonthKey(weekInstallment.scheduledDate),
-					status: 'scheduled'
+					status: 'pending'
 				});
 			}
 

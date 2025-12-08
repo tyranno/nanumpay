@@ -252,22 +252,18 @@ userSchema.pre('findOneAndDelete', async function(next) {
 		}
 
 		// 2. ObjectId 기반 부모 참조도 제거 (이중 안전장치)
-		const updatedParents = await this.model.updateMany(
-			{
-				$or: [
-					{ leftChildId: docToDelete._id },
-					{ rightChildId: docToDelete._id }
-				]
-			},
-			{
-				$unset: {
-					leftChildId: '',
-					rightChildId: ''
-				}
-			}
+		// ⭐ leftChildId와 rightChildId를 개별적으로 제거 (다른 쪽 참조 보존)
+		const leftParentUpdate = await this.model.updateMany(
+			{ leftChildId: docToDelete._id },
+			{ $unset: { leftChildId: '' } }
 		);
-		if (updatedParents.modifiedCount > 0) {
-			console.log(`  ✅ ObjectId 기반 부모 참조 ${updatedParents.modifiedCount}건 제거`);
+		const rightParentUpdate = await this.model.updateMany(
+			{ rightChildId: docToDelete._id },
+			{ $unset: { rightChildId: '' } }
+		);
+		const totalUpdated = leftParentUpdate.modifiedCount + rightParentUpdate.modifiedCount;
+		if (totalUpdated > 0) {
+			console.log(`  ✅ ObjectId 기반 부모 참조 ${totalUpdated}건 제거`);
 		}
 
 		// 3. MonthlyRegistrations에서 제거

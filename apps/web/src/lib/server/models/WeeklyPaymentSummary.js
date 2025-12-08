@@ -133,11 +133,11 @@ const weeklyPaymentSummarySchema = new mongoose.Schema(
       }
     },
 
-    // 상태
+    // 상태 (pending=지급계획, processing=처리중, completed=완료)
     status: {
       type: String,
-      enum: ['scheduled', 'processing', 'completed'],
-      default: 'scheduled'
+      enum: ['pending', 'processing', 'completed'],
+      default: 'pending'
     },
     processedAt: { type: Date },
 

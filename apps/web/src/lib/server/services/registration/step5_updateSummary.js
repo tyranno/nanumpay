@@ -170,7 +170,7 @@ export async function executeStep5(plans, registrationMonth) {
         totalUserCount,
         totalPaymentCount,
         byGrade: byGradeFormatted,
-        status: 'scheduled'
+        status: 'pending'
       },
       { upsert: true, new: true }
     );

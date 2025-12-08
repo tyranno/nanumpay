@@ -52,64 +52,89 @@ export async function POST({ request, locals }) {
 		const monthlyReg = await MonthlyRegistrations.findOne({ monthKey });
 
 		let userIds = [];
-		let plannerIds = [];
-
 		if (monthlyReg && monthlyReg.registrations) {
 			userIds = monthlyReg.registrations.map(r => r.userId);
-
-			// 설계사 목록 추출 (중복 제거)
-			const plannerNames = [...new Set(monthlyReg.registrations.map(r => r.planner))];
-			const planners = await PlannerAccount.find({ loginId: { $in: plannerNames } });
-			plannerIds = planners.map(p => p._id);
 		}
 
-		console.log(`[DB Delete] ${monthKey} 등록 용역자: ${userIds.length}명 - ${userIds.join(', ')}`);
-		console.log(`[DB Delete] ${monthKey} 등록 설계사: ${plannerIds.length}명 - ${plannerIds.join(', ')}`);
-
-		// ⭐ 방법1: 삭제 전 승급자의 canceled 추가지급 복원
+		// 해당 월 승급자 목록
 		const promotedUsers = monthlyReg?.paymentTargets?.promoted || [];
 		const promotedUserIds = promotedUsers.map(p => p.userId);
-		if (promotedUserIds.length > 0) {
-			console.log(`[DB Delete] ${monthKey} 승급자 ${promotedUserIds.length}명의 canceled 추가지급 복원 시도...`);
 
-			// 승급자들의 모든 추가지급 계획 중 canceled된 회차 복원
-			const restored = await WeeklyPaymentPlans.updateMany(
-				{
-					userId: { $in: promotedUserIds },
-					installmentType: 'additional',
-					'installments.status': 'canceled'
-				},
-				{
-					$set: { 'installments.$[elem].status': 'pending' }
-				},
-				{
-					arrayFilters: [{ 'elem.status': 'canceled' }]
-				}
-			);
-			console.log(`[DB Delete] ${monthKey} 승급자 canceled → pending 복원: ${restored.modifiedCount}건`);
+		console.log(`[DB Delete] ${monthKey} 등록 용역자: ${userIds.length}명`);
+		console.log(`[DB Delete] ${monthKey} 승급자: ${promotedUserIds.length}명`);
+
+		// ========================================
+		// 1단계: 해당 월 승급으로 terminated된 이전 월 계획 복원
+		// ========================================
+		if (promotedUserIds.length > 0) {
+			// 해당 월 등록 시점 (이 시점 이후에 terminated된 것만 복원)
+			const monthlyRegCreatedAt = monthlyReg?.createdAt || new Date();
+			console.log(`[DB Delete] ${monthKey} 등록 시점: ${monthlyRegCreatedAt}`);
+
+			// 복원 대상: 해당 월 승급자의 이전 월 계획 중 해당 월 등록 이후 terminated된 것
+			// terminatedBy 또는 terminationReason이 promotion 관련인 경우 모두 포함
+			const terminatedPlans = await WeeklyPaymentPlans.find({
+				userId: { $in: promotedUserIds },
+				planStatus: 'terminated',
+				$or: [
+					{ terminatedBy: { $in: ['promotion_additional_stop', 'promotion'] } },
+					{ terminationReason: 'promotion' }
+				],
+				revenueMonth: { $lt: monthKey },
+				terminatedAt: { $gte: monthlyRegCreatedAt }
+			});
+
+			console.log(`[DB Delete] 복원 대상 계획 ${terminatedPlans.length}건:`);
+			for (const plan of terminatedPlans) {
+				console.log(`  - User: ${plan.userName || plan.userId}, Grade: ${plan.baseGrade}, RevenueMonth: ${plan.revenueMonth}, TerminatedBy: ${plan.terminatedBy}, TerminatedAt: ${plan.terminatedAt}`);
+
+				// installments의 terminated/canceled 상태를 pending으로 복원
+				const updatedInstallments = plan.installments.map(inst => ({
+					...inst.toObject(),
+					status: (inst.status === 'terminated' || inst.status === 'canceled') ? 'pending' : inst.status
+				}));
+
+				await WeeklyPaymentPlans.updateOne(
+					{ _id: plan._id },
+					{
+						$set: {
+							planStatus: 'active',
+							installments: updatedInstallments
+						},
+						$unset: {
+							terminatedAt: '',
+							terminatedBy: '',
+							terminationReason: ''
+						}
+					}
+				);
+			}
+			console.log(`[DB Delete] terminated → active 복원 완료: ${terminatedPlans.length}건`);
 		}
 
-		// 1. 해당 월 승급자의 새 등급 지급 계획 삭제 (createdBy: 'promotion', revenueMonth: monthKey)
+		// ========================================
+		// 2단계: 해당 월 데이터 삭제
+		// ========================================
+
+		// 2-1. 해당 월 승급자의 새 등급 지급 계획 삭제
 		const deletedPromotionPlans = await WeeklyPaymentPlans.deleteMany({
 			userId: { $in: promotedUserIds },
 			createdBy: 'promotion',
 			revenueMonth: monthKey
 		});
 		if (deletedPromotionPlans.deletedCount > 0) {
-			console.log(`[DB Delete] 승급자 새 등급 지급 계획 ${deletedPromotionPlans.deletedCount}건 삭제`);
+			console.log(`[DB Delete] 승급자 새 등급 계획 ${deletedPromotionPlans.deletedCount}건 삭제`);
 		}
 
-		// 3. 해당 월에 등록된 용역자의 모든 지급 계획 삭제 (User 삭제 전에!)
-		// ⭐ User cascade hook에서는 지급 계획을 삭제하지 않으므로 여기서 먼저 삭제
+		// 2-2. 해당 월에 등록된 용역자의 지급 계획 삭제
 		const deletedUserPlans = await WeeklyPaymentPlans.deleteMany({ userId: { $in: userIds } });
 		console.log(`[DB Delete] 신규 용역자 지급 계획 ${deletedUserPlans.deletedCount}건 삭제`);
 
-		// 3-1. ⭐ 해당 월에 등록된 용역자의 설계사 수당 계획 삭제
+		// 2-3. 해당 월에 등록된 용역자의 설계사 수당 계획 삭제
 		const deletedCommissionPlans = await PlannerCommissionPlan.deleteMany({ userId: { $in: userIds } });
 		console.log(`[DB Delete] 설계사 수당 계획 ${deletedCommissionPlans.deletedCount}건 삭제`);
 
-		// 4. 해당 월에 등록된 용역자 삭제 (cascade hook 작동하도록 개별 삭제)
-		// ⭐ deleteMany()는 pre hook을 호출하지 않으므로 findByIdAndDelete() 사용
+		// 2-4. 해당 월에 등록된 용역자 삭제 (cascade hook 작동)
 		let deletedUsersCount = 0;
 		const userAccountsToCheck = new Set();
 		for (const userId of userIds) {
@@ -121,9 +146,9 @@ export async function POST({ request, locals }) {
 				deletedUsersCount++;
 			}
 		}
-		const deletedUsers = { deletedCount: deletedUsersCount };
+		console.log(`[DB Delete] 용역자 ${deletedUsersCount}명 삭제`);
 
-		// 5. ⭐ UserAccount 정리: 연결된 User가 모두 삭제되었으면 UserAccount도 삭제
+		// 2-5. UserAccount 정리
 		const UserAccount = (await import('$lib/server/models/UserAccount.js')).default;
 		let deletedUserAccountsCount = 0;
 		for (const userAccountId of userAccountsToCheck) {
@@ -134,34 +159,60 @@ export async function POST({ request, locals }) {
 			}
 		}
 		if (deletedUserAccountsCount > 0) {
-			console.log(`[DB Delete] UserAccount ${deletedUserAccountsCount}개 삭제 (연결된 User 없음)`);
+			console.log(`[DB Delete] UserAccount ${deletedUserAccountsCount}개 삭제`);
 		}
 
-		// 6. 설계사 정리: 다른 용역자에 등록되어 있으면 유지, 없으면 삭제
+		// 2-6. 설계사 정리 (고아 상태인 것 삭제)
 		let deletedPlannersCount = 0;
-		for (const plannerId of plannerIds) {
-			// 이 설계사가 다른 용역자에도 등록되어 있는지 확인
-			const remainingUsers = await User.countDocuments({ plannerId });
+		const allPlanners = await PlannerAccount.find({});
+		for (const planner of allPlanners) {
+			const remainingUsers = await User.countDocuments({ plannerAccountId: planner._id });
 			if (remainingUsers === 0) {
-				await PlannerAccount.findByIdAndDelete(plannerId);
+				await PlannerAccount.findByIdAndDelete(planner._id);
 				deletedPlannersCount++;
 			}
 		}
 		if (deletedPlannersCount > 0) {
-			console.log(`[DB Delete] PlannerAccount ${deletedPlannersCount}개 삭제 (연결된 User 없음)`);
+			console.log(`[DB Delete] PlannerAccount ${deletedPlannersCount}개 삭제`);
 		}
-		const deletedPlanners = { deletedCount: deletedPlannersCount };
 
-		// 7. 월별 등록 데이터 삭제
+		// 2-7. 해당 월 매출분 지급 계획 삭제 (추가지급 등)
+		const deletedRevenueMonthPlans = await WeeklyPaymentPlans.deleteMany({ revenueMonth: monthKey });
+		console.log(`[DB Delete] ${monthKey} 매출분 지급 계획 ${deletedRevenueMonthPlans.deletedCount}건 삭제`);
+
+		// 2-8. 해당 월 gradeHistory 제거
+		await User.updateMany(
+			{},
+			{ $pull: { gradeHistory: { revenueMonth: monthKey } } }
+		);
+
+		// 2-9. 월별 등록 데이터 삭제
 		const deletedRegistrations = await MonthlyRegistrations.deleteOne({ monthKey });
 
-		// 8. 해당 월 매출분 지급 계획 삭제 (추가지급 등 남은 것)
-		// ⭐ revenueMonth 기준으로 삭제 (위에서 이미 삭제한 것 제외하고 남은 것만)
-		const deletedRevenueMonthPlans = await WeeklyPaymentPlans.deleteMany({ revenueMonth: monthKey });
-		console.log(`[DB Delete] 매출월 지급 계획 ${deletedRevenueMonthPlans.deletedCount}건 삭제 (추가지급 등)`);
+		// ========================================
+		// 3단계: 등급 재계산
+		// ========================================
+		const { recalculateAllGrades } = await import('$lib/server/services/gradeCalculation.js');
+		console.log(`[DB Delete] 등급 재계산 시작...`);
 
-		// 9. 해당 월의 주간 지급 요약 삭제
-		const deletedSummaries = await WeeklyPaymentSummary.deleteMany({ monthKey });
+		try {
+			const gradeResult = await recalculateAllGrades();
+			console.log(`[DB Delete] 등급 재계산 완료: ${gradeResult.updatedCount}명 등급 변경`);
+		} catch (gradeError) {
+			console.error(`[DB Delete] 등급 재계산 실패:`, gradeError);
+		}
+
+		// ========================================
+		// 4단계: 주간요약 전체 재생성
+		// ========================================
+		const deletedSummaries = await WeeklyPaymentSummary.deleteMany({});
+		console.log(`[DB Delete] 주간요약 전체 삭제: ${deletedSummaries.deletedCount}건`);
+
+		const remainingPlanCount = await WeeklyPaymentPlans.countDocuments({});
+		if (remainingPlanCount > 0) {
+			console.log(`[DB Delete] 남은 지급계획 ${remainingPlanCount}건 기준으로 주간요약 재생성...`);
+			await regenerateWeeklySummaries();
+		}
 
 		const totalDeletedPlans =
 			deletedUserPlans.deletedCount +
@@ -169,50 +220,128 @@ export async function POST({ request, locals }) {
 			deletedRevenueMonthPlans.deletedCount;
 
 		console.log(`[DB Delete] 삭제 완료:
-			- 용역자: ${deletedUsers.deletedCount}건
-			- 지급 계획 총: ${totalDeletedPlans}건
-			  ∟ 신규 용역자: ${deletedUserPlans.deletedCount}건
-			  ∟ 승급자 새 등급: ${deletedPromotionPlans?.deletedCount || 0}건
-			  ∟ 매출월 기준: ${deletedRevenueMonthPlans.deletedCount}건
+			- 용역자: ${deletedUsersCount}건
+			- 지급 계획: ${totalDeletedPlans}건
 			- 설계사 수당 계획: ${deletedCommissionPlans.deletedCount}건
-			- 설계사: ${deletedPlanners.deletedCount}건
+			- 설계사: ${deletedPlannersCount}건
 			- 월별 등록: ${deletedRegistrations.deletedCount}건
 			- 주간 요약: ${deletedSummaries.deletedCount}건
 		`);
 
-		// 10. ⭐ 삭제 후 등급 재계산만 수행 (지급 계획 재생성 안 함!)
-		// - 삭제로 인해 트리 구조가 변경되었으므로 등급 재계산 필요
-		// - 기존 지급 계획은 그대로 유지 (삭제된 월 것만 이미 삭제됨)
-		const { recalculateAllGrades } = await import('$lib/server/services/gradeCalculation.js');
-
-		console.log(`[DB Delete] 등급 재계산 시작...`);
-		try {
-			const gradeResult = await recalculateAllGrades();
-			console.log(`[DB Delete] 등급 재계산 완료: ${gradeResult.updatedCount}명 등급 변경`);
-
-			if (gradeResult.changedUsers && gradeResult.changedUsers.length > 0) {
-				gradeResult.changedUsers.forEach(u => {
-					console.log(`  → ${u.userName}: ${u.oldGrade} → ${u.newGrade}`);
-				});
-			}
-		} catch (gradeError) {
-			console.error(`[DB Delete] 등급 재계산 실패:`, gradeError);
-		}
-
-		const reprocessedMonth = null;
-
 		return json({
 			success: true,
-			deletedUsers: deletedUsers.deletedCount,
-			deletedPlanners: deletedPlanners.deletedCount,
+			deletedUsers: deletedUsersCount,
+			deletedPlanners: deletedPlannersCount,
 			deletedRegistrations: deletedRegistrations.deletedCount,
 			deletedPlans: totalDeletedPlans,
 			deletedCommissionPlans: deletedCommissionPlans.deletedCount,
 			deletedSummaries: deletedSummaries.deletedCount,
-			reprocessedMonth
+			reprocessedMonth: null
 		});
 	} catch (error) {
 		console.error('Delete monthly data error:', error);
 		return json({ error: '월별 데이터 삭제 중 오류가 발생했습니다.' }, { status: 500 });
+	}
+}
+
+/**
+ * 남은 지급계획 기준으로 주간요약 재생성
+ */
+async function regenerateWeeklySummaries() {
+	try {
+		// 활성 지급계획만 조회 (terminated 계획 제외 - step5와 동일 조건)
+		const allPlans = await WeeklyPaymentPlans.find({
+			planStatus: { $ne: 'terminated' }
+		});
+		const summaryMap = new Map();
+
+		for (const plan of allPlans) {
+			if (!plan.userId) continue;
+
+			for (const inst of plan.installments) {
+				// pending/paid 상태만 카운트
+				if (inst.status !== 'pending' && inst.status !== 'paid') continue;
+
+				const weekNumber = inst.weekNumber;
+				if (!weekNumber) continue;
+
+				if (!summaryMap.has(weekNumber)) {
+					const weekDate = inst.scheduledDate;
+					const instMonthKey = weekDate
+						? `${weekDate.getFullYear()}-${String(weekDate.getMonth() + 1).padStart(2, '0')}`
+						: '';
+
+					summaryMap.set(weekNumber, {
+						weekNumber,
+						weekDate: inst.scheduledDate,
+						monthKey: instMonthKey,
+						status: 'pending',
+						byGrade: {},
+						byPlanType: {
+							initial: { amount: 0, tax: 0, net: 0, paymentCount: 0 },
+							promotion: { amount: 0, tax: 0, net: 0, paymentCount: 0 },
+							additional: { amount: 0, tax: 0, net: 0, paymentCount: 0 }
+						},
+						totalAmount: 0,
+						totalTax: 0,
+						totalNet: 0,
+						totalUserCount: 0,
+						totalPaymentCount: 0,
+						userSet: new Set()
+					});
+				}
+
+				const summary = summaryMap.get(weekNumber);
+				const grade = plan.baseGrade;
+				const planType = plan.installmentType || 'initial';
+
+				// 등급별 집계
+				if (!summary.byGrade[grade]) {
+					summary.byGrade[grade] = { amount: 0, tax: 0, net: 0, userCount: 0, paymentCount: 0 };
+				}
+				summary.byGrade[grade].amount += inst.installmentAmount || 0;
+				summary.byGrade[grade].tax += inst.withholdingTax || 0;
+				summary.byGrade[grade].net += inst.netAmount || 0;
+				summary.byGrade[grade].paymentCount += 1;
+				if (!summary.userSet.has(plan.userId.toString() + '_' + grade)) {
+					summary.byGrade[grade].userCount += 1;
+					summary.userSet.add(plan.userId.toString() + '_' + grade);
+				}
+
+				// planType별 집계
+				if (summary.byPlanType[planType]) {
+					summary.byPlanType[planType].amount += inst.installmentAmount || 0;
+					summary.byPlanType[planType].tax += inst.withholdingTax || 0;
+					summary.byPlanType[planType].net += inst.netAmount || 0;
+					summary.byPlanType[planType].paymentCount += 1;
+				}
+
+				// 전체 집계
+				summary.totalAmount += inst.installmentAmount || 0;
+				summary.totalTax += inst.withholdingTax || 0;
+				summary.totalNet += inst.netAmount || 0;
+				summary.totalPaymentCount += 1;
+			}
+		}
+
+		// 요약 데이터 저장
+		for (const [weekNumber, data] of summaryMap) {
+			data.totalUserCount = data.userSet.size;
+			delete data.userSet;
+
+			// 모든 등급 초기화 (F1-F8)
+			for (let i = 1; i <= 8; i++) {
+				const g = `F${i}`;
+				if (!data.byGrade[g]) {
+					data.byGrade[g] = { amount: 0, tax: 0, net: 0, userCount: 0, paymentCount: 0 };
+				}
+			}
+
+			await WeeklyPaymentSummary.create(data);
+		}
+
+		console.log(`[DB Delete] 주간요약 재생성 완료: ${summaryMap.size}건`);
+	} catch (error) {
+		console.error(`[DB Delete] 주간요약 재생성 실패:`, error);
 	}
 }

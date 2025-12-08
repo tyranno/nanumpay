@@ -112,6 +112,19 @@
 		}
 	}
 
+	// ⭐ 월별 등록 목록 갱신
+	async function loadMonthlyRegistrations() {
+		try {
+			const response = await fetch('/api/admin/db/monthly-registrations');
+			const result = await response.json();
+			if (result.success) {
+				monthlyRegistrations = result.monthlyRegistrations;
+			}
+		} catch (error) {
+			console.error('Failed to load monthly registrations:', error);
+		}
+	}
+
 	// 검색 처리
 	let searchTimer;
 	function handleSearch() {
@@ -563,21 +576,11 @@
 			uploadProgress = null;
 			await loadMembers();
 
-			// ⭐ 월 목록 갱신 및 마지막 등록 월 자동 선택
-			if (data.isDevelopment && monthKeys.length > 0) {
-				// 성공한 월들을 월 목록에 추가
-				const existingMonths = new Set(monthlyRegistrations.map(m => m.monthKey));
-				for (const result of results) {
-					if (result.success && !existingMonths.has(result.monthKey)) {
-						monthlyRegistrations = [
-							{ monthKey: result.monthKey, registrationCount: result.created || 0 },
-							...monthlyRegistrations
-						];
-					}
-				}
-				// 내림차순 정렬
-				monthlyRegistrations = monthlyRegistrations.sort((a, b) => b.monthKey.localeCompare(a.monthKey));
-				// 마지막으로 처리된 월을 자동 선택
+			// ⭐ 서버에서 최신 월 목록 가져오기
+			await loadMonthlyRegistrations();
+
+			// 마지막으로 처리된 월을 자동 선택
+			if (monthKeys.length > 0) {
 				const lastMonth = monthKeys[monthKeys.length - 1];
 				selectedMonth = lastMonth;
 			}
@@ -680,14 +683,15 @@
 				notificationConfig = {
 					type: 'success',
 					title: '삭제 완료',
-					message: `${selectedMonth} 데이터가 삭제되었습니다.\n\n삭제된 항목:\n- 월별 등록: ${result.deletedRegistrations || 0}건\n- 지급 계획: ${result.deletedPlans || 0}건\n- 스냅샷: ${result.deletedSnapshots || 0}건`,
+					message: `${selectedMonth} 데이터가 삭제되었습니다.\n\n삭제된 항목:\n- 용역자: ${result.deletedUsers || 0}명\n- 지급 계획: ${result.deletedPlans || 0}건\n- 설계사 수당: ${result.deletedCommissionPlans || 0}건\n- 주간 요약: ${result.deletedSummaries || 0}건`,
 					results: null,
 					details: []
 				};
 				notificationOpen = true;
 				selectedMonth = '';
-				// 페이지 새로고침
-				window.location.reload();
+				// ⭐ 페이지 새로고침 대신 데이터만 갱신
+				await loadMembers();
+				await loadMonthlyRegistrations();
 			} else {
 				notificationConfig = {
 					type: 'error',
