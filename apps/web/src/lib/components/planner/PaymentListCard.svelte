@@ -156,6 +156,7 @@
 		{grandTotal}
 		{totalPaymentTargets}
 		hasData={filteredPaymentList.length > 0}
+		filterStore={plannerPaymentFilterState}
 		onFilterChange={handleFilterTypeChange}
 		onPeriodChange={handlePeriodChange}
 		onDateChange={(newDate) => {

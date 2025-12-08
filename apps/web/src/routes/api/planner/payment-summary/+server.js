@@ -2,6 +2,7 @@ import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db.js';
 import User from '$lib/server/models/User.js';
 import WeeklyPaymentPlans from '$lib/server/models/WeeklyPaymentPlans.js';
+import { shouldSkipByInsurance } from '$lib/server/services/payment/utils.js';
 
 export async function GET({ locals }) {
 	// 설계사 계정 확인
@@ -14,9 +15,18 @@ export async function GET({ locals }) {
 	try {
 		const plannerAccountId = locals.user.id;
 
-		// 설계사가 설계한 모든 사용자 ID 조회
-		const users = await User.find({ plannerAccountId: plannerAccountId }, '_id').lean();
+		// 설계사가 설계한 모든 사용자 ID 조회 (보험 정보 포함)
+		const users = await User.find({ plannerAccountId: plannerAccountId }, '_id grade insuranceAmount').lean();
 		const userIds = users.map(u => u._id);
+
+		// userId -> 보험 정보 매핑
+		const userInsuranceMap = {};
+		users.forEach(u => {
+			userInsuranceMap[u._id.toString()] = {
+				grade: u.grade,
+				insuranceAmount: u.insuranceAmount || 0
+			};
+		});
 
 		if (userIds.length === 0) {
 			return json({
@@ -62,8 +72,16 @@ export async function GET({ locals }) {
 		let upcomingAmount = 0, upcomingTax = 0, upcomingNet = 0;
 
 		for (const plan of paymentPlans) {
+			// ⭐ canceled 플랜은 이미 쿼리에서 제외됨
+
+			// ⭐ 보험 조건 확인 (지급명부와 동일)
+			const userInfo = userInsuranceMap[plan.userId];
+			if (userInfo && shouldSkipByInsurance(userInfo.grade, userInfo.insuranceAmount)) {
+				continue; // 보험 미가입 시 전체 플랜 skip
+			}
+
 			for (const installment of plan.installments) {
-				// ⭐ v8.0: canceled, terminated 상태 제외 (승급으로 중단된 installment 제외)
+				// ⭐ canceled, terminated 상태 제외 (취소/정지된 할부 제외)
 				if (installment.status === 'canceled' || installment.status === 'terminated') continue;
 
 				const installmentDate = installment.scheduledDate || installment.weekDate;

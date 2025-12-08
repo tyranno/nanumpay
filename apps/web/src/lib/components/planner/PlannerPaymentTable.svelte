@@ -276,7 +276,7 @@
 												: `${week.year}_${week.month}_${week.week}`}
 										{@const payment = row.payments[key]}
 										{#if showGradeInfoColumn}
-											<td class="subtotal-value period-border">-</td>
+											<td class="subtotal-value period-border" style="text-align: center; padding-right: 6px;">-</td>
 										{/if}
 										<td class="subtotal-value{showGradeInfoColumn ? '' : ' period-border'}">{formatAmount(payment?.amount)}</td>
 										{#if showTaxColumn}
@@ -371,7 +371,7 @@
 							{#each weeklyColumns as column}
 								{@const columnTotal = getColumnTotal(column)}
 								{#if showGradeInfoColumn}
-									<td class="grand-total-value period-border">-</td>
+									<td class="grand-total-value period-border" style="text-align: center; padding-right: 6px;">-</td>
 								{/if}
 								<td class="grand-total-value{showGradeInfoColumn ? '' : ' period-border'}">{formatAmount(columnTotal.totalAmount)}</td>
 								{#if showTaxColumn}

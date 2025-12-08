@@ -18,6 +18,10 @@
 	export let enablePeriodLimit = true; // ⭐ 기간 제한 활성화 (설계사/사용자만, 관리자는 false)
 	export let showSubtotalOptions = false; // ⭐ 소계 표시 옵션 (설계사 전용)
 	export let subtotalDisplayMode = 'noSubtotals'; // 'noSubtotals' | 'withSubtotals' | 'subtotalsOnly'
+	export let filterStore = null; // ⭐ 외부 store 주입 (없으면 기본 paymentPageFilterState 사용)
+
+	// ⭐ 실제 사용할 store (외부 주입 또는 기본값)
+	$: activeStore = filterStore || paymentPageFilterState;
 
 	// ⭐ 체크박스 상태 (subtotalDisplayMode에서 파생)
 	let showSubtotals = subtotalDisplayMode === 'withSubtotals' || subtotalDisplayMode === 'subtotalsOnly';
@@ -59,7 +63,8 @@
 		};
 	});
 
-	// Store에서 값 가져오기
+	// ⭐ Store에서 값 가져오기 (activeStore 사용)
+	// 초기값은 기본 store에서 가져오고, onMount에서 activeStore로 동기화
 	let filterType = $paymentPageFilterState.filterType;
 	let selectedDate = $paymentPageFilterState.selectedDate;
 	let selectedYear = $paymentPageFilterState.selectedYear;
@@ -70,7 +75,7 @@
 	let endYear = $paymentPageFilterState.endYear;
 	let endMonth = $paymentPageFilterState.endMonth;
 	let itemsPerPage = $paymentPageFilterState.itemsPerPage;
-	let showGradeInfoColumn = $paymentPageFilterState.showGradeInfoColumn; // ⭐ 신규
+	let showGradeInfoColumn = $paymentPageFilterState.showGradeInfoColumn;
 	let showTaxColumn = $paymentPageFilterState.showTaxColumn;
 	let showNetColumn = $paymentPageFilterState.showNetColumn;
 	let showPlannerColumn = $paymentPageFilterState.showPlannerColumn;
@@ -78,7 +83,35 @@
 	let showAccountColumn = $paymentPageFilterState.showAccountColumn;
 	let searchQuery = $paymentPageFilterState.searchQuery;
 	let searchCategory = $paymentPageFilterState.searchCategory;
-	let sortByName = $paymentPageFilterState.sortByName ?? true; // 기본값: 이름순
+	let sortByName = $paymentPageFilterState.sortByName ?? true;
+
+	// ⭐ filterStore가 주입된 경우, 해당 store에서 값 동기화
+	let storeInitialized = false;
+	$: if (filterStore && !storeInitialized) {
+		const storeValue = $activeStore;
+		if (storeValue) {
+			filterType = storeValue.filterType ?? filterType;
+			selectedDate = storeValue.selectedDate ?? selectedDate;
+			selectedYear = storeValue.selectedYear ?? selectedYear;
+			selectedMonth = storeValue.selectedMonth ?? selectedMonth;
+			periodType = storeValue.periodType ?? periodType;
+			startYear = storeValue.startYear ?? startYear;
+			startMonth = storeValue.startMonth ?? startMonth;
+			endYear = storeValue.endYear ?? endYear;
+			endMonth = storeValue.endMonth ?? endMonth;
+			itemsPerPage = storeValue.itemsPerPage ?? itemsPerPage;
+			showGradeInfoColumn = storeValue.showGradeInfoColumn ?? showGradeInfoColumn;
+			showTaxColumn = storeValue.showTaxColumn ?? showTaxColumn;
+			showNetColumn = storeValue.showNetColumn ?? showNetColumn;
+			showPlannerColumn = storeValue.showPlannerColumn ?? showPlannerColumn;
+			showBankColumn = storeValue.showBankColumn ?? showBankColumn;
+			showAccountColumn = storeValue.showAccountColumn ?? showAccountColumn;
+			searchQuery = storeValue.searchQuery ?? searchQuery;
+			searchCategory = storeValue.searchCategory ?? searchCategory;
+			sortByName = storeValue.sortByName ?? true;
+			storeInitialized = true;
+		}
+	}
 
 	// 컬럼 설정 모달 상태
 	let showColumnSettings = false;
@@ -86,7 +119,8 @@
 
 	function updateStore() {
 		if (browser) {
-			paymentPageFilterState.set({
+			// ⭐ activeStore 사용 (외부 주입 또는 기본값)
+			activeStore.set({
 				filterType,
 				selectedDate,
 				selectedYear,
@@ -97,7 +131,7 @@
 				endYear,
 				endMonth,
 				itemsPerPage,
-				showGradeInfoColumn, // ⭐ 신규
+				showGradeInfoColumn,
 				showTaxColumn,
 				showNetColumn,
 				showPlannerColumn,
