@@ -10,7 +10,6 @@
 
 import mongoose from 'mongoose';
 import WeeklyPaymentPlans from '../models/WeeklyPaymentPlans.js';
-import WeeklyPaymentSummary from '../models/WeeklyPaymentSummary.js';
 import MonthlyRegistrations from '../models/MonthlyRegistrations.js';
 import User from '../models/User.js';
 import { GRADE_LIMITS } from '../utils/constants.js';
@@ -126,7 +125,6 @@ export async function createInitialPaymentPlan(userId, userName, grade, registra
 		});
 
 		// 주차별 총계 업데이트 (미래 예측)
-		await updateWeeklyProjections(plan, 'add');
 
 		return plan;
 	} catch (error) {
@@ -239,7 +237,6 @@ export async function createPromotionPaymentPlan(
 		});
 
 		// 주차별 총계 업데이트
-		await updateWeeklyProjections(plan, 'add');
 
 		return plan;
 	} catch (error) {
@@ -328,7 +325,6 @@ export async function createAdditionalPaymentPlan(
 		});
 
 		// 주차별 총계 업데이트
-		await updateWeeklyProjections(plan, 'add');
 
 		return plan;
 	} catch (error) {
@@ -366,7 +362,6 @@ export async function terminateAdditionalPlans(userId) {
 				await plan.save();
 
 				// 주차별 총계에서 제거
-				await updateWeeklyProjections(plan, 'remove');
 			}
 		}
 	} catch (error) {
@@ -374,106 +369,6 @@ export async function terminateAdditionalPlans(userId) {
 	}
 }
 
-/**
- * 주차별 총계 예측 업데이트
- */
-async function updateWeeklyProjections(plan, operation) {
-	try {
-		// 매출 정보 조회
-		const monthlyReg = await MonthlyRegistrations.findOne({
-			monthKey: plan.revenueMonth
-		});
-
-		if (!monthlyReg) {
-			return;
-		}
-
-		// 등급별 지급액 계산
-		const revenue = monthlyReg.getEffectiveRevenue();
-		const gradePayments = calculateGradePayments(revenue, monthlyReg.gradeDistribution);
-		const baseAmount = gradePayments[plan.baseGrade] || 0;
-
-		if (baseAmount === 0) {
-			return;
-		}
-
-		// 10분할 및 100원 단위 절삭
-		let installmentAmount = Math.floor(baseAmount / 10 / 100) * 100;
-		let withholdingTax = Math.round(installmentAmount * 0.033);
-		let netAmount = installmentAmount - withholdingTax;
-
-		// ⭐ v8.0: 보험 조건 체크 - F4+ 보험 미가입 시 금액 0으로 처리
-		const gradeLimit = GRADE_LIMITS[plan.baseGrade];
-		if (gradeLimit?.insuranceRequired) {
-			const user = await User.findById(plan.userId);
-			const userInsurance = user?.insuranceAmount || 0;
-			const requiredInsurance = gradeLimit.insuranceAmount || 0;
-			
-			if (userInsurance < requiredInsurance) {
-				console.log(`⚠️ [updateWeeklyProjections] ${plan.userName}(${plan.baseGrade}) 보험 미가입 - 금액 0으로 처리`);
-				installmentAmount = 0;
-				withholdingTax = 0;
-				netAmount = 0;
-			}
-		}
-
-		// 주차별 업데이트
-		const uniqueWeeks = [
-			...new Set(
-				plan.installments.filter((inst) => inst.status === 'pending').map((inst) => inst.weekNumber)
-			)
-		];
-
-		for (const weekNumber of uniqueWeeks) {
-			// 주차별 총계 문서 찾기 또는 생성
-			let summary = await WeeklyPaymentSummary.findOne({ weekNumber });
-
-			if (!summary) {
-				const weekInstallment = plan.installments.find((i) => i.weekNumber === weekNumber);
-				summary = await WeeklyPaymentSummary.create({
-					weekDate: weekInstallment.scheduledDate,
-					weekNumber,
-					monthKey: WeeklyPaymentSummary.generateMonthKey(weekInstallment.scheduledDate),
-					status: 'pending'
-				});
-			}
-
-			// 금액 증분 또는 차감
-			if (operation === 'add') {
-				summary.incrementPayment(
-					plan.baseGrade,
-					plan.planType,
-					installmentAmount,
-					withholdingTax,
-					netAmount,
-					plan.userId // ⭐ userId 추가
-				);
-			} else if (operation === 'remove') {
-				// 차감 로직
-				summary.totalAmount -= installmentAmount;
-				summary.totalTax -= withholdingTax;
-				summary.totalNet -= netAmount;
-				summary.totalPaymentCount -= 1;
-
-				if (summary.byGrade[plan.baseGrade]) {
-					summary.byGrade[plan.baseGrade].amount -= installmentAmount;
-					summary.byGrade[plan.baseGrade].tax -= withholdingTax;
-					summary.byGrade[plan.baseGrade].net -= netAmount;
-					summary.byGrade[plan.baseGrade].paymentCount -= 1;
-				}
-
-				if (summary.byPlanType[plan.planType]) {
-					summary.byPlanType[plan.planType].amount -= installmentAmount;
-					summary.byPlanType[plan.planType].tax -= withholdingTax;
-					summary.byPlanType[plan.planType].net -= netAmount;
-					summary.byPlanType[plan.planType].paymentCount -= 1;
-				}
-			}
-
-			await summary.save();
-		}
-	} catch (error) {}
-}
 
 /**
  * 등급별 누적 지급액 계산 (헬퍼 함수)
@@ -721,7 +616,6 @@ export async function terminateAdditionalPlansOnPromotion(userId, promotionDate)
 				await plan.save();
 
 				// 주차별 총계에서 중단된 할부만 제거
-				await updateWeeklyProjectionsPartial(plan, 'remove', promotionPaymentStartDate);
 
 				console.log(`[terminateAdditionalPlans] ${userId} 추가지급 중단: ${plan.baseGrade} ${plan.추가지급단계}단계, ${terminatedCount}회 중단`);
 			}
@@ -734,35 +628,6 @@ export async function terminateAdditionalPlansOnPromotion(userId, promotionDate)
 	}
 }
 
-/**
- * v8.0: 주차별 총계 부분 업데이트 (특정 날짜 이후만)
- */
-async function updateWeeklyProjectionsPartial(plan, operation, fromDate) {
-	try {
-		for (const inst of plan.installments) {
-			if (inst.status === 'terminated' && new Date(inst.scheduledDate) >= fromDate) {
-				let summary = await WeeklyPaymentSummary.findOne({ weekNumber: inst.weekNumber });
-				if (summary && operation === 'remove') {
-					summary.totalAmount -= inst.installmentAmount || 0;
-					summary.totalTax -= inst.withholdingTax || 0;
-					summary.totalNet -= inst.netAmount || 0;
-					summary.totalPaymentCount -= 1;
-
-					if (summary.byGrade?.[plan.baseGrade]) {
-						summary.byGrade[plan.baseGrade].amount -= inst.installmentAmount || 0;
-						summary.byGrade[plan.baseGrade].tax -= inst.withholdingTax || 0;
-						summary.byGrade[plan.baseGrade].net -= inst.netAmount || 0;
-						summary.byGrade[plan.baseGrade].paymentCount -= 1;
-					}
-
-					await summary.save();
-				}
-			}
-		}
-	} catch (error) {
-		console.error('[updateWeeklyProjectionsPartial] 오류:', error);
-	}
-}
 
 /**
  * v8.0: 추가지급 시작일 계산

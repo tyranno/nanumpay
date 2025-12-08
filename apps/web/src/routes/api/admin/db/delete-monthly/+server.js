@@ -2,7 +2,6 @@ import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db.js';
 import MonthlyRegistrations from '$lib/server/models/MonthlyRegistrations.js';
 import WeeklyPaymentPlans from '$lib/server/models/WeeklyPaymentPlans.js';
-import WeeklyPaymentSummary from '$lib/server/models/WeeklyPaymentSummary.js';
 import User from '$lib/server/models/User.js';
 import PlannerAccount from '$lib/server/models/PlannerAccount.js';
 import PlannerCommissionPlan from '$lib/server/models/PlannerCommissionPlan.js';
@@ -88,10 +87,10 @@ export async function POST({ request, locals }) {
 			for (const plan of terminatedPlans) {
 				console.log(`  - User: ${plan.userName || plan.userId}, Grade: ${plan.baseGrade}, RevenueMonth: ${plan.revenueMonth}, TerminatedBy: ${plan.terminatedBy}, TerminatedAt: ${plan.terminatedAt}`);
 
-				// installments의 terminated/canceled 상태를 pending으로 복원
+				// ⭐ v8.0: terminated 상태를 pending으로 복원 (canceled 제거됨)
 				const updatedInstallments = plan.installments.map(inst => ({
 					...inst.toObject(),
-					status: (inst.status === 'terminated' || inst.status === 'canceled') ? 'pending' : inst.status
+					status: inst.status === 'terminated' ? 'pending' : inst.status
 				}));
 
 				await WeeklyPaymentPlans.updateOne(
@@ -202,18 +201,6 @@ export async function POST({ request, locals }) {
 			console.error(`[DB Delete] 등급 재계산 실패:`, gradeError);
 		}
 
-		// ========================================
-		// 4단계: 주간요약 전체 재생성
-		// ========================================
-		const deletedSummaries = await WeeklyPaymentSummary.deleteMany({});
-		console.log(`[DB Delete] 주간요약 전체 삭제: ${deletedSummaries.deletedCount}건`);
-
-		const remainingPlanCount = await WeeklyPaymentPlans.countDocuments({});
-		if (remainingPlanCount > 0) {
-			console.log(`[DB Delete] 남은 지급계획 ${remainingPlanCount}건 기준으로 주간요약 재생성...`);
-			await regenerateWeeklySummaries();
-		}
-
 		const totalDeletedPlans =
 			deletedUserPlans.deletedCount +
 			(deletedPromotionPlans?.deletedCount || 0) +
@@ -225,7 +212,6 @@ export async function POST({ request, locals }) {
 			- 설계사 수당 계획: ${deletedCommissionPlans.deletedCount}건
 			- 설계사: ${deletedPlannersCount}건
 			- 월별 등록: ${deletedRegistrations.deletedCount}건
-			- 주간 요약: ${deletedSummaries.deletedCount}건
 		`);
 
 		return json({
@@ -244,104 +230,3 @@ export async function POST({ request, locals }) {
 	}
 }
 
-/**
- * 남은 지급계획 기준으로 주간요약 재생성
- */
-async function regenerateWeeklySummaries() {
-	try {
-		// 활성 지급계획만 조회 (terminated 계획 제외 - step5와 동일 조건)
-		const allPlans = await WeeklyPaymentPlans.find({
-			planStatus: { $ne: 'terminated' }
-		});
-		const summaryMap = new Map();
-
-		for (const plan of allPlans) {
-			if (!plan.userId) continue;
-
-			for (const inst of plan.installments) {
-				// pending/paid 상태만 카운트
-				if (inst.status !== 'pending' && inst.status !== 'paid') continue;
-
-				const weekNumber = inst.weekNumber;
-				if (!weekNumber) continue;
-
-				if (!summaryMap.has(weekNumber)) {
-					const weekDate = inst.scheduledDate;
-					const instMonthKey = weekDate
-						? `${weekDate.getFullYear()}-${String(weekDate.getMonth() + 1).padStart(2, '0')}`
-						: '';
-
-					summaryMap.set(weekNumber, {
-						weekNumber,
-						weekDate: inst.scheduledDate,
-						monthKey: instMonthKey,
-						status: 'pending',
-						byGrade: {},
-						byPlanType: {
-							initial: { amount: 0, tax: 0, net: 0, paymentCount: 0 },
-							promotion: { amount: 0, tax: 0, net: 0, paymentCount: 0 },
-							additional: { amount: 0, tax: 0, net: 0, paymentCount: 0 }
-						},
-						totalAmount: 0,
-						totalTax: 0,
-						totalNet: 0,
-						totalUserCount: 0,
-						totalPaymentCount: 0,
-						userSet: new Set()
-					});
-				}
-
-				const summary = summaryMap.get(weekNumber);
-				const grade = plan.baseGrade;
-				const planType = plan.installmentType || 'initial';
-
-				// 등급별 집계
-				if (!summary.byGrade[grade]) {
-					summary.byGrade[grade] = { amount: 0, tax: 0, net: 0, userCount: 0, paymentCount: 0 };
-				}
-				summary.byGrade[grade].amount += inst.installmentAmount || 0;
-				summary.byGrade[grade].tax += inst.withholdingTax || 0;
-				summary.byGrade[grade].net += inst.netAmount || 0;
-				summary.byGrade[grade].paymentCount += 1;
-				if (!summary.userSet.has(plan.userId.toString() + '_' + grade)) {
-					summary.byGrade[grade].userCount += 1;
-					summary.userSet.add(plan.userId.toString() + '_' + grade);
-				}
-
-				// planType별 집계
-				if (summary.byPlanType[planType]) {
-					summary.byPlanType[planType].amount += inst.installmentAmount || 0;
-					summary.byPlanType[planType].tax += inst.withholdingTax || 0;
-					summary.byPlanType[planType].net += inst.netAmount || 0;
-					summary.byPlanType[planType].paymentCount += 1;
-				}
-
-				// 전체 집계
-				summary.totalAmount += inst.installmentAmount || 0;
-				summary.totalTax += inst.withholdingTax || 0;
-				summary.totalNet += inst.netAmount || 0;
-				summary.totalPaymentCount += 1;
-			}
-		}
-
-		// 요약 데이터 저장
-		for (const [weekNumber, data] of summaryMap) {
-			data.totalUserCount = data.userSet.size;
-			delete data.userSet;
-
-			// 모든 등급 초기화 (F1-F8)
-			for (let i = 1; i <= 8; i++) {
-				const g = `F${i}`;
-				if (!data.byGrade[g]) {
-					data.byGrade[g] = { amount: 0, tax: 0, net: 0, userCount: 0, paymentCount: 0 };
-				}
-			}
-
-			await WeeklyPaymentSummary.create(data);
-		}
-
-		console.log(`[DB Delete] 주간요약 재생성 완료: ${summaryMap.size}건`);
-	} catch (error) {
-		console.error(`[DB Delete] 주간요약 재생성 실패:`, error);
-	}
-}

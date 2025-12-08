@@ -4,7 +4,6 @@
  */
 
 import WeeklyPaymentPlans from '../models/WeeklyPaymentPlans.js';
-import WeeklyPaymentSummary from '../models/WeeklyPaymentSummary.js';
 import MonthlyRegistrations from '../models/MonthlyRegistrations.js';
 import User from '../models/User.js';
 import { GRADE_LIMITS } from '../utils/constants.js';
@@ -43,21 +42,8 @@ export async function processWeeklyPayments(date = new Date()) {
 
     console.log(`처리 대상 계획: ${pendingPlans.length}개`);
 
-    // 2. 주차별 총계 문서 준비
+    // 2. 주차 번호 계산
     const weekNumber = WeeklyPaymentPlans.getISOWeek(paymentDate);
-    let summary = await WeeklyPaymentSummary.findOne({ weekNumber });
-
-    if (!summary) {
-      summary = await WeeklyPaymentSummary.create({
-        weekDate: paymentDate,
-        weekNumber,
-        monthKey: WeeklyPaymentSummary.generateMonthKey(paymentDate),
-        status: 'processing'
-      });
-    } else {
-      summary.status = 'processing';
-      await summary.save();
-    }
 
     // 3. 각 계획별 지급 처리
     const processedPayments = [];
@@ -109,8 +95,8 @@ export async function processWeeklyPayments(date = new Date()) {
       installment.installmentAmount = paymentAmounts.installmentAmount;
       installment.withholdingTax = paymentAmounts.withholdingTax;
       installment.netAmount = paymentAmounts.netAmount;
-      installment.status = 'paid';
-      installment.paidAt = new Date();
+      // ⭐ v8.0: status는 pending 유지 (과거 날짜 = 지급 완료로 간주)
+      // installment.paidAt는 scheduledDate로 대체
 
       plan.completedInstallments += 1;
 
@@ -120,16 +106,6 @@ export async function processWeeklyPayments(date = new Date()) {
       }
 
       await plan.save();
-
-      // 통계 업데이트 (userId 전달하여 유니크 카운트)
-      summary.incrementPayment(
-        plan.baseGrade,
-        plan.planType,
-        paymentAmounts.installmentAmount,
-        paymentAmounts.withholdingTax,
-        paymentAmounts.netAmount,
-        plan.userId  // ⭐ userId 추가
-      );
 
       processedPayments.push({
         userId: user._id.toString(),
@@ -141,16 +117,12 @@ export async function processWeeklyPayments(date = new Date()) {
       });
     }
 
-    // 4. 사용자 카운트는 증분 업데이트된 상태 (incrementPayment에서 처리)
-    // 필요시에만 재계산 (불일치 검증용)
-    // await summary.recalculateUserCount();
+    // 4. 총액 계산
+    const totalAmount = processedPayments.reduce((sum, p) => sum + p.amount, 0);
+    const totalTax = processedPayments.reduce((sum, p) => sum + p.tax, 0);
+    const totalNet = processedPayments.reduce((sum, p) => sum + p.net, 0);
 
-    // 5. 총계 문서 저장
-    summary.status = 'completed';
-    summary.processedAt = new Date();
-    await summary.save();
-
-    // 6. 처리 완료
+    // 5. 처리 완료
     console.log(`=== 지급 처리 완료: ${processedPayments.length}건 ===`);
 
     return {
@@ -158,9 +130,9 @@ export async function processWeeklyPayments(date = new Date()) {
       date: paymentDate,
       weekNumber,
       processedCount: processedPayments.length,
-      totalAmount: summary.totalAmount,
-      totalTax: summary.totalTax,
-      totalNet: summary.totalNet,
+      totalAmount,
+      totalTax,
+      totalNet,
       payments: processedPayments
     };
 
@@ -304,6 +276,7 @@ async function getConfirmedGradeForPayment(userId, revenueMonth) {
 
 /**
  * 특정 날짜의 지급 내역 조회
+ * ⭐ v8.0: WeeklyPaymentSummary 대신 WeeklyPaymentPlans에서 직접 집계
  */
 export async function getWeeklyPaymentReport(date) {
   try {
@@ -312,34 +285,59 @@ export async function getWeeklyPaymentReport(date) {
 
     const weekNumber = WeeklyPaymentPlans.getISOWeek(paymentDate);
 
-    // 주차별 총계
-    const summary = await WeeklyPaymentSummary.findOne({ weekNumber });
+    // 개별 지급 내역 조회
+    const plans = await WeeklyPaymentPlans.find({
+      'installments': {
+        $elemMatch: {
+          weekNumber: weekNumber,
+          status: { $nin: ['skipped', 'terminated'] }  // ⭐ v8.0: paid 제거
+        }
+      },
+      planStatus: { $ne: 'terminated' }
+    });
 
-    if (!summary) {
+    if (plans.length === 0) {
       return {
         success: false,
         message: '해당 주차의 지급 내역이 없습니다.'
       };
     }
 
-    // 개별 지급 내역
-    const plans = await WeeklyPaymentPlans.find({
-      'installments': {
-        $elemMatch: {
-          weekNumber: weekNumber,
-          status: 'paid'
-        }
-      }
-    });
+    // 등급별 집계 초기화
+    const byGrade = {
+      F1: { amount: 0, tax: 0, net: 0, userCount: 0, paymentCount: 0 },
+      F2: { amount: 0, tax: 0, net: 0, userCount: 0, paymentCount: 0 },
+      F3: { amount: 0, tax: 0, net: 0, userCount: 0, paymentCount: 0 },
+      F4: { amount: 0, tax: 0, net: 0, userCount: 0, paymentCount: 0 },
+      F5: { amount: 0, tax: 0, net: 0, userCount: 0, paymentCount: 0 },
+      F6: { amount: 0, tax: 0, net: 0, userCount: 0, paymentCount: 0 },
+      F7: { amount: 0, tax: 0, net: 0, userCount: 0, paymentCount: 0 },
+      F8: { amount: 0, tax: 0, net: 0, userCount: 0, paymentCount: 0 }
+    };
+    const userIdsByGrade = {};
+    for (const grade of Object.keys(byGrade)) {
+      userIdsByGrade[grade] = new Set();
+    }
 
     const payments = [];
     for (const plan of plans) {
       const installment = plan.installments.find(
-        i => i.weekNumber === weekNumber && i.status === 'paid'
+        i => i.weekNumber === weekNumber && !['skipped', 'terminated'].includes(i.status)  // ⭐ v8.0
       );
 
       if (installment) {
         const user = await User.findById(plan.userId);
+        const grade = plan.baseGrade;
+        
+        // 등급별 집계
+        if (byGrade[grade]) {
+          byGrade[grade].amount += installment.installmentAmount || 0;
+          byGrade[grade].tax += installment.withholdingTax || 0;
+          byGrade[grade].net += installment.netAmount || 0;
+          byGrade[grade].paymentCount += 1;
+          userIdsByGrade[grade].add(plan.userId);
+        }
+
         payments.push({
           userId: plan.userId,
           userName: plan.userName,
@@ -356,18 +354,28 @@ export async function getWeeklyPaymentReport(date) {
       }
     }
 
+    // 사용자 수 집계
+    for (const [grade, userIds] of Object.entries(userIdsByGrade)) {
+      byGrade[grade].userCount = userIds.size;
+    }
+
+    // 전체 총계 계산
+    const totalAmount = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+    const totalTax = payments.reduce((sum, p) => sum + (p.tax || 0), 0);
+    const totalNet = payments.reduce((sum, p) => sum + (p.net || 0), 0);
+    const totalUserCount = new Set(payments.map(p => p.userId)).size;
+
     return {
       success: true,
       date: paymentDate,
       weekNumber,
       summary: {
-        totalAmount: summary.totalAmount,
-        totalTax: summary.totalTax,
-        totalNet: summary.totalNet,
-        totalUserCount: summary.totalUserCount,
-        totalPaymentCount: summary.totalPaymentCount,
-        byGrade: summary.byGrade,
-        byPlanType: summary.byPlanType
+        totalAmount,
+        totalTax,
+        totalNet,
+        totalUserCount,
+        totalPaymentCount: payments.length,
+        byGrade
       },
       payments
     };

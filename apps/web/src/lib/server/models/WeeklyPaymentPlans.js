@@ -96,7 +96,7 @@ const weeklyPaymentPlansSchema = new mongoose.Schema(
 
       status: {
         type: String,
-        enum: ['pending', 'paid', 'skipped', 'terminated', 'canceled'],
+        enum: ['pending', 'skipped', 'terminated'],  // ⭐ v8.0: paid/canceled 제거
         default: 'pending'
       },
       paidAt: { type: Date },

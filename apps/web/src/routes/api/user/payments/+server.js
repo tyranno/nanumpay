@@ -42,7 +42,7 @@ export async function GET({ locals, url }) {
 	// ⭐ 중요: terminated, canceled 상태 제외!
 	const paymentPlans = await WeeklyPaymentPlans.find({
 		userId: { $in: allUserIds },
-		planStatus: { $nin: ['terminated', 'canceled'] } // ⭐ 승급으로 종료되거나 취소된 계획 제외
+		planStatus: { $ne: 'terminated' }  // ⭐ v8.0: canceled 제거, 승급으로 종료된 계획만 제외
 	})
 		.sort({ createdAt: -1 })
 		.lean();
@@ -124,8 +124,8 @@ export async function GET({ locals, url }) {
 		if (!user) continue; // 사용자 정보 없으면 스킵
 
 		for (const installment of plan.installments) {
-			// ⭐ v8.0: canceled 상태는 제외 (승급으로 중단된 추가지급분)
-			if (installment.status === 'canceled') continue;
+			// ⭐ v8.0: terminated/skipped 상태만 확인 (canceled 제거)
+			if (['terminated', 'skipped'].includes(installment.status)) continue;
 
 			const weekNumber = installment.weekNumber; // "2025-W48"
 

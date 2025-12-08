@@ -1,6 +1,5 @@
 import { json } from '@sveltejs/kit';
 import { connectDB } from '$lib/server/db.js';
-import WeeklyPaymentSummary from '$lib/server/models/WeeklyPaymentSummary.js';
 import WeeklyPaymentPlans from '$lib/server/models/WeeklyPaymentPlans.js';
 import { GRADE_LIMITS } from '$lib/server/utils/constants.js';
 
@@ -33,9 +32,6 @@ export async function GET({ url }) {
 		const weekNumber = Math.ceil((dayOfYear + startOfYear.getDay() + 1) / 7);
 
 		console.log(`[API] 계산된 weekNumber: ${weekNumber}`);
-
-		// v5.0: 주간 지급 요약 조회
-		const summary = await WeeklyPaymentSummary.findOne({ weekNumber });
 
 		// v5.0: 해당 주차의 분할금 조회
 		// ⭐ v7.0: terminated 상태 제외 (승급으로 중단된 추가지급 제외)
@@ -104,20 +100,25 @@ export async function GET({ url }) {
 			return inst;
 		});
 
+		// ⭐ v8.0: installments에서 직접 집계 (WeeklyPaymentSummary 제거)
+		const totalAmount = processedInstallments.reduce((sum, i) => sum + (i.installmentAmount || 0), 0);
+		const totalTax = processedInstallments.reduce((sum, i) => sum + Math.round((i.installmentAmount || 0) * 0.033), 0);
+		const userCount = new Set(processedInstallments.map(i => i.userId?.toString())).size;
+
 		return json({
 			success: true,
 			year,
 			month,
 			week,
 			weekNumber,
-			summary: summary ? {
-				totalAmount: summary.totalAmount,
-				totalTax: summary.totalTax,
-				totalNetAmount: summary.totalNetAmount,
-				userCount: summary.userCount,
-				status: summary.status,
-				processedAt: summary.processedAt
-			} : null,
+			summary: {
+				totalAmount,
+				totalTax,
+				totalNetAmount: totalAmount - totalTax,
+				userCount,
+				status: 'calculated',
+				processedAt: null
+			},
 			installments: processedInstallments  // ⭐ v8.0: 보험 조건 반영된 결과
 		});
 	} catch (error) {

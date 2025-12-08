@@ -74,7 +74,7 @@ export async function getRangePayments(startYear, startMonth, endYear, endMonth,
 					'installments': {
 						$elemMatch: {
 							weekNumber: weekNumber,
-							status: { $in: ['paid', 'pending'] }
+							status: { $nin: ['skipped', 'terminated'] }  // ⭐ v8.0: paid 제거
 						}
 					}
 				}
@@ -85,7 +85,7 @@ export async function getRangePayments(startYear, startMonth, endYear, endMonth,
 			{
 				$match: {
 					'installments.weekNumber': weekNumber,
-					'installments.status': { $in: ['paid', 'pending'] }
+					'installments.status': { $nin: ['skipped', 'terminated'] }  // ⭐ v8.0
 				}
 			},
 			// 사용자별 그룹화 (등급 검색을 위해 모든 등급 수집)
@@ -348,7 +348,7 @@ export async function getRangePaymentsByGrade(startYear, startMonth, endYear, en
 				'installments': {
 					$elemMatch: {
 						weekNumber: { $in: weekNumbers },
-						status: { $in: ['paid', 'pending'] }
+						status: { $nin: ['skipped', 'terminated'] }  // ⭐ v8.0: paid 제거
 					}
 				}
 			}
@@ -359,7 +359,7 @@ export async function getRangePaymentsByGrade(startYear, startMonth, endYear, en
 		{
 			$match: {
 				'installments.weekNumber': { $in: weekNumbers },
-				'installments.status': { $in: ['paid', 'pending'] }
+				'installments.status': { $nin: ['skipped', 'terminated'] }  // ⭐ v8.0
 			}
 		},
 		{
@@ -432,7 +432,7 @@ export async function getRangePaymentsByGrade(startYear, startMonth, endYear, en
 					'installments': {
 						$elemMatch: {
 							weekNumber: weekNumber,
-							status: { $in: ['paid', 'pending'] }
+							status: { $nin: ['skipped', 'terminated'] }  // ⭐ v8.0: paid 제거
 						}
 					}
 				}
@@ -443,7 +443,7 @@ export async function getRangePaymentsByGrade(startYear, startMonth, endYear, en
 			{
 				$match: {
 					'installments.weekNumber': weekNumber,
-					'installments.status': { $in: ['paid', 'pending'] }
+					'installments.status': { $nin: ['skipped', 'terminated'] }  // ⭐ v8.0
 				}
 			},
 			{

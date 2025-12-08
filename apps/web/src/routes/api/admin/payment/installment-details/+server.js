@@ -55,7 +55,7 @@ export async function GET({ url, locals }) {
 		const plans = await WeeklyPaymentPlans.find({
 			userId: userId,
 			'installments.weekNumber': weekNumber,
-			'installments.status': { $in: ['paid', 'pending'] }
+			'installments.status': { $nin: ['skipped', 'terminated'] }  // ⭐ v8.0
 		}).lean();
 
 		// 결과 포맷
@@ -64,7 +64,7 @@ export async function GET({ url, locals }) {
 		for (const plan of plans) {
 			// 해당 weekNumber의 installment만 필터
 			const matchingInstallments = plan.installments.filter(
-				(inst) => inst.weekNumber === weekNumber && ['paid', 'pending'].includes(inst.status)
+				(inst) => inst.weekNumber === weekNumber && !['skipped', 'terminated'].includes(inst.status)  // ⭐ v8.0
 			);
 
 			console.log('[installment-details] plan.planType:', plan.planType);

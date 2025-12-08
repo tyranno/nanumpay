@@ -188,7 +188,7 @@ export async function GET({ url, locals }) {
 							$gte: startDate,
 							$lt: endDate
 						},
-						'installments.status': { $in: ['paid', 'pending'] }
+						'installments.status': { $nin: ['skipped', 'terminated'] }  // ⭐ v8.0
 					}
 				},
 

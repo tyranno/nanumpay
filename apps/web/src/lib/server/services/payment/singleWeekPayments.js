@@ -37,7 +37,7 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
 				'installments': {
 					$elemMatch: {
 						weekNumber: weekNumber,
-						status: { $in: ['paid', 'pending'] }
+						status: { $nin: ['skipped', 'terminated'] }  // ⭐ v8.0: paid 제거
 					}
 				}
 			}
@@ -49,7 +49,7 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
 		{
 			$match: {
 				'installments.weekNumber': weekNumber,
-				'installments.status': { $in: ['paid', 'pending'] }
+				'installments.status': { $nin: ['skipped', 'terminated'] }  // ⭐ v8.0
 			}
 		},
 		// 검색 조건 적용 (이름만 unwind 후 필터링)
@@ -379,7 +379,7 @@ export async function getSingleWeekPaymentsByGrade(year, month, week, page, limi
 				'installments': {
 					$elemMatch: {
 						weekNumber: weekNumber,
-						status: { $in: ['paid', 'pending'] }
+						status: { $nin: ['skipped', 'terminated'] }  // ⭐ v8.0: paid 제거
 					}
 				}
 			}
@@ -390,7 +390,7 @@ export async function getSingleWeekPaymentsByGrade(year, month, week, page, limi
 		{
 			$match: {
 				'installments.weekNumber': weekNumber,
-				'installments.status': { $in: ['paid', 'pending'] }
+				'installments.status': { $nin: ['skipped', 'terminated'] }  // ⭐ v8.0
 			}
 		},
 		{

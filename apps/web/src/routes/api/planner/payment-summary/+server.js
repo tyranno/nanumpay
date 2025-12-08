@@ -61,10 +61,8 @@ export async function GET({ locals }) {
 
 		// 모든 지급 계획 조회
 		// ⭐ v8.0: terminated 플랜도 포함 (유효한 installments 있음)
-		// canceled만 제외
 		const paymentPlans = await WeeklyPaymentPlans.find({
-			userId: { $in: userIds.map(id => id.toString()) },
-			planStatus: { $ne: 'canceled' }
+			userId: { $in: userIds.map(id => id.toString()) }
 		}).lean();
 
 		let thisWeekAmount = 0, thisWeekTax = 0, thisWeekNet = 0;
@@ -79,8 +77,8 @@ export async function GET({ locals }) {
 			}
 
 			for (const installment of plan.installments) {
-				// ⭐ canceled, terminated 상태 제외 (취소/정지된 할부 제외)
-				if (installment.status === 'canceled' || installment.status === 'terminated') continue;
+				// ⭐ v8.0: skipped, terminated 상태 제외 (건너뛴/중단된 할부 제외)
+				if (['skipped', 'terminated'].includes(installment.status)) continue;
 
 				const installmentDate = installment.scheduledDate || installment.weekDate;
 

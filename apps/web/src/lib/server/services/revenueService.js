@@ -7,7 +7,6 @@
 
 import MonthlyRegistrations from '../models/MonthlyRegistrations.js';
 import WeeklyPaymentPlans from '../models/WeeklyPaymentPlans.js';
-import WeeklyPaymentSummary from '../models/WeeklyPaymentSummary.js';
 
 /**
  * 등급별 누적 지급액 계산 (paymentPlanService.js와 동일)
@@ -91,11 +90,14 @@ export async function checkPaymentStatus(monthKey) {
 
     const totalCount = plans.reduce((sum, plan) => sum + plan.installments.length, 0);
 
-    // paid 상태 카운트
+    // ⭐ v8.0: 과거 날짜의 pending 상태 = 지급 완료로 간주
+    const now = new Date();
     let paidCount = 0;
     for (const plan of plans) {
       for (const inst of plan.installments) {
-        if (inst.paymentStatus === 'paid') {
+        // 과거 날짜이면서 pending 상태 = 지급 완료
+        const scheduledDate = inst.scheduledDate || inst.weekDate;
+        if (scheduledDate && scheduledDate < now && inst.status === 'pending') {
           paidCount++;
         }
       }
@@ -292,10 +294,7 @@ export async function regeneratePaymentPlans(monthKey, newRevenue, adminUser, re
 
     console.log(`✅ Recreated ${recreatedCount} payment plans`);
 
-    // Step 6: WeeklyPaymentSummary 재계산
-    await recalculateWeeklyPaymentSummary(monthKey);
-
-    // Step 7: MonthlyRegistrations 업데이트
+        // Step 7: MonthlyRegistrations 업데이트
     monthlyReg.adjustedRevenue = newRevenue;
     monthlyReg.isManualRevenue = true;
     monthlyReg.revenueModifiedBy = adminUser._id;
@@ -330,99 +329,6 @@ export async function regeneratePaymentPlans(monthKey, newRevenue, adminUser, re
   }
 }
 
-/**
- * WeeklyPaymentSummary 재계산 (특정 월의 모든 주차)
- * @param {string} monthKey - 월 키 (YYYY-MM)
- */
-async function recalculateWeeklyPaymentSummary(monthKey) {
-  console.log(`\n📊 [recalculateWeeklyPaymentSummary] Starting for ${monthKey}`);
-
-  try {
-    // 해당 월 귀속 지급 계획 조회
-    const plans = await WeeklyPaymentPlans.find({
-      revenueMonth: monthKey,
-      planStatus: { $in: ['active', 'completed'] }
-    });
-
-    console.log(`📋 Found ${plans.length} payment plans`);
-
-    // 주차별로 그룹화
-    const weeklyData = {};
-
-    for (const plan of plans) {
-      for (const inst of plan.installments) {
-        const weekNum = inst.weekNumber;
-
-        if (!weeklyData[weekNum]) {
-          weeklyData[weekNum] = {
-            weekNumber: weekNum,
-            weekDate: inst.paymentDate,
-            monthKey: monthKey,
-            status: 'pending',
-            byGrade: {
-              F1: { userCount: 0, totalAmount: 0, taxAmount: 0, netAmount: 0 },
-              F2: { userCount: 0, totalAmount: 0, taxAmount: 0, netAmount: 0 },
-              F3: { userCount: 0, totalAmount: 0, taxAmount: 0, netAmount: 0 },
-              F4: { userCount: 0, totalAmount: 0, taxAmount: 0, netAmount: 0 },
-              F5: { userCount: 0, totalAmount: 0, taxAmount: 0, netAmount: 0 },
-              F6: { userCount: 0, totalAmount: 0, taxAmount: 0, netAmount: 0 },
-              F7: { userCount: 0, totalAmount: 0, taxAmount: 0, netAmount: 0 },
-              F8: { userCount: 0, totalAmount: 0, taxAmount: 0, netAmount: 0 }
-            },
-            totalAmount: 0,
-            totalTax: 0,
-            totalNet: 0
-          };
-        }
-
-        const grade = plan.baseGrade;
-        const gradeData = weeklyData[weekNum].byGrade[grade];
-
-        // 해당 주차에서 이 사용자의 첫 installment인지 확인
-        const isFirstInWeek = !weeklyData[weekNum][`_counted_${plan.userId}`];
-        if (isFirstInWeek) {
-          gradeData.userCount++;
-          weeklyData[weekNum][`_counted_${plan.userId}`] = true;
-        }
-
-        gradeData.totalAmount += inst.installmentAmount;
-        gradeData.taxAmount += inst.taxAmount;
-        gradeData.netAmount += inst.netAmount;
-
-        weeklyData[weekNum].totalAmount += inst.installmentAmount;
-        weeklyData[weekNum].totalTax += inst.taxAmount;
-        weeklyData[weekNum].totalNet += inst.netAmount;
-
-        // 지급 상태 업데이트
-        if (inst.paymentStatus === 'paid') {
-          weeklyData[weekNum].status = 'completed';
-        }
-      }
-    }
-
-    // WeeklyPaymentSummary 업데이트 (upsert)
-    for (const [weekNum, data] of Object.entries(weeklyData)) {
-      // _counted_ 필드 제거
-      const cleanData = { ...data };
-      for (const key of Object.keys(cleanData)) {
-        if (key.startsWith('_counted_')) {
-          delete cleanData[key];
-        }
-      }
-
-      await WeeklyPaymentSummary.findOneAndUpdate(
-        { weekNumber: parseInt(weekNum) },
-        cleanData,
-        { upsert: true, new: true }
-      );
-    }
-
-    console.log(`✅ Updated ${Object.keys(weeklyData).length} weekly summaries`);
-  } catch (error) {
-    console.error(`❌ [recalculateWeeklyPaymentSummary] Error:`, error);
-    throw error;
-  }
-}
 
 /**
  * 매출 수동 조정 (메인 함수)

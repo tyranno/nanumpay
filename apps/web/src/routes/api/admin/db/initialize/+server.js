@@ -7,7 +7,6 @@ import PlannerCommission from '$lib/server/models/PlannerCommission.js';
 import PlannerCommissionPlan from '$lib/server/models/PlannerCommissionPlan.js';
 import MonthlyRegistrations from '$lib/server/models/MonthlyRegistrations.js';
 import WeeklyPaymentPlans from '$lib/server/models/WeeklyPaymentPlans.js';
-import WeeklyPaymentSummary from '$lib/server/models/WeeklyPaymentSummary.js';
 import bcrypt from 'bcryptjs';
 
 export async function POST({ request, locals }) {
@@ -34,7 +33,6 @@ export async function POST({ request, locals }) {
 		await PlannerCommissionPlan.deleteMany({});
 		await MonthlyRegistrations.deleteMany({});
 		await WeeklyPaymentPlans.deleteMany({});
-		await WeeklyPaymentSummary.deleteMany({});
 
 		console.log('[DB Initialize] 모든 데이터 삭제 완료');
 
