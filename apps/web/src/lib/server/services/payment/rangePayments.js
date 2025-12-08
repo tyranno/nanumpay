@@ -185,7 +185,7 @@ export async function getRangePayments(startYear, startMonth, endYear, endMonth,
 			year: wYear,
 			monthNumber: wMonth,
 			weekNumber: wWeek,
-			week: `${wYear}년 ${wMonth}월 ${wWeek}주`,
+			week: `${friday.getFullYear()}-${String(friday.getMonth() + 1).padStart(2, '0')}-${String(friday.getDate()).padStart(2, '0')}`,  // 금요일 날짜 (로컬 시간)
 			payments
 		});
 	}
@@ -516,7 +516,7 @@ export async function getRangePaymentsByGrade(startYear, startMonth, endYear, en
 			year: wYear,
 			monthNumber: wMonth,
 			weekNumber: wWeek,
-			week: `${wYear}년 ${wMonth}월 ${wWeek}주`,
+			week: `${friday.getFullYear()}-${String(friday.getMonth() + 1).padStart(2, '0')}-${String(friday.getDate()).padStart(2, '0')}`,  // 금요일 날짜 (로컬 시간)
 			payments
 		});
 	}

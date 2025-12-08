@@ -275,7 +275,7 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
 			year,
 			monthNumber: month,
 			weekNumber: week,
-			week: `${month}월 ${week}주`
+			week: `${weekDate.getFullYear()}-${String(weekDate.getMonth() + 1).padStart(2, '0')}-${String(weekDate.getDate()).padStart(2, '0')}`  // 금요일 날짜 (로컬 시간)
 		}
 	};
 }
@@ -505,7 +505,7 @@ export async function getSingleWeekPaymentsByGrade(year, month, week, page, limi
 			year,
 			monthNumber: month,
 			weekNumber: week,
-			week: `${month}월 ${week}주`
+			week: `${weekDate.getFullYear()}-${String(weekDate.getMonth() + 1).padStart(2, '0')}-${String(weekDate.getDate()).padStart(2, '0')}`  // 금요일 날짜 (로컬 시간)
 		}
 	};
 }
