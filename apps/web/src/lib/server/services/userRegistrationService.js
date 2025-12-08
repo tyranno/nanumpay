@@ -126,13 +126,14 @@ export class UserRegistrationService {
 				continue;
 			}
 
-			const loginId = getValue(userData, ['ID', 'id', '__EMPTY_2', '__EMPTY_1']);
-			const name = getValue(userData, ['성명', '이름', 'name', '__EMPTY_3', '__EMPTY_2']);
-			const phone = getValue(userData, ['__EMPTY_4', '__EMPTY_3', '연락처', '전화번호', 'phone']);
-			const bank = getValue(userData, ['은행', 'bank', '__EMPTY_6', '__EMPTY_5']);
-			const accountNumber = getValue(userData, ['계좌번호', '계좌', 'accountNumber', '__EMPTY_7', '__EMPTY_6']);
-			// ⭐ v8.0 수정: 설계사 컬럼 인덱스 수정 (비율 컬럼 위치 반영)
-			const plannerName = getValue(userData, ['__EMPTY_11', '__EMPTY_10', '설계사', 'planner']);
+			// ⭐ v8.1: 고정 헤더명으로만 값 읽기 (빈값이면 빈값 그대로)
+			const loginId = String(userData['ID'] ?? '').trim();
+			const name = String(userData['성명'] ?? '').trim();
+			const phone = String(userData['연락처'] ?? '').trim();
+			const bank = String(userData['은행'] ?? '').trim();
+			const accountNumber = String(userData['계좌번호'] ?? '').trim();
+			const plannerName = String(userData['설계사'] ?? '').trim();
+			const salesperson = String(userData['판매인'] ?? '').trim();
 
 			if (!name) continue; // 빈 행 건너뛰기
 
@@ -159,7 +160,7 @@ export class UserRegistrationService {
 				phone,
 				bank,
 				accountNumber,
-				salesperson: getValue(userData, ['판매인', '추천인', 'salesperson', '__EMPTY_8', '__EMPTY_7'])
+				salesperson
 			});
 
 			if (!validation.isValid) {
@@ -191,7 +192,7 @@ export class UserRegistrationService {
 		for (let i = 0; i < validUsers.length; i++) {
 			const { userData, name, row } = validUsers[i];
 
-			const salesperson = getValue(userData, ['판매인', '추천인', 'salesperson', '__EMPTY_8', '__EMPTY_7']);
+			const salesperson = String(userData['판매인'] ?? '').trim();
 
 			// 판매인 검증
 			if (!salesperson || salesperson === '-') {
@@ -328,72 +329,27 @@ export class UserRegistrationService {
 					createdAt.setHours(0, 0, 0, 0);
 				}
 
-				// v8.0: 필드 추출 (순번 컬럼 고려하여 인덱스 +1 추가)
-				const loginId = getValue(userData, ['ID', 'id', '__EMPTY_2', '__EMPTY_1']);
-				const name = getValue(userData, ['성명', '이름', 'name', '__EMPTY_3', '__EMPTY_2']);
-				const phone = getValue(userData, ['__EMPTY_4', '__EMPTY_3', '연락처', '전화번호', 'phone']);
-				// ⭐ idNumber 추출 (여러 필드명 시도)
-				let idNumber = getValue(userData, ['주민번호', 'idNumber', '__EMPTY_5', '__EMPTY_4']);
-				// getValue가 빈 문자열을 반환하면, 원본 데이터에서 직접 확인
-				if (!idNumber && userData.idNumber) {
-					idNumber = String(userData.idNumber).trim();
-				}
-				const bank = getValue(userData, ['은행', 'bank', '__EMPTY_6', '__EMPTY_5']);
-				// ⭐ v8.0: 비율 (은행 다음 위치 - 컬럼 7)
-				const ratioRaw = getValue(userData, ['비율', 'ratio', '__EMPTY_7', '__EMPTY_6']);
-				const ratio = parseFloat(ratioRaw) || 1; // 기본값 1 (100%)
-				const accountNumber = getValue(userData, [
-					'계좌번호',
-					'계좌',
-					'accountNumber',
-					'__EMPTY_8',
-					'__EMPTY_7'
-				]);
-				const salesperson = getValue(userData, ['판매인', '추천인', 'salesperson', '__EMPTY_9', '__EMPTY_8']);
-				const salespersonPhone = getValue(userData, [
-					'__EMPTY_10',
-					'__EMPTY_9',
-					'판매인 연락처',
-					'연락처.1',
-					'salespersonPhone'
-				]);
-				// ⭐ v8.0 수정: 설계사 컬럼 인덱스 수정 (비율 컬럼 위치 반영)
-				const plannerName = getValue(userData, ['__EMPTY_11', '__EMPTY_10', '설계사', 'planner']);
-
-				// ⭐ v8.1: 엑셀 컬럼 순서 변경 - 설계사 → 은행 → 계좌번호 → 연락처
-				const plannerBank = getValue(userData, [
-					'__EMPTY_12',
-					'은행',
-					'설계사 은행',
-					'설계사은행',
-					'plannerBank'
-				]);
-
-				const plannerAccountNumber = getValue(userData, [
-					'__EMPTY_13',
-					'계좌번호',
-					'설계사 계좌번호',
-					'설계사계좌번호',
-					'plannerAccountNumber'
-				]);
-
-				const plannerPhone = getValue(userData, [
-					'__EMPTY_14',
-					'연락처',
-					'설계사 연락처',
-					'연락처.2',
-					'plannerPhone'
-				]);
-
-				const insuranceProduct = getValue(userData, [
-					'보험상품명',
-					'보험상품',
-					'insuranceProduct',
-					'__EMPTY_15',
-					'__EMPTY_14'
-				]);
-				const insuranceCompany = getValue(userData, ['보험회사', 'insuranceCompany', '__EMPTY_16', '__EMPTY_15']);
-				const branch = getValue(userData, ['지사', '소속/지사', 'branch', '__EMPTY_17', '__EMPTY_16']);
+				// ⭐ v8.1: 고정 헤더명으로만 값 읽기 (빈값이면 빈값 그대로)
+				// A:순번, B:날짜, C:ID, D:성명, E:연락처, F:주민번호, G:은행, H:비율, I:계좌번호
+				// J:판매인, K:연락처, L:설계사, M:연락처, N:설계사 은행, O:설계사 계좌번호
+				// P:보험상품명, Q:보험회사, R:지사
+				const loginId = String(userData['ID'] ?? '').trim();
+				const name = String(userData['성명'] ?? '').trim();
+				const phone = String(userData['연락처'] ?? '').trim();  // E열: 본인 연락처
+				const idNumber = String(userData['주민번호'] ?? '').trim();
+				const bank = String(userData['은행'] ?? '').trim();  // G열
+				const ratioRaw = String(userData['비율'] ?? '').trim();  // H열
+				const ratio = parseFloat(ratioRaw) || 1;
+				const accountNumber = String(userData['계좌번호'] ?? '').trim();  // I열
+				const salesperson = String(userData['판매인'] ?? '').trim();  // J열
+				const salespersonPhone = String(userData['연락처_1'] ?? '').trim();  // K열: 판매인 연락처 (중복 헤더)
+				const plannerName = String(userData['설계사'] ?? '').trim();  // L열
+				const plannerPhone = String(userData['연락처_2'] ?? '').trim();  // M열: 설계사 연락처 (중복 헤더)
+				const plannerBank = String(userData['설계사 은행'] ?? '').trim();  // N열
+				const plannerAccountNumber = String(userData['설계사 계좌번호'] ?? '').trim();  // O열
+				const insuranceProduct = String(userData['보험상품명'] ?? '').trim();  // P열
+				const insuranceCompany = String(userData['보험회사'] ?? '').trim();  // Q열
+				const branch = String(userData['지사'] ?? '').trim();  // R열
 
 				// v8.0: 필수 필드 검증
 				if (!loginId) {
