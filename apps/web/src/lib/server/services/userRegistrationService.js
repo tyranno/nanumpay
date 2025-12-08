@@ -359,29 +359,30 @@ export class UserRegistrationService {
 				]);
 				// ⭐ v8.0 수정: 설계사 컬럼 인덱스 수정 (비율 컬럼 위치 반영)
 				const plannerName = getValue(userData, ['__EMPTY_11', '__EMPTY_10', '설계사', 'planner']);
-				const plannerPhone = getValue(userData, [
+
+				// ⭐ v8.1: 엑셀 컬럼 순서 변경 - 설계사 → 은행 → 계좌번호 → 연락처
+				const plannerBank = getValue(userData, [
 					'__EMPTY_12',
-					'__EMPTY_11',
+					'은행',
+					'설계사 은행',
+					'설계사은행',
+					'plannerBank'
+				]);
+
+				const plannerAccountNumber = getValue(userData, [
+					'__EMPTY_13',
+					'계좌번호',
+					'설계사 계좌번호',
+					'설계사계좌번호',
+					'plannerAccountNumber'
+				]);
+
+				const plannerPhone = getValue(userData, [
+					'__EMPTY_14',
+					'연락처',
 					'설계사 연락처',
 					'연락처.2',
 					'plannerPhone'
-				]);
-
-				// ⭐ v8.0: 설계사 은행 (설계사 지급명부에 표시)
-				// Excel 컬럼 순서: 설계사 연락처(__EMPTY_12) → 설계사 은행(__EMPTY_13) → 설계사 계좌번호(__EMPTY_14)
-				const plannerBank = getValue(userData, [
-					'설계사 은행',
-					'설계사은행',
-					'plannerBank',
-					'__EMPTY_13'
-				]);
-
-				// ⭐ v8.0: 설계사 계좌번호 (설계사 지급명부에 표시)
-				const plannerAccountNumber = getValue(userData, [
-					'설계사 계좌번호',
-					'설계사계좌번호',
-					'plannerAccountNumber',
-					'__EMPTY_14'
 				]);
 
 				const insuranceProduct = getValue(userData, [
