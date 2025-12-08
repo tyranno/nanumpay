@@ -908,13 +908,19 @@
 		onClose={() => (showEditModal = false)}
 		onSubmit={handleEditMember}
 		onChangedInsurance={(userData) => {
-			// 보험 정보 변경 시 editingMember 업데이트
+			// ⭐ 보험 정보 변경 시 해당 멤버만 업데이트 (전체 갱신 X)
 			editingMember = {
 				...editingMember,
 				insuranceAmount: userData.insuranceAmount,
 				insuranceActive: userData.insuranceActive,
 				insuranceDate: userData.insuranceDate
 			};
+			// 리스트에서 해당 멤버만 업데이트
+			members = members.map(m =>
+				m._id === editingMember._id
+					? { ...m, insuranceAmount: userData.insuranceAmount, insuranceActive: userData.insuranceActive, insuranceDate: userData.insuranceDate }
+					: m
+			);
 		}}
 	/>
 
