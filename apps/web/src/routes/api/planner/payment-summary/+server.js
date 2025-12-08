@@ -72,8 +72,6 @@ export async function GET({ locals }) {
 		let upcomingAmount = 0, upcomingTax = 0, upcomingNet = 0;
 
 		for (const plan of paymentPlans) {
-			// ⭐ canceled 플랜은 이미 쿼리에서 제외됨
-
 			// ⭐ 보험 조건 확인 (지급명부와 동일)
 			const userInfo = userInsuranceMap[plan.userId];
 			if (userInfo && shouldSkipByInsurance(userInfo.grade, userInfo.insuranceAmount)) {
@@ -86,21 +84,21 @@ export async function GET({ locals }) {
 
 				const installmentDate = installment.scheduledDate || installment.weekDate;
 
-				// 1. 이번주 금요일 지급액 (이번주만, 상태 무관)
+				// 1. 이번주 금요일 지급액
 				if (installmentDate >= thisWeekStart && installmentDate <= thisWeekEnd) {
 					thisWeekAmount += installment.installmentAmount || 0;
 					thisWeekTax += installment.withholdingTax || 0;
 					thisWeekNet += installment.netAmount || 0;
 				}
 
-				// 2. 이미 지급한 총액 (과거 전체, 상태 무관)
+				// 2. 이미 지급한 총액 (이번주 이전)
 				if (installmentDate < thisWeekStart) {
 					totalPaidAmount += installment.installmentAmount || 0;
 					totalPaidTax += installment.withholdingTax || 0;
 					totalPaidNet += installment.netAmount || 0;
 				}
 
-				// 3. 앞으로 지급해야 할 총액 (미래만, 상태 무관)
+				// 3. 앞으로 지급해야 할 총액 (이번주 이후)
 				if (installmentDate > thisWeekEnd) {
 					upcomingAmount += installment.installmentAmount || 0;
 					upcomingTax += installment.withholdingTax || 0;
