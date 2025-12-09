@@ -2,6 +2,8 @@ import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db.js';
 import User from '$lib/server/models/User.js';
 import PlannerAccount from '$lib/server/models/PlannerAccount.js';
+import WeeklyPaymentPlans from '$lib/server/models/WeeklyPaymentPlans.js';
+import { GRADE_LIMITS } from '$lib/server/utils/constants.js';
 
 export async function GET({ url, locals }) {
 	// 관리자 권한 확인
@@ -61,18 +63,35 @@ export async function GET({ url, locals }) {
 		// ⭐ v8.0: 사용자 목록 조회 + UserAccount, PlannerAccount populate
 		const users = await User.find(query)
 			.populate('userAccountId', 'loginId canViewSubordinates phone bank accountNumber idNumber')
-			.populate('plannerAccountId', 'name phone')
+			.populate('plannerAccountId', 'name phone bank accountNumber')  // ⭐ 설계사 계좌정보 추가
 			.select('-passwordHash')
 			.sort(sortOptions)
 			.skip(skip)
 			.limit(limit)
 			.lean();
 
+		// 사용자들의 지급 진행률 조회 (completedInstallments 합계)
+		const userIds = users.map(u => u._id.toString());
+		const paymentProgress = await WeeklyPaymentPlans.aggregate([
+			{ $match: { userId: { $in: userIds } } },
+			{ $group: {
+				_id: '$userId',
+				completedInstallments: { $sum: '$completedInstallments' }
+			}}
+		]);
+		const progressMap = new Map(paymentProgress.map(p => [p._id, p.completedInstallments]));
+
 		// 각 사용자의 등급 정보 추가 + UserAccount, PlannerAccount 필드 병합
 		const usersWithGrade = users.map((user) => {
+			const grade = user.grade || 'F1';
+			const maxInstallments = GRADE_LIMITS[grade]?.maxInstallments || 20;
+			const completed = progressMap.get(user._id.toString()) || 0;
+			// ⭐ v8.0: 비율은 User 모델에서 가져옴 (엑셀 업로드 시 저장된 값)
+			const paymentRatio = user.ratio ?? 1;
+
 			return {
 				...user,
-				grade: user.grade || 'F1',
+				grade,
 				totalDescendants: 0,  // 필요 시 계산
 				leftCount: 0,
 				rightCount: 0,
@@ -84,14 +103,22 @@ export async function GET({ url, locals }) {
 				accountNumber: user.userAccountId?.accountNumber || '',
 				idNumber: user.userAccountId?.idNumber || '',
 				insuranceAmount: user.insuranceAmount || 0,
+				insuranceActive: user.insuranceActive || false,
+				insuranceDate: user.insuranceDate || null,
+				// ⭐ v8.0: 지급 진행률
+				completedInstallments: completed,
+				maxInstallments,
+				paymentRatio,
 				// ⭐ v8.0: PlannerAccount 필드들
 				planner: user.plannerAccountId?.name || '',
 				plannerPhone: user.plannerAccountId?.phone || '',
-			// User 모델 필드들 (지사, 보험상품, 보험회사)
-			branch: user.branch || '',
-			insuranceProduct: user.insuranceProduct || '',
-			insuranceCompany: user.insuranceCompany || ''
-		};
+				plannerBank: user.plannerAccountId?.bank || '',  // ⭐ 설계사 은행
+				plannerAccountNumber: user.plannerAccountId?.accountNumber || '',  // ⭐ 설계사 계좌번호
+				// User 모델 필드들 (지사, 보험상품, 보험회사)
+				branch: user.branch || '',
+				insuranceProduct: user.insuranceProduct || '',
+				insuranceCompany: user.insuranceCompany || ''
+			};
 		});
 
 		return json({
@@ -148,7 +175,32 @@ export async function PUT({ request, locals }) {
 			userAccountFields.idNumber = updateData.idNumber;
 			delete updateData.idNumber;
 		}
-		// ⭐ insuranceAmount는 User에만 저장 (UserAccount에는 저장 안 함)
+		// ⭐ v8.0: 보험 관련 필드는 별도 API(/api/admin/users/insurance)에서 처리
+		// 여기서는 수정하지 않도록 삭제
+		delete updateData.insuranceAmount;
+		delete updateData.insuranceDate;
+		delete updateData.insuranceActive;
+
+		// ⭐ PlannerAccount 관련 필드 분리
+		const plannerAccountFields = {};
+		if (updateData.plannerBank !== undefined) {
+			plannerAccountFields.bank = updateData.plannerBank;
+			delete updateData.plannerBank;
+		}
+		if (updateData.plannerAccountNumber !== undefined) {
+			plannerAccountFields.accountNumber = updateData.plannerAccountNumber;
+			delete updateData.plannerAccountNumber;
+		}
+		// plannerPhone도 PlannerAccount 필드
+		if (updateData.plannerPhone !== undefined) {
+			plannerAccountFields.phone = updateData.plannerPhone;
+			delete updateData.plannerPhone;
+		}
+		// planner (설계사 이름)도 PlannerAccount 필드
+		if (updateData.planner !== undefined) {
+			plannerAccountFields.name = updateData.planner;
+			delete updateData.planner;
+		}
 
 		// User 업데이트
 		const user = await User.findByIdAndUpdate(
@@ -174,7 +226,16 @@ export async function PUT({ request, locals }) {
 				{ new: true }
 			);
 
-			// ⭐ insuranceAmount는 이미 User.findByIdAndUpdate에서 업데이트됨
+			// ⭐ v8.0: 보험 정보는 별도 API(/api/admin/users/insurance)에서 처리
+		}
+
+		// ⭐ PlannerAccount 업데이트
+		if (Object.keys(plannerAccountFields).length > 0 && user.plannerAccountId) {
+			await PlannerAccount.findByIdAndUpdate(
+				user.plannerAccountId,
+				{ $set: plannerAccountFields },
+				{ new: true }
+			);
 		}
 
 		return json({ user });

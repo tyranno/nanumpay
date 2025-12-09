@@ -3,13 +3,13 @@ import User from '$lib/server/models/User.js';
 import UserAccount from '$lib/server/models/UserAccount.js';
 import PlannerAccount from '$lib/server/models/PlannerAccount.js';
 import { getFridaysInMonth } from '$lib/utils/fridayWeekCalculator.js';
-import { buildSearchFilter, generateGradeInfo, calculatePeriodGrade } from './utils.js';
+import { buildSearchFilter, generateGradeInfo, calculatePeriodGrade, applyInsuranceCondition } from './utils.js';
 import mongoose from 'mongoose';
 
 /**
  * 기간 조회
  */
-export async function getRangePayments(startYear, startMonth, endYear, endMonth, page, limit, search, searchCategory, plannerAccountId = null) {
+export async function getRangePayments(startYear, startMonth, endYear, endMonth, page, limit, search, searchCategory, plannerAccountId = null, sortByName = true) {
 	// 1. 기간 내 모든 금요일 날짜 수집
 	const allFridays = [];
 	let currentYear = startYear;
@@ -38,7 +38,7 @@ export async function getRangePayments(startYear, startMonth, endYear, endMonth,
 	let allUsers = await User.find(userQuery)
 		.populate('plannerAccountId')
 		.populate('userAccountId')
-		.sort({ _id: 1 })
+		.sort(sortByName ? { name: 1 } : { sequence: 1 })
 		.lean();
 
 	// 검색 필터 적용
@@ -74,7 +74,7 @@ export async function getRangePayments(startYear, startMonth, endYear, endMonth,
 					'installments': {
 						$elemMatch: {
 							weekNumber: weekNumber,
-							status: { $in: ['paid', 'pending'] }
+							status: { $nin: ['skipped', 'terminated'] }  // ⭐ v8.0: paid 제거
 						}
 					}
 				}
@@ -85,7 +85,7 @@ export async function getRangePayments(startYear, startMonth, endYear, endMonth,
 			{
 				$match: {
 					'installments.weekNumber': weekNumber,
-					'installments.status': { $in: ['paid', 'pending'] }
+					'installments.status': { $nin: ['skipped', 'terminated'] }  // ⭐ v8.0
 				}
 			},
 			// 사용자별 그룹화 (등급 검색을 위해 모든 등급 수집)
@@ -151,6 +151,18 @@ export async function getRangePayments(startYear, startMonth, endYear, endMonth,
 				? calculatePeriodGrade(payment.payments, user.grade || 'F1')
 				: (user.grade || 'F1');
 
+			// ⭐ v8.0: 보험 조건 체크 - F4+ 보험 미가입 시 금액 0으로 처리
+			const userInsurance = user.insuranceAmount || 0;
+			const actualAmount = payment
+				? applyInsuranceCondition(periodGrade, userInsurance, payment.installmentAmount)
+				: 0;
+			const taxAmount = payment
+				? applyInsuranceCondition(periodGrade, userInsurance, payment.withholdingTax)
+				: 0;
+			const netAmount = payment
+				? applyInsuranceCondition(periodGrade, userInsurance, payment.netAmount)
+				: 0;
+
 			return {
 				userId: userId,
 				userName: user.name,
@@ -158,9 +170,12 @@ export async function getRangePayments(startYear, startMonth, endYear, endMonth,
 				bank: userAccount.bank || '',
 				accountNumber: userAccount.accountNumber || '',
 				grade: periodGrade,
-				actualAmount: payment ? payment.installmentAmount : 0,
-				taxAmount: payment ? payment.withholdingTax : 0,
-				netAmount: payment ? payment.netAmount : 0,
+				// ⭐ v8.0: 유/비 컬럼 표시용
+				ratio: user.ratio ?? 1,
+				insuranceActive: user.insuranceActive || false,
+				actualAmount,
+				taxAmount,
+				netAmount,
 				installments: payment ? payment.payments : [],
 				gradeInfo
 			};
@@ -170,7 +185,7 @@ export async function getRangePayments(startYear, startMonth, endYear, endMonth,
 			year: wYear,
 			monthNumber: wMonth,
 			weekNumber: wWeek,
-			week: `${wYear}년 ${wMonth}월 ${wWeek}주`,
+			week: `${friday.getFullYear()}-${String(friday.getMonth() + 1).padStart(2, '0')}-${String(friday.getDate()).padStart(2, '0')}`,  // 금요일 날짜 (로컬 시간)
 			payments
 		});
 	}
@@ -266,13 +281,18 @@ export async function getRangePayments(startYear, startMonth, endYear, endMonth,
 				const gradeInfo = allGradeInfos.length > 0 ? allGradeInfos[0] : '-';
 
 				return {
-					no: (page - 1) * limit + idx + 1,
-					userId: userId,
-					userName: user.name,
-					planner: plannerAccount.name || '',
-					bank: userAccount.bank || '',
-					accountNumber: userAccount.accountNumber || '',
+				no: (page - 1) * limit + idx + 1,
+				userId: userId,
+				userName: user.name,
+				userAccountId: user.userAccountId?._id?.toString() || '',
+				accountName: userAccount.name || user.name,
+				planner: plannerAccount.name || '',
+				bank: userAccount.bank || '',
+				accountNumber: userAccount.accountNumber || '',
 					grade: periodGrade,
+					// ⭐ v8.0: 유/비 컬럼 표시용
+					ratio: user.ratio ?? 1,
+					insuranceActive: user.insuranceActive || false,
 					gradeInfo,
 				totalAmount: weeks.reduce((sum, week) => {
 						const payment = week.payments.find(p => p.userId === userId);
@@ -302,7 +322,7 @@ export async function getRangePayments(startYear, startMonth, endYear, endMonth,
  * - 등급으로 필터링
  * - 페이지네이션 적용
  */
-export async function getRangePaymentsByGrade(startYear, startMonth, endYear, endMonth, page, limit, gradeFilter, plannerAccountId = null) {
+export async function getRangePaymentsByGrade(startYear, startMonth, endYear, endMonth, page, limit, gradeFilter, plannerAccountId = null, sortByName = true) {
 	// 1. 기간 내 모든 금요일 날짜 수집
 	const allFridays = [];
 	let currentYear = startYear;
@@ -328,7 +348,7 @@ export async function getRangePaymentsByGrade(startYear, startMonth, endYear, en
 				'installments': {
 					$elemMatch: {
 						weekNumber: { $in: weekNumbers },
-						status: { $in: ['paid', 'pending'] }
+						status: { $nin: ['skipped', 'terminated'] }  // ⭐ v8.0: paid 제거
 					}
 				}
 			}
@@ -339,7 +359,7 @@ export async function getRangePaymentsByGrade(startYear, startMonth, endYear, en
 		{
 			$match: {
 				'installments.weekNumber': { $in: weekNumbers },
-				'installments.status': { $in: ['paid', 'pending'] }
+				'installments.status': { $nin: ['skipped', 'terminated'] }  // ⭐ v8.0
 			}
 		},
 		{
@@ -392,7 +412,7 @@ export async function getRangePaymentsByGrade(startYear, startMonth, endYear, en
 	const allUsers = await User.find({ _id: { $in: userIds } })
 		.populate('plannerAccountId')
 		.populate('userAccountId')
-		.sort({ _id: 1 })
+		.sort(sortByName ? { name: 1 } : { sequence: 1 })
 		.lean();
 
 	// 6. 주차별 데이터 생성 (전체 사용자 기준)
@@ -412,7 +432,7 @@ export async function getRangePaymentsByGrade(startYear, startMonth, endYear, en
 					'installments': {
 						$elemMatch: {
 							weekNumber: weekNumber,
-							status: { $in: ['paid', 'pending'] }
+							status: { $nin: ['skipped', 'terminated'] }  // ⭐ v8.0: paid 제거
 						}
 					}
 				}
@@ -423,7 +443,7 @@ export async function getRangePaymentsByGrade(startYear, startMonth, endYear, en
 			{
 				$match: {
 					'installments.weekNumber': weekNumber,
-					'installments.status': { $in: ['paid', 'pending'] }
+					'installments.status': { $nin: ['skipped', 'terminated'] }  // ⭐ v8.0
 				}
 			},
 			{
@@ -461,16 +481,32 @@ export async function getRangePaymentsByGrade(startYear, startMonth, endYear, en
 				? generateGradeInfo(payment.payments)
 				: '-';
 
+			// ⭐ v8.0: 보험 조건 체크 - F4+ 보험 미가입 시 금액 0으로 처리
+			const grade = payment?.baseGrade || user.grade || 'F1';
+			const userInsurance = user.insuranceAmount || 0;
+			const actualAmount = payment
+				? applyInsuranceCondition(grade, userInsurance, payment.installmentAmount)
+				: 0;
+			const taxAmount = payment
+				? applyInsuranceCondition(grade, userInsurance, payment.withholdingTax)
+				: 0;
+			const netAmount = payment
+				? applyInsuranceCondition(grade, userInsurance, payment.netAmount)
+				: 0;
+
 			return {
 				userId,
 				userName: payment?.userName || user.name,
 				planner: plannerAccount.name || '-',
 				bank: userAccount.bank || user.bank || '-',
 				accountNumber: userAccount.accountNumber || user.accountNumber || '-',
-				grade: payment?.baseGrade || user.grade || 'F1',
-				actualAmount: payment?.installmentAmount || 0,
-				taxAmount: payment?.withholdingTax || 0,
-				netAmount: payment?.netAmount || 0,
+				grade,
+				// ⭐ v8.0: 유/비 컬럼 표시용
+				ratio: user.ratio ?? 1,
+				insuranceActive: user.insuranceActive || false,
+				actualAmount,
+				taxAmount,
+				netAmount,
 				installments: payment ? payment.payments : [],
 				gradeInfo
 			};
@@ -480,7 +516,7 @@ export async function getRangePaymentsByGrade(startYear, startMonth, endYear, en
 			year: wYear,
 			monthNumber: wMonth,
 			weekNumber: wWeek,
-			week: `${wYear}년 ${wMonth}월 ${wWeek}주`,
+			week: `${friday.getFullYear()}-${String(friday.getMonth() + 1).padStart(2, '0')}-${String(friday.getDate()).padStart(2, '0')}`,  // 금요일 날짜 (로컬 시간)
 			payments
 		});
 	}
@@ -522,6 +558,9 @@ export async function getRangePaymentsByGrade(startYear, startMonth, endYear, en
 			bank: userAccount.bank || '',
 			accountNumber: userAccount.accountNumber || '',
 			grade: currentGrade,
+			// ⭐ v8.0: 유/비 컬럼 표시용
+			ratio: user.ratio ?? 1,
+			insuranceActive: user.insuranceActive || false,
 			gradeInfo,
 			weeks: weeks.map(week => {
 				const payment = week.payments.find(p => p.userId === userId);

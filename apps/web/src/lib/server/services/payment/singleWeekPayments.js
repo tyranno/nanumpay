@@ -3,13 +3,13 @@ import User from '$lib/server/models/User.js';
 import UserAccount from '$lib/server/models/UserAccount.js';
 import PlannerAccount from '$lib/server/models/PlannerAccount.js';
 import { getFridaysInMonth } from '$lib/utils/fridayWeekCalculator.js';
-import { buildSearchFilter, generateGradeInfo, calculatePeriodGrade } from './utils.js';
+import { buildSearchFilter, generateGradeInfo, calculatePeriodGrade, applyInsuranceCondition } from './utils.js';
 import mongoose from 'mongoose';
 
 /**
  * 단일 주차 지급 데이터 조회
  */
-export async function getSingleWeekPayments(year, month, week, page, limit, search, searchCategory, plannerAccountId = null) {
+export async function getSingleWeekPayments(year, month, week, page, limit, search, searchCategory, plannerAccountId = null, sortByName = true) {
 	// 1. 해당 주차의 날짜 계산
 	const fridays = getFridaysInMonth(year, month);
 	const targetWeek = fridays.find(w => w.weekNumber === week);
@@ -37,7 +37,7 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
 				'installments': {
 					$elemMatch: {
 						weekNumber: weekNumber,
-						status: { $in: ['paid', 'pending'] }
+						status: { $nin: ['skipped', 'terminated'] }  // ⭐ v8.0: paid 제거
 					}
 				}
 			}
@@ -49,7 +49,7 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
 		{
 			$match: {
 				'installments.weekNumber': weekNumber,
-				'installments.status': { $in: ['paid', 'pending'] }
+				'installments.status': { $nin: ['skipped', 'terminated'] }  // ⭐ v8.0
 			}
 		},
 		// 검색 조건 적용 (이름만 unwind 후 필터링)
@@ -110,12 +110,14 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
 		{
 			$addFields: {
 				registrationNumber: { $arrayElemAt: ['$userInfo.registrationNumber', 0] },
-				registrationDate: { $arrayElemAt: ['$userInfo.registrationDate', 0] },
-				createdAt: { $arrayElemAt: ['$userInfo.createdAt', 0] },
-				userObjectId: { $arrayElemAt: ['$userInfo._id', 0] },
-				plannerAccountId: { $arrayElemAt: ['$userInfo.plannerAccountId', 0] },
-				bank: { $arrayElemAt: ['$userInfo.bank', 0] },
-				accountNumber: { $arrayElemAt: ['$userInfo.accountNumber', 0] }
+			registrationDate: { $arrayElemAt: ['$userInfo.registrationDate', 0] },
+			createdAt: { $arrayElemAt: ['$userInfo.createdAt', 0] },
+		sequence: { $arrayElemAt: ['$userInfo.sequence', 0] },  // ⭐ 등록 순서
+		userObjectId: { $arrayElemAt: ['$userInfo._id', 0] },
+			plannerAccountId: { $arrayElemAt: ['$userInfo.plannerAccountId', 0] },
+			userAccountId: { $arrayElemAt: ['$userInfo.userAccountId', 0] },  // ⭐ 계좌 ID (그룹핑용)
+			bank: { $arrayElemAt: ['$userInfo.bank', 0] },
+			accountNumber: { $arrayElemAt: ['$userInfo.accountNumber', 0] }
 			}
 		},
 		{
@@ -149,20 +151,96 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
 				plannerName: { $regex: searchFilter.plannerSearch, $options: 'i' }
 			}
 		}] : []),
+		// ⭐ 정렬: 이름순 또는 등록일순
 		{
-			$sort: { userObjectId: 1 }
+			$sort: sortByName ? { userName: 1 } : { sequence: 1 }
+		},
+		// ⭐ v8.0: 보험 조건 적용된 금액 계산 (grandTotal용)
+		{
+			$addFields: {
+				adjustedAmount: {
+					$switch: {
+						branches: [
+							// F1, F2, F3: 보험 불필요
+							{ case: { $in: ['$maxGrade', ['F1', 'F2', 'F3']] }, then: '$totalAmount' },
+							// F4, F5: 70,000원 이상
+							{ case: { $and: [
+								{ $in: ['$maxGrade', ['F4', 'F5']] },
+								{ $gte: [{ $ifNull: [{ $arrayElemAt: ['$userInfo.insuranceAmount', 0] }, 0] }, 70000] }
+							]}, then: '$totalAmount' },
+							// F6, F7: 90,000원 이상
+							{ case: { $and: [
+								{ $in: ['$maxGrade', ['F6', 'F7']] },
+								{ $gte: [{ $ifNull: [{ $arrayElemAt: ['$userInfo.insuranceAmount', 0] }, 0] }, 90000] }
+							]}, then: '$totalAmount' },
+							// F8: 110,000원 이상
+							{ case: { $and: [
+								{ $eq: ['$maxGrade', 'F8'] },
+								{ $gte: [{ $ifNull: [{ $arrayElemAt: ['$userInfo.insuranceAmount', 0] }, 0] }, 110000] }
+							]}, then: '$totalAmount' }
+						],
+						default: 0
+					}
+				},
+				adjustedTax: {
+					$switch: {
+						branches: [
+							{ case: { $in: ['$maxGrade', ['F1', 'F2', 'F3']] }, then: '$totalTax' },
+							{ case: { $and: [
+								{ $in: ['$maxGrade', ['F4', 'F5']] },
+								{ $gte: [{ $ifNull: [{ $arrayElemAt: ['$userInfo.insuranceAmount', 0] }, 0] }, 70000] }
+							]}, then: '$totalTax' },
+							{ case: { $and: [
+								{ $in: ['$maxGrade', ['F6', 'F7']] },
+								{ $gte: [{ $ifNull: [{ $arrayElemAt: ['$userInfo.insuranceAmount', 0] }, 0] }, 90000] }
+							]}, then: '$totalTax' },
+							{ case: { $and: [
+								{ $eq: ['$maxGrade', 'F8'] },
+								{ $gte: [{ $ifNull: [{ $arrayElemAt: ['$userInfo.insuranceAmount', 0] }, 0] }, 110000] }
+							]}, then: '$totalTax' }
+						],
+						default: 0
+					}
+				},
+				adjustedNet: {
+					$switch: {
+						branches: [
+							{ case: { $in: ['$maxGrade', ['F1', 'F2', 'F3']] }, then: '$totalNet' },
+							{ case: { $and: [
+								{ $in: ['$maxGrade', ['F4', 'F5']] },
+								{ $gte: [{ $ifNull: [{ $arrayElemAt: ['$userInfo.insuranceAmount', 0] }, 0] }, 70000] }
+							]}, then: '$totalNet' },
+							{ case: { $and: [
+								{ $in: ['$maxGrade', ['F6', 'F7']] },
+								{ $gte: [{ $ifNull: [{ $arrayElemAt: ['$userInfo.insuranceAmount', 0] }, 0] }, 90000] }
+							]}, then: '$totalNet' },
+							{ case: { $and: [
+								{ $eq: ['$maxGrade', 'F8'] },
+								{ $gte: [{ $ifNull: [{ $arrayElemAt: ['$userInfo.insuranceAmount', 0] }, 0] }, 110000] }
+							]}, then: '$totalNet' }
+						],
+						default: 0
+					}
+				}
+			}
+		},
+		// ⭐ 금액 0인 사용자 제외 (보험 미충족 등)
+		{
+			$match: {
+				adjustedAmount: { $gt: 0 }
+			}
 		},
 		// ⭐ $facet으로 grandTotal과 페이지네이션 데이터 동시 계산
 		{
 			$facet: {
-				// 전체 금액 합계 (필터링된 모든 사용자)
+				// 전체 금액 합계 (보험 조건 적용됨)
 				grandTotal: [
 					{
 						$group: {
 							_id: null,
-							totalAmount: { $sum: '$totalAmount' },
-							totalTax: { $sum: '$totalTax' },
-							totalNet: { $sum: '$totalNet' },
+							totalAmount: { $sum: '$adjustedAmount' },
+							totalTax: { $sum: '$adjustedTax' },
+							totalNet: { $sum: '$adjustedNet' },
 							totalUsers: { $sum: 1 }
 						}
 					}
@@ -179,7 +257,7 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
 	const result = await WeeklyPaymentPlans.aggregate(pipeline);
 
 	console.log(`  📊 Aggregation 결과: ${result[0]?.paginatedData?.length || 0}건`);
-	console.log(`  📊 전체: ${result[0]?.grandTotal[0]?.totalUsers || 0}명`);
+	console.log(`  📊 전체: ${result[0]?.grandTotal[0]?.totalUsers || 0}명 (금액 0 제외)`);
 
 	// ⭐ grandTotal 추출
 	const grandTotal = result[0]?.grandTotal[0] || {
@@ -212,17 +290,28 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
 		// 선택된 기간의 최고 등급 계산
 		const periodGrade = calculatePeriodGrade(payment.payments, user.grade || 'F1');
 
+		// ⭐ v8.0: 보험 조건 체크 - F4+ 보험 미가입 시 금액 0으로 처리
+		const userInsurance = user.insuranceAmount || 0;
+		const actualAmount = applyInsuranceCondition(periodGrade, userInsurance, payment.totalAmount || 0);
+		const taxAmount = applyInsuranceCondition(periodGrade, userInsurance, payment.totalTax || 0);
+		const netAmount = applyInsuranceCondition(periodGrade, userInsurance, payment.totalNet || 0);
+
 		return {
 			no: (page - 1) * limit + idx + 1,
 			userId: payment._id,
 			userName: payment.userName,
+			userAccountId: user.userAccountId?._id?.toString() || '',
+			accountName: userAccount.name || payment.userName,
 			planner: plannerAccount.name || '',
 			bank: userAccount.bank || '',
 			accountNumber: userAccount.accountNumber || '',
 			grade: periodGrade,
-			actualAmount: payment.totalAmount || 0,
-			taxAmount: payment.totalTax || 0,
-			netAmount: payment.totalNet || 0,
+			// ⭐ v8.0: 유/비 컬럼 표시용
+			ratio: user.ratio ?? 1,
+			insuranceActive: user.insuranceActive || false,
+			actualAmount,
+			taxAmount,
+			netAmount,
 			installments: payment.payments,
 			gradeInfo
 		};
@@ -261,7 +350,7 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
 			year,
 			monthNumber: month,
 			weekNumber: week,
-			week: `${month}월 ${week}주`
+			week: `${weekDate.getFullYear()}-${String(weekDate.getMonth() + 1).padStart(2, '0')}-${String(weekDate.getDate()).padStart(2, '0')}`  // 금요일 날짜 (로컬 시간)
 		}
 	};
 }
@@ -271,7 +360,7 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
  * - 등급 검색에 최적화
  * - getSingleWeekPayments의 복잡도를 줄이기 위해 분리
  */
-export async function getSingleWeekPaymentsByGrade(year, month, week, page, limit, gradeFilter, plannerAccountId = null) {
+export async function getSingleWeekPaymentsByGrade(year, month, week, page, limit, gradeFilter, plannerAccountId = null, sortByName = true) {
 	// 1. 해당 주차의 날짜 계산
 	const fridays = getFridaysInMonth(year, month);
 	const targetWeek = fridays.find(w => w.weekNumber === week);
@@ -290,7 +379,7 @@ export async function getSingleWeekPaymentsByGrade(year, month, week, page, limi
 				'installments': {
 					$elemMatch: {
 						weekNumber: weekNumber,
-						status: { $in: ['paid', 'pending'] }
+						status: { $nin: ['skipped', 'terminated'] }  // ⭐ v8.0: paid 제거
 					}
 				}
 			}
@@ -301,7 +390,7 @@ export async function getSingleWeekPaymentsByGrade(year, month, week, page, limi
 		{
 			$match: {
 				'installments.weekNumber': weekNumber,
-				'installments.status': { $in: ['paid', 'pending'] }
+				'installments.status': { $nin: ['skipped', 'terminated'] }  // ⭐ v8.0
 			}
 		},
 		{
@@ -367,8 +456,9 @@ export async function getSingleWeekPaymentsByGrade(year, month, week, page, limi
 		},
 		{
 			$addFields: {
-				plannerAccountId: '$userDetails.plannerAccountId'
-			}
+			plannerAccountId: '$userDetails.plannerAccountId',
+			sequence: '$userDetails.sequence'  // ⭐ 등록 순서
+		}
 		},
 		// ⭐ 설계사 필터 적용
 		...(plannerAccountId ? [{
@@ -376,8 +466,80 @@ export async function getSingleWeekPaymentsByGrade(year, month, week, page, limi
 				plannerAccountId: new mongoose.Types.ObjectId(plannerAccountId)
 			}
 		}] : []),
+		// ⭐ 정렬: 이름순 또는 등록일순
 		{
-			$sort: { userObjectId: 1 }
+			$sort: sortByName ? { userName: 1 } : { sequence: 1 }
+		},
+		// ⭐ v8.0: 보험 조건 적용된 금액 계산 (grandTotal용)
+		{
+			$addFields: {
+				adjustedAmount: {
+					$switch: {
+						branches: [
+							{ case: { $in: ['$maxGrade', ['F1', 'F2', 'F3']] }, then: '$totalAmount' },
+							{ case: { $and: [
+								{ $in: ['$maxGrade', ['F4', 'F5']] },
+								{ $gte: [{ $ifNull: ['$userDetails.insuranceAmount', 0] }, 70000] }
+							]}, then: '$totalAmount' },
+							{ case: { $and: [
+								{ $in: ['$maxGrade', ['F6', 'F7']] },
+								{ $gte: [{ $ifNull: ['$userDetails.insuranceAmount', 0] }, 90000] }
+							]}, then: '$totalAmount' },
+							{ case: { $and: [
+								{ $eq: ['$maxGrade', 'F8'] },
+								{ $gte: [{ $ifNull: ['$userDetails.insuranceAmount', 0] }, 110000] }
+							]}, then: '$totalAmount' }
+						],
+						default: 0
+					}
+				},
+				adjustedTax: {
+					$switch: {
+						branches: [
+							{ case: { $in: ['$maxGrade', ['F1', 'F2', 'F3']] }, then: '$totalTax' },
+							{ case: { $and: [
+								{ $in: ['$maxGrade', ['F4', 'F5']] },
+								{ $gte: [{ $ifNull: ['$userDetails.insuranceAmount', 0] }, 70000] }
+							]}, then: '$totalTax' },
+							{ case: { $and: [
+								{ $in: ['$maxGrade', ['F6', 'F7']] },
+								{ $gte: [{ $ifNull: ['$userDetails.insuranceAmount', 0] }, 90000] }
+							]}, then: '$totalTax' },
+							{ case: { $and: [
+								{ $eq: ['$maxGrade', 'F8'] },
+								{ $gte: [{ $ifNull: ['$userDetails.insuranceAmount', 0] }, 110000] }
+							]}, then: '$totalTax' }
+						],
+						default: 0
+					}
+				},
+				adjustedNet: {
+					$switch: {
+						branches: [
+							{ case: { $in: ['$maxGrade', ['F1', 'F2', 'F3']] }, then: '$totalNet' },
+							{ case: { $and: [
+								{ $in: ['$maxGrade', ['F4', 'F5']] },
+								{ $gte: [{ $ifNull: ['$userDetails.insuranceAmount', 0] }, 70000] }
+							]}, then: '$totalNet' },
+							{ case: { $and: [
+								{ $in: ['$maxGrade', ['F6', 'F7']] },
+								{ $gte: [{ $ifNull: ['$userDetails.insuranceAmount', 0] }, 90000] }
+							]}, then: '$totalNet' },
+							{ case: { $and: [
+								{ $eq: ['$maxGrade', 'F8'] },
+								{ $gte: [{ $ifNull: ['$userDetails.insuranceAmount', 0] }, 110000] }
+							]}, then: '$totalNet' }
+						],
+						default: 0
+					}
+				}
+			}
+		},
+		// ⭐ 금액 0인 사용자 제외 (보험 미충족 등)
+		{
+			$match: {
+				adjustedAmount: { $gt: 0 }
+			}
 		},
 		// ⭐ $facet으로 grandTotal과 페이지네이션 데이터 동시 계산
 		{
@@ -386,9 +548,9 @@ export async function getSingleWeekPaymentsByGrade(year, month, week, page, limi
 					{
 						$group: {
 							_id: null,
-							totalAmount: { $sum: '$totalAmount' },
-							totalTax: { $sum: '$totalTax' },
-							totalNet: { $sum: '$totalNet' },
+							totalAmount: { $sum: '$adjustedAmount' },
+							totalTax: { $sum: '$adjustedTax' },
+							totalNet: { $sum: '$adjustedNet' },
 							totalUsers: { $sum: 1 }
 						}
 					}
@@ -433,6 +595,12 @@ export async function getSingleWeekPaymentsByGrade(year, month, week, page, limi
 		// 선택된 기간의 최고 등급 계산
 		const periodGrade = calculatePeriodGrade(payment.payments, user.grade || 'F1');
 
+		// ⭐ v8.0: 보험 조건 체크 - F4+ 보험 미가입 시 금액 0으로 처리
+		const userInsurance = user.insuranceAmount || 0;
+		const actualAmount = applyInsuranceCondition(periodGrade, userInsurance, payment.totalAmount || 0);
+		const taxAmount = applyInsuranceCondition(periodGrade, userInsurance, payment.totalTax || 0);
+		const netAmount = applyInsuranceCondition(periodGrade, userInsurance, payment.totalNet || 0);
+
 		return {
 			userId: payment._id,
 			userName: payment.userName || user.name || 'Unknown',
@@ -440,9 +608,12 @@ export async function getSingleWeekPaymentsByGrade(year, month, week, page, limi
 			bank: userAccount.bank || '',
 			accountNumber: userAccount.accountNumber || '',
 			grade: periodGrade,
-			actualAmount: payment.totalAmount || 0,
-			taxAmount: payment.totalTax || 0,
-			netAmount: payment.totalNet || 0,
+			// ⭐ v8.0: 유/비 컬럼 표시용
+			ratio: user.ratio ?? 1,
+			insuranceActive: user.insuranceActive || false,
+			actualAmount,
+			taxAmount,
+			netAmount,
 			installments: payment.payments || [],
 			gradeInfo
 		};
@@ -454,12 +625,13 @@ export async function getSingleWeekPaymentsByGrade(year, month, week, page, limi
 		net: enrichedPayments.reduce((sum, p) => sum + p.netAmount, 0)
 	};
 
+	// ⭐ v8.0: 보험 조건 반영된 weeklyTotals 계산
 	const weekKey = `${year}-${month}-${week}`;
 	const weeklyTotals = {
 		[weekKey]: {
-			totalAmount: grandTotal.totalAmount,
-			totalTax: grandTotal.totalTax,
-			totalNet: grandTotal.totalNet
+			totalAmount: pageTotal.amount,
+			totalTax: pageTotal.tax,
+			totalNet: pageTotal.net
 		}
 	};
 
@@ -479,7 +651,7 @@ export async function getSingleWeekPaymentsByGrade(year, month, week, page, limi
 			year,
 			monthNumber: month,
 			weekNumber: week,
-			week: `${month}월 ${week}주`
+			week: `${weekDate.getFullYear()}-${String(weekDate.getMonth() + 1).padStart(2, '0')}-${String(weekDate.getDate()).padStart(2, '0')}`  // 금요일 날짜 (로컬 시간)
 		}
 	};
 }

@@ -51,8 +51,17 @@ export async function POST({ request, locals }) {
 			}, { status: 404 });
 		}
 
-		// 이미 지급 완료된 경우 수정 불가
-		if (installment.status === 'completed') {
+		// ⭐ v8.0: skipped/terminated 상태거나 과거 날짜의 pending(지급 완료)은 수정 불가
+		if (['skipped', 'terminated'].includes(installment.status)) {
+			return json({
+				success: false,
+				error: `상태가 ${installment.status}인 분할금은 수정할 수 없습니다.`
+			}, { status: 400 });
+		}
+
+		// 과거 날짜의 pending = 이미 지급 완료로 간주
+		const scheduledDate = installment.scheduledDate || installment.weekDate;
+		if (scheduledDate && new Date(scheduledDate) < new Date() && installment.status === 'pending') {
 			return json({
 				success: false,
 				error: '이미 지급 완료된 분할금은 수정할 수 없습니다.'

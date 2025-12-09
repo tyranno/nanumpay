@@ -47,7 +47,8 @@ export const paymentService = {
 			limit = 20,
 			searchQuery = '',
 			searchCategory = 'name',
-			periodType = 'weekly'
+			periodType = 'weekly',
+			sortByName = true  // ⭐ 정렬 옵션 추가
 		} = params;
 
 		try {
@@ -57,7 +58,8 @@ export const paymentService = {
 					page,
 					limit,
 					searchQuery,
-					searchCategory
+					searchCategory,
+					sortByName  // ⭐ 정렬 옵션 전달
 				});
 			} else {
 				return await this.loadPeriodPayments({
@@ -69,7 +71,8 @@ export const paymentService = {
 					limit,
 					searchQuery,
 					searchCategory,
-					periodType
+					periodType,
+					sortByName  // ⭐ 정렬 옵션 전달
 				});
 			}
 		} catch (err) {
@@ -82,7 +85,7 @@ export const paymentService = {
 	 * 단일 날짜 지급 데이터 조회
 	 */
 	async loadSingleDatePayments(params) {
-		const { selectedDate, page, limit, searchQuery, searchCategory } = params;
+		const { selectedDate, page, limit, searchQuery, searchCategory, sortByName = true } = params;
 
 		// ⭐ 금요일 기준 주차 계산 (월경계 처리)
 		const weekInfo = getWeekOfMonthByFriday(new Date(selectedDate));
@@ -98,7 +101,8 @@ export const paymentService = {
 			page,
 			limit,
 			search: searchQuery,
-			searchCategory
+			searchCategory,
+			sortByName: sortByName.toString()  // ⭐ 정렬 옵션 전달
 		});
 
 		const response = await fetch(`/api/admin/payment/weekly?${queryParams}`);
@@ -154,7 +158,8 @@ export const paymentService = {
 			limit,
 			searchQuery,
 			searchCategory,
-			periodType
+			periodType,
+			sortByName = true  // ⭐ 정렬 옵션 추가
 		} = params;
 
 		// 기간 유효성 검사
@@ -175,7 +180,8 @@ export const paymentService = {
 			limit,
 			search: searchQuery,
 			searchCategory,
-			periodType  // ⭐ periodType 전달
+			periodType,  // ⭐ periodType 전달
+			sortByName: sortByName.toString()  // ⭐ 정렬 옵션 전달
 		});
 
 		const response = await fetch(`/api/admin/payment/weekly?${queryParams}`);
@@ -228,6 +234,9 @@ export const paymentService = {
 					bank: p.bank || '',
 					accountNumber: p.accountNumber || '',
 					grade: p.grade || 'F1',
+					// ⭐ v8.0: 유/비 컬럼 표시용
+					ratio: p.ratio ?? 1,
+					insuranceActive: p.insuranceActive || false,
 					payments: {}
 				});
 			});
@@ -311,7 +320,8 @@ export const paymentService = {
 			endMonth,
 			searchQuery = '',
 			searchCategory = 'name',
-			periodType = 'weekly'
+			periodType = 'weekly',
+			sortByName = true  // ⭐ 정렬 옵션 추가
 		} = params;
 
 		// limit을 충분히 크게 설정하여 전체 데이터 가져오기

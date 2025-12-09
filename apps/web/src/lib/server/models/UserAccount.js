@@ -34,11 +34,11 @@ const userAccountSchema = new mongoose.Schema({
 		type: String,
 		sparse: true
 	},
-	// 보험 정보 (F3+ 필수)
+	// 보험 정보 (F4+ 필수) - ⭐ v8.0 변경
 	insuranceAmount: {
 		type: Number,
 		default: 0,
-		comment: '추가 보험 금액 (F3+ 등급 최소 금액 이상 시 추가지급)'
+		comment: '추가 보험 금액 (F4+ 등급 최소 금액 이상 시 지급)'
 	},
 	// 권한 관리
 	canViewSubordinates: {

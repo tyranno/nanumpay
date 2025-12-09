@@ -22,7 +22,8 @@ export const plannerPaymentService = {
 			limit = 20,
 			searchQuery = '',
 			searchCategory = 'name',
-			periodType = 'weekly'
+			periodType = 'weekly',
+			fetchAll = false  // ⭐ 전체 데이터 조회 (그룹핑용)
 		} = params;
 
 		try {
@@ -46,7 +47,8 @@ export const plannerPaymentService = {
 					searchQuery,
 					searchCategory,
 					periodType,
-					filterType: 'period' // ⭐ 기간 보기 표시 (모든 주/월)
+					filterType: 'period', // ⭐ 기간 보기 표시 (모든 주/월)
+					fetchAll  // ⭐ 전체 데이터 조회 (그룹핑용)
 				});
 			}
 		} catch (err) {
@@ -132,7 +134,8 @@ export const plannerPaymentService = {
 			searchQuery,
 			searchCategory,
 			periodType,
-			filterType // ⭐ 주간 보기 vs 기간 보기
+			filterType, // ⭐ 주간 보기 vs 기간 보기
+			fetchAll = false  // ⭐ 전체 데이터 조회 (그룹핑용)
 		} = params;
 
 		// 기간 유효성 검사
@@ -153,7 +156,8 @@ export const plannerPaymentService = {
 			limit,
 			search: searchQuery,
 			searchCategory,
-			periodType  // ⭐ periodType 전달
+			periodType,  // ⭐ periodType 전달
+			fetchAll: fetchAll ? 'true' : 'false'  // ⭐ 전체 데이터 조회
 		});
 
 		const response = await fetch(`/api/planner/payment/weekly?${queryParams}`);
@@ -269,6 +273,8 @@ export const plannerPaymentService = {
 				no: (page - 1) * limit + index + 1,
 				userId: user.userId,
 				name: user.userName || user.name || 'Unknown',
+				userAccountId: user.userAccountId || '',  // ⭐ 계좌 ID (그룹핑용)
+				accountName: user.accountName || user.userName || user.name || 'Unknown',  // ⭐ 계좌주명
 				planner: user.planner || '',
 				bank: user.bank || '',
 				accountNumber: user.accountNumber || '',

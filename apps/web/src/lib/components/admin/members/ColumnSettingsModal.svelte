@@ -24,6 +24,14 @@
 		<label class="flex items-center p-1.5 bg-gray-50 hover:bg-blue-50 rounded cursor-pointer transition-colors">
 			<input
 				type="checkbox"
+				bind:checked={tempVisibleColumns.insurance}
+				class="mr-3 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
+			/>
+			<span class="text-sm font-medium text-gray-700">유지/비율</span>
+		</label>
+		<label class="flex items-center p-1.5 bg-gray-50 hover:bg-blue-50 rounded cursor-pointer transition-colors">
+			<input
+				type="checkbox"
 				bind:checked={tempVisibleColumns.date}
 				class="mr-3 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
 			/>
@@ -82,6 +90,14 @@
 				class="mr-3 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
 			/>
 			<span class="text-sm font-medium text-gray-700">설계사 연락처</span>
+		</label>
+		<label class="flex items-center p-1.5 bg-gray-50 hover:bg-blue-50 rounded cursor-pointer transition-colors">
+			<input
+				type="checkbox"
+				bind:checked={tempVisibleColumns.plannerAccountNumber}
+				class="mr-3 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
+			/>
+			<span class="text-sm font-medium text-gray-700">설계사 계좌번호</span>
 		</label>
 		<label class="flex items-center p-1.5 bg-gray-50 hover:bg-blue-50 rounded cursor-pointer transition-colors">
 			<input

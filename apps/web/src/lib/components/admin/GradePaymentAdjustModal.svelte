@@ -586,7 +586,7 @@
 <WindowsModal
 	isOpen={showResultModal}
 	title="저장 결과"
-	icon="/icons/check-blue.svg"
+	icon="/icons/check-circle-blue.svg"
 	size="sm"
 	onClose={() => {
 		showResultModal = false;

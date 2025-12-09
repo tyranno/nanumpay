@@ -1,5 +1,6 @@
 <script>
 	import GradeBadge from '$lib/components/GradeBadge.svelte';
+	import { GRADE_LIMITS } from '$lib/utils/constants.js';
 
 	export let members = [];
 	export let isLoading = false;
@@ -10,6 +11,22 @@
 	export let visibleColumns = {};
 	export let onSort = (field) => {};
 	export let onEdit = (member) => {};
+
+	// 유지 상태 및 비율 계산
+	function getInsuranceInfo(member) {
+		const gradeLimit = GRADE_LIMITS[member.grade];
+		const isRequired = gradeLimit?.insuranceRequired || false;
+		const isActive = member.insuranceActive || false;
+
+		// 비율 = 지급 진행률 (completedInstallments / maxInstallments)
+		const ratio = member.paymentRatio || 0;
+
+		return {
+			isRequired,
+			isActive,
+			ratio
+		};
+	}
 </script>
 
 {#if isLoading}
@@ -21,6 +38,9 @@
 			<thead>
 				<tr>
 					<th class="th-base th-number">순번</th>
+					{#if visibleColumns.insurance}
+						<th class="th-base th-insurance">유/비</th>
+					{/if}
 					{#if visibleColumns.name}
 						<th onclick={() => onSort('name')} class="th-base th-sortable th-name">
 							성명 {#if sortBy === 'name'}{sortOrder === 'asc' ? '↑' : '↓'}{/if}
@@ -59,6 +79,9 @@
 					{#if visibleColumns.plannerPhone}
 						<th class="th-base">설계사 연락처</th>
 					{/if}
+					{#if visibleColumns.plannerAccountNumber}
+						<th class="th-base">설계사 계좌번호</th>
+					{/if}
 					{#if visibleColumns.insuranceProduct}
 						<th class="th-base">보험상품</th>
 					{/if}
@@ -74,8 +97,23 @@
 					</tr>
 				{:else}
 					{#each members as member, index}
+						{@const insuranceInfo = getInsuranceInfo(member)}
 						<tr class="data-row">
 							<td class="td-base td-number">{(currentPage - 1) * itemsPerPage + index + 1}</td>
+							{#if visibleColumns.insurance}
+								<td class="td-base td-insurance">
+									<div class="insurance-cell">
+										{#if !insuranceInfo.isRequired}
+											<span class="insurance-badge insurance-badge-na" title="보험 불필요">-</span>
+										{:else if insuranceInfo.isActive}
+											<span class="insurance-badge insurance-badge-active" title="보험 유지됨">유</span>
+										{:else}
+											<span class="insurance-badge insurance-badge-inactive" title="보험 미유지">✕</span>
+										{/if}
+										<span class="insurance-ratio" class:insurance-ratio-warn={insuranceInfo.isRequired && !insuranceInfo.isActive}>{insuranceInfo.ratio}</span>
+									</div>
+								</td>
+							{/if}
 							{#if visibleColumns.name}
 								<td class="td-base td-name">
 									<div class="flex items-center justify-center">
@@ -124,6 +162,9 @@
 							{/if}
 							{#if visibleColumns.plannerPhone}
 								<td class="td-base">{member.plannerPhone || '-'}</td>
+							{/if}
+							{#if visibleColumns.plannerAccountNumber}
+								<td class="td-base">{member.plannerAccountNumber || '-'}</td>
 							{/if}
 							{#if visibleColumns.insuranceProduct}
 								<td class="td-base">{member.insuranceProduct || '-'}</td>
@@ -248,5 +289,58 @@
 	/* 등급 아이콘 */
 	.grade-icon {
 		@apply absolute -right-5 -top-1.5 h-5 w-5;
+	}
+
+	/* 유지/비율 컬럼 */
+	.th-insurance {
+		@apply min-w-[70px] max-w-[70px] w-[70px];
+	}
+
+	.td-insurance {
+		@apply min-w-[70px] max-w-[70px] w-[70px];
+	}
+
+	.insurance-cell {
+		@apply flex items-center justify-center gap-0.5;
+	}
+
+	/* 유지 배지 - 기본 (고정 너비) */
+	.insurance-badge {
+		@apply inline-flex items-center justify-center w-5 h-5 rounded text-xs font-bold flex-shrink-0;
+	}
+
+	/* 비율 텍스트 (고정 너비) */
+	.insurance-ratio {
+		@apply text-xs text-gray-600 w-7 text-left tabular-nums;
+	}
+
+	.insurance-ratio-warn {
+		@apply text-red-500;
+	}
+
+	/* 유지됨 (녹색) */
+	.insurance-badge-active {
+		@apply bg-green-100 text-green-700 border border-green-300;
+	}
+
+	/* 미유지 (빨강) */
+	.insurance-badge-inactive {
+		@apply bg-red-100 text-red-600 border border-red-300;
+	}
+
+	/* 불필요 (회색) */
+	.insurance-badge-na {
+		@apply bg-gray-100 text-gray-400 border border-gray-200;
+	}
+
+	/* 모바일 대응 */
+	@media (max-width: 768px) {
+		.th-insurance {
+			@apply min-w-[70px] max-w-[70px] w-[70px];
+		}
+
+		.td-insurance {
+			@apply min-w-[70px] max-w-[70px] w-[70px];
+		}
 	}
 </style>

@@ -54,7 +54,7 @@ export async function GET({ locals, url }) {
 			},
 			{
 				$match: {
-					'installments.status': { $in: ['paid', 'pending'] }
+					'installments.status': { $nin: ['skipped', 'terminated'] }  // ⭐ v8.0
 				}
 			},
 			{

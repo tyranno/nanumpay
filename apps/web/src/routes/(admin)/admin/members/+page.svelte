@@ -30,6 +30,7 @@
 
 	// 컬럼 표시/숨김 설정
 	let visibleColumns = {
+		insurance: true,  // 유지/비율 (기본 표시)
 		date: true,
 		name: true,
 		phone: true,
@@ -40,6 +41,7 @@
 		salesperson: true,
 		planner: true,
 		plannerPhone: false,
+		plannerAccountNumber: false, // ⭐ 설계사 계좌번호 추가
 		insuranceProduct: false,
 		insuranceCompany: false
 	};
@@ -71,6 +73,7 @@
 	// DB 관리 상태 (개발 환경 전용)
 	let selectedMonth = '';
 	let isProcessingDB = false;
+	let monthlyRegistrations = data.monthlyRegistrations || []; // ⭐ reactive 변수로 관리
 
 	onMount(async () => {
 		// localStorage에서 컬럼 설정 불러오기
@@ -106,6 +109,19 @@
 			members = [];
 		} finally {
 			isLoading = false;
+		}
+	}
+
+	// ⭐ 월별 등록 목록 갱신
+	async function loadMonthlyRegistrations() {
+		try {
+			const response = await fetch('/api/admin/db/monthly-registrations');
+			const result = await response.json();
+			if (result.success) {
+				monthlyRegistrations = result.monthlyRegistrations;
+			}
+		} catch (error) {
+			console.error('Failed to load monthly registrations:', error);
 		}
 	}
 
@@ -559,6 +575,15 @@
 			uploadFiles = [];
 			uploadProgress = null;
 			await loadMembers();
+
+			// ⭐ 서버에서 최신 월 목록 가져오기
+			await loadMonthlyRegistrations();
+
+			// 마지막으로 처리된 월을 자동 선택
+			if (monthKeys.length > 0) {
+				const lastMonth = monthKeys[monthKeys.length - 1];
+				selectedMonth = lastMonth;
+			}
 		} catch (error) {
 			console.error('Excel upload error:', error);
 			notificationConfig = {
@@ -583,6 +608,7 @@
 	// 컬럼 설정 관련 함수
 	function handleShowAllColumns() {
 		tempVisibleColumns = {
+			insurance: true,
 			date: true,
 			name: true,
 			phone: true,
@@ -593,6 +619,7 @@
 			salesperson: true,
 			planner: true,
 			plannerPhone: true,
+			plannerAccountNumber: true, // ⭐ 설계사 계좌번호 추가
 			insuranceProduct: true,
 			insuranceCompany: true
 		};
@@ -656,14 +683,15 @@
 				notificationConfig = {
 					type: 'success',
 					title: '삭제 완료',
-					message: `${selectedMonth} 데이터가 삭제되었습니다.\n\n삭제된 항목:\n- 월별 등록: ${result.deletedRegistrations || 0}건\n- 지급 계획: ${result.deletedPlans || 0}건\n- 스냅샷: ${result.deletedSnapshots || 0}건`,
+					message: `${selectedMonth} 데이터가 삭제되었습니다.\n\n삭제된 항목:\n- 용역자: ${result.deletedUsers || 0}명\n- 지급 계획: ${result.deletedPlans || 0}건\n- 설계사 수당: ${result.deletedCommissionPlans || 0}건\n- 주간 요약: ${result.deletedSummaries || 0}건`,
 					results: null,
 					details: []
 				};
 				notificationOpen = true;
 				selectedMonth = '';
-				// 페이지 새로고침
-				window.location.reload();
+				// ⭐ 페이지 새로고침 대신 데이터만 갱신
+				await loadMembers();
+				await loadMonthlyRegistrations();
 			} else {
 				notificationConfig = {
 					type: 'error',
@@ -883,6 +911,21 @@
 		member={editingMember}
 		onClose={() => (showEditModal = false)}
 		onSubmit={handleEditMember}
+		onChangedInsurance={(userData) => {
+			// ⭐ 보험 정보 변경 시 해당 멤버만 업데이트 (전체 갱신 X)
+			editingMember = {
+				...editingMember,
+				insuranceAmount: userData.insuranceAmount,
+				insuranceActive: userData.insuranceActive,
+				insuranceDate: userData.insuranceDate
+			};
+			// 리스트에서 해당 멤버만 업데이트
+			members = members.map(m =>
+				m._id === editingMember._id
+					? { ...m, insuranceAmount: userData.insuranceAmount, insuranceActive: userData.insuranceActive, insuranceDate: userData.insuranceDate }
+					: m
+			);
+		}}
 	/>
 
 	<!-- 엑셀 업로드 모달 -->
@@ -916,7 +959,7 @@
 			<div class="db-compact-controls">
 				<select bind:value={selectedMonth} class="db-compact-select">
 					<option value="">월 선택</option>
-					{#each data.monthlyRegistrations as month}
+					{#each monthlyRegistrations as month}
 						<option value={month.monthKey}>{month.monthKey}</option>
 					{/each}
 				</select>

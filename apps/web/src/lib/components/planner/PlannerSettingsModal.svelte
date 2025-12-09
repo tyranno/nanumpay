@@ -151,7 +151,7 @@
 </script>
 
 <WindowsModal {isOpen} title="설계사 설정" icon="/icons/settings-white.svg" size="md" {onClose} showFooter={false}>
-	<div class="h-[340px] flex flex-col">
+	<div class="h-[340px] flex flex-col relative">
 	<!-- Tabs -->
 	<div class="mb-1.5 flex border-b border-gray-200 flex-shrink-0">
 		<button

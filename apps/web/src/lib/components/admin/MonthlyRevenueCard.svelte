@@ -185,27 +185,10 @@
 	}
 
 	async function handleGradePaymentAdjusted(adjustments) {
-		try {
-			const response = await fetch('/api/admin/revenue/adjust-grade-payments', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					monthKey: modalMonthKey,
-					adjustments
-				})
-			});
-
-			if (response.ok) {
-				closeGradePaymentModal();
-				await loadData();
-			} else {
-				const error = await response.json();
-				alert('등급별 지급액 조정 실패: ' + (error.message || '알 수 없는 오류'));
-			}
-		} catch (error) {
-			console.error('등급별 지급액 조정 오류:', error);
-			alert('등급별 지급액 조정 중 오류가 발생했습니다.');
-		}
+		// 모달에서 이미 /api/admin/revenue/grade-adjustment API를 호출하여 저장 완료
+		// 여기서는 모달 닫기 + 데이터 새로고침만 수행
+		closeGradePaymentModal();
+		await loadData();
 	}
 
 	// 총계 계산

@@ -1,11 +1,84 @@
 <script>
 	import WindowsModal from '$lib/components/WindowsModal.svelte';
 	import Autocomplete from '$lib/components/Autocomplete.svelte';
+	import InsuranceModal from './InsuranceModal.svelte';
+	import { GRADE_LIMITS } from '$lib/utils/constants.js';
 
 	export let isOpen = false;
 	export let member = null;
 	export let onClose = () => {};
 	export let onSubmit = (memberData) => {};
+	export let onChangedInsurance = (userData) => {};  // 보험 변경 이벤트
+
+	// 보험 모달 상태
+	let showInsuranceModal = false;
+
+	// 변경 감지용 원본 멤버 저장
+	let originalMember = null;
+	let lastOpenedMemberId = null;
+
+	// 모달 열릴 때 원본 저장 (member 변경 시 덮어쓰기 방지)
+	$: if (isOpen && member && member._id !== lastOpenedMemberId) {
+		lastOpenedMemberId = member._id;
+		// 보험 필드 제외한 원본 저장 (deep copy)
+		originalMember = {
+			name: member.name,
+			phone: member.phone,
+			idNumber: member.idNumber,
+			bank: member.bank,
+			accountNumber: member.accountNumber,
+			insuranceProduct: member.insuranceProduct,
+			insuranceCompany: member.insuranceCompany,
+			salesperson: member.salesperson,
+			salespersonPhone: member.salespersonPhone,
+			parentId: member.parentId,
+			planner: member.planner,
+			plannerPhone: member.plannerPhone,
+			branch: member.branch,
+			canViewSubordinates: member.canViewSubordinates
+		};
+	}
+
+	// 모달 닫힐 때 초기화
+	$: if (!isOpen) {
+		lastOpenedMemberId = null;
+		originalMember = null;
+	}
+
+	// 변경 여부 확인 (보험 필드 제외)
+	function hasChanges() {
+		if (!originalMember || !member) return false;
+
+		return (
+			originalMember.name !== member.name ||
+			originalMember.phone !== member.phone ||
+			originalMember.idNumber !== member.idNumber ||
+			originalMember.bank !== member.bank ||
+			originalMember.accountNumber !== member.accountNumber ||
+			originalMember.insuranceProduct !== member.insuranceProduct ||
+			originalMember.insuranceCompany !== member.insuranceCompany ||
+			originalMember.salesperson !== member.salesperson ||
+			originalMember.salespersonPhone !== member.salespersonPhone ||
+			originalMember.parentId !== member.parentId ||
+			originalMember.planner !== member.planner ||
+			originalMember.plannerPhone !== member.plannerPhone ||
+			originalMember.branch !== member.branch ||
+			originalMember.canViewSubordinates !== member.canViewSubordinates
+		);
+	}
+
+	// 수정 버튼 클릭 핸들러
+	function handleSubmit() {
+		if (hasChanges()) {
+			onSubmit(member);
+		} else {
+			// 변경 없으면 그냥 닫기
+			onClose();
+		}
+	}
+
+	// 등급별 보험 필수 여부
+	$: isInsuranceRequired = member?.grade ? (GRADE_LIMITS[member.grade]?.insuranceRequired || false) : false;
 
 	// 판매인 선택 핸들러
 	function handleSalespersonSelect(user) {
@@ -72,19 +145,21 @@
 	}
 
 	// 보험 금액 표시용 (쉼표 포함)
-	let insuranceAmountDisplay = '';
+	$: insuranceAmountDisplay = member?.insuranceAmount ? member.insuranceAmount.toLocaleString() : '0';
 
-	// member가 변경될 때 표시 값 업데이트
-	$: if (member) {
-		insuranceAmountDisplay = member.insuranceAmount ? member.insuranceAmount.toLocaleString() : '';
-	}
+	// 보험 가입일 표시용
+	$: insuranceDateDisplay = member?.insuranceDate
+		? new Date(member.insuranceDate).toLocaleDateString('ko-KR')
+		: '미설정';
 
-	// 입력 시 쉼표 제거하고 숫자만 저장
-	function handleInsuranceAmountInput(event) {
-		const value = event.target.value.replace(/,/g, '');
-		const numValue = parseInt(value) || 0;
-		member.insuranceAmount = numValue;
-		insuranceAmountDisplay = numValue ? numValue.toLocaleString() : '';
+	// 보험 모달에서 저장 완료 시 → 보험은 별도 API로 이미 저장됨
+	function handleInsuranceSaved(result) {
+		if (result.user) {
+			// 부모 컴포넌트에 콜백 호출 (목록 갱신용)
+			onChangedInsurance(result.user);
+		}
+		showInsuranceModal = false;
+		// MemberEditModal은 열어둔 채로 (다른 정보 수정할 수 있도록)
 	}
 </script>
 
@@ -241,21 +316,38 @@
 					/>
 				</div>
 
-				<!-- 추가 보험 금액 -->
+				<!-- 보험 정보 -->
 				<div>
-					<label class="block text-xs font-medium text-gray-700 mb-0.5">추가 보험 금액</label>
-					<div class="flex items-center gap-1">
-						<input
-							type="text"
-							value={insuranceAmountDisplay}
-							oninput={handleInsuranceAmountInput}
-							placeholder="0"
-							class="flex-1 px-2 py-1.5 text-sm text-right border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-						/>
-						<span class="text-sm text-gray-600">원</span>
+					<label class="block text-xs font-medium text-gray-700 mb-0.5">보험 정보</label>
+					<div class="bg-gray-50 rounded-md p-2 border border-gray-200">
+						<div class="flex justify-between items-center text-sm">
+							<span class="text-gray-600">금액</span>
+							<span class="font-medium">{insuranceAmountDisplay}원</span>
+						</div>
+						<div class="flex justify-between items-center text-sm mt-1">
+							<span class="text-gray-600">가입일</span>
+							<span class="font-medium">{insuranceDateDisplay}</span>
+						</div>
+						<div class="flex justify-between items-center text-sm mt-1">
+							<span class="text-gray-600">상태</span>
+							{#if member?.insuranceActive}
+								<span class="text-green-600 font-medium">✓ 활성</span>
+							{:else if isInsuranceRequired}
+								<span class="text-red-600 font-medium">✗ 미가입</span>
+							{:else}
+								<span class="text-gray-500">불필요</span>
+							{/if}
+						</div>
 					</div>
-					<p class="text-xs text-gray-500 mt-0.5">
-						💡 F3/F4: 5만원, F5/F6: 7만원, F7/F8: 10만원 이상 시 추가지급
+					<button
+						type="button"
+						onclick={() => showInsuranceModal = true}
+						class="mt-2 w-full px-3 py-1.5 text-sm text-blue-600 border border-blue-300 rounded-md hover:bg-blue-50 transition-colors"
+					>
+						보험 가입
+					</button>
+					<p class="text-xs text-gray-500 mt-1">
+						💡 F4/F5: 7만원, F6/F7: 9만원, F8: 11만원 (F1-F3 불필요)
 					</p>
 				</div>
 
@@ -282,10 +374,18 @@
 			취소
 		</button>
 		<button
-			onclick={() => onSubmit(member)}
+			onclick={handleSubmit}
 			class="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors"
 		>
 			수정
 		</button>
 	</svelte:fragment>
 </WindowsModal>
+
+<!-- 보험 가입 모달 -->
+<InsuranceModal
+	isOpen={showInsuranceModal}
+	{member}
+	onSave={handleInsuranceSaved}
+	onClose={() => showInsuranceModal = false}
+/>

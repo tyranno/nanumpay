@@ -290,7 +290,7 @@
 					<div class="summary-value text-gray-800">{formatAmount(grandTotal.amount)}원</div>
 				</div>
 				<div class="summary-card-mobile">
-					<div class="summary-label-mobile">원천징수</div>
+					<div class="summary-label-mobile">세지원</div>
 					<div class="summary-value text-red-600">{formatAmount(grandTotal.tax)}원</div>
 				</div>
 				<div class="summary-card-mobile">
@@ -465,7 +465,7 @@
 					<div class="summary-value-desktop text-gray-800">{formatAmount(grandTotal.amount)}원</div>
 				</div>
 				<div class="summary-card-desktop">
-					<div class="summary-label-desktop">총 원천징수</div>
+					<div class="summary-label-desktop">총 세지원</div>
 					<div class="summary-value-desktop text-red-600">{formatAmount(grandTotal.tax)}원</div>
 				</div>
 				<div class="summary-card-desktop">

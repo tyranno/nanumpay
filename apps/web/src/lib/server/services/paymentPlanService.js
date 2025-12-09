@@ -10,26 +10,28 @@
 
 import mongoose from 'mongoose';
 import WeeklyPaymentPlans from '../models/WeeklyPaymentPlans.js';
-import WeeklyPaymentSummary from '../models/WeeklyPaymentSummary.js';
 import MonthlyRegistrations from '../models/MonthlyRegistrations.js';
+import User from '../models/User.js';
+import {
+	GRADE_LIMITS,
+	GRADE_ORDER,
+	isOneStepPromotion,
+	calculateGraceDeadline,
+	getInsuranceRequired
+} from '../utils/constants.js';
 
-// 등급별 최대 수령 횟수 정의
-const MAX_INSTALLMENTS = {
-	F1: 20,
-	F2: 30,
-	F3: 40,
-	F4: 40,
-	F5: 50,
-	F6: 50,
-	F7: 60,
-	F8: 60
-};
+// 등급별 최대 수령 횟수 정의 (GRADE_LIMITS에서 가져옴)
+const MAX_INSTALLMENTS = Object.fromEntries(
+	Object.entries(GRADE_LIMITS).map(([grade, limits]) => [grade, limits.maxInstallments])
+);
 
 /**
  * Initial 지급 계획 생성 (등록 시)
  */
 export async function createInitialPaymentPlan(userId, userName, grade, registrationDate) {
 	try {
+		// ⭐ v8.0: ratio는 매출 계산 시 적용됨 (step2), 지급액에는 적용 안 함
+
 		// 지급 시작일 계산 (등록일+1개월 후 첫 금요일)
 		const startDate = WeeklyPaymentPlans.getPaymentStartDate(registrationDate);
 
@@ -47,9 +49,11 @@ export async function createInitialPaymentPlan(userId, userName, grade, registra
 		let netAmount = 0;
 
 		if (monthlyReg) {
-			// 조정된 금액이 있으면 사용, 없으면 계산
-			if (monthlyReg.adjustedGradePayments?.[grade]?.totalAmount) {
-				baseAmount = monthlyReg.adjustedGradePayments[grade].totalAmount;
+			// ⭐ v8.0 FIX: 조정된 금액이 있으면 사용, 없으면 계산
+			// - totalAmount가 null/undefined가 아니면 조정값 사용 (0 포함!)
+			const adjustment = monthlyReg.adjustedGradePayments?.[grade];
+			if (adjustment && adjustment.totalAmount !== null && adjustment.totalAmount !== undefined) {
+				baseAmount = adjustment.totalAmount;
 				console.log(
 					`[createInitialPaymentPlan] ${userName} - 조정된 금액 사용: ${grade} = ${baseAmount}원`
 				);
@@ -63,7 +67,7 @@ export async function createInitialPaymentPlan(userId, userName, grade, registra
 			}
 
 			if (baseAmount > 0) {
-				installmentAmount = Math.floor(baseAmount / 10 / 100) * 100;
+				installmentAmount = Math.floor(baseAmount / 10 / 100) * 100;  // 100원 단위 절삭
 
 				withholdingTax = Math.round(installmentAmount * 0.033);
 
@@ -120,7 +124,6 @@ export async function createInitialPaymentPlan(userId, userName, grade, registra
 		});
 
 		// 주차별 총계 업데이트 (미래 예측)
-		await updateWeeklyProjections(plan, 'add');
 
 		return plan;
 	} catch (error) {
@@ -130,6 +133,7 @@ export async function createInitialPaymentPlan(userId, userName, grade, registra
 
 /**
  * Promotion 지급 계획 생성 (승급 시)
+ * ⭐ v8.1: F4+ 유지보험 승계 조건 체크
  */
 export async function createPromotionPaymentPlan(
 	userId,
@@ -139,8 +143,35 @@ export async function createPromotionPaymentPlan(
 	monthlyRegData = null
 ) {
 	try {
+		// ⭐ v8.0: ratio는 매출 계산 시 적용됨 (step2), 지급액에는 적용 안 함
+
 		// 지급 시작일 계산 (승급일+1개월 후 첫 금요일)
 		const startDate = WeeklyPaymentPlans.getPaymentStartDate(promotionDate);
+
+		// ⭐ v8.1: 승계 조건 체크 (F4+ 등급만)
+		let insuranceRequired = null;
+		let graceDeadline = null;
+		let insuranceInherited = false;
+
+		const currentInsuranceRequired = getInsuranceRequired(newGrade);
+		if (currentInsuranceRequired !== null) {
+			// F4+ 등급: 승계 조건 체크
+			const inheritanceCheck = await checkInsuranceInheritance(userId, newGrade);
+
+			if (inheritanceCheck.canInherit) {
+				// 승계 인정: 이전 등급 보험 기준 적용, 유예기간 없음
+				insuranceRequired = inheritanceCheck.previousInsuranceRequired;
+				graceDeadline = null;
+				insuranceInherited = true;
+				console.log(`[createPromotionPaymentPlan] ${userName} 승계 인정: ${inheritanceCheck.previousGrade}→${newGrade}, 보험기준: ${insuranceRequired}원`);
+			} else {
+				// 승계 불가: 새 등급 보험 기준 적용, 유예기간 2달
+				insuranceRequired = currentInsuranceRequired;
+				graceDeadline = calculateGraceDeadline(promotionDate);
+				insuranceInherited = false;
+				console.log(`[createPromotionPaymentPlan] ${userName} 승계 불가: ${newGrade}, 보험기준: ${insuranceRequired}원, 유예마감: ${graceDeadline}`);
+			}
+		}
 
 		// 매출 귀속 월 (승급 시점 기준)
 		const revenueMonth = MonthlyRegistrations.generateMonthKey(promotionDate);
@@ -161,9 +192,11 @@ export async function createPromotionPaymentPlan(
 		let netAmount = 0;
 
 		if (monthlyReg) {
-			// 조정된 금액이 있으면 사용, 없으면 계산
-			if (monthlyReg.adjustedGradePayments?.[newGrade]?.totalAmount) {
-				baseAmount = monthlyReg.adjustedGradePayments[newGrade].totalAmount;
+			// ⭐ v8.0 FIX: 조정된 금액이 있으면 사용, 없으면 계산
+			// - totalAmount가 null/undefined가 아니면 조정값 사용 (0 포함!)
+			const adjustment = monthlyReg.adjustedGradePayments?.[newGrade];
+			if (adjustment && adjustment.totalAmount !== null && adjustment.totalAmount !== undefined) {
+				baseAmount = adjustment.totalAmount;
 				console.log(
 					`[createPromotionPaymentPlan] ${userName} - 조정된 금액 사용: ${newGrade} = ${baseAmount}원`
 				);
@@ -177,7 +210,7 @@ export async function createPromotionPaymentPlan(
 			}
 
 			if (baseAmount > 0) {
-				installmentAmount = Math.floor(baseAmount / 10 / 100) * 100;
+				installmentAmount = Math.floor(baseAmount / 10 / 100) * 100;  // 100원 단위 절삭
 				withholdingTax = Math.round(installmentAmount * 0.033);
 				netAmount = installmentAmount - withholdingTax;
 			}
@@ -209,7 +242,7 @@ export async function createPromotionPaymentPlan(
 		// ⭐ v8.0: 추가지급 중단은 terminateAdditionalPlansOnPromotion에서 처리
 		// (승급 지급 시작일부터만 중단하는 로직)
 
-		// 계획 생성 (v8.0: additionalPaymentBaseDate 추가)
+		// 계획 생성 (v8.0: additionalPaymentBaseDate 추가, v8.1: 유지보험 필드 추가)
 		const plan = await WeeklyPaymentPlans.create({
 			userId,
 			userName,
@@ -225,11 +258,14 @@ export async function createPromotionPaymentPlan(
 			completedInstallments: 0,
 			installments,
 			planStatus: 'active',
-			createdBy: 'promotion' // v6.0: 승급에 의한 생성
+			createdBy: 'promotion', // v6.0: 승급에 의한 생성
+			// ⭐ v8.1: 유지보험 필드
+			graceDeadline,
+			insuranceRequired,
+			insuranceInherited
 		});
 
 		// 주차별 총계 업데이트
-		await updateWeeklyProjections(plan, 'add');
 
 		return plan;
 	} catch (error) {
@@ -318,7 +354,6 @@ export async function createAdditionalPaymentPlan(
 		});
 
 		// 주차별 총계 업데이트
-		await updateWeeklyProjections(plan, 'add');
 
 		return plan;
 	} catch (error) {
@@ -349,13 +384,13 @@ export async function terminateAdditionalPlans(userId) {
 
 			if (hasTerminated) {
 				plan.planStatus = 'terminated';
+				plan.terminatedBy = 'promotion';
 				plan.terminatedAt = new Date();
 				plan.terminationReason = 'promotion';
 
 				await plan.save();
 
 				// 주차별 총계에서 제거
-				await updateWeeklyProjections(plan, 'remove');
 			}
 		}
 	} catch (error) {
@@ -363,91 +398,6 @@ export async function terminateAdditionalPlans(userId) {
 	}
 }
 
-/**
- * 주차별 총계 예측 업데이트
- */
-async function updateWeeklyProjections(plan, operation) {
-	try {
-		// 매출 정보 조회
-		const monthlyReg = await MonthlyRegistrations.findOne({
-			monthKey: plan.revenueMonth
-		});
-
-		if (!monthlyReg) {
-			return;
-		}
-
-		// 등급별 지급액 계산
-		const revenue = monthlyReg.getEffectiveRevenue();
-		const gradePayments = calculateGradePayments(revenue, monthlyReg.gradeDistribution);
-		const baseAmount = gradePayments[plan.baseGrade] || 0;
-
-		if (baseAmount === 0) {
-			return;
-		}
-
-		// 10분할 및 100원 단위 절삭
-		const installmentAmount = Math.floor(baseAmount / 10 / 100) * 100;
-		const withholdingTax = Math.round(installmentAmount * 0.033);
-		const netAmount = installmentAmount - withholdingTax;
-
-		// 주차별 업데이트
-		const uniqueWeeks = [
-			...new Set(
-				plan.installments.filter((inst) => inst.status === 'pending').map((inst) => inst.weekNumber)
-			)
-		];
-
-		for (const weekNumber of uniqueWeeks) {
-			// 주차별 총계 문서 찾기 또는 생성
-			let summary = await WeeklyPaymentSummary.findOne({ weekNumber });
-
-			if (!summary) {
-				const weekInstallment = plan.installments.find((i) => i.weekNumber === weekNumber);
-				summary = await WeeklyPaymentSummary.create({
-					weekDate: weekInstallment.scheduledDate,
-					weekNumber,
-					monthKey: WeeklyPaymentSummary.generateMonthKey(weekInstallment.scheduledDate),
-					status: 'scheduled'
-				});
-			}
-
-			// 금액 증분 또는 차감
-			if (operation === 'add') {
-				summary.incrementPayment(
-					plan.baseGrade,
-					plan.planType,
-					installmentAmount,
-					withholdingTax,
-					netAmount,
-					plan.userId // ⭐ userId 추가
-				);
-			} else if (operation === 'remove') {
-				// 차감 로직
-				summary.totalAmount -= installmentAmount;
-				summary.totalTax -= withholdingTax;
-				summary.totalNet -= netAmount;
-				summary.totalPaymentCount -= 1;
-
-				if (summary.byGrade[plan.baseGrade]) {
-					summary.byGrade[plan.baseGrade].amount -= installmentAmount;
-					summary.byGrade[plan.baseGrade].tax -= withholdingTax;
-					summary.byGrade[plan.baseGrade].net -= netAmount;
-					summary.byGrade[plan.baseGrade].paymentCount -= 1;
-				}
-
-				if (summary.byPlanType[plan.planType]) {
-					summary.byPlanType[plan.planType].amount -= installmentAmount;
-					summary.byPlanType[plan.planType].tax -= withholdingTax;
-					summary.byPlanType[plan.planType].net -= netAmount;
-					summary.byPlanType[plan.planType].paymentCount -= 1;
-				}
-			}
-
-			await summary.save();
-		}
-	} catch (error) {}
-}
 
 /**
  * 등급별 누적 지급액 계산 (헬퍼 함수)
@@ -547,18 +497,11 @@ export async function checkAndCreateAdditionalPlan(completedPlan) {
 			return null;
 		}
 
-		// 3. 보험 확인 (F3 이상은 보험 필수)
-		if (user.grade >= 'F3') {
-			const requiredAmounts = {
-				F3: 50000,
-				F4: 50000,
-				F5: 70000,
-				F6: 70000,
-				F7: 100000,
-				F8: 100000
-			};
+		// 3. 보험 확인 (F4+ 보험 필수) - ⭐ v8.0 변경: GRADE_LIMITS 사용
+		const gradeLimit = GRADE_LIMITS[user.grade];
+		if (gradeLimit?.insuranceRequired) {
 			const insuranceAmount = user.insuranceAmount || 0;
-			if (insuranceAmount < requiredAmounts[user.grade]) {
+			if (insuranceAmount < (gradeLimit.insuranceAmount || 0)) {
 				return null; // 보험 조건 미충족
 			}
 		}
@@ -702,7 +645,6 @@ export async function terminateAdditionalPlansOnPromotion(userId, promotionDate)
 				await plan.save();
 
 				// 주차별 총계에서 중단된 할부만 제거
-				await updateWeeklyProjectionsPartial(plan, 'remove', promotionPaymentStartDate);
 
 				console.log(`[terminateAdditionalPlans] ${userId} 추가지급 중단: ${plan.baseGrade} ${plan.추가지급단계}단계, ${terminatedCount}회 중단`);
 			}
@@ -715,35 +657,6 @@ export async function terminateAdditionalPlansOnPromotion(userId, promotionDate)
 	}
 }
 
-/**
- * v8.0: 주차별 총계 부분 업데이트 (특정 날짜 이후만)
- */
-async function updateWeeklyProjectionsPartial(plan, operation, fromDate) {
-	try {
-		for (const inst of plan.installments) {
-			if (inst.status === 'terminated' && new Date(inst.scheduledDate) >= fromDate) {
-				let summary = await WeeklyPaymentSummary.findOne({ weekNumber: inst.weekNumber });
-				if (summary && operation === 'remove') {
-					summary.totalAmount -= inst.installmentAmount || 0;
-					summary.totalTax -= inst.withholdingTax || 0;
-					summary.totalNet -= inst.netAmount || 0;
-					summary.totalPaymentCount -= 1;
-
-					if (summary.byGrade?.[plan.baseGrade]) {
-						summary.byGrade[plan.baseGrade].amount -= inst.installmentAmount || 0;
-						summary.byGrade[plan.baseGrade].tax -= inst.withholdingTax || 0;
-						summary.byGrade[plan.baseGrade].net -= inst.netAmount || 0;
-						summary.byGrade[plan.baseGrade].paymentCount -= 1;
-					}
-
-					await summary.save();
-				}
-			}
-		}
-	} catch (error) {
-		console.error('[updateWeeklyProjectionsPartial] 오류:', error);
-	}
-}
 
 /**
  * v8.0: 추가지급 시작일 계산
@@ -834,14 +747,13 @@ export async function createAdditionalPaymentPlanV8(previousPlan) {
 			return null;
 		}
 
-		// 3. 보험 확인 (F3 이상)
-		if (baseGrade >= 'F3') {
-			const requiredAmounts = {
-				F3: 50000, F4: 50000, F5: 70000, F6: 70000, F7: 100000, F8: 100000
-			};
+		// 3. 보험 확인 (F4+ 보험 필수) - ⭐ v8.0 변경: GRADE_LIMITS 사용
+		const gradeLimit = GRADE_LIMITS[baseGrade];
+		if (gradeLimit?.insuranceRequired) {
 			const insuranceAmount = user.insuranceAmount || 0;
-			if (insuranceAmount < requiredAmounts[baseGrade]) {
-				console.log(`[createAdditionalPaymentPlanV8] ${previousPlan.userId} 보험 미충족: ${insuranceAmount} < ${requiredAmounts[baseGrade]}`);
+			const requiredAmount = gradeLimit.insuranceAmount || 0;
+			if (insuranceAmount < requiredAmount) {
+				console.log(`[createAdditionalPaymentPlanV8] ${previousPlan.userId} 보험 미충족: ${insuranceAmount} < ${requiredAmount}`);
 				return null;
 			}
 		}
@@ -1004,5 +916,142 @@ export async function checkAndCreateAdditionalPaymentsV8() {
 	} catch (error) {
 		console.error('[checkAndCreateAdditionalPaymentsV8] 오류:', error);
 		return { created: 0, skipped: 0, error: error.message };
+	}
+}
+
+/**
+ * ⭐ v8.1: 유지보험 승계 조건 체크
+ *
+ * 승계 조건:
+ * 1. 1단계 상위 등급 승급 (F5→F6 ○, F5→F7 ✗)
+ * 2. 이전 등급의 active 계획이 존재 (완료 전 승급)
+ *
+ * @param {string} userId - 사용자 ID
+ * @param {string} newGrade - 새 등급
+ * @returns {Object} { canInherit, previousGrade, previousInsuranceRequired }
+ */
+async function checkInsuranceInheritance(userId, newGrade) {
+	try {
+		// 새 등급의 인덱스
+		const newGradeIndex = GRADE_ORDER.indexOf(newGrade);
+		if (newGradeIndex <= 0) {
+			// F1이거나 유효하지 않은 등급
+			return { canInherit: false, previousGrade: null, previousInsuranceRequired: null };
+		}
+
+		// 이전 등급 (1단계 하위)
+		const previousGrade = GRADE_ORDER[newGradeIndex - 1];
+
+		// 1단계 상위 승급인지 확인
+		if (!isOneStepPromotion(previousGrade, newGrade)) {
+			return { canInherit: false, previousGrade: null, previousInsuranceRequired: null };
+		}
+
+		// 이전 등급에 보험 조건이 있는지 확인 (F3 이하는 조건 없음)
+		const previousInsuranceRequired = getInsuranceRequired(previousGrade);
+		if (previousInsuranceRequired === null) {
+			// 이전 등급에 보험 조건 없음 → 승계 불가 (새 등급 기준 적용)
+			return { canInherit: false, previousGrade, previousInsuranceRequired: null };
+		}
+
+		// 이전 등급의 active 계획이 존재하는지 확인
+		const activePreviousPlans = await WeeklyPaymentPlans.find({
+			userId,
+			baseGrade: previousGrade,
+			planStatus: 'active'
+		});
+
+		if (activePreviousPlans.length === 0) {
+			// 이전 등급 계획 모두 완료 → 승계 불가
+			return { canInherit: false, previousGrade, previousInsuranceRequired: null };
+		}
+
+		// 승계 가능!
+		return {
+			canInherit: true,
+			previousGrade,
+			previousInsuranceRequired
+		};
+	} catch (error) {
+		console.error('[checkInsuranceInheritance] 오류:', error);
+		return { canInherit: false, previousGrade: null, previousInsuranceRequired: null };
+	}
+}
+
+/**
+ * ⭐ v8.1: 보험 변경 시 installment 상태 업데이트
+ *
+ * - 보험 미충족 + 유예기간 지남 → skipped
+ * - 보험 충족 → skipped를 pending으로 복구 (미래 건만)
+ *
+ * @param {string} userId - 사용자 ID
+ * @param {number} newInsuranceAmount - 새 보험 금액
+ * @returns {Object} { updated, skipped, restored }
+ */
+export async function updateInstallmentsOnInsuranceChange(userId, newInsuranceAmount) {
+	try {
+		const today = new Date();
+		let skippedCount = 0;
+		let restoredCount = 0;
+
+		// 해당 사용자의 active 계획 조회 (F4+ 보험 조건 있는 것만)
+		const activePlans = await WeeklyPaymentPlans.find({
+			userId,
+			planStatus: 'active',
+			insuranceRequired: { $ne: null }  // 보험 조건이 있는 계획만
+		});
+
+		for (const plan of activePlans) {
+			let planModified = false;
+
+			for (const installment of plan.installments) {
+				const scheduledDate = new Date(installment.scheduledDate);
+
+				// 과거 지급은 건드리지 않음
+				if (scheduledDate < today) {
+					continue;
+				}
+
+				// 유예기간 체크
+				const isAfterGracePeriod = plan.graceDeadline === null || scheduledDate > plan.graceDeadline;
+
+				if (newInsuranceAmount < plan.insuranceRequired) {
+					// 보험 미충족
+					if (isAfterGracePeriod && installment.status === 'pending') {
+						// 유예기간 지남 + pending → skipped
+						installment.status = 'skipped';
+						installment.skipReason = 'insurance_not_maintained';
+						installment.insuranceSkipped = true;
+						skippedCount++;
+						planModified = true;
+					}
+				} else {
+					// 보험 충족
+					if (installment.status === 'skipped' && installment.insuranceSkipped) {
+						// 보험 미유지로 skipped된 것 복구
+						installment.status = 'pending';
+						installment.skipReason = null;
+						installment.insuranceSkipped = false;
+						restoredCount++;
+						planModified = true;
+					}
+				}
+			}
+
+			if (planModified) {
+				await plan.save();
+			}
+		}
+
+		console.log(`[updateInstallmentsOnInsuranceChange] ${userId}: skipped=${skippedCount}, restored=${restoredCount}`);
+
+		return {
+			updated: skippedCount + restoredCount > 0,
+			skipped: skippedCount,
+			restored: restoredCount
+		};
+	} catch (error) {
+		console.error('[updateInstallmentsOnInsuranceChange] 오류:', error);
+		throw error;
 	}
 }

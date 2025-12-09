@@ -1,9 +1,9 @@
 <script>
 	import { onMount } from 'svelte';
-	import { paymentPageFilterState } from '$lib/stores/dashboardStore';
+	import { plannerPaymentFilterState } from '$lib/stores/dashboardStore';
 	import { plannerPaymentService } from '$lib/services/plannerPaymentService';
 	import PaymentHeader from '$lib/components/shared/payment/PaymentHeader.svelte';
-	import PaymentTable from '$lib/components/shared/payment/PaymentTable.svelte';
+	import PlannerPaymentTable from '$lib/components/planner/PlannerPaymentTable.svelte';
 
 	// 지급명부 상태 변수
 	let paymentList = [];
@@ -18,6 +18,9 @@
 	let weeklyTotals = {};
 	let monthlyTotals = {};
 
+	// ⭐ 소계 표시 모드 (설계사 전용)
+	let subtotalDisplayMode = $plannerPaymentFilterState.subtotalDisplayMode || 'withSubtotals';
+
 	// ⭐ Store 직접 사용 (reactive statement 제거하여 무한 루프 방지)
 
 	// 데이터 로드
@@ -29,8 +32,8 @@
 		try {
 			// ⭐ overrideDate가 있으면 그것을 사용, 없으면 store 값 사용
 			const filterState = overrideDate ?
-				{ ...$paymentPageFilterState, selectedDate: overrideDate } :
-				$paymentPageFilterState;
+				{ ...$plannerPaymentFilterState, selectedDate: overrideDate } :
+				$plannerPaymentFilterState;
 
 			const result = await plannerPaymentService.loadPaymentData({
 				filterType: filterState.filterType,
@@ -41,11 +44,12 @@
 				startMonth: filterState.startMonth,
 				endYear: filterState.endYear,
 				endMonth: filterState.endMonth,
-				page,
-				limit: filterState.itemsPerPage,
+				page: 1,  // ⭐ 항상 1페이지 (프론트엔드 페이지네이션)
+				limit: 10000,  // ⭐ 전체 데이터 조회
 				searchQuery: filterState.searchQuery,
 				searchCategory: filterState.searchCategory,
-				periodType: filterState.periodType
+				periodType: filterState.periodType,
+				fetchAll: true  // ⭐ 전체 데이터 조회 (그룹핑용)
 			});
 
 			paymentList = result.paymentList;
@@ -88,9 +92,15 @@
 
 	// 기간 변경
 	function handlePeriodChange() {
-		if ($paymentPageFilterState.filterType === 'period') {
+		if ($plannerPaymentFilterState.filterType === 'period') {
 			loadPaymentData(1);
 		}
+	}
+
+	// ⭐ 소계 표시 모드 변경
+	function handleSubtotalModeChange(mode) {
+		subtotalDisplayMode = mode;
+		plannerPaymentFilterState.update(state => ({ ...state, subtotalDisplayMode: mode }));
 	}
 
 	// grandTotal을 reactive 변수로 계산
@@ -100,14 +110,14 @@
 		net: apiGrandTotal.totalNet || 0
 	} : { amount: 0, tax: 0, net: 0 };
 
-	// 엑셀 다운로드
+	// ⭐ 설계사 전용 엑셀 다운로드 (그룹핑 + 소계 포함)
 	async function handleExcelExport() {
 		try {
-			const { PaymentExcelExporter } = await import('$lib/utils/paymentExcelExporter.js');
+			const { PlannerPaymentExcelExporter } = await import('$lib/utils/plannerPaymentExcelExporter.js');
 
-			const filterState = $paymentPageFilterState; // ⭐ 스냅샷 사용
+			const filterState = $plannerPaymentFilterState;
 
-			const exporter = new PaymentExcelExporter({
+			const exporter = new PlannerPaymentExcelExporter({
 				filterType: filterState.filterType,
 				selectedDate: filterState.selectedDate,
 				startYear: filterState.startYear,
@@ -115,16 +125,15 @@
 				endYear: filterState.endYear,
 				endMonth: filterState.endMonth,
 				periodType: filterState.periodType,
-				showGradeInfoColumn: filterState.showGradeInfoColumn, // ⭐ 등급(회수)
+				showGradeInfoColumn: filterState.showGradeInfoColumn,
 				showTaxColumn: filterState.showTaxColumn,
 				showNetColumn: filterState.showNetColumn,
 				searchQuery: filterState.searchQuery,
 				searchCategory: filterState.searchCategory,
-				plannerName: '',
-				isPlanner: true
+				plannerName: ''
 			});
 
-			await exporter.export(filteredPaymentList, weeklyColumns, apiGrandTotal);
+			await exporter.export(filteredPaymentList, weeklyColumns, grandTotal);
 		} catch (err) {
 			console.error('엑셀 내보내기 오류:', err);
 			alert('엑셀 파일 생성 중 오류가 발생했습니다.');
@@ -147,6 +156,7 @@
 		{grandTotal}
 		{totalPaymentTargets}
 		hasData={filteredPaymentList.length > 0}
+		filterStore={plannerPaymentFilterState}
 		onFilterChange={handleFilterTypeChange}
 		onPeriodChange={handlePeriodChange}
 		onDateChange={(newDate) => {
@@ -160,22 +170,19 @@
 		hideExportButton={false}
 		onProcessPast={() => {}}
 		showPlannerOption={false}
+		showSubtotalOptions={true}
+		{subtotalDisplayMode}
+		onSubtotalModeChange={handleSubtotalModeChange}
 	/>
 
-	<PaymentTable
-		{paymentList}
-		{filteredPaymentList}
+	<PlannerPaymentTable
+		paymentList={filteredPaymentList}
 		{weeklyColumns}
 		{isLoading}
 		{error}
-		{currentPage}
-		{totalPages}
-		{totalPaymentTargets}
-		itemsPerPage={$paymentPageFilterState.itemsPerPage}
-		onPageChange={goToPage}
 		{grandTotal}
 		{weeklyTotals}
 		{monthlyTotals}
-		showPlannerColumn={false}
+		{subtotalDisplayMode}
 	/>
 </div>

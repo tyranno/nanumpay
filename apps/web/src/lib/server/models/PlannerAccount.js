@@ -26,6 +26,16 @@ const plannerAccountSchema = new mongoose.Schema({
 		type: String,
 		required: true
 	},
+	// ⭐ v8.0: 설계사 계좌번호 (엑셀에서 입력, 설계사 지급명부에 표시)
+	accountNumber: {
+		type: String,
+		default: ''
+	},
+	// ⭐ v8.0: 은행명 (설계사 계좌 은행)
+	bank: {
+		type: String,
+		default: ''
+	},
 	email: {
 		type: String,
 		default: ''

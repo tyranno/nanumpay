@@ -47,7 +47,8 @@
 				limit: filterState.itemsPerPage,
 				searchQuery: filterState.searchQuery,
 				searchCategory: filterState.searchCategory,
-				periodType: filterState.periodType
+				periodType: filterState.periodType,
+				sortByName: filterState.sortByName  // ⭐ 정렬 옵션 전달
 			});
 
 			paymentList = result.paymentList;
@@ -95,11 +96,16 @@
 		}
 	}
 
+	// 정렬 변경
+	function handleSortChange() {
+		loadPaymentData(1);
+	}
+
 	// Excel export
 	async function exportToExcel() {
 		const filterState = $paymentPageFilterState;
 
-		// 전체 데이터 가져오기
+		// 전체 데이터 가져오기 - ⭐ sortByName 파라미터 추가
 		const { users: allData, weeks: allWeeks } = await paymentService.getAllPaymentData({
 			filterType: filterState.filterType,
 			selectedDate: filterState.selectedDate,
@@ -109,7 +115,8 @@
 			endMonth: filterState.endMonth,
 			searchQuery: filterState.searchQuery,
 			searchCategory: filterState.searchCategory,
-			periodType: filterState.periodType
+			periodType: filterState.periodType,
+			sortByName: filterState.sortByName  // ⭐ 정렬 옵션 전달
 		});
 
 		// Excel 내보내기
@@ -170,6 +177,7 @@
 		{grandTotal}
 		{totalPaymentTargets}
 		hasData={filteredPaymentList.length > 0}
+		enablePeriodLimit={false}
 		onFilterChange={handleFilterTypeChange}
 		onPeriodChange={handlePeriodChange}
 		onDateChange={() => loadPaymentData()}
@@ -177,6 +185,7 @@
 		onItemsPerPageChange={handleItemsPerPageChange}
 		onExport={exportToExcel}
 		onProcessPast={processPastPayments}
+		onSortChange={handleSortChange}
 	/>
 
 	<!-- PaymentTable 컴포넌트 사용 -->

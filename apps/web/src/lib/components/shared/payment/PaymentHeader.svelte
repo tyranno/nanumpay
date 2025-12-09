@@ -3,6 +3,10 @@
 	import { browser } from '$app/environment';
 	import { paymentPageFilterState } from '$lib/stores/dashboardStore';
 	import PaymentColumnSettingsModal from './PaymentColumnSettingsModal.svelte';
+	import WindowsModal from '$lib/components/WindowsModal.svelte';
+
+	// 기간 제한 알림 모달 상태
+	let showPeriodLimitAlert = false;
 
 	// Props
 	export let isLoading = false;
@@ -11,6 +15,17 @@
 	export let totalPaymentTargets = 0;
 	export let hasData = false;
 	export let showPlannerOption = true; // ⭐ 설계자 옵션 표시 여부 (기본값 true)
+	export let enablePeriodLimit = true; // ⭐ 기간 제한 활성화 (설계사/사용자만, 관리자는 false)
+	export let showSubtotalOptions = false; // ⭐ 소계 표시 옵션 (설계사 전용)
+	export let subtotalDisplayMode = 'noSubtotals'; // 'noSubtotals' | 'withSubtotals' | 'subtotalsOnly'
+	export let filterStore = null; // ⭐ 외부 store 주입 (없으면 기본 paymentPageFilterState 사용)
+
+	// ⭐ 실제 사용할 store (외부 주입 또는 기본값)
+	$: activeStore = filterStore || paymentPageFilterState;
+
+	// ⭐ 체크박스 상태 (subtotalDisplayMode에서 파생)
+	let showSubtotals = subtotalDisplayMode === 'withSubtotals' || subtotalDisplayMode === 'subtotalsOnly';
+	let subtotalsOnly = subtotalDisplayMode === 'subtotalsOnly';
 
 	// Event handler props (Svelte 5 style)
 	export let onFilterChange = () => {};
@@ -18,6 +33,8 @@
 	export let onDateChange = () => {};
 	export let onSearch = () => {};
 	export let onItemsPerPageChange = () => {};
+	export let onSortChange = () => {}; // 정렬 변경 핸들러
+	export let onSubtotalModeChange = () => {}; // ⭐ 소계 표시 모드 변경 핸들러
 	export let onExport = () => {};
 	export let onProcessPast = () => {};
 
@@ -46,7 +63,8 @@
 		};
 	});
 
-	// Store에서 값 가져오기
+	// ⭐ Store에서 값 가져오기 (activeStore 사용)
+	// 초기값은 기본 store에서 가져오고, onMount에서 activeStore로 동기화
 	let filterType = $paymentPageFilterState.filterType;
 	let selectedDate = $paymentPageFilterState.selectedDate;
 	let selectedYear = $paymentPageFilterState.selectedYear;
@@ -57,7 +75,7 @@
 	let endYear = $paymentPageFilterState.endYear;
 	let endMonth = $paymentPageFilterState.endMonth;
 	let itemsPerPage = $paymentPageFilterState.itemsPerPage;
-	let showGradeInfoColumn = $paymentPageFilterState.showGradeInfoColumn; // ⭐ 신규
+	let showGradeInfoColumn = $paymentPageFilterState.showGradeInfoColumn;
 	let showTaxColumn = $paymentPageFilterState.showTaxColumn;
 	let showNetColumn = $paymentPageFilterState.showNetColumn;
 	let showPlannerColumn = $paymentPageFilterState.showPlannerColumn;
@@ -65,6 +83,35 @@
 	let showAccountColumn = $paymentPageFilterState.showAccountColumn;
 	let searchQuery = $paymentPageFilterState.searchQuery;
 	let searchCategory = $paymentPageFilterState.searchCategory;
+	let sortByName = $paymentPageFilterState.sortByName ?? true;
+
+	// ⭐ filterStore가 주입된 경우, 해당 store에서 값 동기화
+	let storeInitialized = false;
+	$: if (filterStore && !storeInitialized) {
+		const storeValue = $activeStore;
+		if (storeValue) {
+			filterType = storeValue.filterType ?? filterType;
+			selectedDate = storeValue.selectedDate ?? selectedDate;
+			selectedYear = storeValue.selectedYear ?? selectedYear;
+			selectedMonth = storeValue.selectedMonth ?? selectedMonth;
+			periodType = storeValue.periodType ?? periodType;
+			startYear = storeValue.startYear ?? startYear;
+			startMonth = storeValue.startMonth ?? startMonth;
+			endYear = storeValue.endYear ?? endYear;
+			endMonth = storeValue.endMonth ?? endMonth;
+			itemsPerPage = storeValue.itemsPerPage ?? itemsPerPage;
+			showGradeInfoColumn = storeValue.showGradeInfoColumn ?? showGradeInfoColumn;
+			showTaxColumn = storeValue.showTaxColumn ?? showTaxColumn;
+			showNetColumn = storeValue.showNetColumn ?? showNetColumn;
+			showPlannerColumn = storeValue.showPlannerColumn ?? showPlannerColumn;
+			showBankColumn = storeValue.showBankColumn ?? showBankColumn;
+			showAccountColumn = storeValue.showAccountColumn ?? showAccountColumn;
+			searchQuery = storeValue.searchQuery ?? searchQuery;
+			searchCategory = storeValue.searchCategory ?? searchCategory;
+			sortByName = storeValue.sortByName ?? true;
+			storeInitialized = true;
+		}
+	}
 
 	// 컬럼 설정 모달 상태
 	let showColumnSettings = false;
@@ -72,7 +119,8 @@
 
 	function updateStore() {
 		if (browser) {
-			paymentPageFilterState.set({
+			// ⭐ activeStore 사용 (외부 주입 또는 기본값)
+			activeStore.set({
 				filterType,
 				selectedDate,
 				selectedYear,
@@ -83,25 +131,73 @@
 				endYear,
 				endMonth,
 				itemsPerPage,
-				showGradeInfoColumn, // ⭐ 신규
+				showGradeInfoColumn,
 				showTaxColumn,
 				showNetColumn,
 				showPlannerColumn,
 				showBankColumn,
 				showAccountColumn,
 				searchQuery,
-				searchCategory
+				searchCategory,
+				sortByName
 			});
 		}
 	}
 
 	// 이벤트 핸들러
+	function handleSortChange() {
+		updateStore();
+		onSortChange();
+	}
+
+	// ⭐ 소계 표시 모드 변경 핸들러 (체크박스 → 모드 변환)
+	function handleSubtotalModeChange() {
+		// 체크박스 상태에서 모드 계산
+		if (subtotalsOnly) {
+			subtotalDisplayMode = 'subtotalsOnly';
+			showSubtotals = true;  // "소계만"이면 소계 표시 자동 활성화
+		} else if (showSubtotals) {
+			subtotalDisplayMode = 'withSubtotals';
+		} else {
+			subtotalDisplayMode = 'noSubtotals';
+		}
+		onSubtotalModeChange(subtotalDisplayMode);
+	}
+
 	function handleFilterTypeChange() {
 		updateStore();
 		onFilterChange();
 	}
 
 	function handlePeriodChange() {
+		// ⭐ 기간 제한 (설계사/사용자만, 관리자는 제한 없음)
+		if (enablePeriodLimit) {
+			const now = new Date();
+			const maxYear = now.getMonth() === 11 ? now.getFullYear() + 1 : now.getFullYear();
+			const maxMonthNum = now.getMonth() === 11 ? 1 : now.getMonth() + 2;
+
+			let wasAdjusted = false;
+
+			// 시작 기간 제한
+			if (startYear > maxYear || (startYear === maxYear && startMonth > maxMonthNum)) {
+				startYear = maxYear;
+				startMonth = maxMonthNum;
+				wasAdjusted = true;
+			}
+
+			// 종료 기간 제한
+			if (endYear > maxYear || (endYear === maxYear && endMonth > maxMonthNum)) {
+				endYear = maxYear;
+				endMonth = maxMonthNum;
+				wasAdjusted = true;
+			}
+
+			// 제한 초과 시 알림 모달 표시
+			if (wasAdjusted) {
+				showPeriodLimitAlert = true;
+			}
+		}
+
 		updateStore();
 		onPeriodChange();
 	}
@@ -148,6 +244,15 @@
 		if (!amount && amount !== 0) return '-';
 		return amount.toLocaleString();
 	}
+
+	// ⭐ 최대 선택 가능 월 계산 (현재월 + 1개월)
+	function getMaxMonth() {
+		const now = new Date();
+		const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+		return `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}`;
+	}
+
+	const maxMonth = getMaxMonth();
 
 	// 컬럼 설정 모달 핸들러
 	function handleShowAllColumns() {
@@ -225,6 +330,7 @@
 						<input
 							type="month"
 							value="{startYear}-{String(startMonth).padStart(2, '0')}"
+							max={maxMonth}
 							onchange={(e) => {
 								const [year, month] = e.target.value.split('-');
 								startYear = parseInt(year);
@@ -237,6 +343,7 @@
 						<input
 							type="month"
 							value="{endYear}-{String(endMonth).padStart(2, '0')}"
+							max={maxMonth}
 							onchange={(e) => {
 								const [year, month] = e.target.value.split('-');
 								endYear = parseInt(year);
@@ -284,7 +391,7 @@
 					<div class="summary-value text-gray-800">{formatAmount(grandTotal.amount)}원</div>
 				</div>
 				<div class="summary-card-mobile">
-					<div class="summary-label-mobile">원천징수</div>
+					<div class="summary-label-mobile">세지원</div>
 					<div class="summary-value text-red-600">{formatAmount(grandTotal.tax)}원</div>
 				</div>
 				<div class="summary-card-mobile">
@@ -338,6 +445,41 @@
 
 		<!-- 설정 -->
 		<div class="settings-row-mobile">
+			<!-- ⭐ 설계사: 소계 표시 옵션 / 관리자: 이름순 체크박스 -->
+			{#if showSubtotalOptions}
+				<div class="flex items-center gap-2 text-xs">
+					<label class="flex items-center gap-1 cursor-pointer">
+						<input
+							type="checkbox"
+							bind:checked={showSubtotals}
+							onchange={handleSubtotalModeChange}
+							disabled={subtotalsOnly}
+							class="cursor-pointer"
+						/>
+						<span class="text-gray-600" class:text-gray-400={subtotalsOnly}>소계포함</span>
+					</label>
+					<label class="flex items-center gap-1 cursor-pointer">
+						<input
+							type="checkbox"
+							bind:checked={subtotalsOnly}
+							onchange={handleSubtotalModeChange}
+							class="cursor-pointer"
+						/>
+						<span class="text-gray-600">소계만</span>
+					</label>
+				</div>
+			{:else}
+				<label class="flex items-center gap-1 cursor-pointer">
+					<input
+						type="checkbox"
+						bind:checked={sortByName}
+						onchange={handleSortChange}
+						class="cursor-pointer"
+					/>
+					<span class="text-xs text-gray-600">이름순</span>
+				</label>
+			{/if}
+
 			<label class="flex items-center gap-1">
 				<span class="text-gray-600">페이지:</span>
 				<select
@@ -475,7 +617,7 @@
 					<div class="summary-value-desktop text-gray-800">{formatAmount(grandTotal.amount)}원</div>
 				</div>
 				<div class="summary-card-desktop">
-					<div class="summary-label-desktop">총 원천징수</div>
+					<div class="summary-label-desktop">총 세지원</div>
 					<div class="summary-value-desktop text-red-600">{formatAmount(grandTotal.tax)}원</div>
 				</div>
 				<div class="summary-card-desktop">
@@ -536,6 +678,43 @@
 
 		<!-- 우측 버튼 그룹 -->
 		<div class="flex items-center gap-2">
+			<!-- ⭐ 설계사: 소계 표시 옵션 / 관리자: 이름순 체크박스 -->
+			{#if showSubtotalOptions}
+				<div class="flex items-center gap-2">
+					<label class="label-desktop cursor-pointer" class:text-gray-400={subtotalsOnly}>
+						<input
+							type="checkbox"
+							bind:checked={showSubtotals}
+							onchange={handleSubtotalModeChange}
+							disabled={subtotalsOnly}
+							class="mr-1 cursor-pointer"
+						/>
+						소계포함
+					</label>
+					<label class="label-desktop cursor-pointer">
+						<input
+							type="checkbox"
+							bind:checked={subtotalsOnly}
+							onchange={handleSubtotalModeChange}
+							class="mr-1 cursor-pointer"
+						/>
+						소계만
+					</label>
+				</div>
+			{:else}
+				<label class="label-desktop cursor-pointer">
+					<input
+						type="checkbox"
+						bind:checked={sortByName}
+						onchange={handleSortChange}
+						class="mr-1 cursor-pointer"
+					/>
+					이름순
+				</label>
+			{/if}
+
+			<div class="divider-vertical"></div>
+
 			<!-- 페이지당 항목 수 -->
 		<label class="label-desktop">
 			페이지당
@@ -589,6 +768,27 @@
 	onApply={handleApplyColumnSettings}
 	{showPlannerOption}
 />
+
+<!-- 기간 제한 알림 모달 -->
+<WindowsModal
+	isOpen={showPeriodLimitAlert}
+	title="알림"
+	size="xs"
+	onClose={() => showPeriodLimitAlert = false}
+	showFooter={true}
+>
+	<div class="text-center py-2">
+		<p class="text-sm text-gray-700">다음 달까지만 조회할 수 있어요.</p>
+	</div>
+	<svelte:fragment slot="footer">
+		<button
+			onclick={() => showPeriodLimitAlert = false}
+			class="px-4 py-1.5 bg-blue-500 text-white text-sm rounded hover:bg-blue-600 transition-colors"
+		>
+			확인
+		</button>
+	</svelte:fragment>
+</WindowsModal>
 
 <style>
 	@reference "$lib/../app.css";

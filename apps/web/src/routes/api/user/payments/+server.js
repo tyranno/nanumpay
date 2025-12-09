@@ -31,7 +31,7 @@ export async function GET({ locals, url }) {
 
 	// ⭐ v8.0: 같은 계정의 모든 User 조회
 	const allUsers = await User.find({ userAccountId: primaryUser.userAccountId })
-		.select('_id name grade registrationNumber createdAt')
+		.select('_id name grade registrationNumber createdAt insuranceActive')
 		.sort({ registrationNumber: 1 })
 		.lean();
 
@@ -42,15 +42,22 @@ export async function GET({ locals, url }) {
 	// ⭐ 중요: terminated, canceled 상태 제외!
 	const paymentPlans = await WeeklyPaymentPlans.find({
 		userId: { $in: allUserIds },
-		planStatus: { $nin: ['terminated', 'canceled'] } // ⭐ 승급으로 종료되거나 취소된 계획 제외
+		planStatus: { $ne: 'terminated' }  // ⭐ v8.0: canceled 제거, 승급으로 종료된 계획만 제외
 	})
 		.sort({ createdAt: -1 })
 		.lean();
 
 	// 이번주 금요일 계산 (지급일)
+	// ⭐ 토요일만 "금요일 지급 완료"로 처리 (일요일은 새 주의 시작)
 	const now = new Date();
+	const dayOfWeek = now.getDay(); // 0(일) ~ 6(토)
+	const isFridayPassed = dayOfWeek === 6; // 토요일(6)만 금요일 지남 처리
+
+	// ⭐ 토요일이면 다음 주 금요일, 그 외는 이번 주 금요일
+	const weekOffset = isFridayPassed ? 7 : 0;
+
 	const thisWeekStart = new Date(now);
-	thisWeekStart.setDate(now.getDate() - now.getDay()); // 이번 주 일요일
+	thisWeekStart.setDate(now.getDate() - dayOfWeek + weekOffset); // 이번 주 일요일 (또는 다음 주)
 	thisWeekStart.setHours(0, 0, 0, 0);
 
 	const thisWeekEnd = new Date(thisWeekStart);
@@ -60,6 +67,14 @@ export async function GET({ locals, url }) {
 	// 이번 주 금요일 날짜 (용역자가 받을 날짜)
 	const thisWeekFriday = new Date(thisWeekStart);
 	thisWeekFriday.setDate(thisWeekStart.getDate() + 5); // 금요일
+
+	// 로컬 시간 기준 날짜 포맷 (YYYY-MM-DD)
+	const formatLocalDate = (date) => {
+		const year = date.getFullYear();
+		const month = String(date.getMonth() + 1).padStart(2, '0');
+		const day = String(date.getDate()).padStart(2, '0');
+		return `${year}-${month}-${day}`;
+	};
 
 	// ⭐ v8.0: 사용자별로 개별 행 생성 (합산하지 않음)
 	let paymentRows = [];
@@ -109,8 +124,8 @@ export async function GET({ locals, url }) {
 		if (!user) continue; // 사용자 정보 없으면 스킵
 
 		for (const installment of plan.installments) {
-			// ⭐ v8.0: canceled 상태는 제외 (승급으로 중단된 추가지급분)
-			if (installment.status === 'canceled') continue;
+			// ⭐ v8.0: terminated/skipped 상태만 확인 (canceled 제거)
+			if (['terminated', 'skipped'].includes(installment.status)) continue;
 
 			const weekNumber = installment.weekNumber; // "2025-W48"
 
@@ -225,11 +240,12 @@ export async function GET({ locals, url }) {
 			name: reg.name,
 			grade: reg.grade,
 			registrationNumber: reg.registrationNumber,
-			createdAt: reg.createdAt // ⭐ 등록일 추가
+			createdAt: reg.createdAt, // ⭐ 등록일 추가
+			insuranceActive: reg.insuranceActive || false // ⭐ 보험 유지 여부
 		})),
 		summary: {
 			thisWeek: {
-				date: thisWeekFriday.toISOString().split('T')[0], // ⭐ 이번 주 금요일 날짜
+				date: formatLocalDate(thisWeekFriday), // ⭐ 이번 주 금요일 날짜 (로컬 시간 기준)
 				amount: thisWeekAmount,
 				tax: thisWeekTax,
 				net: thisWeekNet

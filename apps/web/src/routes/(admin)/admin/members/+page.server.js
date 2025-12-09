@@ -9,18 +9,16 @@ export async function load({ locals }) {
 	// 개발 환경 확인
 	const isDevelopment = process.env.NODE_ENV !== 'production';
 
-	// 개발 환경일 때만 월별 등록 데이터 조회
+	// 월별 등록 데이터 조회 (항상)
 	let monthlyRegistrations = [];
-	if (isDevelopment) {
-		try {
-			await db();
-			monthlyRegistrations = await MonthlyRegistrations.find({})
-				.sort({ monthKey: -1 })
-				.limit(12)
-				.lean();
-		} catch (error) {
-			console.error('Failed to fetch monthly registrations:', error);
-		}
+	try {
+		await db();
+		monthlyRegistrations = await MonthlyRegistrations.find({})
+			.sort({ monthKey: -1 })
+			.limit(24)
+			.lean();
+	} catch (error) {
+		console.error('Failed to fetch monthly registrations:', error);
 	}
 
 	return {

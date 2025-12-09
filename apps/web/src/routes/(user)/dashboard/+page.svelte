@@ -2,6 +2,34 @@
 	import { onMount } from 'svelte';
 	import GradeBadge from '$lib/components/GradeBadge.svelte';
 	import UserProfileModal from '$lib/components/user/UserProfileModal.svelte';
+	import WindowsModal from '$lib/components/WindowsModal.svelte';
+	import { GRADE_LIMITS } from '$lib/utils/constants.js';
+
+	// 기간 제한 알림 모달 상태
+	let showPeriodLimitAlert = $state(false);
+
+	// ⭐ 보험 미유지 알림 상태
+	let showInsuranceAlert = $state(false);
+	let accountsNeedingInsurance = $state([]);
+
+	// ⭐ 보험 조건 정보 모달 상태
+	let showInsuranceInfoModal = $state(false);
+	let selectedInsuranceInfo = $state(null);
+
+	// ⭐ 보험 아이콘 클릭 핸들러
+	function handleInsuranceIconClick(event, reg) {
+		event.preventDefault();
+		event.stopPropagation();
+		const gradeLimit = GRADE_LIMITS[reg.grade];
+		selectedInsuranceInfo = {
+			name: reg.name,
+			grade: reg.grade,
+			insuranceActive: reg.insuranceActive,
+			insuranceRequired: gradeLimit?.insuranceRequired || false,
+			insuranceAmount: gradeLimit?.insuranceAmount || 0
+		};
+		showInsuranceInfoModal = true;
+	}
 
 	let userInfo = $state(null);
 	let allRegistrations = $state([]); // ⭐ v8.0: 모든 등록 정보
@@ -16,6 +44,13 @@
 	const currentMonth = (() => {
 		const now = new Date();
 		return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+	})();
+
+	// ⭐ 최대 선택 가능 월 (현재월 + 1개월)
+	const maxMonth = (() => {
+		const now = new Date();
+		const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+		return `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}`;
 	})();
 
 	// 필터 상태
@@ -65,11 +100,50 @@
 					window.dispatchEvent(event);
 				}, 100);
 			}
+
+			// ⭐ 보험 미유지 계좌 확인
+			const needInsurance = allRegistrations.filter(reg => {
+				const gradeLimit = GRADE_LIMITS[reg.grade];
+				const isRequired = gradeLimit?.insuranceRequired || false;
+				return isRequired && !reg.insuranceActive;
+			});
+
+			if (needInsurance.length > 0) {
+				accountsNeedingInsurance = needInsurance;
+				showInsuranceAlert = true;
+			}
 		} catch (err) {
 			console.error('❌ Error loading payments:', err);
 			error = err.message;
 		} finally {
 			isLoading = false;
+		}
+	});
+
+	// ⭐ 기간 제한 검증 (현재월 + 1개월 초과 시 경고)
+	$effect(() => {
+		const now = new Date();
+		const maxYear = now.getMonth() === 11 ? now.getFullYear() + 1 : now.getFullYear();
+		const maxMonthNum = now.getMonth() === 11 ? 1 : now.getMonth() + 2;
+		const maxMonthStr = `${maxYear}-${String(maxMonthNum).padStart(2, '0')}`;
+
+		let wasAdjusted = false;
+
+		// 시작 기간 제한
+		if (filters.startMonth > maxMonthStr) {
+			filters.startMonth = maxMonthStr;
+			wasAdjusted = true;
+		}
+
+		// 종료 기간 제한
+		if (filters.endMonth > maxMonthStr) {
+			filters.endMonth = maxMonthStr;
+			wasAdjusted = true;
+		}
+
+		// ⭐ 제한 초과 시 알림 모달 표시
+		if (wasAdjusted) {
+			showPeriodLimitAlert = true;
 		}
 	});
 
@@ -301,6 +375,7 @@
 						<div class="max-h-[72px] overflow-y-auto">
 							{#each allRegistrations as reg, index}
 								{#if userInfo?.canViewSubordinates}
+									{@const gradeLimit = GRADE_LIMITS[reg.grade]}
 									<!-- ⭐ 권한 있음: 전체 리스트 항목 클릭 시 산하정보 이동 -->
 									<a
 										href="/dashboard/network?userId={reg.id}"
@@ -308,13 +383,44 @@
 										title="{reg.grade} 등급 - 산하정보 보기"
 									>
 										<span class="text-xs">{reg.name} ({formatDate(reg.createdAt)})</span>
-										<img src="/icons/{reg.grade}.svg" alt={reg.grade} class="h-5 w-5" />
+										<div class="flex items-center gap-1">
+											{#if gradeLimit?.insuranceRequired}
+												<button
+													onclick={(e) => handleInsuranceIconClick(e, reg)}
+													class="flex-shrink-0 hover:scale-110 transition-transform"
+													title="보험 조건 확인"
+												>
+													{#if reg.insuranceActive}
+														<span class="inline-flex items-center justify-center w-4 h-4 rounded text-[10px] font-bold bg-green-100 text-green-700 border border-green-300" title="보험 유지됨">유</span>
+													{:else}
+														<span class="inline-flex items-center justify-center w-4 h-4 rounded text-[10px] font-bold bg-red-100 text-red-600 border border-red-300" title="보험 미유지">✕</span>
+													{/if}
+												</button>
+											{/if}
+											<img src="/icons/{reg.grade}.svg" alt={reg.grade} class="h-5 w-5" />
+										</div>
 									</a>
 								{:else}
+									{@const gradeLimitNoAuth = GRADE_LIMITS[reg.grade]}
 									<!-- ⭐ 권한 없음: 클릭 불가능한 일반 목록 -->
 									<div class="flex items-center justify-between border-b border-indigo-200 py-1 text-indigo-600 last:border-b-0">
 										<span class="text-xs">{reg.name} ({formatDate(reg.createdAt)})</span>
+									<div class="flex items-center gap-1">
+										{#if gradeLimitNoAuth?.insuranceRequired}
+											<button
+												onclick={(e) => handleInsuranceIconClick(e, reg)}
+												class="flex-shrink-0 hover:scale-110 transition-transform"
+												title="보험 조건 확인"
+											>
+												{#if reg.insuranceActive}
+														<span class="inline-flex items-center justify-center w-4 h-4 rounded text-[10px] font-bold bg-green-100 text-green-700 border border-green-300" title="보험 유지됨">유</span>
+													{:else}
+														<span class="inline-flex items-center justify-center w-4 h-4 rounded text-[10px] font-bold bg-red-100 text-red-600 border border-red-300" title="보험 미유지">✕</span>
+													{/if}
+											</button>
+										{/if}
 										<img src="/icons/{reg.grade}.svg" alt={reg.grade} class="h-5 w-5" />
+									</div>
 									</div>
 								{/if}
 							{/each}
@@ -352,12 +458,7 @@
 							<td class="py-1.5 text-right text-xs text-emerald-700">{formatAmount(paymentSummary?.totalPaid?.amount)}</td>
 							<td class="py-1.5 text-right text-xs font-semibold text-green-600">{formatAmount(paymentSummary?.totalPaid?.net)}</td>
 						</tr>
-						<tr>
-							<td class="py-1.5 text-xs font-semibold text-emerald-700">📅 남은 예정액</td>
-							<td class="py-1.5 text-right text-xs text-emerald-700">{formatAmount(paymentSummary?.upcoming?.amount)}</td>
-							<td class="py-1.5 text-right text-xs font-semibold text-purple-600">{formatAmount(paymentSummary?.upcoming?.net)}</td>
-						</tr>
-					</tbody>
+						</tbody>
 				</table>
 			</div>
 
@@ -380,6 +481,7 @@
 						<input
 							type="month"
 							bind:value={filters.startMonth}
+							max={maxMonth}
 							class="w-full rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
 						/>
 					</div>
@@ -390,6 +492,7 @@
 						<input
 							type="month"
 							bind:value={filters.endMonth}
+							max={maxMonth}
 							class="w-full rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
 						/>
 					</div>
@@ -463,14 +566,15 @@
 							</tr>
 						{:else}
 							{#each displayedPayments as weekGroup}
+								{@const isPast = new Date(weekGroup.weekDate) < new Date(new Date().setHours(0, 0, 0, 0))}
+								{@const subtotalBreakdown = calculateBreakdown(weekGroup.totalAmount)}
 								{#each weekGroup.users as user, index}
 									{@const breakdown = calculateBreakdown(user.amount)}
-									{@const isPast = new Date(weekGroup.weekDate) < new Date(new Date().setHours(0, 0, 0, 0))}
 
 									<tr class="{isPast ? 'bg-gray-100 hover:bg-gray-200' : 'hover:bg-gray-50'}">
 										{#if index === 0}
-											<!-- 첫 번째 행만 지급일 표시 (rowspan) -->
-											<td class="table-cell" rowspan={weekGroup.users.length}>
+											<!-- 첫 번째 행만 지급일 표시 (rowspan) - 소계 행 포함 -->
+											<td class="table-cell" rowspan={weekGroup.users.length + (weekGroup.users.length >= 2 ? 1 : 0)}>
 												{formatDate(weekGroup.weekDate)}
 												{#if isPast}
 													<span class="ml-1 text-xs font-semibold text-green-600">(완)</span>
@@ -501,6 +605,18 @@
 										<td class="table-cell text-right font-medium">{formatAmount(user.netAmount)}</td>
 									</tr>
 								{/each}
+								<!-- ⭐ 일자별 소계 행 (2개 이상일 때만 표시) -->
+								{#if weekGroup.users.length >= 2}
+									<tr class="bg-purple-100 font-semibold">
+										<td class="table-cell text-center text-purple-800" colspan="2">소계</td>
+										<td class="table-cell text-right text-purple-800">{subtotalBreakdown.영업.toLocaleString()}원</td>
+										<td class="table-cell text-right text-purple-800">{subtotalBreakdown.홍보.toLocaleString()}원</td>
+										<td class="table-cell text-right text-purple-800">{subtotalBreakdown.판촉.toLocaleString()}원</td>
+										<td class="table-cell text-right text-purple-900">{formatAmount(weekGroup.totalAmount)}</td>
+										<td class="table-cell text-right text-purple-800">{formatAmount(weekGroup.totalTax)}</td>
+										<td class="table-cell text-right text-purple-900">{formatAmount(weekGroup.totalNet)}</td>
+									</tr>
+								{/if}
 							{/each}
 						{/if}
 					</tbody>
@@ -552,6 +668,118 @@
 	isOpen={isProfileModalOpen}
 	onClose={() => (isProfileModalOpen = false)}
 />
+
+<!-- 기간 제한 알림 모달 -->
+<WindowsModal
+	isOpen={showPeriodLimitAlert}
+	title="알림"
+	size="xs"
+	onClose={() => showPeriodLimitAlert = false}
+	showFooter={true}
+>
+	<div class="text-center py-2">
+		<p class="text-sm text-gray-700">다음 달까지만 조회할 수 있어요.</p>
+	</div>
+	<svelte:fragment slot="footer">
+		<button
+			onclick={() => showPeriodLimitAlert = false}
+			class="px-4 py-1.5 bg-blue-500 text-white text-sm rounded hover:bg-blue-600 transition-colors"
+		>
+			확인
+		</button>
+	</svelte:fragment>
+</WindowsModal>
+
+<!-- ⭐ 보험 미유지 알림 모달 -->
+<WindowsModal
+	isOpen={showInsuranceAlert}
+	title="⚠️ 보험 유지 필요"
+	size="sm"
+	onClose={() => showInsuranceAlert = false}
+	showFooter={true}
+>
+	<div class="py-2">
+		<div class="mb-3 text-sm text-gray-700">
+			<p class="font-semibold text-red-600 mb-2">아래 계좌에서 보험 유지가 필요합니다.</p>
+			<p class="text-xs text-gray-500 mb-3">보험 미유지 시 지급이 중단될 수 있습니다.</p>
+		</div>
+		<div class="space-y-2 max-h-40 overflow-y-auto">
+			{#each accountsNeedingInsurance as account}
+				{@const gradeLimit = GRADE_LIMITS[account.grade]}
+				<div class="flex items-center justify-between p-2 bg-red-50 border border-red-200 rounded">
+					<div class="flex items-center gap-2">
+						<img src="/icons/{account.grade}.svg" alt={account.grade} class="h-5 w-5" />
+						<span class="text-sm font-medium text-gray-900">{account.name}</span>
+					</div>
+					<div class="text-xs text-red-600">
+						보험 {gradeLimit?.insuranceAmount?.toLocaleString() || 0}원 이상 필요
+					</div>
+				</div>
+			{/each}
+		</div>
+	</div>
+	<svelte:fragment slot="footer">
+		<button
+			onclick={() => showInsuranceAlert = false}
+			class="px-4 py-1.5 bg-red-500 text-white text-sm rounded hover:bg-red-600 transition-colors"
+		>
+			확인
+		</button>
+	</svelte:fragment>
+</WindowsModal>
+
+<!-- ⭐ 보험 조건 정보 모달 -->
+<WindowsModal
+	isOpen={showInsuranceInfoModal}
+	title="보험 유지 조건"
+	size="sm"
+	onClose={() => showInsuranceInfoModal = false}
+	showFooter={true}
+>
+	{#if selectedInsuranceInfo}
+		<div class="py-2">
+			<div class="flex items-center gap-3 mb-4 p-3 bg-gray-50 rounded-lg">
+				<img src="/icons/{selectedInsuranceInfo.grade}.svg" alt={selectedInsuranceInfo.grade} class="h-8 w-8" />
+				<div>
+					<div class="font-semibold text-gray-900">{selectedInsuranceInfo.name}</div>
+					<div class="text-sm text-gray-500">{selectedInsuranceInfo.grade} 등급</div>
+				</div>
+			</div>
+			
+			<div class="space-y-3">
+				<div class="flex items-center justify-between p-3 border rounded-lg {selectedInsuranceInfo.insuranceActive ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}">
+					<span class="text-sm font-medium">보험 유지 상태</span>
+					<span class="text-sm font-bold {selectedInsuranceInfo.insuranceActive ? 'text-green-600' : 'text-red-600'}">
+						{selectedInsuranceInfo.insuranceActive ? '유지 중 ✓' : '미유지 ✗'}
+					</span>
+				</div>
+				
+				<div class="flex items-center justify-between p-3 border border-blue-200 bg-blue-50 rounded-lg">
+					<span class="text-sm font-medium">필요 보험료</span>
+					<span class="text-sm font-bold text-blue-600">
+						월 {selectedInsuranceInfo.insuranceAmount?.toLocaleString() || 0}원 이상
+					</span>
+				</div>
+				
+				{#if !selectedInsuranceInfo.insuranceActive}
+					<div class="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+						<p class="text-xs text-yellow-800">
+							⚠️ 보험 미유지 시 지급이 중단될 수 있습니다. 담당 설계사에게 문의하세요.
+						</p>
+					</div>
+				{/if}
+			</div>
+		</div>
+	{/if}
+	<svelte:fragment slot="footer">
+		<button
+			onclick={() => showInsuranceInfoModal = false}
+			class="px-4 py-1.5 bg-blue-500 text-white text-sm rounded hover:bg-blue-600 transition-colors"
+		>
+			확인
+		</button>
+	</svelte:fragment>
+</WindowsModal>
 
 <style>
 	@reference "$lib/../app.css";

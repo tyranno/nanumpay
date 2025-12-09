@@ -313,31 +313,33 @@ function calculateGradePayments(revenuePerPayment, gradeRatios, eligibleGradeCou
 async function calculateEligibleUsers(year, month) {
 	// 지급 제한 조건에 따라 지급 대상 인원 계산
 	// 1. F1, F2: 연속 4주 이상 같은 등급 유지 시 제외
-	// 2. F3 이상: 보험 미유지 시 제외
-	
+	// 2. F4 이상: 보험 미유지 시 제외 (⭐ v8.0: F3 보험 불필요)
+
 	const users = await User.find({ type: 'user' }).lean();
-	
+
 	const eligibleByGrade = await User.aggregate([
 		{
 			$match: {
 				type: 'user',
 				$or: [
 					// F1, F2: 연속 4주 미만 유지
-					{ 
+					{
 						grade: { $in: ['F1', 'F2'] },
 						$or: [
 							{ consecutiveGradeWeeks: { $lt: 4 } },
 							{ consecutiveGradeWeeks: { $exists: false } }
 						]
 					},
-					// F3 이상: 보험 유지 조건 충족
+					// F3: 보험 불필요 (⭐ v8.0 변경)
+					{ grade: 'F3' },
+					// F4 이상: 보험 유지 조건 충족 (⭐ v8.0 금액 변경)
 					{
-						grade: { $in: ['F3', 'F4', 'F5', 'F6', 'F7', 'F8'] },
+						grade: { $in: ['F4', 'F5', 'F6', 'F7', 'F8'] },
 						insuranceActive: true,
 						$or: [
-							{ grade: { $in: ['F3', 'F4'] }, insuranceAmount: { $gte: 50000 } },
-							{ grade: { $in: ['F5', 'F6'] }, insuranceAmount: { $gte: 70000 } },
-							{ grade: { $in: ['F7', 'F8'] }, insuranceAmount: { $gte: 100000 } }
+							{ grade: { $in: ['F4', 'F5'] }, insuranceAmount: { $gte: 70000 } },
+							{ grade: { $in: ['F6', 'F7'] }, insuranceAmount: { $gte: 90000 } },
+							{ grade: 'F8', insuranceAmount: { $gte: 110000 } }
 						]
 					}
 				]

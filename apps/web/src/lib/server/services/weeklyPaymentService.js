@@ -4,9 +4,9 @@
  */
 
 import WeeklyPaymentPlans from '../models/WeeklyPaymentPlans.js';
-import WeeklyPaymentSummary from '../models/WeeklyPaymentSummary.js';
 import MonthlyRegistrations from '../models/MonthlyRegistrations.js';
 import User from '../models/User.js';
+import { GRADE_LIMITS } from '../utils/constants.js';
 
 /**
  * 매주 금요일 지급 처리 메인 함수
@@ -42,21 +42,8 @@ export async function processWeeklyPayments(date = new Date()) {
 
     console.log(`처리 대상 계획: ${pendingPlans.length}개`);
 
-    // 2. 주차별 총계 문서 준비
+    // 2. 주차 번호 계산
     const weekNumber = WeeklyPaymentPlans.getISOWeek(paymentDate);
-    let summary = await WeeklyPaymentSummary.findOne({ weekNumber });
-
-    if (!summary) {
-      summary = await WeeklyPaymentSummary.create({
-        weekDate: paymentDate,
-        weekNumber,
-        monthKey: WeeklyPaymentSummary.generateMonthKey(paymentDate),
-        status: 'processing'
-      });
-    } else {
-      summary.status = 'processing';
-      await summary.save();
-    }
 
     // 3. 각 계획별 지급 처리
     const processedPayments = [];
@@ -72,25 +59,16 @@ export async function processWeeklyPayments(date = new Date()) {
         continue;
       }
 
-      // insuranceSkipped 플래그 확인 (보험 해지로 인한 건너뜀)
-      if (installment.insuranceSkipped) {
-        installment.status = 'skipped';
-        installment.skipReason = 'insurance_not_maintained';
-        plan.completedInstallments += 1;  // 회차는 증가하지만 지급 안함
-        await plan.save();
-        console.log(`${user.name} 지급 건너뜀 (보험 미유지): 회차 ${plan.completedInstallments}`);
-        continue;
-      }
-
-      // 보험 조건 확인
+      // 보험 조건 확인 (F4-F8만 해당, F3 이하는 보험 불필요)
       const skipPayment = await checkInsuranceCondition(user, plan.baseGrade);
       if (skipPayment) {
+        // ⭐ v8.0: F4-F8 보험 미가입 시 skip + 횟수 증가 (지급한 것으로 인정)
+        // 나중에 보험 가입하면 이후 회차부터 정상 지급
         installment.status = 'skipped';
         installment.skipReason = skipPayment.reason;
-        installment.insuranceSkipped = true;  // 플래그 설정
-        plan.completedInstallments += 1;  // 회차는 증가
+        plan.completedInstallments += 1;  // 회차는 증가 (지급한 것으로 인정)
         await plan.save();
-        console.log(`${user.name} 지급 건너뜀: ${skipPayment.reason}`);
+        console.log(`⚠️ ${user.name}(${plan.baseGrade}) 지급 건너뜀 (보험 부족): 회차 ${plan.completedInstallments}/${plan.totalInstallments}`);
         continue;
       }
 
@@ -117,8 +95,8 @@ export async function processWeeklyPayments(date = new Date()) {
       installment.installmentAmount = paymentAmounts.installmentAmount;
       installment.withholdingTax = paymentAmounts.withholdingTax;
       installment.netAmount = paymentAmounts.netAmount;
-      installment.status = 'paid';
-      installment.paidAt = new Date();
+      // ⭐ v8.0: status는 pending 유지 (과거 날짜 = 지급 완료로 간주)
+      // installment.paidAt는 scheduledDate로 대체
 
       plan.completedInstallments += 1;
 
@@ -128,16 +106,6 @@ export async function processWeeklyPayments(date = new Date()) {
       }
 
       await plan.save();
-
-      // 통계 업데이트 (userId 전달하여 유니크 카운트)
-      summary.incrementPayment(
-        plan.baseGrade,
-        plan.planType,
-        paymentAmounts.installmentAmount,
-        paymentAmounts.withholdingTax,
-        paymentAmounts.netAmount,
-        plan.userId  // ⭐ userId 추가
-      );
 
       processedPayments.push({
         userId: user._id.toString(),
@@ -149,16 +117,12 @@ export async function processWeeklyPayments(date = new Date()) {
       });
     }
 
-    // 4. 사용자 카운트는 증분 업데이트된 상태 (incrementPayment에서 처리)
-    // 필요시에만 재계산 (불일치 검증용)
-    // await summary.recalculateUserCount();
+    // 4. 총액 계산
+    const totalAmount = processedPayments.reduce((sum, p) => sum + p.amount, 0);
+    const totalTax = processedPayments.reduce((sum, p) => sum + p.tax, 0);
+    const totalNet = processedPayments.reduce((sum, p) => sum + p.net, 0);
 
-    // 5. 총계 문서 저장
-    summary.status = 'completed';
-    summary.processedAt = new Date();
-    await summary.save();
-
-    // 6. 처리 완료
+    // 5. 처리 완료
     console.log(`=== 지급 처리 완료: ${processedPayments.length}건 ===`);
 
     return {
@@ -166,9 +130,9 @@ export async function processWeeklyPayments(date = new Date()) {
       date: paymentDate,
       weekNumber,
       processedCount: processedPayments.length,
-      totalAmount: summary.totalAmount,
-      totalTax: summary.totalTax,
-      totalNet: summary.totalNet,
+      totalAmount,
+      totalTax,
+      totalNet,
       payments: processedPayments
     };
 
@@ -180,27 +144,33 @@ export async function processWeeklyPayments(date = new Date()) {
 
 /**
  * 보험 조건 확인
+ * ⭐ v8.0 변경:
+ * - F1-F3: 보험 불필요
+ * - F4-F8: 보험 필수 (등급별 금액 다름)
+ *   - F4: 7만원, F5: 7만원, F6: 9만원, F7: 9만원, F8: 11만원
+ * - 보험 미가입 시: skip + 횟수 증가 (지급한 것으로 인정)
+ * - 나중에 보험 가입하면 이후 회차부터 정상 지급
+ * 
+ * @returns {null} 보험 조건 충족 또는 보험 불필요
+ * @returns {{skip: true, reason: string}} 보험 부족으로 skip 필요
  */
 async function checkInsuranceCondition(user, grade) {
-  // F3 미만은 보험 조건 없음
-  if (['F1', 'F2'].includes(grade)) {
+  // GRADE_LIMITS에서 보험 조건 확인
+  const gradeLimit = GRADE_LIMITS[grade];
+  
+  // 보험 필수가 아니면 패스
+  if (!gradeLimit?.insuranceRequired) {
     return null;
   }
 
-  // 보험 필수 금액
-  const requiredAmounts = {
-    F3: 50000, F4: 50000,
-    F5: 70000, F6: 70000,
-    F7: 100000, F8: 100000
-  };
-
   // User에서 보험 금액 조회
   const insuranceAmount = user.insuranceAmount || 0;
+  const requiredAmount = gradeLimit.insuranceAmount || 0;
 
-  if (insuranceAmount < requiredAmounts[grade]) {
+  if (insuranceAmount < requiredAmount) {
     return {
       skip: true,
-      reason: `insufficient_insurance_amount: ${insuranceAmount} < ${requiredAmounts[grade]}`
+      reason: `insufficient_insurance_amount: ${insuranceAmount} < ${requiredAmount}`
     };
   }
 
@@ -237,14 +207,14 @@ async function calculatePaymentAmount(grade, revenueMonth) {
     // 10분할 및 100원 단위 절삭
     const installmentAmount = Math.floor(baseAmount / 10 / 100) * 100;
 
-    // 원천징수 계산 (3.3%)
+    // 세지원 계산 (3.3%)
     const withholdingTax = Math.round(installmentAmount * 0.033);
     const netAmount = installmentAmount - withholdingTax;
 
     return {
       baseAmount,         // 등급별 총 지급액 (절삭 전)
       installmentAmount,  // 회차당 지급액 (100원 단위 절삭)
-      withholdingTax,     // 원천징수액
+      withholdingTax,     // 세지원액
       netAmount           // 실지급액
     };
   } catch (error) {
@@ -306,6 +276,7 @@ async function getConfirmedGradeForPayment(userId, revenueMonth) {
 
 /**
  * 특정 날짜의 지급 내역 조회
+ * ⭐ v8.0: WeeklyPaymentSummary 대신 WeeklyPaymentPlans에서 직접 집계
  */
 export async function getWeeklyPaymentReport(date) {
   try {
@@ -314,34 +285,59 @@ export async function getWeeklyPaymentReport(date) {
 
     const weekNumber = WeeklyPaymentPlans.getISOWeek(paymentDate);
 
-    // 주차별 총계
-    const summary = await WeeklyPaymentSummary.findOne({ weekNumber });
+    // 개별 지급 내역 조회
+    const plans = await WeeklyPaymentPlans.find({
+      'installments': {
+        $elemMatch: {
+          weekNumber: weekNumber,
+          status: { $nin: ['skipped', 'terminated'] }  // ⭐ v8.0: paid 제거
+        }
+      },
+      planStatus: { $ne: 'terminated' }
+    });
 
-    if (!summary) {
+    if (plans.length === 0) {
       return {
         success: false,
         message: '해당 주차의 지급 내역이 없습니다.'
       };
     }
 
-    // 개별 지급 내역
-    const plans = await WeeklyPaymentPlans.find({
-      'installments': {
-        $elemMatch: {
-          weekNumber: weekNumber,
-          status: 'paid'
-        }
-      }
-    });
+    // 등급별 집계 초기화
+    const byGrade = {
+      F1: { amount: 0, tax: 0, net: 0, userCount: 0, paymentCount: 0 },
+      F2: { amount: 0, tax: 0, net: 0, userCount: 0, paymentCount: 0 },
+      F3: { amount: 0, tax: 0, net: 0, userCount: 0, paymentCount: 0 },
+      F4: { amount: 0, tax: 0, net: 0, userCount: 0, paymentCount: 0 },
+      F5: { amount: 0, tax: 0, net: 0, userCount: 0, paymentCount: 0 },
+      F6: { amount: 0, tax: 0, net: 0, userCount: 0, paymentCount: 0 },
+      F7: { amount: 0, tax: 0, net: 0, userCount: 0, paymentCount: 0 },
+      F8: { amount: 0, tax: 0, net: 0, userCount: 0, paymentCount: 0 }
+    };
+    const userIdsByGrade = {};
+    for (const grade of Object.keys(byGrade)) {
+      userIdsByGrade[grade] = new Set();
+    }
 
     const payments = [];
     for (const plan of plans) {
       const installment = plan.installments.find(
-        i => i.weekNumber === weekNumber && i.status === 'paid'
+        i => i.weekNumber === weekNumber && !['skipped', 'terminated'].includes(i.status)  // ⭐ v8.0
       );
 
       if (installment) {
         const user = await User.findById(plan.userId);
+        const grade = plan.baseGrade;
+        
+        // 등급별 집계
+        if (byGrade[grade]) {
+          byGrade[grade].amount += installment.installmentAmount || 0;
+          byGrade[grade].tax += installment.withholdingTax || 0;
+          byGrade[grade].net += installment.netAmount || 0;
+          byGrade[grade].paymentCount += 1;
+          userIdsByGrade[grade].add(plan.userId);
+        }
+
         payments.push({
           userId: plan.userId,
           userName: plan.userName,
@@ -358,18 +354,28 @@ export async function getWeeklyPaymentReport(date) {
       }
     }
 
+    // 사용자 수 집계
+    for (const [grade, userIds] of Object.entries(userIdsByGrade)) {
+      byGrade[grade].userCount = userIds.size;
+    }
+
+    // 전체 총계 계산
+    const totalAmount = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+    const totalTax = payments.reduce((sum, p) => sum + (p.tax || 0), 0);
+    const totalNet = payments.reduce((sum, p) => sum + (p.net || 0), 0);
+    const totalUserCount = new Set(payments.map(p => p.userId)).size;
+
     return {
       success: true,
       date: paymentDate,
       weekNumber,
       summary: {
-        totalAmount: summary.totalAmount,
-        totalTax: summary.totalTax,
-        totalNet: summary.totalNet,
-        totalUserCount: summary.totalUserCount,
-        totalPaymentCount: summary.totalPaymentCount,
-        byGrade: summary.byGrade,
-        byPlanType: summary.byPlanType
+        totalAmount,
+        totalTax,
+        totalNet,
+        totalUserCount,
+        totalPaymentCount: payments.length,
+        byGrade
       },
       payments
     };

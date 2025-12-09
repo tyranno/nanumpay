@@ -91,15 +91,24 @@ const userSchema = new mongoose.Schema({
 		type: Number,
 		default: 0
 	},
-	lastGradeChangeDate: {
-		type: Date,
-		default: Date.now
-	},
+	// ⭐ v8.0 정리: lastGradeChangeDate 제거 → gradeHistory에서 virtual로 제공
+	// ⭐ v8.0: 등급 변동 히스토리 (등록일, 승급일 기록)
+	gradeHistory: [{
+		date: { type: Date, required: true },           // 변동일 (등록일 또는 승급일)
+		fromGrade: { type: String, default: null },     // 이전 등급 (등록 시 null)
+		toGrade: { type: String, required: true },      // 변동 후 등급
+		type: { 
+			type: String, 
+			enum: ['registration', 'promotion'],
+			required: true 
+		},
+		revenueMonth: { type: String, required: true }  // 매출월 (YYYY-MM)
+	}],
 	consecutiveGradeWeeks: {
 		type: Number,
 		default: 0
 	},
-	// 보험 관련 (F3+ 필수)
+	// 보험 관련 (F4+ 필수) - ⭐ v8.0 변경
 	insuranceActive: {
 		type: Boolean,
 		default: false
@@ -107,6 +116,19 @@ const userSchema = new mongoose.Schema({
 	insuranceAmount: {
 		type: Number,
 		default: 0
+	},
+	insuranceDate: {
+		type: Date,
+		default: null,
+		comment: '보험 가입일자 - 이 날짜 이후 지급계획부터 활성화'
+	},
+	// ⭐ v8.0: 비율 (엑셀에서 입력, 지급액 계산에 사용)
+	// 1 = 100%, 0.75 = 75%, 0.5 = 50%, 0.25 = 25%
+	ratio: {
+		type: Number,
+		default: 1,
+		min: 0,
+		max: 1
 	},
 	// 상태 관리
 	level: {
@@ -150,6 +172,14 @@ userSchema.virtual('hasLeftChild').get(function() {
 
 userSchema.virtual('hasRightChild').get(function() {
 	return !!this.rightChildId;
+});
+
+// ⭐ v8.0: lastGradeChangeDate virtual (gradeHistory에서 추출)
+userSchema.virtual('lastGradeChangeDate').get(function() {
+	if (!this.gradeHistory || this.gradeHistory.length === 0) {
+		return this.joinedAt || this.createdAt;
+	}
+	return this.gradeHistory[this.gradeHistory.length - 1].date;
 });
 
 // 트리 구조 헬퍼 메서드
@@ -222,22 +252,18 @@ userSchema.pre('findOneAndDelete', async function(next) {
 		}
 
 		// 2. ObjectId 기반 부모 참조도 제거 (이중 안전장치)
-		const updatedParents = await this.model.updateMany(
-			{
-				$or: [
-					{ leftChildId: docToDelete._id },
-					{ rightChildId: docToDelete._id }
-				]
-			},
-			{
-				$unset: {
-					leftChildId: '',
-					rightChildId: ''
-				}
-			}
+		// ⭐ leftChildId와 rightChildId를 개별적으로 제거 (다른 쪽 참조 보존)
+		const leftParentUpdate = await this.model.updateMany(
+			{ leftChildId: docToDelete._id },
+			{ $unset: { leftChildId: '' } }
 		);
-		if (updatedParents.modifiedCount > 0) {
-			console.log(`  ✅ ObjectId 기반 부모 참조 ${updatedParents.modifiedCount}건 제거`);
+		const rightParentUpdate = await this.model.updateMany(
+			{ rightChildId: docToDelete._id },
+			{ $unset: { rightChildId: '' } }
+		);
+		const totalUpdated = leftParentUpdate.modifiedCount + rightParentUpdate.modifiedCount;
+		if (totalUpdated > 0) {
+			console.log(`  ✅ ObjectId 기반 부모 참조 ${totalUpdated}건 제거`);
 		}
 
 		// 3. MonthlyRegistrations에서 제거

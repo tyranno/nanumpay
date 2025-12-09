@@ -157,6 +157,9 @@ export async function POST({ request, locals }) {
 			planStatus: { $in: ['active', 'completed'] }
 		});
 
+		console.log(`[grade-adjustment] 조회된 plans: ${plans.length}개, monthKey: ${monthKey}`);
+		console.log(`[grade-adjustment] filteredAdjustments:`, JSON.stringify(filteredAdjustments));
+
 		let updatedCount = 0;
 		const gradeStats = {}; // 등급별 통계
 		for (const plan of plans) {
@@ -189,6 +192,8 @@ export async function POST({ request, locals }) {
 
 			// 모든 installment 업데이트 (지급액, 원천징수, 실지급액)
 			// 배열을 완전히 새로 만들어서 재할당
+			console.log(`[grade-adjustment] ${plan.userName} (${grade}): ${perInstallment}원으로 업데이트 시도`);
+
 			plan.installments = plan.installments.map(installment => {
 				const withholdingTax = Math.floor(perInstallment * 0.033);
 				const netAmount = perInstallment - withholdingTax;
@@ -202,6 +207,7 @@ export async function POST({ request, locals }) {
 			});
 
 			await plan.save();
+			console.log(`[grade-adjustment] ${plan.userName} 저장 완료`);
 			updatedCount++;
 			gradeStats[grade].count++;
 		}

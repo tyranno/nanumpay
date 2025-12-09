@@ -12,13 +12,13 @@ export async function POST({ request, locals }) {
 
 		await db();
 
-		const { monthKey, adjustments } = await request.json();
+		const { monthKey, adjustments, forceUpdate = false } = await request.json();
 
 		if (!monthKey) {
 			return json({ error: '월 정보가 필요합니다.' }, { status: 400 });
 		}
 
-		console.log(`[등급별 지급액 조정] ${monthKey} 조정 시작:`, adjustments);
+		console.log(`[등급별 지급액 조정] ${monthKey} 조정 시작 (forceUpdate: ${forceUpdate}):`, adjustments);
 
 		// 1. MonthlyRegistrations 업데이트
 		const monthlyData = await MonthlyRegistrations.findOne({ monthKey });
@@ -68,11 +68,14 @@ export async function POST({ request, locals }) {
 		const gradePayments = calculateGradePayments(revenue, monthlyData.gradeDistribution);
 
 		for (const grade of grades) {
-			// 해당 등급의 모든 활성 지급 계획 찾기
+			// 해당 등급의 지급 계획 찾기 (forceUpdate 시 모든 상태 포함)
+			const planStatusFilter = forceUpdate
+				? { $in: ['active', 'pending', 'completed', 'terminated'] }
+				: { $in: ['active', 'pending'] };
 			const plans = await WeeklyPaymentPlans.find({
 				revenueMonth: monthKey,
 				baseGrade: grade,
-				planStatus: { $in: ['active', 'pending'] }
+				planStatus: planStatusFilter
 			});
 
 			if (plans.length === 0) {
@@ -108,8 +111,9 @@ export async function POST({ request, locals }) {
 				const netAmount = newInstallmentAmount - withholdingTax;
 
 				for (let i = 0; i < plan.installments.length; i++) {
-					// 이미 지급된 것은 건드리지 않음
-					if (plan.installments[i].status === 'pending') {
+					// forceUpdate가 아니면 pending만 업데이트, forceUpdate면 모두 업데이트
+					const shouldUpdate = forceUpdate || plan.installments[i].status === 'pending';
+					if (shouldUpdate) {
 						plan.installments[i].baseAmount = newBaseAmount;
 						plan.installments[i].installmentAmount = newInstallmentAmount;
 						plan.installments[i].withholdingTax = withholdingTax;

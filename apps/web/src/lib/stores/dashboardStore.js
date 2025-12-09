@@ -38,12 +38,39 @@ export const paymentPageFilterState = writable({
 	itemsPerPage: 20,
 	// 컬럼 표시 설정
 	showGradeInfoColumn: true, // 등급(회수) 컬럼 표시 ⭐ 신규
-	showTaxColumn: true, // 원천징수 컬럼 표시
+	showTaxColumn: true, // 세지원 컬럼 표시
 	showNetColumn: true, // 실지급액 컬럼 표시
 	showPlannerColumn: true, // 설계자 컬럼 표시 (관리자 전용)
 	showBankColumn: true, // 은행 컬럼 표시
 	showAccountColumn: true, // 계좌번호 컬럼 표시
 	// 검색 관련
 	searchQuery: '', // 검색어
-	searchCategory: 'name' // 'name' | 'planner'
+	searchCategory: 'name', // 'name' | 'planner'
+	// 정렬 관련
+	sortByName: true // true: 이름순, false: 등록일순
+});
+
+// 설계사 지급명부 필터 상태 (PaymentListCard 공유)
+export const plannerPaymentFilterState = writable({
+	filterType: 'date', // 'date' | 'period'
+	selectedDate: today.toISOString().split('T')[0],
+	selectedYear: today.getFullYear(),
+	selectedMonth: today.getMonth() + 1,
+	periodType: 'weekly', // 'weekly' | 'monthly'
+	startYear: today.getFullYear(),
+	startMonth: today.getMonth() + 1,
+	endYear: today.getFullYear(),
+	endMonth: today.getMonth() + 1,
+	itemsPerPage: 20,
+	// 컬럼 표시 설정
+	showGradeInfoColumn: true, // 등급(회수) 컬럼 표시
+	showTaxColumn: true, // 세지원 컬럼 표시
+	showNetColumn: true, // 실지급액 컬럼 표시
+	showBankColumn: true, // 은행 컬럼 표시
+	showAccountColumn: true, // 계좌번호 컬럼 표시
+	// 검색 관련
+	searchQuery: '', // 검색어
+	searchCategory: 'name', // 'name' | 'grade'
+	// ⭐ 소계 표시 모드 (설계사 전용)
+	subtotalDisplayMode: 'withSubtotals' // 'noSubtotals' (소계없이) | 'withSubtotals' (소계포함) | 'subtotalsOnly' (소계만)
 });

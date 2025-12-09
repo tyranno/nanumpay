@@ -17,6 +17,15 @@ import WeeklyPaymentPlans from '../../models/WeeklyPaymentPlans.js';
 import { calculateGradePayments } from '../../utils/paymentCalculator.js';
 import { GRADE_LIMITS } from '../../utils/constants.js';
 
+// ⭐ GRADE_LIMITS에서 최대 추가지급 횟수 자동 계산
+// (최대횟수 - 기본10회) / 10 = 추가지급 차수
+const MAX_ADDITIONAL_PAYMENTS = Object.fromEntries(
+	Object.entries(GRADE_LIMITS).map(([grade, limits]) => [
+		grade,
+		Math.floor((limits.maxInstallments - 10) / 10)
+	])
+);
+
 /**
  * Step 3 실행
  *
@@ -99,6 +108,17 @@ export async function executeStep3(promoted, monthlyReg, registrationMonth) {
 	const revenue = monthlyReg.getEffectiveRevenue();
 	const gradePayments = calculateGradePayments(revenue, gradeDistribution);
 
+	// ⭐ v8.0: adjustedGradePayments가 있으면 조정값 우선 사용
+	if (monthlyReg.adjustedGradePayments) {
+		for (const [grade, adjustment] of Object.entries(monthlyReg.adjustedGradePayments)) {
+			if (adjustment && adjustment.totalAmount !== null && adjustment.totalAmount !== undefined) {
+				// 조정값이 설정된 등급은 조정값 사용 (0 포함)
+				gradePayments[grade] = adjustment.totalAmount;
+				console.log(`  [Step3] ${grade} 조정값 적용: ${adjustment.totalAmount.toLocaleString()}원`);
+			}
+		}
+	}
+
 	// MonthlyRegistrations에 저장
 	monthlyReg.paymentTargets.registrants = registrantF1Targets.map((t) => ({
 		userId: t.userId,
@@ -174,11 +194,8 @@ export async function executeStep3(promoted, monthlyReg, registrationMonth) {
  *
  * ⭐ 핵심 로직:
  * 1. 등급별로 확인해야 할 이전 달 개수 계산
- *    - F1: 1개월 (기본 10 + 추가 10 = 20회)
- *    - F2: 2개월 (기본 10 + 추가 20 = 30회)
- *    - F3-F4: 3개월 (기본 10 + 추가 30 = 40회)
- *    - F5-F6: 4개월 (기본 10 + 추가 40 = 50회)
- *    - F7-F8: 5개월 (기본 10 + 추가 50 = 60회)
+ *    - GRADE_LIMITS.maxInstallments 기준으로 자동 계산
+ *    - 추가지급 차수 = (최대횟수 - 기본10회) / 10
  *
  * 2. 각 이전 달의 대상자 중 이번 달 미승급자 찾기 (3가지 소스)
  *    A. 등록자 (최초 추가지급)
@@ -187,7 +204,7 @@ export async function executeStep3(promoted, monthlyReg, registrationMonth) {
  *
  * 3. 조건 확인:
  *    - 최대 횟수 미도달
- *    - F3+ 보험 가입
+ *    - F4+ 보험 가입 (⭐ v8.0: F3 보험 불필요)
  *    - 등급 유지 (하락 시 제외)
  *    - 이번 달 추가지급 미생성
  *
@@ -296,38 +313,14 @@ async function checkAdditionalPaymentConditions(userId, grade, revenueMonth, mon
 
 	const nextAdditionalStage = currentAdditionalStage + 1;
 
-	// ⭐ 등급별 최대 추가지급 횟수 확인
-	const maxAdditionalPayments = {
-		F1: 1, // 기본 10 + 추가 10 = 20회
-		F2: 2, // 기본 10 + 추가 20 = 30회
-		F3: 3, // 기본 10 + 추가 30 = 40회
-		F4: 3,
-		F5: 4, // 기본 10 + 추가 40 = 50회
-		F6: 4,
-		F7: 5, // 기본 10 + 추가 50 = 60회
-		F8: 5
-	};
-
-	const maxAllowed = maxAdditionalPayments[grade] || 0;
+	// ⭐ 등급별 최대 추가지급 횟수 확인 (GRADE_LIMITS에서 자동 계산)
+	const maxAllowed = MAX_ADDITIONAL_PAYMENTS[grade] || 0;
 
 	// 이미 최대 추가지급 횟수에 도달했으면 제외
 	if (nextAdditionalStage > maxAllowed) return null;
 
-	// F3+ 보험 확인 (UserAccount.insuranceAmount 기준)
-	if (grade >= 'F3') {
-		const requiredAmounts = {
-			F3: 50000, F4: 50000,
-			F5: 70000, F6: 70000,
-			F7: 100000, F8: 100000
-		};
-
-		const insuranceAmount = user.insuranceAmount || 0;
-		const requiredAmount = requiredAmounts[grade] || 0;
-
-		if (insuranceAmount < requiredAmount) {
-			return null; // 보험 금액 부족 → 추가지급 생성 안 함
-		}
-	}
+	// ⭐ v8.0 변경: 보험 체크는 지급 시점(weeklyPaymentService)에서 수행
+	// 계획은 항상 생성하고, 지급 시점에 보험 미가입이면 skip 처리
 
 	// ⭐ 이번 달에 이미 이 등급으로 추가지급 계획이 생성되었는지 확인 (중복 방지)
 	const alreadyCreated = await WeeklyPaymentPlans.findOne({

@@ -91,12 +91,12 @@ const weeklyPaymentPlansSchema = new mongoose.Schema(
       // 금액 (주간 지급 시 확정)
       baseAmount: { type: Number },       // 등급별 총 지급액
       installmentAmount: { type: Number }, // 회차당 지급액 (100원 단위 절삭)
-      withholdingTax: { type: Number },   // 원천징수 (3.3%)
+      withholdingTax: { type: Number },   // 세지원 (3.3%)
       netAmount: { type: Number },        // 실지급액
 
       status: {
         type: String,
-        enum: ['pending', 'paid', 'skipped', 'terminated', 'canceled'],
+        enum: ['pending', 'skipped', 'terminated'],  // ⭐ v8.0: paid/canceled 제거
         default: 'pending'
       },
       paidAt: { type: Date },
@@ -134,6 +134,20 @@ const weeklyPaymentPlansSchema = new mongoose.Schema(
       type: String,
       enum: ['registration', 'promotion', 'monthly_check', 'additional_payment', 'auto_generation'],  // v8.0: additional_payment 추가
       default: 'registration'
+    },
+
+    // ⭐ v8.1: F4+ 유지보험 규칙
+    graceDeadline: {
+      type: Date,
+      default: null  // 유예기간 마감일 (승급 후 2달), 승계 시 null
+    },
+    insuranceRequired: {
+      type: Number,
+      default: null  // 필요 보험 금액 (F4-F5:70000, F6-F7:90000, F8:110000), 승계 시 하위 등급 기준
+    },
+    insuranceInherited: {
+      type: Boolean,
+      default: false  // 승계 여부 (true면 graceDeadline=null, insuranceRequired=이전 등급 기준)
     },
 
     // 메타데이터

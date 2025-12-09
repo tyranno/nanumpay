@@ -58,12 +58,7 @@
 					<td class="py-1.5 text-right text-xs text-emerald-700">{formatAmount(paymentSummary?.totalPaid?.amount)}</td>
 					<td class="py-1.5 text-right text-xs font-semibold text-green-600">{formatAmount(paymentSummary?.totalPaid?.net)}</td>
 				</tr>
-				<tr>
-					<td class="py-1.5 text-xs font-semibold text-emerald-700">남은 예정액</td>
-					<td class="py-1.5 text-right text-xs text-emerald-700">{formatAmount(paymentSummary?.upcoming?.amount)}</td>
-					<td class="py-1.5 text-right text-xs font-semibold text-purple-600">{formatAmount(paymentSummary?.upcoming?.net)}</td>
-				</tr>
-			</tbody>
+				</tbody>
 		</table>
 	</div>
 </div>
