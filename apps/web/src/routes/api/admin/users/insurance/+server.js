@@ -1,8 +1,8 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db.js';
 import User from '$lib/server/models/User.js';
-import WeeklyPaymentPlans from '$lib/server/models/WeeklyPaymentPlans.js';
 import { GRADE_LIMITS } from '$lib/server/utils/constants.js';
+import { updateInstallmentsOnInsuranceChange } from '$lib/server/services/paymentPlanService.js';
 
 /**
  * 보험 가입 처리 API
@@ -38,43 +38,11 @@ export async function POST({ request, locals }) {
 			user.insuranceActive = false;
 			await user.save();
 
-			const today = new Date();
-			today.setHours(0, 0, 0, 0);
-
 			console.log(`❌ 보험 해지 처리: ${user.name} (${user.grade})`);
-			console.log(`   - 기준일: ${today.toISOString().split('T')[0]} (오늘)`);
 
-			// F4+ 등급의 오늘 이후 pending 지급계획 비활성화 (skipped로 변경)
-			let skippedCount = 0;
-			const gradeLimit = GRADE_LIMITS[user.grade];
-			if (gradeLimit?.insuranceRequired) {
-				const plans = await WeeklyPaymentPlans.find({
-					userId: user._id.toString(),
-					planStatus: 'active'
-				});
-
-				for (const plan of plans) {
-					let modified = false;
-					for (const installment of plan.installments) {
-						// 오늘 이후 예정일인 pending만 비활성화
-						if (
-							installment.status === 'pending' &&
-							new Date(installment.scheduledDate) >= today
-						) {
-							installment.status = 'skipped';
-							installment.insuranceSkipped = true;
-							installment.skipReason = 'insurance_cancelled';
-							skippedCount++;
-							modified = true;
-							console.log(`   ⏸️ 비활성화: ${plan.userName} ${plan.baseGrade} Week ${installment.week}`);
-						}
-					}
-					if (modified) {
-						await plan.save();
-					}
-				}
-				console.log(`   ⏸️ 총 ${skippedCount}건 지급계획 비활성화`);
-			}
+			// v8.1: updateInstallmentsOnInsuranceChange() 사용 (유예기간 고려)
+			const result = await updateInstallmentsOnInsuranceChange(user._id.toString(), 0);
+			console.log(`   ⏸️ 총 ${result.skipped}건 지급계획 비활성화 (유예기간 고려)`);
 
 			return json({
 				success: true,
@@ -86,9 +54,9 @@ export async function POST({ request, locals }) {
 					insuranceDate: null,
 					insuranceActive: false
 				},
-				skippedPlans: skippedCount,
-				message: skippedCount > 0
-					? `보험이 해지되었습니다. ${skippedCount}건의 지급계획이 중단되었습니다.`
+				skippedPlans: result.skipped,
+				message: result.skipped > 0
+					? `보험이 해지되었습니다. ${result.skipped}건의 지급계획이 중단되었습니다.`
 					: '보험이 해지되었습니다.'
 			});
 		}
@@ -119,86 +87,22 @@ export async function POST({ request, locals }) {
 		console.log(`   - 가입일: ${parsedDate.toISOString().split('T')[0]}`);
 		console.log(`   - 활성화: ${insuranceActive}`);
 
-		// 지급계획 상태 변경
-		let activatedCount = 0;
-		let skippedCount = 0;
+		// v8.1: updateInstallmentsOnInsuranceChange() 사용 (유예기간/승계 고려)
+		const result = await updateInstallmentsOnInsuranceChange(user._id.toString(), insuranceAmount);
 
-		// 기준일 계산: max(insuranceDate, today)
-		const today = new Date();
-		today.setHours(0, 0, 0, 0);
-		const effectiveDate = parsedDate > today ? parsedDate : today;
-
-		console.log(`   - 기준일: ${effectiveDate.toISOString().split('T')[0]} (max(가입일, 오늘))`);
-
-		// 해당 사용자의 활성 지급계획 조회
-		const plans = await WeeklyPaymentPlans.find({
-			userId: user._id.toString(),
-			planStatus: 'active'
-		});
-
-		if (insuranceActive) {
-			// 보험 조건 충족: 기준일 이후의 skipped → pending 활성화
-			for (const plan of plans) {
-				let modified = false;
-
-				for (const installment of plan.installments) {
-					// 보험 미유지로 건너뛴 회차 중 기준일 이후 예정일인 것만 활성화
-					if (
-						installment.insuranceSkipped === true &&
-						installment.status === 'skipped' &&
-						new Date(installment.scheduledDate) >= effectiveDate
-					) {
-						installment.status = 'pending';
-						installment.insuranceSkipped = false;
-						installment.skipReason = undefined;
-						activatedCount++;
-						modified = true;
-
-						console.log(`   📋 활성화: ${plan.userName} ${plan.baseGrade} Week ${installment.week}`);
-					}
-				}
-
-				if (modified) {
-					await plan.save();
-				}
-			}
-
-			console.log(`   ✅ 총 ${activatedCount}건 지급계획 활성화`);
-		} else if (isRequired) {
-			// 보험 조건 미충족 (F4+ 등급): 기준일 이후의 pending → skipped 비활성화
-			for (const plan of plans) {
-				let modified = false;
-
-				for (const installment of plan.installments) {
-					// 기준일 이후 예정일인 것만 비활성화
-					if (
-						installment.status === 'pending' &&
-						new Date(installment.scheduledDate) >= effectiveDate
-					) {
-						installment.status = 'skipped';
-						installment.insuranceSkipped = true;
-						installment.skipReason = 'insurance_not_maintained';
-						skippedCount++;
-						modified = true;
-
-						console.log(`   ⏸️ 비활성화: ${plan.userName} ${plan.baseGrade} Week ${installment.week}`);
-					}
-				}
-
-				if (modified) {
-					await plan.save();
-				}
-			}
-
-			console.log(`   ⏸️ 총 ${skippedCount}건 지급계획 비활성화 (보험 조건 미충족)`);
+		if (result.restored > 0) {
+			console.log(`   ✅ 총 ${result.restored}건 지급계획 활성화 (유예기간 고려)`);
+		}
+		if (result.skipped > 0) {
+			console.log(`   ⏸️ 총 ${result.skipped}건 지급계획 비활성화 (유예기간 고려)`);
 		}
 
 		// 응답 메시지 생성
 		let message = '보험 정보가 저장되었습니다.';
-		if (activatedCount > 0) {
-			message = `보험 가입 처리 완료. ${activatedCount}건의 지급계획이 활성화되었습니다.`;
-		} else if (skippedCount > 0) {
-			message = `보험 조건 미충족. ${skippedCount}건의 지급계획이 중단되었습니다.`;
+		if (result.restored > 0) {
+			message = `보험 가입 처리 완료. ${result.restored}건의 지급계획이 활성화되었습니다.`;
+		} else if (result.skipped > 0) {
+			message = `보험 조건 미충족. ${result.skipped}건의 지급계획이 중단되었습니다.`;
 		}
 
 		return json({
@@ -211,8 +115,8 @@ export async function POST({ request, locals }) {
 				insuranceDate: user.insuranceDate,
 				insuranceActive: user.insuranceActive
 			},
-			activatedPlans: activatedCount,
-			skippedPlans: skippedCount,
+			activatedPlans: result.restored,
+			skippedPlans: result.skipped,
 			message
 		});
 	} catch (error) {
