@@ -1,0 +1,59 @@
+fetch('/api/admin/revenue/adjust-grade-payments', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    monthKey: '2025-10',
+    adjustments: {
+      F1: { totalAmount: 235000 },
+      F2: { totalAmount: 560000 },
+      F3: { totalAmount: 870000 },
+      F4: { totalAmount: 1250000 }
+    },
+    forceUpdate: true
+  })
+}).then(r => r.json()).then(console.log);
+
+// 2025-11 등급별 지급액 조정
+fetch('/api/admin/revenue/adjust-grade-payments', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    monthKey: '2025-11',
+    adjustments: {
+      F1: { totalAmount: 220000 },
+      F2: { totalAmount: 535000 },
+      F3: { totalAmount: 830000 },
+      F4: { totalAmount: 1180000 },
+      F5: { totalAmount: 1600000 }
+    }    
+  })
+}).then(r => r.json()).then(console.log);
+
+
+//보험 가입
+// F4/F5 등급 유지보험 일괄 설정 (기존 API 사용)
+(async () => {
+  // 1. 사용자 목록 조회
+  const res = await fetch('/api/admin/users?limit=200');
+  const data = await res.json();
+  const targets = data.users.filter(u => ['F4', 'F5'].includes(u.grade));
+  
+  console.log(`대상: ${targets.length}명`);
+  
+  // 2. 각 사용자에게 보험 설정 (기존 POST API 사용)
+  for (const user of targets) {
+    const result = await fetch('/api/admin/users/insurance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: user._id,
+        insuranceAmount: 70000,
+        insuranceDate: '2025-11-27'
+      })
+    }).then(r => r.json());
+    
+    console.log(`${user.name} (${user.grade}): ${result.success ? '✅' : '❌'}`);
+  }
+  
+  console.log('완료!');
+})();
