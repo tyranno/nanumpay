@@ -330,26 +330,26 @@ export class UserRegistrationService {
 				}
 
 				// ⭐ v8.1: 고정 헤더명으로만 값 읽기 (빈값이면 빈값 그대로)
-				// A:순번, B:날짜, C:ID, D:성명, E:연락처, F:주민번호, G:은행, H:비율, I:계좌번호
-				// J:판매인, K:연락처, L:설계사, M:연락처, N:설계사 은행, O:설계사 계좌번호
-				// P:보험상품명, Q:보험회사, R:지사
-				const loginId = String(userData['ID'] ?? '').trim();
-				const name = String(userData['성명'] ?? '').trim();
-				const phone = String(userData['연락처'] ?? '').trim();  // E열: 본인 연락처
-				const idNumber = String(userData['주민번호'] ?? '').trim();
-				const bank = String(userData['은행'] ?? '').trim();  // G열
-				const ratioRaw = String(userData['비율'] ?? '').trim();  // H열
+				// A:순번(0), B:날짜(1), C:ID(2), D:성명(3), E:연락처(4), F:주민번호(5), G:은행(6), H:비율(7), I:계좌번호(8)
+				// J:판매인(9), K:연락처(10), L:설계사(11), M:연락처(12), N:설계사 은행(13), O:설계사 계좌번호(14)
+				// P:보험금액유형(15), Q:보험회사(16), R:지사(17)
+				const loginId = String(userData['ID'] ?? userData['__EMPTY_2'] ?? '').trim();
+				const name = String(userData['성명'] ?? userData['__EMPTY_3'] ?? '').trim();
+				const phone = String(userData['__EMPTY_4'] ?? userData['연락처'] ?? '').trim();  // E열(4): 본인 연락처
+				const idNumber = String(userData['주민번호'] ?? userData['__EMPTY_5'] ?? '').trim();
+				const bank = String(userData['은행'] ?? userData['__EMPTY_6'] ?? '').trim();  // G열(6)
+				const ratioRaw = String(userData['비율'] ?? userData['__EMPTY_7'] ?? '').trim();  // H열(7)
 				const ratio = parseFloat(ratioRaw) || 1;
-				const accountNumber = String(userData['계좌번호'] ?? '').trim();  // I열
-				const salesperson = String(userData['판매인'] ?? '').trim();  // J열
-				const salespersonPhone = String(userData['연락처_1'] ?? '').trim();  // K열: 판매인 연락처 (중복 헤더)
-				const plannerName = String(userData['설계사'] ?? '').trim();  // L열
-				const plannerPhone = String(userData['연락처_2'] ?? '').trim();  // M열: 설계사 연락처 (중복 헤더)
-				const plannerBank = String(userData['설계사 은행'] ?? '').trim();  // N열
-				const plannerAccountNumber = String(userData['설계사 계좌번호'] ?? '').trim();  // O열
-				const insuranceProduct = String(userData['보험상품명'] ?? '').trim();  // P열
-				const insuranceCompany = String(userData['보험회사'] ?? '').trim();  // Q열
-				const branch = String(userData['지사'] ?? '').trim();  // R열
+				const accountNumber = String(userData['계좌번호'] ?? userData['__EMPTY_8'] ?? '').trim();  // I열(8)
+				const salesperson = String(userData['판매인'] ?? userData['__EMPTY_9'] ?? '').trim();  // J열(9)
+				const salespersonPhone = String(userData['__EMPTY_10'] ?? userData['연락처_1'] ?? '').trim();  // K열(10): 판매인 연락처
+				const plannerName = String(userData['설계사'] ?? userData['__EMPTY_11'] ?? '').trim();  // L열(11)
+				const plannerPhone = String(userData['__EMPTY_12'] ?? userData['연락처_2'] ?? '').trim();  // M열(12): 설계사 연락처
+				const plannerBank = String(userData['설계사 은행'] ?? userData['__EMPTY_13'] ?? '').trim();  // N열(13)
+				const plannerAccountNumber = String(userData['설계사 계좌번호'] ?? userData['__EMPTY_14'] ?? '').trim();  // O열(14)
+				const insuranceProduct = String(userData['보험상품명'] ?? userData['보험금액유형'] ?? userData['__EMPTY_15'] ?? '').trim();  // P열(15)
+				const insuranceCompany = String(userData['보험회사'] ?? userData['__EMPTY_16'] ?? '').trim();  // Q열(16)
+				const branch = String(userData['지사'] ?? userData['__EMPTY_17'] ?? '').trim();  // R열(17)
 
 				// v8.0: 필수 필드 검증
 				if (!loginId) {
@@ -472,7 +472,7 @@ export class UserRegistrationService {
 				let plannerAccount = await PlannerAccount.findOne({ loginId: plannerName });
 
 				if (!plannerAccount) {
-					// plannerPhone이 비어있으면 기본값 설정
+					// 엑셀의 설계사 전화번호 사용 (없으면 기본값)
 					const plannerPhoneFinal = plannerPhone || '010-0000-0000';
 					const plannerPhoneDigits = plannerPhoneFinal.replace(/[^0-9]/g, '');
 					const plannerPassword = plannerPhoneDigits.length >= 4 ? plannerPhoneDigits.slice(-4) : '9999';
@@ -490,7 +490,7 @@ export class UserRegistrationService {
 						createdAt: createdAt
 					});
 					await plannerAccount.save();
-					console.log(`✅ PlannerAccount 자동 생성: ${plannerName} (초기 비밀번호: ${plannerPassword})`);
+					console.log(`✅ PlannerAccount 자동 생성: ${plannerName} (초기 비밀번호: ${plannerPassword}, 전화번호: ${plannerPhoneFinal})`);
 				}
 
 				// v8.0: registrationNumber 계산 (같은 UserAccount의 재등록 순번)
