@@ -19,16 +19,16 @@ const systemConfigSchema = new mongoose.Schema({
 		F8: { type: Number, default: 0.01 }
 	},
 
-	// 등급별 최대 지급 횟수
+	// 등급별 최대 지급 횟수 (변경됨)
 	maxPaymentCounts: {
 		F1: { type: Number, default: 20 },
 		F2: { type: Number, default: 30 },
-		F3: { type: Number, default: 40 },
+		F3: { type: Number, default: 30 },  // 40 → 30 변경
 		F4: { type: Number, default: 40 },
-		F5: { type: Number, default: 50 },
+		F5: { type: Number, default: 40 },  // 50 → 40 변경
 		F6: { type: Number, default: 50 },
-		F7: { type: Number, default: 60 },
-		F8: { type: Number, default: 60 }
+		F7: { type: Number, default: 50 },  // 60 → 50 변경
+		F8: { type: Number, default: 50 }   // 60 → 50 변경
 	},
 
 	// F4+ 보험 최소 금액 (⭐ v8.0 변경: F3 보험 불필요)

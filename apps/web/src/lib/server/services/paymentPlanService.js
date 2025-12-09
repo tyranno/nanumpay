@@ -20,17 +20,10 @@ import {
 	getInsuranceRequired
 } from '../utils/constants.js';
 
-// 등급별 최대 수령 횟수 정의
-const MAX_INSTALLMENTS = {
-	F1: 20,
-	F2: 30,
-	F3: 40,
-	F4: 40,
-	F5: 50,
-	F6: 50,
-	F7: 60,
-	F8: 60
-};
+// 등급별 최대 수령 횟수 정의 (GRADE_LIMITS에서 가져옴)
+const MAX_INSTALLMENTS = Object.fromEntries(
+	Object.entries(GRADE_LIMITS).map(([grade, limits]) => [grade, limits.maxInstallments])
+);
 
 /**
  * Initial 지급 계획 생성 (등록 시)

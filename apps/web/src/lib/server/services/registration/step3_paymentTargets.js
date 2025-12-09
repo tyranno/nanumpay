@@ -15,7 +15,16 @@ import User from '../../models/User.js';
 import MonthlyRegistrations from '../../models/MonthlyRegistrations.js';
 import WeeklyPaymentPlans from '../../models/WeeklyPaymentPlans.js';
 import { calculateGradePayments } from '../../utils/paymentCalculator.js';
-// ⭐ v8.0: GRADE_LIMITS 제거 - 보험 체크는 지급 시점(weeklyPaymentService)에서만 수행
+import { GRADE_LIMITS } from '../../utils/constants.js';
+
+// ⭐ GRADE_LIMITS에서 최대 추가지급 횟수 자동 계산
+// (최대횟수 - 기본10회) / 10 = 추가지급 차수
+const MAX_ADDITIONAL_PAYMENTS = Object.fromEntries(
+	Object.entries(GRADE_LIMITS).map(([grade, limits]) => [
+		grade,
+		Math.floor((limits.maxInstallments - 10) / 10)
+	])
+);
 
 /**
  * Step 3 실행
@@ -185,11 +194,8 @@ export async function executeStep3(promoted, monthlyReg, registrationMonth) {
  *
  * ⭐ 핵심 로직:
  * 1. 등급별로 확인해야 할 이전 달 개수 계산
- *    - F1: 1개월 (기본 10 + 추가 10 = 20회)
- *    - F2: 2개월 (기본 10 + 추가 20 = 30회)
- *    - F3-F4: 3개월 (기본 10 + 추가 30 = 40회)
- *    - F5-F6: 4개월 (기본 10 + 추가 40 = 50회)
- *    - F7-F8: 5개월 (기본 10 + 추가 50 = 60회)
+ *    - GRADE_LIMITS.maxInstallments 기준으로 자동 계산
+ *    - 추가지급 차수 = (최대횟수 - 기본10회) / 10
  *
  * 2. 각 이전 달의 대상자 중 이번 달 미승급자 찾기 (3가지 소스)
  *    A. 등록자 (최초 추가지급)
@@ -307,19 +313,8 @@ async function checkAdditionalPaymentConditions(userId, grade, revenueMonth, mon
 
 	const nextAdditionalStage = currentAdditionalStage + 1;
 
-	// ⭐ 등급별 최대 추가지급 횟수 확인
-	const maxAdditionalPayments = {
-		F1: 1, // 기본 10 + 추가 10 = 20회
-		F2: 2, // 기본 10 + 추가 20 = 30회
-		F3: 3, // 기본 10 + 추가 30 = 40회
-		F4: 3,
-		F5: 4, // 기본 10 + 추가 40 = 50회
-		F6: 4,
-		F7: 5, // 기본 10 + 추가 50 = 60회
-		F8: 5
-	};
-
-	const maxAllowed = maxAdditionalPayments[grade] || 0;
+	// ⭐ 등급별 최대 추가지급 횟수 확인 (GRADE_LIMITS에서 자동 계산)
+	const maxAllowed = MAX_ADDITIONAL_PAYMENTS[grade] || 0;
 
 	// 이미 최대 추가지급 횟수에 도달했으면 제외
 	if (nextAdditionalStage > maxAllowed) return null;

@@ -22,7 +22,7 @@ export const GRADE_LIMITS = {
     insuranceRequired: false
   },
   F3: {
-    maxInstallments: 40,
+    maxInstallments: 30,  // 40 → 30 변경
     insuranceRequired: false
   },
   F4: {
@@ -31,7 +31,7 @@ export const GRADE_LIMITS = {
     insuranceAmount: 70000   // 7만원
   },
   F5: {
-    maxInstallments: 50,
+    maxInstallments: 40,  // 50 → 40 변경
     insuranceRequired: true,
     insuranceAmount: 70000   // 7만원 (F4와 동일)
   },
@@ -41,12 +41,12 @@ export const GRADE_LIMITS = {
     insuranceAmount: 90000   // 9만원
   },
   F7: {
-    maxInstallments: 60,
+    maxInstallments: 50,  // 60 → 50 변경
     insuranceRequired: true,
     insuranceAmount: 90000   // 9만원 (F6와 동일)
   },
   F8: {
-    maxInstallments: 60,
+    maxInstallments: 50,  // 60 → 50 변경
     insuranceRequired: true,
     insuranceAmount: 110000  // 11만원
   }
