@@ -27,6 +27,10 @@ vite.config.ts.timestamp-*
 dist
 test-data/*
 !test-data/verfify2/
+!test-data/검증/
+!test-data/modify/
+!test-data/test/
+!test-data/verify/
 apps/web/scripts/*.js
 !apps/web/scripts/release-*.cjs
 .claude
