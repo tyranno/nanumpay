@@ -12,7 +12,13 @@ import mongoose from 'mongoose';
 import WeeklyPaymentPlans from '../models/WeeklyPaymentPlans.js';
 import MonthlyRegistrations from '../models/MonthlyRegistrations.js';
 import User from '../models/User.js';
-import { GRADE_LIMITS } from '../utils/constants.js';
+import {
+	GRADE_LIMITS,
+	GRADE_ORDER,
+	isOneStepPromotion,
+	calculateGraceDeadline,
+	getInsuranceRequired
+} from '../utils/constants.js';
 
 // 등급별 최대 수령 횟수 정의
 const MAX_INSTALLMENTS = {
@@ -134,6 +140,7 @@ export async function createInitialPaymentPlan(userId, userName, grade, registra
 
 /**
  * Promotion 지급 계획 생성 (승급 시)
+ * ⭐ v8.1: F4+ 유지보험 승계 조건 체크
  */
 export async function createPromotionPaymentPlan(
 	userId,
@@ -147,6 +154,31 @@ export async function createPromotionPaymentPlan(
 
 		// 지급 시작일 계산 (승급일+1개월 후 첫 금요일)
 		const startDate = WeeklyPaymentPlans.getPaymentStartDate(promotionDate);
+
+		// ⭐ v8.1: 승계 조건 체크 (F4+ 등급만)
+		let insuranceRequired = null;
+		let graceDeadline = null;
+		let insuranceInherited = false;
+
+		const currentInsuranceRequired = getInsuranceRequired(newGrade);
+		if (currentInsuranceRequired !== null) {
+			// F4+ 등급: 승계 조건 체크
+			const inheritanceCheck = await checkInsuranceInheritance(userId, newGrade);
+
+			if (inheritanceCheck.canInherit) {
+				// 승계 인정: 이전 등급 보험 기준 적용, 유예기간 없음
+				insuranceRequired = inheritanceCheck.previousInsuranceRequired;
+				graceDeadline = null;
+				insuranceInherited = true;
+				console.log(`[createPromotionPaymentPlan] ${userName} 승계 인정: ${inheritanceCheck.previousGrade}→${newGrade}, 보험기준: ${insuranceRequired}원`);
+			} else {
+				// 승계 불가: 새 등급 보험 기준 적용, 유예기간 2달
+				insuranceRequired = currentInsuranceRequired;
+				graceDeadline = calculateGraceDeadline(promotionDate);
+				insuranceInherited = false;
+				console.log(`[createPromotionPaymentPlan] ${userName} 승계 불가: ${newGrade}, 보험기준: ${insuranceRequired}원, 유예마감: ${graceDeadline}`);
+			}
+		}
 
 		// 매출 귀속 월 (승급 시점 기준)
 		const revenueMonth = MonthlyRegistrations.generateMonthKey(promotionDate);
@@ -217,7 +249,7 @@ export async function createPromotionPaymentPlan(
 		// ⭐ v8.0: 추가지급 중단은 terminateAdditionalPlansOnPromotion에서 처리
 		// (승급 지급 시작일부터만 중단하는 로직)
 
-		// 계획 생성 (v8.0: additionalPaymentBaseDate 추가)
+		// 계획 생성 (v8.0: additionalPaymentBaseDate 추가, v8.1: 유지보험 필드 추가)
 		const plan = await WeeklyPaymentPlans.create({
 			userId,
 			userName,
@@ -233,7 +265,11 @@ export async function createPromotionPaymentPlan(
 			completedInstallments: 0,
 			installments,
 			planStatus: 'active',
-			createdBy: 'promotion' // v6.0: 승급에 의한 생성
+			createdBy: 'promotion', // v6.0: 승급에 의한 생성
+			// ⭐ v8.1: 유지보험 필드
+			graceDeadline,
+			insuranceRequired,
+			insuranceInherited
 		});
 
 		// 주차별 총계 업데이트
@@ -887,5 +923,142 @@ export async function checkAndCreateAdditionalPaymentsV8() {
 	} catch (error) {
 		console.error('[checkAndCreateAdditionalPaymentsV8] 오류:', error);
 		return { created: 0, skipped: 0, error: error.message };
+	}
+}
+
+/**
+ * ⭐ v8.1: 유지보험 승계 조건 체크
+ *
+ * 승계 조건:
+ * 1. 1단계 상위 등급 승급 (F5→F6 ○, F5→F7 ✗)
+ * 2. 이전 등급의 active 계획이 존재 (완료 전 승급)
+ *
+ * @param {string} userId - 사용자 ID
+ * @param {string} newGrade - 새 등급
+ * @returns {Object} { canInherit, previousGrade, previousInsuranceRequired }
+ */
+async function checkInsuranceInheritance(userId, newGrade) {
+	try {
+		// 새 등급의 인덱스
+		const newGradeIndex = GRADE_ORDER.indexOf(newGrade);
+		if (newGradeIndex <= 0) {
+			// F1이거나 유효하지 않은 등급
+			return { canInherit: false, previousGrade: null, previousInsuranceRequired: null };
+		}
+
+		// 이전 등급 (1단계 하위)
+		const previousGrade = GRADE_ORDER[newGradeIndex - 1];
+
+		// 1단계 상위 승급인지 확인
+		if (!isOneStepPromotion(previousGrade, newGrade)) {
+			return { canInherit: false, previousGrade: null, previousInsuranceRequired: null };
+		}
+
+		// 이전 등급에 보험 조건이 있는지 확인 (F3 이하는 조건 없음)
+		const previousInsuranceRequired = getInsuranceRequired(previousGrade);
+		if (previousInsuranceRequired === null) {
+			// 이전 등급에 보험 조건 없음 → 승계 불가 (새 등급 기준 적용)
+			return { canInherit: false, previousGrade, previousInsuranceRequired: null };
+		}
+
+		// 이전 등급의 active 계획이 존재하는지 확인
+		const activePreviousPlans = await WeeklyPaymentPlans.find({
+			userId,
+			baseGrade: previousGrade,
+			planStatus: 'active'
+		});
+
+		if (activePreviousPlans.length === 0) {
+			// 이전 등급 계획 모두 완료 → 승계 불가
+			return { canInherit: false, previousGrade, previousInsuranceRequired: null };
+		}
+
+		// 승계 가능!
+		return {
+			canInherit: true,
+			previousGrade,
+			previousInsuranceRequired
+		};
+	} catch (error) {
+		console.error('[checkInsuranceInheritance] 오류:', error);
+		return { canInherit: false, previousGrade: null, previousInsuranceRequired: null };
+	}
+}
+
+/**
+ * ⭐ v8.1: 보험 변경 시 installment 상태 업데이트
+ *
+ * - 보험 미충족 + 유예기간 지남 → skipped
+ * - 보험 충족 → skipped를 pending으로 복구 (미래 건만)
+ *
+ * @param {string} userId - 사용자 ID
+ * @param {number} newInsuranceAmount - 새 보험 금액
+ * @returns {Object} { updated, skipped, restored }
+ */
+export async function updateInstallmentsOnInsuranceChange(userId, newInsuranceAmount) {
+	try {
+		const today = new Date();
+		let skippedCount = 0;
+		let restoredCount = 0;
+
+		// 해당 사용자의 active 계획 조회 (F4+ 보험 조건 있는 것만)
+		const activePlans = await WeeklyPaymentPlans.find({
+			userId,
+			planStatus: 'active',
+			insuranceRequired: { $ne: null }  // 보험 조건이 있는 계획만
+		});
+
+		for (const plan of activePlans) {
+			let planModified = false;
+
+			for (const installment of plan.installments) {
+				const scheduledDate = new Date(installment.scheduledDate);
+
+				// 과거 지급은 건드리지 않음
+				if (scheduledDate < today) {
+					continue;
+				}
+
+				// 유예기간 체크
+				const isAfterGracePeriod = plan.graceDeadline === null || scheduledDate > plan.graceDeadline;
+
+				if (newInsuranceAmount < plan.insuranceRequired) {
+					// 보험 미충족
+					if (isAfterGracePeriod && installment.status === 'pending') {
+						// 유예기간 지남 + pending → skipped
+						installment.status = 'skipped';
+						installment.skipReason = 'insurance_not_maintained';
+						installment.insuranceSkipped = true;
+						skippedCount++;
+						planModified = true;
+					}
+				} else {
+					// 보험 충족
+					if (installment.status === 'skipped' && installment.insuranceSkipped) {
+						// 보험 미유지로 skipped된 것 복구
+						installment.status = 'pending';
+						installment.skipReason = null;
+						installment.insuranceSkipped = false;
+						restoredCount++;
+						planModified = true;
+					}
+				}
+			}
+
+			if (planModified) {
+				await plan.save();
+			}
+		}
+
+		console.log(`[updateInstallmentsOnInsuranceChange] ${userId}: skipped=${skippedCount}, restored=${restoredCount}`);
+
+		return {
+			updated: skippedCount + restoredCount > 0,
+			skipped: skippedCount,
+			restored: restoredCount
+		};
+	} catch (error) {
+		console.error('[updateInstallmentsOnInsuranceChange] 오류:', error);
+		throw error;
 	}
 }

@@ -136,6 +136,20 @@ const weeklyPaymentPlansSchema = new mongoose.Schema(
       default: 'registration'
     },
 
+    // ⭐ v8.1: F4+ 유지보험 규칙
+    graceDeadline: {
+      type: Date,
+      default: null  // 유예기간 마감일 (승급 후 2달), 승계 시 null
+    },
+    insuranceRequired: {
+      type: Number,
+      default: null  // 필요 보험 금액 (F4-F5:70000, F6-F7:90000, F8:110000), 승계 시 하위 등급 기준
+    },
+    insuranceInherited: {
+      type: Boolean,
+      default: false  // 승계 여부 (true면 graceDeadline=null, insuranceRequired=이전 등급 기준)
+    },
+
     // 메타데이터
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now }
