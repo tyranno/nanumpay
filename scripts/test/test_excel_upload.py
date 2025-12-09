@@ -42,6 +42,11 @@ FOLDER_FILES = {
         "기본3명": "test-data/verfify2/용역자명단_기본3명.xlsx",
         "10월": "test-data/verfify2/계약자관리명부(10월).xlsx",
         "11월": "test-data/verfify2/계약자관리명부(11월).xlsx",
+    },
+    "검증": {
+        "기본": "test-data/검증/계약자관리명부(10월)-기본.xlsx",
+        "10월": "test-data/검증/계약자관리명부(10월).xlsx",
+        "11월": "test-data/검증/계약자관리명부(11월).xlsx",
     }
 }
 
@@ -209,7 +214,7 @@ def main():
     parser = argparse.ArgumentParser(description='엑셀 업로드 테스트')
     parser.add_argument('month', help='월 (7월, 8월, 9월, 10월, 11월, all)')
     parser.add_argument('--folder', '-f', default='test',
-                        choices=['test', 'verify', 'verfify2'],
+                        choices=['test', 'verify', 'verfify2', '검증'],
                         help='데이터 폴더 (기본: test)')
 
     args = parser.parse_args()

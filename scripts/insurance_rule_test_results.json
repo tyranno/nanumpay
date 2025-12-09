@@ -1,0 +1,300 @@
+{
+  "passed": 42,
+  "failed": 0,
+  "results": [
+    {
+      "name": "10/10 승급 -> 12/10 마감",
+      "expected": "2025-12-10",
+      "actual": "2025-12-10",
+      "passed": true,
+      "description": "일반적인 경우"
+    },
+    {
+      "name": "10/15 승급 -> 12/15 마감",
+      "expected": "2025-12-15",
+      "actual": "2025-12-15",
+      "passed": true,
+      "description": "일반적인 경우"
+    },
+    {
+      "name": "11/15 승급 -> 1/15 마감",
+      "expected": "2026-01-15",
+      "actual": "2026-01-15",
+      "passed": true,
+      "description": "연도가 넘어가는 경우"
+    },
+    {
+      "name": "12/31 승급 -> 2/28 마감 (윤년 아님)",
+      "expected": "2026-02-28",
+      "actual": "2026-02-28",
+      "passed": true,
+      "description": "말일이 다른 경우 (31일 -> 28일)"
+    },
+    {
+      "name": "1/30 승급 -> 3/30 마감",
+      "expected": "2025-03-30",
+      "actual": "2025-03-30",
+      "passed": true,
+      "description": "1월 30일 -> 3월 30일"
+    },
+    {
+      "name": "1/31 승급 -> 3/31 마감",
+      "expected": "2025-03-31",
+      "actual": "2025-03-31",
+      "passed": true,
+      "description": "1월 31일 -> 3월 31일"
+    },
+    {
+      "name": "F3 -> F4 (1단계)",
+      "expected": true,
+      "actual": true,
+      "passed": true,
+      "description": ""
+    },
+    {
+      "name": "F4 -> F5 (1단계)",
+      "expected": true,
+      "actual": true,
+      "passed": true,
+      "description": ""
+    },
+    {
+      "name": "F5 -> F6 (1단계)",
+      "expected": true,
+      "actual": true,
+      "passed": true,
+      "description": ""
+    },
+    {
+      "name": "F6 -> F7 (1단계)",
+      "expected": true,
+      "actual": true,
+      "passed": true,
+      "description": ""
+    },
+    {
+      "name": "F7 -> F8 (1단계)",
+      "expected": true,
+      "actual": true,
+      "passed": true,
+      "description": ""
+    },
+    {
+      "name": "F3 -> F5 (2단계)",
+      "expected": false,
+      "actual": false,
+      "passed": true,
+      "description": ""
+    },
+    {
+      "name": "F4 -> F6 (2단계)",
+      "expected": false,
+      "actual": false,
+      "passed": true,
+      "description": ""
+    },
+    {
+      "name": "F5 -> F8 (3단계)",
+      "expected": false,
+      "actual": false,
+      "passed": true,
+      "description": ""
+    },
+    {
+      "name": "F5 -> F4 (하락)",
+      "expected": false,
+      "actual": false,
+      "passed": true,
+      "description": ""
+    },
+    {
+      "name": "F1 보험 금액 (없음)",
+      "expected": null,
+      "actual": null,
+      "passed": true,
+      "description": ""
+    },
+    {
+      "name": "F2 보험 금액 (없음)",
+      "expected": null,
+      "actual": null,
+      "passed": true,
+      "description": ""
+    },
+    {
+      "name": "F3 보험 금액 (없음)",
+      "expected": null,
+      "actual": null,
+      "passed": true,
+      "description": ""
+    },
+    {
+      "name": "F4 보험 금액 (7만원)",
+      "expected": 70000,
+      "actual": 70000,
+      "passed": true,
+      "description": ""
+    },
+    {
+      "name": "F5 보험 금액 (7만원)",
+      "expected": 70000,
+      "actual": 70000,
+      "passed": true,
+      "description": ""
+    },
+    {
+      "name": "F6 보험 금액 (9만원)",
+      "expected": 90000,
+      "actual": 90000,
+      "passed": true,
+      "description": ""
+    },
+    {
+      "name": "F7 보험 금액 (9만원)",
+      "expected": 90000,
+      "actual": 90000,
+      "passed": true,
+      "description": ""
+    },
+    {
+      "name": "F8 보험 금액 (11만원)",
+      "expected": 110000,
+      "actual": 110000,
+      "passed": true,
+      "description": ""
+    },
+    {
+      "name": "F3 -> F4 (F3 보험 조건 없음)",
+      "expected": false,
+      "actual": false,
+      "passed": true,
+      "description": "F3에는 보험 조건이 없음"
+    },
+    {
+      "name": "F4 -> F5 (플랜 활성)",
+      "expected": true,
+      "actual": true,
+      "passed": true,
+      "description": ""
+    },
+    {
+      "name": "F4 -> F5 승계 금액 (7만원)",
+      "expected": 70000,
+      "actual": 70000,
+      "passed": true,
+      "description": ""
+    },
+    {
+      "name": "F5 -> F6 (플랜 활성)",
+      "expected": true,
+      "actual": true,
+      "passed": true,
+      "description": ""
+    },
+    {
+      "name": "F5 -> F6 승계 금액 (7만원)",
+      "expected": 70000,
+      "actual": 70000,
+      "passed": true,
+      "description": ""
+    },
+    {
+      "name": "F6 -> F7 (플랜 활성)",
+      "expected": true,
+      "actual": true,
+      "passed": true,
+      "description": ""
+    },
+    {
+      "name": "F6 -> F7 승계 금액 (9만원)",
+      "expected": 90000,
+      "actual": 90000,
+      "passed": true,
+      "description": ""
+    },
+    {
+      "name": "F7 -> F8 (플랜 활성)",
+      "expected": true,
+      "actual": true,
+      "passed": true,
+      "description": ""
+    },
+    {
+      "name": "F7 -> F8 승계 금액 (9만원)",
+      "expected": 90000,
+      "actual": 90000,
+      "passed": true,
+      "description": ""
+    },
+    {
+      "name": "F4 -> F5 (플랜 완료)",
+      "expected": false,
+      "actual": false,
+      "passed": true,
+      "description": "이전 등급 플랜이 완료되면 승계 불가"
+    },
+    {
+      "name": "F4 -> F6 (2단계)",
+      "expected": false,
+      "actual": false,
+      "passed": true,
+      "description": "2단계 이상 승급은 승계 불가"
+    },
+    {
+      "name": "  F4 -> F5 승계 가능",
+      "expected": true,
+      "actual": true,
+      "passed": true,
+      "description": ""
+    },
+    {
+      "name": "  F5에서 7만원 기준 유지",
+      "expected": 70000,
+      "actual": 70000,
+      "passed": true,
+      "description": "F4의 7만원 기준 승계"
+    },
+    {
+      "name": "  F5 -> F7 승계 불가",
+      "expected": false,
+      "actual": false,
+      "passed": true,
+      "description": ""
+    },
+    {
+      "name": "  F7 보험 기준 (9만원)",
+      "expected": 90000,
+      "actual": 90000,
+      "passed": true,
+      "description": ""
+    },
+    {
+      "name": "  11/10 승급 유예기간 마감 (1/10)",
+      "expected": "2026-01-10",
+      "actual": "2026-01-10",
+      "passed": true,
+      "description": ""
+    },
+    {
+      "name": "  플랜 완료 후 승계 불가",
+      "expected": false,
+      "actual": false,
+      "passed": true,
+      "description": ""
+    },
+    {
+      "name": "  F5 보험 기준 (7만원)",
+      "expected": 70000,
+      "actual": 70000,
+      "passed": true,
+      "description": ""
+    },
+    {
+      "name": "  12/15 승급 유예기간 마감 (2/15)",
+      "expected": "2026-02-15",
+      "actual": "2026-02-15",
+      "passed": true,
+      "description": ""
+    }
+  ]
+}
