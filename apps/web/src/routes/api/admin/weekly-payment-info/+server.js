@@ -36,9 +36,9 @@ export async function GET({ locals }) {
 			// v8.0: 이번 주 지급 데이터 조회 (WeeklyPaymentPlans에서)
 			WeeklyPaymentPlans.aggregate([
 				{ $unwind: '$installments' },
-				{ $match: { 
+				{ $match: {
 					'installments.weekNumber': weeklyISOWeek,
-					'installments.status': { $nin: ['skipped', 'terminated'] }  // ⭐ v8.0: canceled 제거,
+					'installments.status': { $nin: ['skipped', 'terminated'] },  // ⭐ v8.0: canceled 제거
 					planStatus: { $ne: 'terminated' }
 				}},
 				{ $group: {
