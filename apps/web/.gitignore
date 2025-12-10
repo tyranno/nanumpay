@@ -26,3 +26,6 @@ release/*
 !release/install.sh
 !release/README.md
 logs/
+
+# Auto-generated
+src/lib/buildInfo.js

@@ -1,5 +1,6 @@
 <script>
 	import { onMount } from 'svelte';
+	import { BUILD_TIME } from '$lib/buildInfo.js';
 
 	// 상태
 	let activeTab = $state('admin'); // 'admin' | 'password' | 'features' | 'system'
@@ -525,6 +526,12 @@
 			{:else if activeTab === 'system'}
 				<!-- 시스템 설정 탭 -->
 				<div class="space-y-4">
+					<!-- 버전 정보 -->
+					<div class="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-3">
+						<span class="text-sm font-medium text-gray-600">버전</span>
+						<span class="font-mono text-sm text-gray-800">NanumPay {new Date(BUILD_TIME).toISOString().slice(0,10).replace(/-/g, '.')}.{new Date(BUILD_TIME).toTimeString().slice(0,5).replace(':', '')}</span>
+					</div>
+
 					<div>
 						<h3 class="mb-3 text-lg font-medium text-gray-900">시스템 설정</h3>
 						<div class="space-y-3">
