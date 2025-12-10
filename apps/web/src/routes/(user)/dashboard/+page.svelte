@@ -33,6 +33,7 @@
 
 	let userInfo = $state(null);
 	let allRegistrations = $state([]); // ⭐ v8.0: 모든 등록 정보
+	let registrationViewMode = $state('card'); // 'card' | 'list' 보기 모드
 	let paymentSummary = $state(null);
 	let allPayments = $state([]); // 전체 데이터
 	let filteredPayments = $state([]); // 필터링된 데이터
@@ -365,25 +366,46 @@
 				</button>
 				</div>
 
-				<!-- ⭐ v8.0: 여러 등록 정보 표시 -->
+				<!-- ⭐ v8.0: 여러 등록 정보 표시 (보기 모드 선택 가능) -->
 				{#if allRegistrations.length > 0}
 					<div class="mb-2 rounded border border-indigo-200 bg-indigo-50 p-2">
-						<div class="mb-1 border-b border-indigo-200 pb-1 text-xs font-semibold text-indigo-700">
-							등록 계약 목록{#if userInfo?.canViewSubordinates} (클릭 시 산하정보 보기){/if}
+						<!-- 헤더: 제목 + 보기 모드 토글 -->
+						<div class="mb-1.5 flex items-center justify-between">
+							<div class="text-xs font-semibold text-indigo-700">
+								등록 계약 목록(총 {allRegistrations.length}건){#if userInfo?.canViewSubordinates} <span class="font-normal text-indigo-500">- 클릭 시 산하정보</span>{/if}
+							</div>
+							<!-- 보기 모드 토글 버튼 -->
+							<div class="flex items-center gap-0.5 rounded bg-indigo-100 p-0.5">
+								<button
+									onclick={() => registrationViewMode = 'card'}
+									class="rounded px-1.5 py-0.5 text-[10px] transition-colors {registrationViewMode === 'card' ? 'bg-white text-indigo-700 shadow-sm' : 'text-indigo-500 hover:text-indigo-700'}"
+									title="카드 보기"
+								>
+									▦
+								</button>
+								<button
+									onclick={() => registrationViewMode = 'list'}
+									class="rounded px-1.5 py-0.5 text-[10px] transition-colors {registrationViewMode === 'list' ? 'bg-white text-indigo-700 shadow-sm' : 'text-indigo-500 hover:text-indigo-700'}"
+									title="리스트 보기"
+								>
+									≡
+								</button>
+							</div>
 						</div>
-						<!-- ⭐ 스크롤 영역: 최대 3개 표시 -->
-						<div class="max-h-[72px] overflow-y-auto">
-							{#each allRegistrations as reg, index}
-								{#if userInfo?.canViewSubordinates}
+
+						<!-- 카드 보기 (flex-wrap, 2줄 고정 + 스크롤) -->
+						{#if registrationViewMode === 'card'}
+							<div class="flex flex-wrap gap-1.5 max-h-[56px] overflow-y-auto">
+								{#each allRegistrations as reg}
 									{@const gradeLimit = GRADE_LIMITS[reg.grade]}
-									<!-- ⭐ 권한 있음: 전체 리스트 항목 클릭 시 산하정보 이동 -->
-									<a
-										href="/dashboard/network?userId={reg.id}"
-										class="flex items-center justify-between border-b border-indigo-200 py-1 text-indigo-600 last:border-b-0 hover:bg-indigo-100 transition-colors cursor-pointer rounded px-1"
-										title="{reg.grade} 등급 - 산하정보 보기"
-									>
-										<span class="text-xs">{reg.name} ({formatDate(reg.createdAt)})</span>
-										<div class="flex items-center gap-1">
+									{#if userInfo?.canViewSubordinates}
+										<a
+											href="/dashboard/network?userId={reg.id}"
+											class="inline-flex items-center gap-1 rounded-md bg-white px-2 py-1 text-xs text-indigo-700 border border-indigo-200 hover:bg-indigo-100 hover:border-indigo-300 transition-colors shadow-sm"
+											title="{reg.grade} 등급 - 산하정보 보기"
+										>
+											<span class="font-medium">{reg.name}</span>
+											<span class="text-gray-400">({formatDate(reg.createdAt)})</span>
 											{#if gradeLimit?.insuranceRequired}
 												<button
 													onclick={(e) => handleInsuranceIconClick(e, reg)}
@@ -391,40 +413,91 @@
 													title="보험 조건 확인"
 												>
 													{#if reg.insuranceActive}
-														<span class="inline-flex items-center justify-center w-4 h-4 rounded text-[10px] font-bold bg-green-100 text-green-700 border border-green-300" title="보험 유지됨">유</span>
+														<span class="inline-flex items-center justify-center w-4 h-4 rounded text-[10px] font-bold bg-green-100 text-green-700 border border-green-300">유</span>
 													{:else}
-														<span class="inline-flex items-center justify-center w-4 h-4 rounded text-[10px] font-bold bg-red-100 text-red-600 border border-red-300" title="보험 미유지">✕</span>
+														<span class="inline-flex items-center justify-center w-4 h-4 rounded text-[10px] font-bold bg-red-100 text-red-600 border border-red-300">✕</span>
 													{/if}
 												</button>
 											{/if}
-											<img src="/icons/{reg.grade}.svg" alt={reg.grade} class="h-5 w-5" />
-										</div>
-									</a>
-								{:else}
-									{@const gradeLimitNoAuth = GRADE_LIMITS[reg.grade]}
-									<!-- ⭐ 권한 없음: 클릭 불가능한 일반 목록 -->
-									<div class="flex items-center justify-between border-b border-indigo-200 py-1 text-indigo-600 last:border-b-0">
-										<span class="text-xs">{reg.name} ({formatDate(reg.createdAt)})</span>
-									<div class="flex items-center gap-1">
-										{#if gradeLimitNoAuth?.insuranceRequired}
-											<button
-												onclick={(e) => handleInsuranceIconClick(e, reg)}
-												class="flex-shrink-0 hover:scale-110 transition-transform"
-												title="보험 조건 확인"
-											>
-												{#if reg.insuranceActive}
-														<span class="inline-flex items-center justify-center w-4 h-4 rounded text-[10px] font-bold bg-green-100 text-green-700 border border-green-300" title="보험 유지됨">유</span>
+											<img src="/icons/{reg.grade}.svg" alt={reg.grade} class="h-4 w-4" title="{reg.grade} 등급" />
+										</a>
+									{:else}
+										<div class="inline-flex items-center gap-1 rounded-md bg-white px-2 py-1 text-xs text-indigo-700 border border-indigo-200 shadow-sm">
+											<span class="font-medium">{reg.name}</span>
+											<span class="text-gray-400">({formatDate(reg.createdAt)})</span>
+											{#if gradeLimit?.insuranceRequired}
+												<button
+													onclick={(e) => handleInsuranceIconClick(e, reg)}
+													class="flex-shrink-0 hover:scale-110 transition-transform"
+													title="보험 조건 확인"
+												>
+													{#if reg.insuranceActive}
+														<span class="inline-flex items-center justify-center w-4 h-4 rounded text-[10px] font-bold bg-green-100 text-green-700 border border-green-300">유</span>
 													{:else}
-														<span class="inline-flex items-center justify-center w-4 h-4 rounded text-[10px] font-bold bg-red-100 text-red-600 border border-red-300" title="보험 미유지">✕</span>
+														<span class="inline-flex items-center justify-center w-4 h-4 rounded text-[10px] font-bold bg-red-100 text-red-600 border border-red-300">✕</span>
 													{/if}
-											</button>
-										{/if}
-										<img src="/icons/{reg.grade}.svg" alt={reg.grade} class="h-5 w-5" />
-									</div>
-									</div>
-								{/if}
-							{/each}
-						</div>
+												</button>
+											{/if}
+											<img src="/icons/{reg.grade}.svg" alt={reg.grade} class="h-4 w-4" title="{reg.grade} 등급" />
+										</div>
+									{/if}
+								{/each}
+							</div>
+						{:else}
+							<!-- 리스트 보기 (2줄 고정 + 스크롤) -->
+							<div class="max-h-[56px] overflow-y-auto space-y-0.5">
+								{#each allRegistrations as reg}
+									{@const gradeLimit = GRADE_LIMITS[reg.grade]}
+									{#if userInfo?.canViewSubordinates}
+										<a
+											href="/dashboard/network?userId={reg.id}"
+											class="flex items-center justify-between rounded bg-white px-2 py-1 text-xs text-indigo-700 border border-indigo-100 hover:bg-indigo-100 hover:border-indigo-300 transition-colors"
+											title="{reg.grade} 등급 - 산하정보 보기"
+										>
+											<span class="font-medium">{reg.name}</span>
+											<div class="flex items-center gap-1.5">
+												<span class="text-gray-400">{formatDate(reg.createdAt)}</span>
+												{#if gradeLimit?.insuranceRequired}
+													<button
+														onclick={(e) => handleInsuranceIconClick(e, reg)}
+														class="flex-shrink-0 hover:scale-110 transition-transform"
+														title="보험 조건 확인"
+													>
+														{#if reg.insuranceActive}
+															<span class="inline-flex items-center justify-center w-4 h-4 rounded text-[10px] font-bold bg-green-100 text-green-700 border border-green-300">유</span>
+														{:else}
+															<span class="inline-flex items-center justify-center w-4 h-4 rounded text-[10px] font-bold bg-red-100 text-red-600 border border-red-300">✕</span>
+														{/if}
+													</button>
+												{/if}
+												<img src="/icons/{reg.grade}.svg" alt={reg.grade} class="h-4 w-4" title="{reg.grade} 등급" />
+											</div>
+										</a>
+									{:else}
+										<div class="flex items-center justify-between rounded bg-white px-2 py-1 text-xs text-indigo-700 border border-indigo-100">
+											<span class="font-medium">{reg.name}</span>
+											<div class="flex items-center gap-1.5">
+												<span class="text-gray-400">{formatDate(reg.createdAt)}</span>
+												{#if gradeLimit?.insuranceRequired}
+													<button
+														onclick={(e) => handleInsuranceIconClick(e, reg)}
+														class="flex-shrink-0 hover:scale-110 transition-transform"
+														title="보험 조건 확인"
+													>
+														{#if reg.insuranceActive}
+															<span class="inline-flex items-center justify-center w-4 h-4 rounded text-[10px] font-bold bg-green-100 text-green-700 border border-green-300">유</span>
+														{:else}
+															<span class="inline-flex items-center justify-center w-4 h-4 rounded text-[10px] font-bold bg-red-100 text-red-600 border border-red-300">✕</span>
+														{/if}
+													</button>
+												{/if}
+												<img src="/icons/{reg.grade}.svg" alt={reg.grade} class="h-4 w-4" title="{reg.grade} 등급" />
+											</div>
+										</div>
+									{/if}
+								{/each}
+							</div>
+						{/if}
 					</div>
 				{/if}
 			</div>
@@ -602,7 +675,7 @@
 										<td class="table-cell text-right font-medium">{formatAmount(user.amount)}</td>
 										<!-- ⭐ 세금, 실수령액 -->
 										<td class="table-cell text-right">{formatAmount(user.tax)}</td>
-										<td class="table-cell text-right font-medium">{formatAmount(user.netAmount)}</td>
+										<td class="table-cell text-right font-medium bg-emerald-100 text-emerald-800">{formatAmount(user.netAmount)}</td>
 									</tr>
 								{/each}
 								<!-- ⭐ 일자별 소계 행 (2개 이상일 때만 표시) -->
@@ -614,7 +687,7 @@
 										<td class="table-cell text-right text-purple-800">{subtotalBreakdown.판촉.toLocaleString()}원</td>
 										<td class="table-cell text-right text-purple-900">{formatAmount(weekGroup.totalAmount)}</td>
 										<td class="table-cell text-right text-purple-800">{formatAmount(weekGroup.totalTax)}</td>
-										<td class="table-cell text-right text-purple-900">{formatAmount(weekGroup.totalNet)}</td>
+										<td class="table-cell text-right font-bold bg-emerald-200 text-emerald-900">{formatAmount(weekGroup.totalNet)}</td>
 									</tr>
 								{/if}
 							{/each}
