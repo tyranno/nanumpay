@@ -37,10 +37,10 @@ export async function executeStep5(plans, registrationMonth) {
   // 월별 총계 생성/업데이트
   // ========================================
 
-  // 모든 활성 계획 조회 (해당 월 귀속)
+  // 모든 계획 조회 (해당 월 귀속)
   const allActivePlans = await WeeklyPaymentPlans.find({
-    revenueMonth: registrationMonth,
-    planStatus: { $in: ['active', 'completed'] }
+    revenueMonth: registrationMonth
+    // planStatus 조건 제거 - 모든 계획 조회
   });
 
   console.log(`📊 [Step5] 월별 총계 계산: ${registrationMonth} (${allActivePlans.length}개 계획)`);

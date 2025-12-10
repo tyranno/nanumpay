@@ -153,8 +153,8 @@ export async function POST({ request, locals }) {
 
 		// WeeklyPaymentPlans 업데이트: revenueMonth가 monthKey인 모든 계획
 		const plans = await WeeklyPaymentPlans.find({
-			revenueMonth: monthKey,
-			planStatus: { $in: ['active', 'completed'] }
+			revenueMonth: monthKey
+			// planStatus 조건 제거 - 모든 계획 조회
 		});
 
 		console.log(`[grade-adjustment] 조회된 plans: ${plans.length}개, monthKey: ${monthKey}`);

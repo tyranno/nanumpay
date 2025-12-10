@@ -29,8 +29,8 @@ async function calculateMonthlyGradePayments(monthKey) {
           $gte: new Date(`${monthKey}-01`),
           $lt: new Date(new Date(`${monthKey}-01`).setMonth(new Date(`${monthKey}-01`).getMonth() + 1))
         },
-        'installments.status': { $nin: ['skipped', 'terminated'] },  // ⭐ v8.0: canceled 제거
-        planStatus: { $ne: 'terminated' }
+        'installments.status': { $nin: ['skipped', 'terminated'] }  // ⭐ v8.0: canceled 제거
+        // planStatus 조건 제거 - inst.status로 충분
       }
     },
     {
@@ -205,8 +205,8 @@ async function getWeeklyData(start, end) {
     {
       $match: {
         'installments.scheduledDate': { $gte: startDate, $lte: endDate },
-        'installments.status': { $nin: ['skipped', 'terminated'] },  // ⭐ v8.0: canceled 제거
-        planStatus: { $ne: 'terminated' }
+        'installments.status': { $nin: ['skipped', 'terminated'] }  // ⭐ v8.0: canceled 제거
+        // planStatus 조건 제거 - inst.status로 충분
       }
     },
     {

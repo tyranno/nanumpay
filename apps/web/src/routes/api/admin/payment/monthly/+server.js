@@ -17,8 +17,8 @@ export async function GET({ url }) {
 		const monthKey = `${year}-${String(month).padStart(2, '0')}`;
 
 		const plans = await WeeklyPaymentPlans.find({
-			revenueMonth: monthKey,
-			planStatus: { $in: ['active', 'completed'] }
+			revenueMonth: monthKey
+			// planStatus 조건 제거 - 모든 계획 조회
 		})
 		.populate('userId', 'name loginId grade')
 		.lean();
