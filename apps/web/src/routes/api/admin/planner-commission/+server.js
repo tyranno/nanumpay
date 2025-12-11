@@ -76,6 +76,7 @@ export async function GET({ url, locals }) {
 		const searchType = url.searchParams.get('searchType'); // 'name' | 'grade'
 		const searchTerm = url.searchParams.get('searchTerm'); // 검색어
 		const viewMode = url.searchParams.get('viewMode') || 'monthly'; // 'monthly' | 'weekly'
+		const sortBy = url.searchParams.get('sortBy') || 'name'; // 'name' | 'amount' | 'createdAt'
 		const page = parseInt(url.searchParams.get('page')) || 1;
 		const limit = parseInt(url.searchParams.get('limit')) || 20;
 
@@ -292,11 +293,13 @@ export async function GET({ url, locals }) {
 						phone: plannerAccount.phone,
 						bank: plannerAccount.bank || '',
 						accountNumber: plannerAccount.accountNumber || '',
-						email: plannerAccount.email
+						email: plannerAccount.email,
+						createdAt: plannerAccount.createdAt
 					},
 					plannerName: plannerAccount.name,
 					plannerPhone: plannerAccount.phone,
 					plannerEmail: plannerAccount.email,
+					plannerCreatedAt: plannerAccount.createdAt, // 정렬용
 					periods: {}
 				});
 			}
@@ -516,8 +519,27 @@ export async function GET({ url, locals }) {
 		console.log(`\n🔍 4단계: 최종 응답 데이터 생성`);
 
 		// Map을 배열로 변환
-		const groupedData = Array.from(plannerMap.values())
+		let groupedData = Array.from(plannerMap.values())
 			.filter(planner => Object.keys(planner.periods).length > 0);
+
+		// 정렬 적용
+		if (sortBy === 'name') {
+			groupedData.sort((a, b) => (a.plannerName || '').localeCompare(b.plannerName || '', 'ko'));
+		} else if (sortBy === 'amount') {
+			groupedData.sort((a, b) => {
+				const totalA = Object.values(a.periods || {}).reduce((sum, p) => sum + (p.totalAmount || 0), 0);
+				const totalB = Object.values(b.periods || {}).reduce((sum, p) => sum + (p.totalAmount || 0), 0);
+				return totalB - totalA; // 내림차순
+			});
+		} else if (sortBy === 'createdAt') {
+			groupedData.sort((a, b) => {
+				const dateA = a.plannerCreatedAt ? new Date(a.plannerCreatedAt) : new Date(0);
+				const dateB = b.plannerCreatedAt ? new Date(b.plannerCreatedAt) : new Date(0);
+				return dateA - dateB; // 오름차순 (오래된 순)
+			});
+		}
+
+		console.log(`   📊 정렬 기준: ${sortBy}`);
 
 		// 페이지네이션 적용
 		const totalItems = groupedData.length;

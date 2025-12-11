@@ -13,7 +13,7 @@
 
 	// 등급(회수) 클릭 핸들러 (주별/주간 조회에서만 동작, 월별은 제외)
 	function handleGradeInfoClick(user, payment, week) {
-		// TODO: 기능 임시 비활성화 - 등록/승급일 표시 문제 수정 후 활성화
+		// ⭐ 기능 비활성화 (활성화하려면 아래 return 주석처리)
 		return;
 
 		// 월별 조회 시 모달 미표시
@@ -288,7 +288,7 @@
 					<!-- svelte-ignore a11y_click_events_have_key_events -->
 					<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 					<td
-						class="td-grade-info{periodType !== 'monthly' && payment?.gradeInfo && payment?.gradeInfo !== '-' ? ' clickable-cell' : ''}"
+						class="td-grade-info"
 						title={payment?.installmentDetails
 							? payment.installmentDetails.map((d) => `${d.revenueMonth} ${d.week}회차`).join(', ')
 							: ''}

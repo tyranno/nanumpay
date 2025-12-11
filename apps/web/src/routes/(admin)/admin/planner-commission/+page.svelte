@@ -28,6 +28,7 @@
 	let endMonth = new Date().getMonth() + 1;
 	let plannerName = '';
 	let viewMode = 'monthly'; // 'monthly' | 'weekly'
+	let sortBy = 'name'; // 'name' | 'amount' - 정렬 기준
 
 	// 칼럼 표시 옵션
 	let showPhoneColumn = false; // 연락처 칼럼 표시 여부 (기본값: false)
@@ -121,7 +122,8 @@
 			const params = new URLSearchParams({
 				page: page.toString(),
 				limit: limit.toString(),
-				viewMode: viewMode // 보기 모드 추가
+				viewMode: viewMode, // 보기 모드 추가
+				sortBy: sortBy // 정렬 기준 추가
 			});
 
 			if (filterType === 'month' && selectedMonth) {
@@ -189,6 +191,11 @@
 		loadCommissions(1);
 	}
 
+	// 정렬 변경 (API에서 전체 데이터 기준 정렬)
+	function handleSortChange() {
+		loadCommissions(1);
+	}
+
 	// 기간 변경
 	function handlePeriodChange() {
 		if (filterType === 'period') {
@@ -219,11 +226,12 @@
 	// 엑셀 다운로드
 	async function exportToExcel() {
 		try {
-			// 전체 데이터 가져오기
+			// 전체 데이터 가져오기 (현재 정렬 기준 적용)
 			const params = new URLSearchParams({
 				page: '1',
 				limit: '999999',
-				viewMode: viewMode
+				viewMode: viewMode,
+				sortBy: sortBy // 정렬 기준 적용
 			});
 			if (filterType === 'month' && selectedMonth) params.append('paymentMonth', selectedMonth);
 			else if (filterType === 'period') {
@@ -441,6 +449,18 @@
 			<!-- 설정 -->
 			<div class="settings-row-mobile">
 				<label class="flex items-center gap-1">
+					<span class="text-gray-600 text-xs">정렬:</span>
+					<select
+						bind:value={sortBy}
+						onchange={handleSortChange}
+						class="select-page-mobile"
+					>
+						<option value="name">이름순</option>
+						<option value="amount">금액순</option>
+						<option value="createdAt">등록일순</option>
+					</select>
+				</label>
+				<label class="flex items-center gap-1">
 					<span class="text-gray-600 text-xs">페이지:</span>
 					<select
 						bind:value={limit}
@@ -608,6 +628,19 @@
 
 			<!-- 설정 영역 (오른쪽) -->
 			<div class="flex items-center gap-2.5">
+				<!-- 정렬 -->
+				<label class="label-desktop">
+					정렬
+					<select
+						bind:value={sortBy}
+						onchange={handleSortChange}
+						class="select-desktop-with-focus"
+					>
+						<option value="name">이름순</option>
+						<option value="amount">금액순</option>
+						<option value="createdAt">등록일순</option>
+					</select>
+				</label>
 				<!-- 페이지당 항목 수 -->
 				<label class="label-desktop">
 					페이지당

@@ -322,11 +322,11 @@ export class UserRegistrationService {
 						createdAt = new Date();
 					}
 					
-					// ⭐ 시간 부분 00:00:00으로 통일 (정렬 정확도 향상)
-					createdAt.setHours(0, 0, 0, 0);
+					// ⭐ 시간 부분 12:00:00 UTC로 통일 (타임존 무관하게 같은 날짜 보장)
+					createdAt.setUTCHours(12, 0, 0, 0);
 				} else {
 					createdAt = new Date();
-					createdAt.setHours(0, 0, 0, 0);
+					createdAt.setUTCHours(12, 0, 0, 0);
 				}
 
 				// ⭐ v8.1: 고정 헤더명으로만 값 읽기 (빈값이면 빈값 그대로)
