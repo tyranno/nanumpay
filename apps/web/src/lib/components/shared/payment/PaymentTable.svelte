@@ -13,8 +13,8 @@
 
 	// 등급(회수) 클릭 핸들러 (주별/주간 조회에서만 동작, 월별은 제외)
 	function handleGradeInfoClick(user, payment, week) {
-		// ⭐ 기능 비활성화 (활성화하려면 아래 return 주석처리)
-		return;
+		// ⭐ DB 설정으로 제어 (enableGradeInfoModal prop)
+		if (!enableGradeInfoModal) return;
 
 		// 월별 조회 시 모달 미표시
 		if (periodType === 'monthly') return;
@@ -53,6 +53,7 @@
 	export let monthlyTotals = {}; // 월별 총계 (API에서 받은 전체 데이터)
 	export let showPlannerColumn = true; // ⭐ prop으로 받음 (기본값 true)
 	export let onPlannerClick = (plannerInfo) => {}; // ⭐ 설계사 클릭 핸들러
+	export let enableGradeInfoModal = false; // ⭐ 등급(회수) 클릭 모달 (DB 설정으로 제어)
 
 	// Store에서 컬럼 표시 설정 가져오기
 	$: showGradeInfoColumn = $paymentPageFilterState.showGradeInfoColumn; // ⭐ 신규
@@ -288,7 +289,7 @@
 					<!-- svelte-ignore a11y_click_events_have_key_events -->
 					<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 					<td
-						class="td-grade-info"
+						class="td-grade-info{enableGradeInfoModal && periodType !== 'monthly' && payment?.gradeInfo && payment?.gradeInfo !== '-' ? ' clickable-cell' : ''}"
 						title={payment?.installmentDetails
 							? payment.installmentDetails.map((d) => `${d.revenueMonth} ${d.week}회차`).join(', ')
 							: ''}
