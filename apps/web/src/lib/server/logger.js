@@ -68,9 +68,30 @@ const originalWarn = console.warn;
 const originalInfo = console.info;
 const originalDebug = console.debug;
 
+// 파일 로깅에서 제외할 패턴 (개발 도구 메시지)
+const skipPatterns = [
+  /\[vite\]/i,
+  /hmr update/i,
+  /hmr connection/i,
+  /hot update/i,
+  /\[HMR\]/i,
+  /page reload/i,
+  /\[PWA\]/i,
+  /\[sveltekit\]/i,
+  /optimized dependencies/i,
+  /pre-bundling/i,
+  /watching for file changes/i
+];
+
+function shouldSkipLog(message) {
+  return skipPatterns.some(pattern => pattern.test(message));
+}
+
 console.log = function(...args) {
-  logger.info(args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : arg).join(' '));
-  // 콘솔 출력은 Winston transports에서 처리 (중복 출력 방지)
+  const message = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : arg).join(' ');
+  if (!shouldSkipLog(message)) {
+    logger.info(message);
+  }
 };
 
 console.error = function(...args) {
@@ -90,8 +111,10 @@ console.warn = function(...args) {
 };
 
 console.info = function(...args) {
-  logger.info(args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : arg).join(' '));
-  // 콘솔 출력은 Winston transports에서 처리 (중복 출력 방지)
+  const message = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : arg).join(' ');
+  if (!shouldSkipLog(message)) {
+    logger.info(message);
+  }
 };
 
 console.debug = function(...args) {
