@@ -310,6 +310,10 @@
 		hoverPath = null;
 	}
 
+	// === 터치 디바이스 감지 및 탭 관리 ===
+	let isTouchDevice = false;
+	let tappedNodePath = null; // 모바일: 탭하여 선택된 노드 경로
+
 	// 날짜 포맷팅 함수
 	function formatDate(dateStr) {
 		if (!dateStr) return '-';
@@ -459,6 +463,9 @@
 			return;
 		}
 
+		// 터치 디바이스 감지
+		isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
 		originalData = clone(data);
 		annotatePaths(originalData);
 		currentRoot = originalData;
@@ -580,7 +587,28 @@
 	// === UI 이벤트 ===
 	function handleClick(e) {
 		const path = e.currentTarget?.dataset?.path || '';
-		rerootByPath(path);
+
+		if (isTouchDevice) {
+			// 모바일: 첫 탭은 툴팁 표시, 두 번째 탭(같은 노드)은 드릴다운
+			if (tappedNodePath === path) {
+				// 같은 노드 재탭 → 드릴다운
+				tappedNodePath = null;
+				rerootByPath(path);
+			} else {
+				// 다른 노드 탭 → 툴팁 표시
+				tappedNodePath = path;
+			}
+		} else {
+			// 데스크톱: 즉시 드릴다운
+			rerootByPath(path);
+		}
+	}
+
+	// 빈 공간 클릭 시 모바일 툴팁 닫기
+	function handleWrapperClick(e) {
+		if (isTouchDevice && !e.target.closest('.node-box')) {
+			tappedNodePath = null;
+		}
 	}
 	function handleKeydown(e) {
 		if (e.key === 'Enter' || e.key === ' ') {
@@ -595,7 +623,7 @@
 	}
 </script>
 
-<div bind:this={wrapEl} class="tree-wrap" class:rendered={isRendered} ondblclick={() => backToFull()}>
+<div bind:this={wrapEl} class="tree-wrap" class:rendered={isRendered} ondblclick={() => backToFull()} onclick={handleWrapperClick}>
 	<!-- 툴팁 제거: 노드 아래에 직접 표시 -->
 	<!-- SVG와 HTML을 하나의 컨테이너로 묶음 (모바일 pinch-zoom 대응) -->
 	<div
@@ -621,7 +649,7 @@
 		<div bind:this={nodeLayerEl} class="node-layer">
 			{#each layoutNodes as n}
 				<div
-					class="node-box {hoverPath === n.data.__path ? 'hovered' : ''}"
+					class="node-box {hoverPath === n.data.__path || (isTouchDevice && tappedNodePath === n.data.__path) ? 'hovered' : ''}"
 					data-path={n.data.__path}
 					style={`left:${n.x - nodeWidth / 2}px; top:${n.y - nodeHeight / 2}px; width:${nodeWidth}px; height:${nodeHeight}px;`}
 					role="button"
@@ -646,8 +674,8 @@
 									/>
 								{/if}
 							</div>
-								<!-- 등록일/승급정보 표시 (hover 시에만) -->
-								{#if hoverPath === n.data.__path}
+								<!-- 등록일/승급정보 표시 (데스크톱: hover, 모바일: tap) -->
+								{#if hoverPath === n.data.__path || (isTouchDevice && tappedNodePath === n.data.__path)}
 									<div class="node-info-tooltip">
 										<div class="info-row">등록: {formatDate(n.data.createdAt)}</div>
 										{#if n.data.gradeHistory?.length > 0}
