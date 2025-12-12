@@ -98,12 +98,12 @@
 				/>
 			</div>
 			<!-- 표시 방법 -->
-			<div>
+			<div class="w-20">
 				<label class="mb-1 block text-xs font-medium text-gray-700">표시</label>
 				<select
 					bind:value={displayMode}
 					onchange={handleDisplayModeChange}
-					class="rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+					class="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 pr-7 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
 				>
 					<option value="month">월별</option>
 					<option value="week">주별</option>

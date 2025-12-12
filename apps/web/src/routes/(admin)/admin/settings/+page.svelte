@@ -260,6 +260,58 @@
 	let isBackupRunning = $state(false);
 	let backupMessage = $state('');
 
+	// 로그 다운로드 상태
+	let isLogDownloading = $state(false);
+	let logPeriod = $state('today'); // 기본값: 오늘만
+
+	async function handleDownloadLogs() {
+		errorMessage = '';
+		successMessage = '';
+		isLogDownloading = true;
+
+		try {
+			const response = await fetch(`/api/admin/logs/download?period=${logPeriod}`, {
+				credentials: 'include'
+			});
+
+			if (!response.ok) {
+				const data = await response.json();
+				throw new Error(data.message || '로그 다운로드에 실패했습니다.');
+			}
+
+			// 파일 다운로드
+			const blob = await response.blob();
+			const contentDisposition = response.headers.get('Content-Disposition');
+			let filename = 'nanumpay-logs.zip';
+
+			if (contentDisposition) {
+				const match = contentDisposition.match(/filename="(.+)"/);
+				if (match) {
+					filename = match[1];
+				}
+			}
+
+			const url = window.URL.createObjectURL(blob);
+			const a = document.createElement('a');
+			a.href = url;
+			a.download = filename;
+			document.body.appendChild(a);
+			a.click();
+			document.body.removeChild(a);
+			window.URL.revokeObjectURL(url);
+
+			successMessage = '로그 파일 다운로드가 완료되었습니다.';
+			setTimeout(() => {
+				successMessage = '';
+			}, 3000);
+		} catch (err) {
+			console.error('로그 다운로드 오류:', err);
+			errorMessage = err.message;
+		} finally {
+			isLogDownloading = false;
+		}
+	}
+
 	async function handleExecuteBackup() {
 		errorMessage = '';
 		successMessage = '';
@@ -788,6 +840,50 @@
 							</div>
 						</div>
 					</div>
+
+					<!-- 로그 파일 다운로드 -->
+					<div class="rounded-lg border p-3 border-gray-200 bg-gray-50">
+						<div class="flex items-center justify-between">
+							<div>
+								<p class="font-medium text-gray-900">로그 파일 다운로드</p>
+								<p class="text-xs text-gray-500 mt-1">서버 로그 파일을 ZIP으로 압축하여 다운로드합니다.</p>
+							</div>
+							<div class="flex items-center gap-2 ml-4">
+								<select
+									bind:value={logPeriod}
+									class="text-xs py-1.5 pl-2 pr-6 border border-gray-300 rounded bg-white"
+								>
+								<option value="today">오늘만</option>
+								<option value="1week">최근 1주일</option>
+								<option value="1month">최근 1개월</option>
+								<option value="2months">최근 2개월</option>
+								<option value="3months">최근 3개월</option>
+								<option value="6months">최근 6개월</option>
+								<option value="all">전체</option>
+							</select>
+								<button
+									type="button"
+									onclick={handleDownloadLogs}
+									disabled={isLogDownloading}
+									class="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 rounded transition-colors flex items-center gap-1"
+								>
+									{#if isLogDownloading}
+										<svg class="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+											<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+											<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+										</svg>
+										다운로드 중...
+									{:else}
+										<svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+										</svg>
+										다운로드
+									{/if}
+								</button>
+							</div>
+						</div>
+					</div>
+
 					<div class="flex justify-end">
 						<button class="btn-primary" onclick={handleSaveSystemSettings} disabled={isSubmitting}>
 							{isSubmitting ? '저장 중...' : '설정 저장'}
