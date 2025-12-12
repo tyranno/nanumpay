@@ -135,7 +135,50 @@ GitHub Actions 탭에서 "Run workflow" 클릭
 - 클라우드 빌드 권장 (Appflow, EAS Build)
 - 자세한 가이드: [apps/app/IOS_BUILD_GUIDE.md](apps/app/IOS_BUILD_GUIDE.md)
 
+## 🌐 서버 배포
+
+### 배포 명령어
+
+```bash
+# 테스트 서버 (www.nanumpay.xyz)
+pnpm release:deploy:test
+
+# 본 서버 (www.nanumasset.com)
+pnpm release:deploy:web
+
+# HTTPS 전용 모드 (HTTP → HTTPS 리다이렉트)
+pnpm release:deploy:test --redirect
+pnpm release:deploy:web --redirect
+```
+
+### 배포 시 자동 설정 항목
+- Nginx 리버스 프록시 (포트 80/443)
+- MongoDB 설치 및 초기화
+- Let's Encrypt SSL 인증서 (자동 갱신 포함)
+- 정적 페이지 (`/privacy`, `/terms`)
+
+### SSL/HTTPS
+- **기본 모드**: HTTP + HTTPS 병행
+- **인증서**: Let's Encrypt (90일 유효, 자동 갱신)
+- **자동 갱신**: systemd timer (하루 2회)
+
+---
+
+## 📋 앱스토어 정책 페이지
+
+앱스토어 등록 시 필요한 정적 페이지입니다. 인증 없이 접근 가능합니다.
+
+| 페이지 | URL |
+|-------|-----|
+| 개인정보처리방침 | https://www.nanumasset.com/privacy |
+| 이용약관 | https://www.nanumasset.com/terms |
+
+**소스 위치**: `apps/web/install/linux/static/`
+
+---
+
 ## 📖 추가 정보
 
 - 공통 개발 도구(Prettier, ESLint 등)는 루트에서 관리
 - 앱/웹 전용 패키지는 각 워크스페이스에서 `pnpm --filter` 로 설치
+- 상세 배포 가이드: [docs/배포_및_SSL_설정_가이드.md](docs/배포_및_SSL_설정_가이드.md)
