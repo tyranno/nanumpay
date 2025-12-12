@@ -152,6 +152,7 @@
 	}
 
 	// 백엔드와 동일한 금요일 기준 월별 주차 계산
+	// 금요일 날짜 배열 반환
 	function getFridaysInMonth(year, month) {
 		const firstDay = new Date(year, month - 1, 1); // month는 1~12
 
@@ -175,7 +176,7 @@
 			currentFriday.setDate(currentFriday.getDate() + 7);
 		}
 
-		return fridays.length; // 해당 월의 금요일 개수 (주차 수)
+		return fridays; // 해당 월의 금요일 Date 배열
 	}
 
 	function generatePeriodColumns() {
@@ -227,17 +228,20 @@
 			do {
 				const monthKey = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
 
-				// 백엔드와 동일한 방식으로 해당 월의 금요일 개수 계산
-				const weeksInMonth = getFridaysInMonth(currentYear, currentMonth);
+				// 백엔드와 동일한 방식으로 해당 월의 금요일 날짜 계산
+				const fridaysInMonth = getFridaysInMonth(currentYear, currentMonth);
 
-				for (let week = 1; week <= weeksInMonth; week++) {
+				fridaysInMonth.forEach((friday, index) => {
+					const week = index + 1;
+					const fridayLabel = `${friday.getMonth() + 1}-${friday.getDate()}`;
+
 					// API 데이터에서 해당 주차 찾기
 					const weekData = rangeData?.weeklyData?.find(
 						(w) => w.monthKey === monthKey && w.week === week
 					) || {
 						monthKey,
 						week,
-						weekLabel: `${week}주`,
+						weekLabel: fridayLabel,
 						weekCount: 0,
 						gradeDistribution: { F1: 0, F2: 0, F3: 0, F4: 0, F5: 0, F6: 0, F7: 0, F8: 0 },
 						gradePayments: { F1: 0, F2: 0, F3: 0, F4: 0, F5: 0, F6: 0, F7: 0, F8: 0 },
@@ -246,7 +250,7 @@
 
 					columns.push({
 						key: `${monthKey}-W${week}`,
-						label: `${week}주`,
+						label: fridayLabel,
 						type: 'weekly',
 						monthKey: monthKey,
 						monthLabel: `${currentYear}년 ${currentMonth}월`,
@@ -254,7 +258,7 @@
 						weekCount: weekData.weekCount || 0,
 						data: weekData
 					});
-				}
+				});
 
 				// 역전된 경우 시작월만 생성하고 중단
 				if (isDateRangeInvalid) {
@@ -371,19 +375,19 @@
 						<input
 							type="radio"
 							bind:group={paymentViewMode}
-							value="monthly"
+							value="weekly"
 							class="form-radio text-xs"
 						/>
-						<span class="text-xs">월간</span>
+						<span class="text-xs">주간</span>
 					</label>
 					<label class="flex cursor-pointer items-center gap-1">
 						<input
 							type="radio"
 							bind:group={paymentViewMode}
-							value="weekly"
+							value="monthly"
 							class="form-radio text-xs"
 						/>
-						<span class="text-xs">주간</span>
+						<span class="text-xs">월간</span>
 					</label>
 				</div>
 

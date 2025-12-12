@@ -16,7 +16,7 @@ export const revenueCardState = writable({
 
 // 지급 통계 카드 상태 (PaymentStatisticsCard + PaymentStatisticsCardMobile 공유)
 export const paymentCardState = writable({
-	viewMode: 'monthly', // 'monthly' (월간) | 'weekly' (주간)
+	viewMode: 'weekly', // 'weekly' (주간) | 'monthly' (월간)
 	startYear: new Date().getFullYear(),
 	startMonth: new Date().getMonth() + 1,
 	endYear: new Date().getFullYear(),
