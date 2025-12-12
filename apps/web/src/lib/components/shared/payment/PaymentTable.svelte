@@ -52,7 +52,7 @@
 	export let weeklyTotals = {}; // 주차별 총계 (API에서 받은 전체 데이터)
 	export let monthlyTotals = {}; // 월별 총계 (API에서 받은 전체 데이터)
 	export let showPlannerColumn = true; // ⭐ prop으로 받음 (기본값 true)
-	export let onPlannerClick = (plannerInfo) => {}; // ⭐ 설계사 클릭 핸들러
+	export let onPlannerClick = null; // ⭐ 설계사 클릭 핸들러 (null이면 링크 비활성화)
 	export let enableGradeInfoModal = false; // ⭐ 등급(회수) 클릭 모달 (DB 설정으로 제어)
 
 	// Store에서 컬럼 표시 설정 가져오기
@@ -246,18 +246,22 @@
 								{#if showPlannerColumn}
 									<td class="td-sticky-2">
 										{#if user.planner}
-											<button
-												class="planner-link"
-												onclick={() => onPlannerClick({
-													plannerAccountId: user.plannerAccountId,
-													name: user.planner,
-													phone: user.plannerPhone,
-													bank: user.plannerBank,
-													accountNumber: user.plannerAccountNumber
-												})}
-											>
+											{#if onPlannerClick}
+												<button
+													class="planner-link"
+													onclick={() => onPlannerClick({
+														plannerAccountId: user.plannerAccountId,
+														name: user.planner,
+														phone: user.plannerPhone,
+														bank: user.plannerBank,
+														accountNumber: user.plannerAccountNumber
+													})}
+												>
+													{user.planner}
+												</button>
+											{:else}
 												{user.planner}
-											</button>
+											{/if}
 										{:else}
 											-
 										{/if}
