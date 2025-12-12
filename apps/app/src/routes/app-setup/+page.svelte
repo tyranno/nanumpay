@@ -4,7 +4,7 @@
 	import { browser } from '$app/environment';
 	import { Preferences } from '@capacitor/preferences';
 	import { checkServerConnection } from '$lib/server-check.js';
-	import { DEFAULT_SERVER_URL } from '$lib/config.js';
+	import { DEFAULT_SERVER_URL, SERVER_URL_LIST } from '$lib/config.js';
 
 	let serverUrl = '';
 	let errorMessage = '';
@@ -35,6 +35,32 @@
 			}
 		}
 	});
+
+	// 서버 URL 목록 순차 시도
+	async function tryAllServers() {
+		addDebug('서버 목록 순차 연결 시작');
+		errorMessage = '';
+		successMessage = '';
+		isChecking = true;
+
+		for (const url of SERVER_URL_LIST) {
+			addDebug(`시도: ${url}`);
+			const result = await checkServerConnection(url);
+
+			if (result.success) {
+				addDebug(`✅ 성공: ${url}`);
+				await Preferences.set({ key: 'serverUrl', value: url });
+				successMessage = `${url} 연결 성공! 접속 중...`;
+				isChecking = false;
+				setTimeout(() => goto('/'), 500);
+				return;
+			}
+			addDebug(`❌ 실패: ${url}`);
+		}
+
+		isChecking = false;
+		errorMessage = '모든 서버에 연결할 수 없습니다';
+	}
 
 	async function testConnection() {
 		addDebug('연결 테스트 시작');
@@ -152,8 +178,19 @@
 			</button>
 		</div>
 
+		<button
+			on:click={tryAllServers}
+			class="w-full rounded bg-green-500 px-4 py-2 text-white hover:bg-green-600 disabled:opacity-50"
+			disabled={isChecking}
+		>
+			{isChecking ? '확인 중...' : '자동 연결 (권장)'}
+		</button>
+
 		<div class="text-center text-xs text-gray-500">
-			기본 서버 주소: {DEFAULT_SERVER_URL}
+			<div>서버 목록 (순서대로 시도):</div>
+			{#each SERVER_URL_LIST as url, i}
+				<div>{i + 1}. {url}</div>
+			{/each}
 		</div>
 	</div>
 </div>
