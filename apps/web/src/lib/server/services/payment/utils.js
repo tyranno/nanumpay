@@ -67,56 +67,43 @@ export function buildSearchFilter(search, searchCategory) {
 }
 
 /**
- * gradeInfo 생성: 등급(회수) 형식 - 기본지급회차/추가지급회차
+ * gradeInfo 생성: 등급(회수) 형식
  * @param {Array} payments - 지급 계획 배열
- * @returns {string} - "F1(1,2), F2(6/1,7/2)" 형식
+ * @returns {string} - "F4(10/6/1)" 형식
+ *   - (기본회차/추가1차회차/추가2차회차/추가3차회차)
+ *   - 예: F4(10/6/1) = 기본10회차, 추가1차6회차, 추가2차1회차
  */
 export function generateGradeInfo(payments) {
 	if (!payments || payments.length === 0) {
 		return '-';
 	}
 
-	// 등급별로 그룹화하여 기본/추가 지급 회차 매칭
-	const gradeMap = {}; // { 'F2': { basic: [1,2,3], additional: [1,2,3] } }
+	// 등급별로 stage별 week 그룹화
+	// { 'F4': { 0: [10], 1: [6], 2: [1] } }
+	const gradeMap = {};
 
 	payments.forEach(p => {
 		const grade = p.baseGrade;
 		const stage = p.추가지급단계 || 0;
 
 		if (!gradeMap[grade]) {
-			gradeMap[grade] = { basic: [], additional: [] };
+			gradeMap[grade] = {};
 		}
-
-		if (stage === 0) {
-			gradeMap[grade].basic.push(p.week);
-		} else {
-			gradeMap[grade].additional.push(p.week);
+		if (!gradeMap[grade][stage]) {
+			gradeMap[grade][stage] = [];
 		}
+		gradeMap[grade][stage].push(p.week);
 	});
 
-	// 형식화: 기본만/추가만: F2(1,2,3,4), 둘 다: F2(6/1,7/2,8/3,9/4)
-	return Object.entries(gradeMap).map(([grade, data]) => {
-		const hasBasic = data.basic.length > 0;
-		const hasAdditional = data.additional.length > 0;
-
-		if (hasBasic && hasAdditional) {
-			// 둘 다 있을 때: 슬래시로 구분
-			const pairs = [];
-			const maxLen = Math.max(data.basic.length, data.additional.length);
-			for (let i = 0; i < maxLen; i++) {
-				const basic = data.basic[i] || '';
-				const additional = data.additional[i] || '';
-				pairs.push(`${basic}/${additional}`);
-			}
-			return `${grade}(${pairs.join(',')})`;
-		} else if (hasBasic) {
-			// 기본지급만: 슬래시 없이
-			return `${grade}(${data.basic.join(',')})`;
-		} else {
-			// 추가지급만: 슬래시 없이
-			return `${grade}(${data.additional.join(',')})`;
-		}
-	}).join(', ');
+	// 형식화: F4(10/6/1)
+	return Object.entries(gradeMap)
+		.map(([grade, stages]) => {
+			// stage 순서대로 정렬 (0, 1, 2, 3...)
+			const sortedStages = Object.keys(stages).map(Number).sort((a, b) => a - b);
+			const weekParts = sortedStages.map(stage => stages[stage].join(','));
+			return `${grade}(${weekParts.join('/')})`;
+		})
+		.join(', ');
 }
 
 /**

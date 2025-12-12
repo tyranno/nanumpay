@@ -126,3 +126,15 @@ export const GRADE_BASE_AMOUNTS = {
   F7: 1215000,
   F8: 1620000
 };
+
+/**
+ * ⭐ 등급별 최대 추가지급 횟수 (GRADE_LIMITS에서 자동 계산)
+ * 공식: (maxInstallments - 10) / 10
+ * 결과: F1:1, F2:2, F3:2, F4:3, F5:3, F6:4, F7:4, F8:4
+ */
+export const MAX_ADDITIONAL_PAYMENTS = Object.fromEntries(
+  Object.entries(GRADE_LIMITS).map(([grade, limits]) => [
+    grade,
+    Math.floor((limits.maxInstallments - 10) / 10)
+  ])
+);

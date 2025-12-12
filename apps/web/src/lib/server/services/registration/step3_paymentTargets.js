@@ -15,16 +15,7 @@ import User from '../../models/User.js';
 import MonthlyRegistrations from '../../models/MonthlyRegistrations.js';
 import WeeklyPaymentPlans from '../../models/WeeklyPaymentPlans.js';
 import { calculateGradePayments } from '../../utils/paymentCalculator.js';
-import { GRADE_LIMITS } from '../../utils/constants.js';
-
-// ⭐ GRADE_LIMITS에서 최대 추가지급 횟수 자동 계산
-// (최대횟수 - 기본10회) / 10 = 추가지급 차수
-const MAX_ADDITIONAL_PAYMENTS = Object.fromEntries(
-	Object.entries(GRADE_LIMITS).map(([grade, limits]) => [
-		grade,
-		Math.floor((limits.maxInstallments - 10) / 10)
-	])
-);
+import { GRADE_LIMITS, MAX_ADDITIONAL_PAYMENTS } from '../../utils/constants.js';
 
 /**
  * Step 3 실행
@@ -190,91 +181,80 @@ export async function executeStep3(promoted, monthlyReg, registrationMonth) {
 }
 
 /**
- * 추가지급 대상자 찾기
+ * 추가지급 대상자 찾기 (2번안: User.gradeHistory 활용)
  *
- * ⭐ 핵심 로직:
- * 1. 등급별로 확인해야 할 이전 달 개수 계산
- *    - GRADE_LIMITS.maxInstallments 기준으로 자동 계산
- *    - 추가지급 차수 = (최대횟수 - 기본10회) / 10
+ * ⭐ 핵심 룰: "이 등급으로 몇 개월째인가?"
+ *   0개월째 (승급/등록월) → 기본지급
+ *   1개월째 → 추가1차
+ *   2개월째 → 추가2차
+ *   ...
+ *   N개월째 → 추가N차 (최대 차수까지)
  *
- * 2. 각 이전 달의 대상자 중 이번 달 미승급자 찾기 (3가지 소스)
- *    A. 등록자 (최초 추가지급)
- *    B. 승급자 (최초 추가지급)
- *    C. 추가지급 대상자 (지속적인 추가지급) ⭐ 핵심!
- *
- * 3. 조건 확인:
- *    - 최대 횟수 미도달
- *    - F4+ 보험 가입 (⭐ v8.0: F3 보험 불필요)
- *    - 등급 유지 (하락 시 제외)
- *    - 이번 달 추가지급 미생성
- *
- * ⭐ 중요: 추가지급의 revenueMonth는 현재 월!
- *   예: 7월 등록 → 8월 미승급 → 8월 매출분 추가지급 생성
- *       8월 추가지급 → 9월 미승급 → 9월 매출분 추가지급 생성
+ * ⭐ 장점:
+ *   - User 테이블 1회 조회로 완료 (O(N) vs O(32N))
+ *   - gradeHistory.revenueMonth로 등급 시작월 직접 계산
+ *   - MonthlyRegistrations 탐색 불필요
  *
  * @param {Array} promoted - 이번 달 승급자 배열
  * @param {string} registrationMonth - 현재 귀속월 (YYYY-MM)
  * @returns {Promise<Array>}
  */
 async function findAdditionalPaymentTargets(promoted, registrationMonth) {
-	const maxPreviousMonths = {
-		F1: 1,
-		F2: 2,
-		F3: 3,
-		F4: 3,
-		F5: 4,
-		F6: 4,
-		F7: 5,
-		F8: 5
-	};
-
 	const additionalTargets = [];
-	const currentPromotedIds = promoted.map((p) => p.userId);
-	const processedUsers = new Set();
 
-	for (const [grade, months] of Object.entries(maxPreviousMonths)) {
-		for (let i = 1; i <= months; i++) {
-			const targetMonth = getMonthOffset(registrationMonth, -i);
+	// 1. 현재 월 등록 데이터 조회 (등록자 제외용)
+	const currentMonthlyReg = await MonthlyRegistrations.findOne({
+		monthKey: registrationMonth
+	});
 
-			const monthlyReg = await MonthlyRegistrations.findOne({
-				monthKey: targetMonth
+	// 2. 제외 대상 ID 수집 (승급자 + 등록자)
+	const excludeIds = new Set([
+		...promoted.map((p) => p.userId),
+		...(currentMonthlyReg?.registrations || []).map((r) => r.userId)
+	]);
+
+	// 3. 전체 active 사용자 조회 (1회!)
+	const users = await User.find({
+		status: 'active',
+		_id: { $nin: Array.from(excludeIds) }
+	});
+
+	// 4. 각 사용자별 추가지급 판단
+	for (const user of users) {
+		// gradeHistory에서 현재 등급 시작월 가져오기
+		const lastEntry = user.gradeHistory?.[user.gradeHistory.length - 1];
+		if (!lastEntry) continue;
+
+		const startMonth = lastEntry.revenueMonth;
+		if (!startMonth) continue;
+
+		// 등급 유지 개월 수 계산
+		const monthsInGrade = getMonthDiff(registrationMonth, startMonth);
+
+		// 최대 추가지급 횟수
+		const maxMonths = MAX_ADDITIONAL_PAYMENTS[user.grade] || 0;
+
+		// 추가지급 대상 조건:
+		// - 0개월 = 승급/등록월 = 기본지급 → 제외
+		// - 1개월 이상 & 최대 차수 이하 = 추가지급 대상
+		if (monthsInGrade > 0 && monthsInGrade <= maxMonths) {
+			// 중복 확인: 이번 달에 이미 이 등급으로 추가지급 생성됨?
+			const alreadyCreated = await WeeklyPaymentPlans.findOne({
+				userId: user._id,
+				baseGrade: user.grade,
+				revenueMonth: registrationMonth,
+				installmentType: 'additional'
 			});
 
-			if (!monthlyReg) continue;
-
-			const prevPromotedIds = (monthlyReg.paymentTargets?.promoted || []).map((p) => p.userId);
-
-			const prevTargets = [
-				...monthlyReg.registrations.filter((r) => !prevPromotedIds.includes(r.userId)),
-				...(monthlyReg.paymentTargets?.promoted || []).map((p) => ({
-					userId: p.userId,
-					userName: p.userName,
-					grade: p.newGrade
-				})),
-				...(monthlyReg.paymentTargets?.additionalPayments || []).map((a) => ({
-					userId: a.userId,
-					userName: a.userName,
-					grade: a.grade
-				}))
-			];
-
-			const candidates = prevTargets
-				.filter((t) => t.grade === grade || t.newGrade === grade)
-				.filter((t) => !currentPromotedIds.includes(t.userId))
-				.filter((t) => !processedUsers.has(t.userId));
-
-			for (const candidate of candidates) {
-				const target = await checkAdditionalPaymentConditions(
-					candidate.userId,
-					grade,
-					registrationMonth,
-					i // monthsBack parameter
-				);
-
-				if (target) {
-					additionalTargets.push(target);
-					processedUsers.add(candidate.userId);
-				}
+			if (!alreadyCreated) {
+				additionalTargets.push({
+					userId: user._id.toString(),
+					userName: user.name,
+					grade: user.grade,
+					추가지급단계: monthsInGrade,
+					type: 'additional'
+				});
+				console.log(`    ✓ ${user.name}(${user.grade}): ${startMonth} 시작 → ${monthsInGrade}개월째 → 추가${monthsInGrade}차`);
 			}
 		}
 	}
@@ -283,62 +263,17 @@ async function findAdditionalPaymentTargets(promoted, registrationMonth) {
 }
 
 /**
- * 추가지급 조건 확인
+ * 두 월 사이의 개월 수 차이 계산
  *
- * @param {string} userId
- * @param {string} grade
- * @param {string} revenueMonth - 매출 귀속 월 (현재 월)
- * @param {number} monthsBack - 몇 개월 전 대상자인지 (1, 2, 3, ...)
- * @returns {Promise<Object|null>}
+ * @param {string} currentMonth - 현재 월 (YYYY-MM)
+ * @param {string} startMonth - 시작 월 (YYYY-MM)
+ * @returns {number} 개월 차이
  */
-async function checkAdditionalPaymentConditions(userId, grade, revenueMonth, monthsBack) {
-	const user = await User.findById(userId);
-	if (!user) return null;
+function getMonthDiff(currentMonth, startMonth) {
+	const [currentYear, currentMon] = currentMonth.split('-').map(Number);
+	const [startYear, startMon] = startMonth.split('-').map(Number);
 
-	const currentGrade = user.grade;
-
-	// 등급 유지 확인
-	if (currentGrade !== grade) return null;
-
-	// ⭐ 추가지급단계 계산: 이 등급에서 이미 생성된 추가지급 개수 확인
-	const existingAdditionalPlans = await WeeklyPaymentPlans.find({
-		userId: userId,
-		baseGrade: grade,
-		installmentType: 'additional'
-	}).sort({ 추가지급단계: -1 });
-
-	const currentAdditionalStage = existingAdditionalPlans.length > 0
-		? existingAdditionalPlans[0].추가지급단계
-		: 0;
-
-	const nextAdditionalStage = currentAdditionalStage + 1;
-
-	// ⭐ 등급별 최대 추가지급 횟수 확인 (GRADE_LIMITS에서 자동 계산)
-	const maxAllowed = MAX_ADDITIONAL_PAYMENTS[grade] || 0;
-
-	// 이미 최대 추가지급 횟수에 도달했으면 제외
-	if (nextAdditionalStage > maxAllowed) return null;
-
-	// ⭐ v8.0 변경: 보험 체크는 지급 시점(weeklyPaymentService)에서 수행
-	// 계획은 항상 생성하고, 지급 시점에 보험 미가입이면 skip 처리
-
-	// ⭐ 이번 달에 이미 이 등급으로 추가지급 계획이 생성되었는지 확인 (중복 방지)
-	const alreadyCreated = await WeeklyPaymentPlans.findOne({
-		userId: userId,
-		baseGrade: grade,
-		revenueMonth: revenueMonth,
-		installmentType: 'additional'
-	});
-
-	if (alreadyCreated) return null;
-
-	return {
-		userId: userId,
-		userName: user.name,
-		grade: grade,
-		추가지급단계: nextAdditionalStage,
-		type: 'additional'
-	};
+	return (currentYear - startYear) * 12 + (currentMon - startMon);
 }
 
 /**

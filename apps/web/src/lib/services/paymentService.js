@@ -3,28 +3,42 @@ import { getWeekOfMonthByFriday } from '$lib/utils/fridayWeekCalculator.js';
 /**
  * 등급(회수) 정보 포맷팅
  * @param {Array} installments - 지급 계획 배열
- * @returns {string} - "F1(5), F2(1)" 형식
+ * @returns {string} - "F4(10/6/1)" 형식
+ *   - (기본회차/추가1차회차/추가2차회차/추가3차회차)
+ *   - 예: F4(10/6/1) = 기본10회차, 추가1차6회차, 추가2차1회차
  */
 function formatGradeInfo(installments) {
 	if (!installments || installments.length === 0) return '-';
-	
-	// 등급별로 그룹화
+
+	// 등급별로 stage별 week 그룹화
+	// { 'F4': { 0: [10], 1: [6], 2: [1] } }
 	const gradeMap = {};
+
 	installments.forEach(inst => {
 		const grade = inst.baseGrade || inst.grade;
 		const week = inst.week;
+		const stage = inst.추가지급단계 || 0;
+
 		if (grade && week) {
 			if (!gradeMap[grade]) {
-				gradeMap[grade] = [];
+				gradeMap[grade] = {};
 			}
-			gradeMap[grade].push(week);
+			if (!gradeMap[grade][stage]) {
+				gradeMap[grade][stage] = [];
+			}
+			gradeMap[grade][stage].push(week);
 		}
 	});
-	
-	// "F1(5), F2(1)" 형식으로 변환
+
+	// 형식화: F4(10/6/1)
 	return Object.entries(gradeMap)
-		.sort(([a], [b]) => a.localeCompare(b))  // 등급순 정렬
-		.map(([grade, weeks]) => `${grade}(${weeks.join(',')})`)
+		.sort(([a], [b]) => a.localeCompare(b))
+		.map(([grade, stages]) => {
+			// stage 순서대로 정렬 (0, 1, 2, 3...)
+			const sortedStages = Object.keys(stages).map(Number).sort((a, b) => a - b);
+			const weekParts = sortedStages.map(stage => stages[stage].join(','));
+			return `${grade}(${weekParts.join('/')})`;
+		})
 		.join(', ');
 }
 
