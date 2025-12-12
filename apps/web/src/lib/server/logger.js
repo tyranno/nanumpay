@@ -68,7 +68,20 @@ const originalWarn = console.warn;
 const originalInfo = console.info;
 const originalDebug = console.debug;
 
-// 파일 로깅에서 제외할 패턴 (개발 도구 + API 쿼리 로그)
+// 반드시 파일에 저장할 패턴 (중요 비즈니스 로그)
+const keepPatterns = [
+  /등록/,                           // 사용자 등록
+  /승급/,                           // 등급 승급
+  /지급계획/,                       // 지급계획 생성/변경
+  /지급 처리/,                      // 지급 처리
+  /❌/,                             // 에러 로그
+  /Error/i,                         // 에러 메시지
+  /fail/i,                          // 실패 메시지
+  /exception/i,                     // 예외
+];
+
+// 파일 로깅에서 제외할 패턴 (개발 도구 + 조회/정상 동작 로그)
+// keepPatterns에 매칭되면 저장, 아니면 skipPatterns 체크
 const skipPatterns = [
   // 개발 도구 메시지
   /\[vite\]/i,
@@ -85,17 +98,54 @@ const skipPatterns = [
   // API 쿼리/요청 로그 (정상 동작)
   /^=== \[/,                        // === [GET /api/...
   /\[(GET|POST|PUT|DELETE|PATCH) \/api/i,  // [GET /api/...
-  /^📅/,                            // 날짜 관련 디버그
-  /^✅/,                            // 성공 응답 로그
-  /^📊/,                            // 통계 로그
-  /^📋/,                            // 목록 로그
-  /^🔍/,                            // 검색 로그
-  /Query:/i,                        // Query: ... 로그
-  /Weekly Summary:/i,               // 주간 요약
-  /Monthly Summary:/i,              // 월간 요약
+  /\/api\//i,                       // 모든 API 경로 언급
+  // 이모지 접두사 로그 (정상 동작)
+  /^📅/,
+  /^✅/,
+  /^📊/,
+  /^📋/,
+  /^🔍/,
+  /^📦/,
+  /^💡/,
+  /^🔄/,
+  /^📝/,
+  /^🎯/,
+  /^⏰/,
+  /^🔧/,
+  /^💾/,
+  /^📈/,
+  /^🗂/,
+  // 조회/쿼리 관련 로그
+  /Query:/i,
+  /Range:/i,
+  /Summary:/i,
+  /found:/i,
+  /fetched/i,
+  /loaded/i,
+  /retrieved/i,
+  /returned/i,
+  /조회/,
+  /불러오기/,
+  /로딩/,
+  // 컴포넌트 디버그 로그
+  /^\[Payment/i,
+  /^\[Monthly/i,
+  /^\[Weekly/i,
+  /^\[Revenue/i,
+  /^\[User/i,
+  /^\[Admin/i,
+  /^\[Tree/i,
+  /periodColumns:/i,
+  /rangeData:/i,
+  /viewMode:/i,
 ];
 
 function shouldSkipLog(message) {
+  // 중요 로그는 항상 저장
+  if (keepPatterns.some(pattern => pattern.test(message))) {
+    return false;
+  }
+  // 나머지는 skipPatterns 체크
   return skipPatterns.some(pattern => pattern.test(message));
 }
 
