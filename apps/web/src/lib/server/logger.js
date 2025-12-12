@@ -68,8 +68,9 @@ const originalWarn = console.warn;
 const originalInfo = console.info;
 const originalDebug = console.debug;
 
-// 파일 로깅에서 제외할 패턴 (개발 도구 메시지)
+// 파일 로깅에서 제외할 패턴 (개발 도구 + API 쿼리 로그)
 const skipPatterns = [
+  // 개발 도구 메시지
   /\[vite\]/i,
   /hmr update/i,
   /hmr connection/i,
@@ -80,7 +81,18 @@ const skipPatterns = [
   /\[sveltekit\]/i,
   /optimized dependencies/i,
   /pre-bundling/i,
-  /watching for file changes/i
+  /watching for file changes/i,
+  // API 쿼리/요청 로그 (정상 동작)
+  /^=== \[/,                        // === [GET /api/...
+  /\[(GET|POST|PUT|DELETE|PATCH) \/api/i,  // [GET /api/...
+  /^📅/,                            // 날짜 관련 디버그
+  /^✅/,                            // 성공 응답 로그
+  /^📊/,                            // 통계 로그
+  /^📋/,                            // 목록 로그
+  /^🔍/,                            // 검색 로그
+  /Query:/i,                        // Query: ... 로그
+  /Weekly Summary:/i,               // 주간 요약
+  /Monthly Summary:/i,              // 월간 요약
 ];
 
 function shouldSkipLog(message) {
