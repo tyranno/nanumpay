@@ -38,8 +38,8 @@ export async function GET({ locals }) {
 				{ $unwind: '$installments' },
 				{ $match: {
 					'installments.weekNumber': weeklyISOWeek,
-					'installments.status': { $nin: ['skipped', 'terminated'] },  // ⭐ v8.0: canceled 제거
-					planStatus: { $ne: 'terminated' }
+					'installments.status': { $nin: ['skipped', 'terminated'] }  // ⭐ v8.0: canceled 제거
+					// planStatus 조건 제거 - inst.status로 충분
 				}},
 				{ $group: {
 					_id: null,

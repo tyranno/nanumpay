@@ -37,6 +37,13 @@ const adminSchema = new mongoose.Schema({
 		type: Boolean,
 		default: true
 	},
+	// UI 설정 (관리자 페이지용)
+	uiSettings: {
+		enableGradeInfoModal: {
+			type: Boolean,
+			default: false
+		}
+	},
 	// 시스템 설정
 	systemSettings: {
 		maintenanceMode: {

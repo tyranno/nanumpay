@@ -13,8 +13,8 @@
 
 	// 등급(회수) 클릭 핸들러 (주별/주간 조회에서만 동작, 월별은 제외)
 	function handleGradeInfoClick(user, payment, week) {
-		// TODO: 기능 임시 비활성화 - 등록/승급일 표시 문제 수정 후 활성화
-		return;
+		// ⭐ DB 설정으로 제어 (enableGradeInfoModal prop)
+		if (!enableGradeInfoModal) return;
 
 		// 월별 조회 시 모달 미표시
 		if (periodType === 'monthly') return;
@@ -52,7 +52,8 @@
 	export let weeklyTotals = {}; // 주차별 총계 (API에서 받은 전체 데이터)
 	export let monthlyTotals = {}; // 월별 총계 (API에서 받은 전체 데이터)
 	export let showPlannerColumn = true; // ⭐ prop으로 받음 (기본값 true)
-	export let onPlannerClick = (plannerInfo) => {}; // ⭐ 설계사 클릭 핸들러
+	export let onPlannerClick = null; // ⭐ 설계사 클릭 핸들러 (null이면 링크 비활성화)
+	export let enableGradeInfoModal = false; // ⭐ 등급(회수) 클릭 모달 (DB 설정으로 제어)
 
 	// Store에서 컬럼 표시 설정 가져오기
 	$: showGradeInfoColumn = $paymentPageFilterState.showGradeInfoColumn; // ⭐ 신규
@@ -245,18 +246,22 @@
 								{#if showPlannerColumn}
 									<td class="td-sticky-2">
 										{#if user.planner}
-											<button
-												class="planner-link"
-												onclick={() => onPlannerClick({
-													plannerAccountId: user.plannerAccountId,
-													name: user.planner,
-													phone: user.plannerPhone,
-													bank: user.plannerBank,
-													accountNumber: user.plannerAccountNumber
-												})}
-											>
+											{#if onPlannerClick}
+												<button
+													class="planner-link"
+													onclick={() => onPlannerClick({
+														plannerAccountId: user.plannerAccountId,
+														name: user.planner,
+														phone: user.plannerPhone,
+														bank: user.plannerBank,
+														accountNumber: user.plannerAccountNumber
+													})}
+												>
+													{user.planner}
+												</button>
+											{:else}
 												{user.planner}
-											</button>
+											{/if}
 										{:else}
 											-
 										{/if}
@@ -288,7 +293,7 @@
 					<!-- svelte-ignore a11y_click_events_have_key_events -->
 					<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 					<td
-						class="td-grade-info{periodType !== 'monthly' && payment?.gradeInfo && payment?.gradeInfo !== '-' ? ' clickable-cell' : ''}"
+						class="td-grade-info{enableGradeInfoModal && periodType !== 'monthly' && payment?.gradeInfo && payment?.gradeInfo !== '-' ? ' clickable-cell' : ''}"
 						title={payment?.installmentDetails
 							? payment.installmentDetails.map((d) => `${d.revenueMonth} ${d.week}회차`).join(', ')
 							: ''}

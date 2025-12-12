@@ -621,13 +621,13 @@
 							<th class="table-header" rowspan="2">등급</th>
 							<th class="table-header" colspan="4">수령액</th>
 							<th class="table-header" rowspan="2">세금</th>
-							<th class="table-header" rowspan="2">실수령액</th>
+							<th class="table-header bg-emerald-100" rowspan="2">실수령액</th>
 						</tr>
 						<tr>
 							<th class="table-header">영업</th>
 							<th class="table-header">홍보</th>
 							<th class="table-header">판촉</th>
-							<th class="table-header">총액</th>
+							<th class="table-header bg-yellow-200">총액</th>
 						</tr>
 					</thead>
 					<tbody class="divide-y divide-gray-200 bg-white">
@@ -672,7 +672,7 @@
 										<td class="table-cell text-right">{breakdown.영업.toLocaleString()}원</td>
 										<td class="table-cell text-right">{breakdown.홍보.toLocaleString()}원</td>
 										<td class="table-cell text-right">{breakdown.판촉.toLocaleString()}원</td>
-										<td class="table-cell text-right font-medium">{formatAmount(user.amount)}</td>
+										<td class="table-cell text-right font-medium bg-yellow-100">{formatAmount(user.amount)}</td>
 										<!-- ⭐ 세금, 실수령액 -->
 										<td class="table-cell text-right">{formatAmount(user.tax)}</td>
 										<td class="table-cell text-right font-medium bg-emerald-100 text-emerald-800">{formatAmount(user.netAmount)}</td>
@@ -685,7 +685,7 @@
 										<td class="table-cell text-right text-purple-800">{subtotalBreakdown.영업.toLocaleString()}원</td>
 										<td class="table-cell text-right text-purple-800">{subtotalBreakdown.홍보.toLocaleString()}원</td>
 										<td class="table-cell text-right text-purple-800">{subtotalBreakdown.판촉.toLocaleString()}원</td>
-										<td class="table-cell text-right text-purple-900">{formatAmount(weekGroup.totalAmount)}</td>
+										<td class="table-cell text-right text-purple-900 bg-yellow-200">{formatAmount(weekGroup.totalAmount)}</td>
 										<td class="table-cell text-right text-purple-800">{formatAmount(weekGroup.totalTax)}</td>
 										<td class="table-cell text-right font-bold bg-emerald-200 text-emerald-900">{formatAmount(weekGroup.totalNet)}</td>
 									</tr>

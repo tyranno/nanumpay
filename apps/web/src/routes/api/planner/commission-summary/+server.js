@@ -21,12 +21,16 @@ export async function GET({ locals, url }) {
 		const startMonth = parseInt(url.searchParams.get('startMonth') || (new Date().getMonth() + 1));
 		const endYear = parseInt(url.searchParams.get('endYear') || new Date().getFullYear());
 		const endMonth = parseInt(url.searchParams.get('endMonth') || (new Date().getMonth() + 1));
+		const groupBy = url.searchParams.get('groupBy') || 'month'; // 'month' or 'week'
 
 		// 시작월과 종료월 날짜 범위 생성
 		const startDate = new Date(Date.UTC(startYear, startMonth - 1, 1));
 		const endDate = new Date(Date.UTC(endYear, endMonth, 1)); // 다음 달 1일
 
-		console.log(`🔍 설계사 수당 조회 (PlannerCommissionPlan): plannerAccountId=${plannerAccountId}, 기간=${startDate.toISOString().split('T')[0]} ~ ${endDate.toISOString().split('T')[0]}`);
+		console.log(`🔍 설계사 수당 조회 (PlannerCommissionPlan): plannerAccountId=${plannerAccountId}, 기간=${startDate.toISOString().split('T')[0]} ~ ${endDate.toISOString().split('T')[0]}, groupBy=${groupBy}`);
+
+		// 그룹핑 형식 결정
+		const groupFormat = groupBy === 'week' ? '%Y-%m-%d' : '%Y-%m';
 
 		// PlannerCommissionPlan에서 집계
 		const commissionPlans = await PlannerCommissionPlan.aggregate([
@@ -41,11 +45,11 @@ export async function GET({ locals, url }) {
 				}
 			},
 
-			// 지급월별로 그룹핑
+			// 월별 또는 주별(날짜별) 그룹핑
 			{
 				$group: {
 					_id: {
-						$dateToString: { format: '%Y-%m', date: '$paymentDate' }
+						$dateToString: { format: groupFormat, date: '$paymentDate' }
 					},
 					totalCommission: { $sum: '$commissionAmount' },
 					totalUsers: { $sum: 1 },
@@ -53,24 +57,24 @@ export async function GET({ locals, url }) {
 				}
 			},
 
-			// 월순 정렬
+			// 정렬
 			{
 				$sort: { _id: 1 }
 			}
 		]);
 
-		console.log(`📊 조회 결과: ${commissionPlans.length}건`, commissionPlans.map(c => ({ month: c._id, amount: c.totalCommission })));
+		console.log(`📊 조회 결과: ${commissionPlans.length}건`, commissionPlans.map(c => ({ period: c._id, amount: c.totalCommission })));
 
-		// 월별로 요약
-		const monthlySummary = commissionPlans.map(plan => ({
-			month: plan._id,
+		// 요약 데이터 생성
+		const summary = commissionPlans.map(plan => ({
+			period: plan._id,
 			totalCommission: plan.totalCommission || 0,
 			totalUsers: plan.totalUsers || 0,
 			totalRevenue: plan.totalRevenue || 0
 		}));
 
 		// 총계 계산
-		const grandTotal = monthlySummary.reduce(
+		const grandTotal = summary.reduce(
 			(acc, item) => ({
 				totalCommission: acc.totalCommission + item.totalCommission,
 				totalUsers: acc.totalUsers + item.totalUsers,
@@ -81,8 +85,9 @@ export async function GET({ locals, url }) {
 
 		return json({
 			success: true,
-			data: monthlySummary,
-			grandTotal
+			data: summary,
+			grandTotal,
+			groupBy
 		});
 	} catch (error) {
 		console.error('설계사 수당 요약 조회 오류:', error);

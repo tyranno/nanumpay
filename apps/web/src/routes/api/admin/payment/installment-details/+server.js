@@ -52,10 +52,15 @@ export async function GET({ url, locals }) {
 		console.log('[installment-details] userRegistrationDate:', userRegistrationDate);
 
 		// 해당 사용자의 지급 계획 중 해당 주차에 지급되는 installment 조회
+		// ⭐ $elemMatch 사용하여 동일 installment에 대해 weekNumber와 status 조건 적용
 		const plans = await WeeklyPaymentPlans.find({
 			userId: userId,
-			'installments.weekNumber': weekNumber,
-			'installments.status': { $nin: ['skipped', 'terminated'] }  // ⭐ v8.0
+			installments: {
+				$elemMatch: {
+					weekNumber: weekNumber,
+					status: { $nin: ['skipped', 'terminated'] }
+				}
+			}
 		}).lean();
 
 		// 결과 포맷

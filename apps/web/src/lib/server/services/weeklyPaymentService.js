@@ -292,8 +292,8 @@ export async function getWeeklyPaymentReport(date) {
           weekNumber: weekNumber,
           status: { $nin: ['skipped', 'terminated'] }  // ⭐ v8.0: paid 제거
         }
-      },
-      planStatus: { $ne: 'terminated' }
+      }
+      // planStatus 조건 제거 - inst.status로 충분
     });
 
     if (plans.length === 0) {
