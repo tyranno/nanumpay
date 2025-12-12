@@ -646,9 +646,16 @@
 									/>
 								{/if}
 							</div>
-								<!-- 등록일 표시 (hover 시에만) -->
+								<!-- 등록일/승급정보 표시 (hover 시에만) -->
 								{#if hoverPath === n.data.__path}
-									<div class="node-date">{formatDate(n.data.createdAt)}</div>
+									<div class="node-info-tooltip">
+										<div class="info-row">등록: {formatDate(n.data.createdAt)}</div>
+										{#if n.data.gradeHistory?.length > 0}
+											{#each n.data.gradeHistory.filter(h => h.type === 'promotion') as promo}
+												<div class="info-row promo">{promo.fromGrade}→{promo.toGrade} ({formatDate(promo.date)})</div>
+											{/each}
+										{/if}
+									</div>
 								{/if}
 							{#if n.data.__hasMoreBelow}
 								<span class="hint">▼ 아래 단계</span>
@@ -770,19 +777,30 @@
 	.hint-btn:hover {
 		color: #1d4ed8;
 	}
-	/* 등록일 표시 스타일 (노드 밖 아래) */
-	.node-date {
+	/* 등록일/승급정보 표시 스타일 (노드 밖 아래) */
+	.node-info-tooltip {
 		position: absolute;
-		bottom: -18px;
+		top: 100%;
 		left: 50%;
 		transform: translateX(-50%);
-		font-size: 0.7rem;
+		margin-top: 4px;
+		font-size: 0.65rem;
 		color: #374151;
-		background: rgba(255, 255, 255, 0.95);
-		padding: 2px 6px;
+		background: rgba(255, 255, 255, 0.98);
+		padding: 4px 8px;
 		border-radius: 4px;
 		white-space: nowrap;
-		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+		box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 		z-index: 10;
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+	.node-info-tooltip .info-row {
+		line-height: 1.3;
+	}
+	.node-info-tooltip .info-row.promo {
+		color: #2563eb;
+		font-weight: 500;
 	}
 </style>

@@ -25,7 +25,7 @@ export async function GET({ locals, url }) {
 	if (targetUserId) {
 		// ⭐ 특정 User._id로 트리 루트 조회
 		currentUser = await User.findById(targetUserId)
-			.select('name loginId grade leftChildId rightChildId userAccountId createdAt')
+			.select('name loginId grade leftChildId rightChildId userAccountId createdAt gradeHistory')
 			.lean();
 
 		// ⭐ 본인 계정의 User인지 확인 (보안)
@@ -38,7 +38,7 @@ export async function GET({ locals, url }) {
 			userAccountId: userAccountId,
 			registrationNumber: 1
 		})
-			.select('name loginId grade leftChildId rightChildId createdAt')
+			.select('name loginId grade leftChildId rightChildId createdAt gradeHistory')
 			.lean();
 	}
 
@@ -55,13 +55,14 @@ export async function GET({ locals, url }) {
 			level: user.grade,
 			grade: user.grade, // ⭐ BinaryTreeD3에서 grade 필드 사용
 			userId: user.loginId,
-			createdAt: user.createdAt // ⭐ hover 시 등록일 표시용
+			createdAt: user.createdAt, // ⭐ hover 시 등록일 표시용
+			gradeHistory: user.gradeHistory // ⭐ hover 시 승급정보 표시용
 		};
 
 		// 왼쪽 자식 조회 및 재귀
 		if (user.leftChildId) {
 			const leftChild = await User.findById(user.leftChildId)
-				.select('name loginId grade leftChildId rightChildId createdAt')
+				.select('name loginId grade leftChildId rightChildId createdAt gradeHistory')
 				.lean();
 			treeNode.left = await buildTree(leftChild);
 		}
@@ -69,7 +70,7 @@ export async function GET({ locals, url }) {
 		// 오른쪽 자식 조회 및 재귀
 		if (user.rightChildId) {
 			const rightChild = await User.findById(user.rightChildId)
-				.select('name loginId grade leftChildId rightChildId createdAt')
+				.select('name loginId grade leftChildId rightChildId createdAt gradeHistory')
 				.lean();
 			treeNode.right = await buildTree(rightChild);
 		}
