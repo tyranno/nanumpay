@@ -10,6 +10,15 @@
 	let commissionStartMonth = `${currentYear}-${currentMonth}`;
 	let commissionEndMonth = `${currentYear}-${currentMonth}`;
 
+	// 최대 선택 가능 월 (현재월 + 1개월)
+	const maxMonth = (() => {
+		const nextMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
+		return `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}`;
+	})();
+
+	// 표시 방법: 'month' (월별) or 'week' (주별)
+	let displayMode = 'week';
+
 	function formatAmount(value) {
 		if (value === null || value === undefined) return '0원';
 		return value.toLocaleString('ko-KR') + '원';
@@ -24,7 +33,8 @@
 				startYear,
 				startMonth,
 				endYear,
-				endMonth
+				endMonth,
+				groupBy: displayMode
 			});
 
 			const response = await fetch(`/api/planner/commission-summary?${params}`);
@@ -40,6 +50,10 @@
 	}
 
 	function handlePeriodChange() {
+		loadCommissionData();
+	}
+
+	function handleDisplayModeChange() {
 		loadCommissionData();
 	}
 
@@ -67,6 +81,7 @@
 				<input
 					type="month"
 					bind:value={commissionStartMonth}
+					max={maxMonth}
 					onchange={handlePeriodChange}
 					class="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
 				/>
@@ -77,9 +92,22 @@
 				<input
 					type="month"
 					bind:value={commissionEndMonth}
+					max={maxMonth}
 					onchange={handlePeriodChange}
 					class="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
 				/>
+			</div>
+			<!-- 표시 방법 -->
+			<div>
+				<label class="mb-1 block text-xs font-medium text-gray-700">표시</label>
+				<select
+					bind:value={displayMode}
+					onchange={handleDisplayModeChange}
+					class="rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+				>
+					<option value="month">월별</option>
+					<option value="week">주별</option>
+				</select>
 			</div>
 		</div>
 
@@ -112,13 +140,13 @@
 		</div>
 	</div>
 
-	<!-- 월별 내역 테이블 -->
+	<!-- 내역 테이블 -->
 	<div class="overflow-x-auto px-4 pb-4">
 		<table class="min-w-full divide-y divide-gray-200">
 			<thead class="bg-gray-50">
 				<tr>
 					<th class="table-header">순번</th>
-					<th class="table-header">지급월</th>
+					<th class="table-header">{displayMode === 'month' ? '지급월' : '지급일'}</th>
 					<th class="table-header">수당액</th>
 					<th class="table-header">등록인원</th>
 					<th class="table-header">매출액</th>
@@ -135,7 +163,7 @@
 					{#each commissionSummary as item, index}
 						<tr class="hover:bg-gray-50">
 							<td class="table-cell">{index + 1}</td>
-							<td class="table-cell">{item.month}</td>
+							<td class="table-cell">{item.period}</td>
 							<td class="table-cell text-right font-medium">{formatAmount(item.totalCommission)}</td>
 							<td class="table-cell">{item.totalUsers}명</td>
 							<td class="table-cell text-right">{formatAmount(item.totalRevenue)}</td>
