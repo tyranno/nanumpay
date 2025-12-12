@@ -51,6 +51,7 @@
 		"@capacitor/ios": "^7.4.3",
 		"@tanstack/svelte-table": "^8.21.3",
 		"@vincjo/datatables": "^2.6.4",
+		"archiver": "^7.0.1",
 		"bcryptjs": "^2.4.3",
 		"d3": "^7.9.0",
 		"dotenv": "^16.3.1",

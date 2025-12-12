@@ -4,25 +4,29 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import { promisify } from 'util';
+import zlib from 'zlib';
+import { pipeline } from 'stream';
 
 const readdir = promisify(fs.readdir);
 const stat = promisify(fs.stat);
 const unlink = promisify(fs.unlink);
+const pipelineAsync = promisify(pipeline);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// 로그 디렉토리 설정
-const logDir = path.join(__dirname, '../../../logs');
+// 로그 디렉토리 설정 (개발/배포 환경 모두 지원)
+// 개발: apps/web/logs/, 배포: /opt/nanumpay/logs/
+const logDir = path.join(process.cwd(), 'logs');
 
-// 날짜별 로테이션 트랜스포트 설정 (90일 보관, 전체 폴더 100MB 제한)
+// 날짜별 로테이션 트랜스포트 설정 (1년 보관, 전체 폴더 100MB 제한)
 // 모든 로그를 하나의 파일로 통합
 const dailyRotateFileTransport = new DailyRotateFile({
   filename: path.join(logDir, '%DATE%.log'),
   datePattern: 'YYYY-MM-DD',
   zippedArchive: true, // 오늘 제외하고 압축
   maxSize: '10m', // 파일당 최대 10MB
-  maxFiles: '90d', // 90일 보관
+  maxFiles: '365d', // 1년 보관
   auditFile: path.join(logDir, '.audit.json'),
   format: winston.format.combine(
     winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
@@ -62,96 +66,10 @@ if (process.env.NODE_ENV !== 'production') {
 export const excelLogger = logger;
 
 // console.log, console.error, console.warn을 winston으로 리다이렉트
-const originalLog = console.log;
-const originalError = console.error;
-const originalWarn = console.warn;
-const originalInfo = console.info;
-const originalDebug = console.debug;
-
-// 반드시 파일에 저장할 패턴 (중요 비즈니스 로그)
-const keepPatterns = [
-  /등록/,                           // 사용자 등록
-  /승급/,                           // 등급 승급
-  /지급계획/,                       // 지급계획 생성/변경
-  /지급 처리/,                      // 지급 처리
-  /❌/,                             // 에러 로그
-  /Error/i,                         // 에러 메시지
-  /fail/i,                          // 실패 메시지
-  /exception/i,                     // 예외
-];
-
-// 파일 로깅에서 제외할 패턴 (개발 도구 + 조회/정상 동작 로그)
-// keepPatterns에 매칭되면 저장, 아니면 skipPatterns 체크
-const skipPatterns = [
-  // 개발 도구 메시지
-  /\[vite\]/i,
-  /hmr update/i,
-  /hmr connection/i,
-  /hot update/i,
-  /\[HMR\]/i,
-  /page reload/i,
-  /\[PWA\]/i,
-  /\[sveltekit\]/i,
-  /optimized dependencies/i,
-  /pre-bundling/i,
-  /watching for file changes/i,
-  // API 쿼리/요청 로그 (정상 동작)
-  /^=== \[/,                        // === [GET /api/...
-  /\[(GET|POST|PUT|DELETE|PATCH) \/api/i,  // [GET /api/...
-  /\/api\//i,                       // 모든 API 경로 언급
-  // 이모지 접두사 로그 (정상 동작)
-  /^📅/,
-  /^✅/,
-  /^📊/,
-  /^📋/,
-  /^🔍/,
-  /^📦/,
-  /^💡/,
-  /^🔄/,
-  /^📝/,
-  /^🎯/,
-  /^⏰/,
-  /^🔧/,
-  /^💾/,
-  /^📈/,
-  /^🗂/,
-  // 조회/쿼리 관련 로그
-  /Query:/i,
-  /Range:/i,
-  /Summary:/i,
-  /found:/i,
-  /fetched/i,
-  /loaded/i,
-  /retrieved/i,
-  /returned/i,
-  /조회/,
-  /불러오기/,
-  /로딩/,
-  // 컴포넌트 디버그 로그
-  /^\[Payment/i,
-  /^\[Monthly/i,
-  /^\[Weekly/i,
-  /^\[Revenue/i,
-  /^\[User/i,
-  /^\[Admin/i,
-  /^\[Tree/i,
-  /periodColumns:/i,
-  /rangeData:/i,
-  /viewMode:/i,
-];
-
-function shouldSkipLog(message) {
-  // 중요 로그는 항상 저장
-  if (keepPatterns.some(pattern => pattern.test(message))) {
-    return false;
-  }
-  // 나머지는 skipPatterns 체크
-  return skipPatterns.some(pattern => pattern.test(message));
-}
-
 console.log = function(...args) {
   const message = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : arg).join(' ');
-  if (!shouldSkipLog(message)) {
+  // 빈 메시지 스킵
+  if (message && message.trim()) {
     logger.info(message);
   }
 };
@@ -164,25 +82,65 @@ console.error = function(...args) {
   } else {
     logger.error(message);
   }
-  // 콘솔 출력은 Winston transports에서 처리 (중복 출력 방지)
 };
 
 console.warn = function(...args) {
   logger.warn(args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : arg).join(' '));
-  // 콘솔 출력은 Winston transports에서 처리 (중복 출력 방지)
 };
 
 console.info = function(...args) {
   const message = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : arg).join(' ');
-  if (!shouldSkipLog(message)) {
+  if (message && message.trim()) {
     logger.info(message);
   }
 };
 
 console.debug = function(...args) {
   logger.debug(args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : arg).join(' '));
-  // 콘솔 출력은 Winston transports에서 처리 (중복 출력 방지)
 };
+
+// 서버 시작 시 압축되지 않은 오래된 로그 파일 자동 압축
+async function compressOldLogs() {
+  try {
+    if (!fs.existsSync(logDir)) {
+      return;
+    }
+
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    const files = await readdir(logDir);
+
+    // 오늘 파일 제외, .log 파일만 (이미 압축된 .gz 제외)
+    const uncompressedLogs = files.filter(file => {
+      return file.endsWith('.log') && !file.includes(today);
+    });
+
+    for (const file of uncompressedLogs) {
+      const inputPath = path.join(logDir, file);
+      const outputPath = path.join(logDir, `${file}.gz`);
+
+      // 이미 압축 파일이 존재하면 스킵
+      if (fs.existsSync(outputPath)) {
+        continue;
+      }
+
+      try {
+        const input = fs.createReadStream(inputPath);
+        const output = fs.createWriteStream(outputPath);
+        const gzip = zlib.createGzip();
+
+        await pipelineAsync(input, gzip, output);
+
+        // 압축 성공 후 원본 삭제
+        await unlink(inputPath);
+        logger.info(`로그 파일 압축 완료: ${file} → ${file}.gz`);
+      } catch (err) {
+        logger.error(`로그 파일 압축 실패: ${file}`, err);
+      }
+    }
+  } catch (error) {
+    logger.error('오래된 로그 압축 중 오류:', error);
+  }
+}
 
 // 로그 폴더 용량 체크 및 정리 (100MB 제한)
 async function cleanupLogFiles() {
@@ -242,6 +200,7 @@ async function cleanupLogFiles() {
 setInterval(cleanupLogFiles, 24 * 60 * 60 * 1000);
 
 // 서버 시작 시 한 번 실행
-cleanupLogFiles();
+compressOldLogs();  // 압축되지 않은 오래된 로그 압축
+cleanupLogFiles();  // 용량 체크 및 정리
 
 export default logger;
