@@ -621,7 +621,7 @@
 							<th class="table-header" rowspan="2">등급</th>
 							<th class="table-header" colspan="4">수령액</th>
 							<th class="table-header" rowspan="2">세금</th>
-							<th class="table-header" rowspan="2">실수령액</th>
+							<th class="table-header bg-emerald-100" rowspan="2">실수령액</th>
 						</tr>
 						<tr>
 							<th class="table-header">영업</th>
