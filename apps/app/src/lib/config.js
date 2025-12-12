@@ -3,7 +3,7 @@
  */
 
 // 기본 서버 URL (환경에 따라 변경)
-export const DEFAULT_SERVER_URL = import.meta.env.VITE_DEFAULT_SERVER_URL || 'http://34.170.107.151/';
+export const DEFAULT_SERVER_URL = import.meta.env.VITE_DEFAULT_SERVER_URL || 'https://www.nanumasset.com/';
 
 // 서버 연결 타임아웃 (ms)
 export const CONNECTION_TIMEOUT = 5000;

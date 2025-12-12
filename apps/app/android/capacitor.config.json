@@ -3,6 +3,8 @@
   "appName": "NanumPay",
   "webDir": "www",
   "server": {
-    "androidScheme": "https"
+    "androidScheme": "https",
+    "url": "https://www.nanumasset.com",
+    "allowNavigation": ["https://www.nanumasset.com/*", "https://www.nanumpay.xyz/*"]
   }
 }
