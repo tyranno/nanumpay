@@ -302,12 +302,12 @@
 	}
 
 	// === 호버 관리 (스타일 변경용) ===
-	let hoverPath = '';
+	let hoverPath = null; // null로 초기화하여 루트 노드('')와 구분
 	function onEnterNode(path) {
 		hoverPath = path;
 	}
 	function onLeaveNode() {
-		hoverPath = '';
+		hoverPath = null;
 	}
 
 	// 날짜 포맷팅 함수
