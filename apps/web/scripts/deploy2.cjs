@@ -11,6 +11,10 @@ const RELEASE_DIR = path.join(ROOT, 'apps', 'web', 'release');
 const SSH_KEY = path.join(process.env.HOME, '.ssh', 'gcp_verify');
 const VERIFY_SERVER = 'nanumpay.xyz';
 const VERIFY_USER = 'tyranno';
+const DOMAIN = 'www.nanumpay.xyz';
+
+// 테스트 서버: 기본 HTTP+HTTPS 병행, --redirect 옵션 시 HTTPS 전용
+const REDIRECT_MODE = process.argv.includes('--redirect');
 
 // 설정 검증
 function validateConfig() {
@@ -171,6 +175,39 @@ function installPackage(remotePath) {
 	}
 }
 
+// SSL 설정 (자동)
+function setupSSL() {
+	const mode = REDIRECT_MODE ? 'HTTPS 전용 (HTTP 리다이렉트)' : 'HTTP + HTTPS 병행';
+	const redirectFlag = REDIRECT_MODE ? ' --redirect' : '';
+
+	console.log('🔐 SSL 인증서 설정 중...');
+	console.log(`   도메인: ${DOMAIN}`);
+	console.log(`   모드: ${mode}`);
+
+	const sslCommands = [
+		'# SSL 설정 스크립트 실행',
+		`if [ -f "/opt/nanumpay/ssl/setup-ssl.sh" ]; then`,
+		`  sudo /opt/nanumpay/ssl/setup-ssl.sh ${DOMAIN}${redirectFlag}`,
+		`else`,
+		`  echo "⚠️  SSL 설정 스크립트가 없습니다"`,
+		`  echo "   패키지를 다시 설치하거나 수동으로 설정하세요"`,
+		`fi`
+	];
+
+	const script = sslCommands.join('\n');
+
+	try {
+		cp.execSync(`ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no ${VERIFY_USER}@${VERIFY_SERVER} '${script}'`, {
+			stdio: 'inherit'
+		});
+		console.log('✅ SSL 설정 완료');
+	} catch (error) {
+		console.warn('⚠️  SSL 설정 중 오류 발생 (HTTP는 정상 작동)');
+		console.warn('   서버에 접속하여 수동으로 설정하세요:');
+		console.warn(`   sudo /opt/nanumpay/ssl/setup-ssl.sh ${DOMAIN}${redirectFlag}`);
+	}
+}
+
 // 배포 후 상태 확인
 function verifyDeployment() {
 	console.log('🔍 배포 상태 확인 중...');
@@ -228,14 +265,17 @@ function verifyDeployment() {
 	console.log('sudo ufw status');
 	console.log('');
 	console.log('🔗 브라우저에서 확인:');
-	console.log(`https://www.nanumpay.xyz`);
+	console.log(`   HTTP:  http://${DOMAIN}`);
+	console.log(`   HTTPS: https://${DOMAIN}`);
 }
 
 // 메인 함수
 function main() {
-	console.log('🚀 NanumPay 검증 서버 배포 시작');
+	console.log('🚀 NanumPay 테스트 서버 배포 시작');
 	console.log('==============================');
 	console.log(`📍 대상 서버: ${VERIFY_SERVER}`);
+	console.log(`📍 도메인: ${DOMAIN}`);
+	console.log(`🔐 SSL: ${REDIRECT_MODE ? 'HTTPS 전용' : 'HTTP+HTTPS 병행'}`);
 	console.log('');
 
 	try {
@@ -254,7 +294,10 @@ function main() {
 		// 5. install.sh를 사용한 자동 설치
 		installPackage(remotePath);
 
-		// 6. 배포 상태 확인
+		// 6. SSL 설정 (자동)
+		setupSSL();
+
+		// 7. 배포 상태 확인
 		verifyDeployment();
 
 		console.log('');
@@ -265,6 +308,7 @@ function main() {
 		console.log('   - Nginx (포트 80/443)');
 		console.log('   - Nanumpay');
 		console.log('   - MongoDB');
+		console.log('   - SSL 인증서 (Let\'s Encrypt)');
 
 	} catch (error) {
 		console.error('❌ 배포 실패:', error.message);

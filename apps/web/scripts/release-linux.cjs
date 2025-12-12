@@ -39,9 +39,10 @@ const nginxAvailableDir = path.join(pkgDir, 'etc', 'nginx', 'sites-available');
 const dbDir = path.join(optDir, 'db');
 const toolsDir = path.join(optDir, 'tools');
 const binDir = path.join(optDir, 'bin');
+const sslDir = path.join(optDir, 'ssl');
 
 fs.rmSync(stage, { recursive: true, force: true });
-[debian, optDir, etcDir, sysdDir, nginxAvailableDir, dbDir, toolsDir, binDir].forEach((d) =>
+[debian, optDir, etcDir, sysdDir, nginxAvailableDir, dbDir, toolsDir, binDir, sslDir].forEach((d) =>
 	fs.mkdirSync(d, { recursive: true })
 );
 
@@ -115,6 +116,17 @@ if (fs.existsSync(nginxConfigSrc)) {
 	console.log('[nginx] ✅ Nginx 설정 파일 포함 완료');
 } else {
 	console.warn('[nginx] ⚠️  Nginx 설정 파일 없음 (건너뜀)');
+}
+
+// 4-3) SSL 설정 스크립트 복사
+const sslSetupSrc = path.join(ROOT, 'install', 'linux', 'ssl', 'setup-ssl.sh');
+if (fs.existsSync(sslSetupSrc)) {
+	const sslSetupDst = path.join(sslDir, 'setup-ssl.sh');
+	fs.copyFileSync(sslSetupSrc, sslSetupDst);
+	fs.chmodSync(sslSetupDst, 0o755);
+	console.log('[ssl] ✅ SSL 설정 스크립트 포함 완료');
+} else {
+	console.warn('[ssl] ⚠️  SSL 설정 스크립트 없음 (건너뜀)');
 }
 
 // 5) systemd 서비스
@@ -269,6 +281,22 @@ fi
 
 # 서비스 시작
 systemctl restart nanumpay.service || systemctl start nanumpay.service
+
+# SSL 설정 안내
+if [ -f "/opt/nanumpay/ssl/setup-ssl.sh" ]; then
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "HTTPS/SSL 설정 (선택사항)"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "도메인이 있다면 Let's Encrypt로 HTTPS를 설정할 수 있습니다:"
+    echo ""
+    echo "  # 테스트 서버 (HTTP+HTTPS 병행)"
+    echo "  sudo /opt/nanumpay/ssl/setup-ssl.sh www.nanumpay.xyz"
+    echo ""
+    echo "  # 정식 서버 (HTTPS 전용)"
+    echo "  sudo /opt/nanumpay/ssl/setup-ssl.sh www.nanumasset.com --redirect"
+    echo ""
+fi
 `;
 fs.writeFileSync(path.join(debian, 'postinst'), postinst);
 fs.chmodSync(path.join(debian, 'postinst'), 0o755);
@@ -452,6 +480,13 @@ echo "  시작: sudo systemctl start nanumpay"
 echo "  중지: sudo systemctl stop nanumpay"
 echo "  재시작: sudo systemctl restart nanumpay"
 echo "  로그: sudo journalctl -u nanumpay -f"
+echo ""
+echo -e "\${BLUE}HTTPS/SSL 설정 (선택사항):\${NC}"
+echo "  # 테스트 서버 (HTTP+HTTPS 병행)"
+echo "  sudo /opt/nanumpay/ssl/setup-ssl.sh www.nanumpay.xyz"
+echo ""
+echo "  # 정식 서버 (HTTPS 전용)"
+echo "  sudo /opt/nanumpay/ssl/setup-ssl.sh www.nanumasset.com --redirect"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 echo -e "\${GREEN}브라우저에서 http://localhost 로 접속하세요!\${NC}"
@@ -520,6 +555,36 @@ sudo systemctl status nanumpay
 sudo systemctl restart nanumpay
 sudo journalctl -u nanumpay -f
 \`\`\`
+
+---
+
+## 🔐 HTTPS/SSL 설정 (선택사항)
+
+도메인이 있다면 Let's Encrypt로 HTTPS를 설정할 수 있습니다.
+
+### 테스트 서버 (HTTP+HTTPS 병행)
+\`\`\`bash
+sudo /opt/nanumpay/ssl/setup-ssl.sh www.nanumpay.xyz
+\`\`\`
+
+### 정식 서버 (HTTPS 전용)
+\`\`\`bash
+sudo /opt/nanumpay/ssl/setup-ssl.sh www.nanumasset.com --redirect
+\`\`\`
+
+### SSL 관리 명령어
+\`\`\`bash
+# 인증서 상태 확인
+sudo certbot certificates
+
+# 수동 갱신
+sudo certbot renew
+
+# 갱신 테스트
+sudo certbot renew --dry-run
+\`\`\`
+
+> 📌 인증서는 90일마다 만료되며, 설치 시 자동 갱신이 설정됩니다.
 
 ---
 
