@@ -204,12 +204,27 @@ export class PlannerCommissionExcelExporter {
 		periods.forEach((period, periodIndex) => {
 			const color = this.monthColors[periodIndex % this.monthColors.length];
 
-			// 주차 형식 변환: "2025-08-W1" → "2025년 08월 1주차"
+			// 주차 형식 변환: "2025-08-W1" → "2025-08-01" (금요일 날짜)
 			let displayPeriod = period;
 			if (period.includes('-W')) {
-				const [year, month, weekPart] = period.split('-');
-				const weekNum = weekPart.replace('W', '');
-				displayPeriod = `${year}년 ${month}월 ${weekNum}주차`;
+				const parts = period.split('-');
+				const year = parseInt(parts[0]);
+				const month = parseInt(parts[1]);
+				const week = parseInt(parts[2].replace('W', ''));
+
+				// 해당 월의 첫 번째 금요일 찾기
+				const firstDay = new Date(year, month - 1, 1);
+				const dayOfWeek = firstDay.getDay();
+				const daysUntilFriday = (5 - dayOfWeek + 7) % 7;
+				const firstFriday = new Date(year, month - 1, 1 + daysUntilFriday);
+
+				// N주차 금요일 계산
+				const targetFriday = new Date(firstFriday);
+				targetFriday.setDate(firstFriday.getDate() + (week - 1) * 7);
+
+				const mm = String(targetFriday.getMonth() + 1).padStart(2, '0');
+				const dd = String(targetFriday.getDate()).padStart(2, '0');
+				displayPeriod = `${targetFriday.getFullYear()}-${mm}-${dd}`;
 			}
 
 			header1Cells.push({

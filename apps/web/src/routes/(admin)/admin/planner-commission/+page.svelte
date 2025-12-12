@@ -8,6 +8,9 @@
 	let showPlannerEditModal = false;
 	let selectedPlannerInfo = null;
 
+	// 기간 제한 초과 여부
+	let periodLimitExceeded = false;
+
 	// 상태 변수
 	let commissions = [];
 	let periods = []; // 기간 목록 (월간/주간)
@@ -27,7 +30,7 @@
 	let endYear = new Date().getFullYear();
 	let endMonth = new Date().getMonth() + 1;
 	let plannerName = '';
-	let viewMode = 'monthly'; // 'monthly' | 'weekly'
+	let viewMode = 'weekly'; // 'weekly' | 'monthly' (기본값: 주간보기)
 	let sortBy = 'name'; // 'name' | 'amount' - 정렬 기준
 
 	// 칼럼 표시 옵션
@@ -54,18 +57,34 @@
 	}
 
 	/**
-	 * 기간 키를 한글 형식으로 변환
+	 * 기간 키를 형식에 맞게 변환
 	 * @param {string} period - "2025-10" 또는 "2025-10-W1"
-	 * @returns {string} - "2025년 10월" 또는 "2025년 10월 1주차"
+	 * @returns {string} - "2025년 10월" 또는 "2025-12-05" (금요일 날짜)
 	 */
 	function formatPeriodLabel(period) {
 		if (period.includes('-W')) {
-			// 주간보기: "2025-10-W1" → "2025년 10월 1주차"
+			// 주간보기: "2025-10-W1" → "2025-10-04" (해당 주 금요일)
 			const parts = period.split('-');
-			const year = parts[0];
-			const month = parts[1];
-			const week = parts[2].replace('W', '');
-			return `${year}년 ${month}월 ${week}주차`;
+			const year = parseInt(parts[0]);
+			const month = parseInt(parts[1]);
+			const week = parseInt(parts[2].replace('W', ''));
+
+			// 해당 월 1일
+			const firstDay = new Date(year, month - 1, 1);
+			// 첫 번째 금요일 찾기 (금요일 = 5)
+			let firstFriday = new Date(firstDay);
+			const dayOfWeek = firstDay.getDay();
+			const daysUntilFriday = (5 - dayOfWeek + 7) % 7;
+			firstFriday.setDate(1 + daysUntilFriday);
+
+			// 주차에 맞게 7일씩 더함
+			const targetFriday = new Date(firstFriday);
+			targetFriday.setDate(firstFriday.getDate() + (week - 1) * 7);
+
+			// "YYYY-MM-DD" 형식으로 반환
+			const mm = String(targetFriday.getMonth() + 1).padStart(2, '0');
+			const dd = String(targetFriday.getDate()).padStart(2, '0');
+			return `${targetFriday.getFullYear()}-${mm}-${dd}`;
 		} else {
 			// 월간보기: "2025-10" → "2025년 10월"
 			const [year, month] = period.split('-');
@@ -196,9 +215,22 @@
 		loadCommissions(1);
 	}
 
-	// 기간 변경
+	// 기간 변경 (최대 12개월 제한)
 	function handlePeriodChange() {
 		if (filterType === 'period') {
+			// 시작/종료 월 계산 (개월 수)
+			const startTotal = startYear * 12 + startMonth;
+			const endTotal = endYear * 12 + endMonth;
+
+			// 12개월 초과 시 데이터 로드 안함
+			if (endTotal - startTotal > 11) {
+				periodLimitExceeded = true;
+				commissions = [];
+				periods = [];
+				return;
+			}
+
+			periodLimitExceeded = false;
 			loadCommissions(1);
 		}
 	}
@@ -390,21 +422,21 @@
 						<input
 							type="radio"
 							bind:group={viewMode}
-							value="monthly"
-							onchange={handleViewModeChange}
-							class="cursor-pointer"
-						/>
-						<span class="font-medium">월간보기</span>
-					</label>
-					<label class="radio-label-mobile">
-						<input
-							type="radio"
-							bind:group={viewMode}
 							value="weekly"
 							onchange={handleViewModeChange}
 							class="cursor-pointer"
 						/>
 						<span class="font-medium">주간보기</span>
+					</label>
+					<label class="radio-label-mobile">
+						<input
+							type="radio"
+							bind:group={viewMode}
+							value="monthly"
+							onchange={handleViewModeChange}
+							class="cursor-pointer"
+						/>
+						<span class="font-medium">월간보기</span>
 					</label>
 				</div>
 			</div>
@@ -565,21 +597,21 @@
 						<input
 							type="radio"
 							bind:group={viewMode}
-							value="monthly"
-							onchange={handleViewModeChange}
-							class="cursor-pointer"
-						/>
-						<span>월간보기</span>
-					</label>
-					<label class="radio-label-desktop">
-						<input
-							type="radio"
-							bind:group={viewMode}
 							value="weekly"
 							onchange={handleViewModeChange}
 							class="cursor-pointer"
 						/>
 						<span>주간보기</span>
+					</label>
+					<label class="radio-label-desktop">
+						<input
+							type="radio"
+							bind:group={viewMode}
+							value="monthly"
+							onchange={handleViewModeChange}
+							class="cursor-pointer"
+						/>
+						<span>월간보기</span>
 					</label>
 				</div>
 			</div>
@@ -669,7 +701,11 @@
 	{/if}
 
 	<!-- 테이블 -->
-	{#if isLoading}
+	{#if periodLimitExceeded}
+	<div class="period-limit-message">
+		<p class="text-red-500 font-medium">최대 12개월까지만 조회 가능합니다.</p>
+	</div>
+{:else if isLoading}
 	<div class="loading">데이터를 불러오는 중...</div>
 {:else if error}
 	<div class="error">{error}</div>
@@ -1380,5 +1416,10 @@
 	/* 기간 경계선 (주간보기/월간보기 구분) */
 	.period-border {
 		border-left: 2px solid #3b82f6 !important; /* 파란색 굵은 경계선 */
+	}
+
+	/* 기간 제한 초과 메시지 */
+	.period-limit-message {
+		@apply flex items-center justify-center py-20 text-center;
 	}
 </style>
