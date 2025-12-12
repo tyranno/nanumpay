@@ -10,6 +10,17 @@ server {
     access_log /var/log/nginx/nanumpay-access.log;
     error_log /var/log/nginx/nanumpay-error.log;
 
+    # 정적 페이지 (인증 불필요 - 앱스토어 정책 페이지)
+    location = /privacy {
+        alias /opt/nanumpay/static/privacy.html;
+        default_type text/html;
+    }
+
+    location = /terms {
+        alias /opt/nanumpay/static/terms.html;
+        default_type text/html;
+    }
+
     # Proxy 설정
     location / {
         proxy_pass http://localhost:3100;

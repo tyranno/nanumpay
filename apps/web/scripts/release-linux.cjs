@@ -40,9 +40,10 @@ const dbDir = path.join(optDir, 'db');
 const toolsDir = path.join(optDir, 'tools');
 const binDir = path.join(optDir, 'bin');
 const sslDir = path.join(optDir, 'ssl');
+const staticDir = path.join(optDir, 'static');
 
 fs.rmSync(stage, { recursive: true, force: true });
-[debian, optDir, etcDir, sysdDir, nginxAvailableDir, dbDir, toolsDir, binDir, sslDir].forEach((d) =>
+[debian, optDir, etcDir, sysdDir, nginxAvailableDir, dbDir, toolsDir, binDir, sslDir, staticDir].forEach((d) =>
 	fs.mkdirSync(d, { recursive: true })
 );
 
@@ -127,6 +128,25 @@ if (fs.existsSync(sslSetupSrc)) {
 	console.log('[ssl] ✅ SSL 설정 스크립트 포함 완료');
 } else {
 	console.warn('[ssl] ⚠️  SSL 설정 스크립트 없음 (건너뜀)');
+}
+
+// 4-4) 정적 페이지 복사 (개인정보처리방침, 이용약관)
+const staticSrcDir = path.join(ROOT, 'install', 'linux', 'static');
+if (fs.existsSync(staticSrcDir)) {
+	const staticFiles = ['privacy.html', 'terms.html'];
+	let copiedCount = 0;
+	for (const file of staticFiles) {
+		const src = path.join(staticSrcDir, file);
+		if (fs.existsSync(src)) {
+			fs.copyFileSync(src, path.join(staticDir, file));
+			copiedCount++;
+		}
+	}
+	if (copiedCount > 0) {
+		console.log(`[static] ✅ 정적 페이지 ${copiedCount}개 포함 완료 (privacy, terms)`);
+	}
+} else {
+	console.warn('[static] ⚠️  정적 페이지 디렉토리 없음 (건너뜀)');
 }
 
 // 5) systemd 서비스
