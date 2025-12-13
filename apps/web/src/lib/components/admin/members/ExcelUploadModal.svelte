@@ -8,6 +8,7 @@
 	export let onClose = () => {};
 	export let onFileSelect = (event) => {};
 	export let onUpload = () => {};
+	export let onOpenHistory = () => {};  // 히스토리 열기 콜백
 
 	// input file 요소에 접근하기 위한 변수
 	let fileInput;
@@ -214,6 +215,19 @@
 	</div>
 
 	<svelte:fragment slot="footer">
+		<button
+			onclick={onOpenHistory}
+			disabled={isUploading}
+			class="px-3 py-1.5 text-sm font-medium text-gray-600 bg-gray-100 border border-gray-300 rounded hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mr-auto"
+			title="이전 업로드 히스토리"
+		>
+			<span class="flex items-center gap-1.5">
+				<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+				</svg>
+				히스토리
+			</span>
+		</button>
 		<button
 			onclick={onClose}
 			disabled={isUploading}

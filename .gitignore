@@ -47,3 +47,6 @@ apps/app/build-outputs/
 # DB Backup files (keep scripts and gz)
 backup/*.bson
 backups/
+
+# Upload history files (root only)
+/uploads/

@@ -7,7 +7,10 @@ import PlannerCommission from '$lib/server/models/PlannerCommission.js';
 import PlannerCommissionPlan from '$lib/server/models/PlannerCommissionPlan.js';
 import MonthlyRegistrations from '$lib/server/models/MonthlyRegistrations.js';
 import WeeklyPaymentPlans from '$lib/server/models/WeeklyPaymentPlans.js';
+import UploadHistory from '$lib/server/models/UploadHistory.js';
 import bcrypt from 'bcryptjs';
+import fs from 'fs/promises';
+import path from 'path';
 
 export async function POST({ request, locals }) {
 	try {
@@ -33,8 +36,24 @@ export async function POST({ request, locals }) {
 		await PlannerCommissionPlan.deleteMany({});
 		await MonthlyRegistrations.deleteMany({});
 		await WeeklyPaymentPlans.deleteMany({});
+		await UploadHistory.deleteMany({});
 
 		console.log('[DB Initialize] 모든 데이터 삭제 완료');
+
+		// 2. uploads 폴더 삭제
+		const uploadsDir = path.resolve('uploads');
+		try {
+			const files = await fs.readdir(uploadsDir);
+			for (const file of files) {
+				await fs.unlink(path.join(uploadsDir, file));
+			}
+			console.log('[DB Initialize] uploads 폴더 삭제 완료');
+		} catch (err) {
+			// 폴더가 없으면 무시
+			if (err.code !== 'ENOENT') {
+				console.warn('[DB Initialize] uploads 폴더 삭제 실패:', err.message);
+			}
+		}
 
 		// v8.0: Admin 컬렉션은 db_init.sh에서 별도 관리
 		// UserAccount에 관리자 생성하지 않음

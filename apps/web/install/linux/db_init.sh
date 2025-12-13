@@ -86,6 +86,20 @@ if [ "$FORCE" != "true" ]; then
     fi
 fi
 
+# FORCE 모드일 때 uploads 폴더 삭제
+if [ "$FORCE" == "true" ]; then
+    # DB_DIR 기준으로 프로젝트 루트의 uploads 폴더 찾기
+    # DB_DIR이 apps/web/install/linux/db 인 경우 → 프로젝트 루트는 5단계 상위
+    PROJECT_ROOT="$(cd "$DB_DIR/../../../../.." 2>/dev/null && pwd)"
+    UPLOADS_DIR="${UPLOADS_DIR:-$PROJECT_ROOT/uploads}"
+
+    if [ -d "$UPLOADS_DIR" ]; then
+        echo "[init] Clearing uploads directory: $UPLOADS_DIR"
+        rm -rf "$UPLOADS_DIR"/*
+        echo "[init] Uploads cleared."
+    fi
+fi
+
 echo "[init] connecting: $CONNECT_URI"
 "$MONGO_SHELL" $CONNECT_URI --quiet \
   --eval "var DB_NAME='$DB_NAME', ADMIN_LOGIN_ID='$ADMIN_LOGIN_ID', ADMIN_NAME='$ADMIN_NAME', ADMIN_HASH='$BCRYPT', ROLE='$ROLE', FORCE=$FORCE;" \

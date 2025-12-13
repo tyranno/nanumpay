@@ -8,6 +8,7 @@
 	import MemberEditModal from '$lib/components/admin/members/MemberEditModal.svelte';
 	import ExcelUploadModal from '$lib/components/admin/members/ExcelUploadModal.svelte';
 	import ColumnSettingsModal from '$lib/components/admin/members/ColumnSettingsModal.svelte';
+	import UploadHistoryModal from '$lib/components/admin/members/UploadHistoryModal.svelte';
 
 	// Props from +page.server.js
 	export let data;
@@ -52,6 +53,7 @@
 	let showUploadModal = false;
 	let showAddModal = false;
 	let showEditModal = false;
+	let showHistoryModal = false;  // 히스토리 모달
 	let uploadFiles = [];  // 단일 → 복수로 변경
 	let uploadProgress = null;  // 진행 상황 추가
 	let editingMember = null;
@@ -475,6 +477,43 @@
 		}
 	}
 
+	// 데이터에서 월 키 추출 (YYYY-MM)
+	function extractMonthKey(item) {
+		let dateValue = item.__EMPTY_1 || item.__EMPTY || '';
+
+		// Excel 시리얼 번호 감지 및 변환
+		if (typeof dateValue === 'number' || (!isNaN(dateValue) && Number(dateValue) > 1900)) {
+			const serial = Number(dateValue);
+			const epoch = new Date(1899, 11, 30);
+			const date = new Date(epoch.getTime() + serial * 86400000);
+			const year = date.getFullYear();
+			const month = String(date.getMonth() + 1).padStart(2, '0');
+			return `${year}-${month}`;
+		} else if (typeof dateValue === 'string') {
+			const dateStr = dateValue.trim();
+
+			// "MM/DD/YYYY" 형식
+			const slashMatch = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+			if (slashMatch) {
+				const [, m, , y] = slashMatch;
+				return `${y}-${m.padStart(2, '0')}`;
+			}
+			// "YYYY-MM-DD" 형식
+			if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+				return dateStr.substring(0, 7);
+			}
+			// "YYYY/MM/DD" 형식
+			if (/^\d{4}\/\d{2}\/\d{2}$/.test(dateStr)) {
+				return dateStr.substring(0, 7).replace('/', '-');
+			}
+			// "YYYY-MM" 형식
+			if (/^\d{4}-\d{2}$/.test(dateStr)) {
+				return dateStr;
+			}
+		}
+		return null;
+	}
+
 	// 다중 파일 업로드 처리 (월별 그룹화)
 	async function handleExcelUpload() {
 		if (uploadFiles.length === 0) {
@@ -501,6 +540,7 @@
 			};
 
 			const allData = [];
+			const fileInfoMap = new Map();  // 파일별 정보 (데이터 건수, 월)
 			for (let i = 0; i < uploadFiles.length; i++) {
 				const file = uploadFiles[i];
 				uploadProgress = {
@@ -510,6 +550,18 @@
 				};
 
 				const fileData = await readAllSheetsFromFile(file);
+
+				// 파일별 월 추출 및 데이터 건수 저장
+				const fileMonths = new Set();
+				for (const item of fileData) {
+					const monthKey = extractMonthKey(item);
+					if (monthKey) fileMonths.add(monthKey);
+				}
+				fileInfoMap.set(file.name, {
+					dataCount: fileData.length,  // 파일의 데이터 건수
+					months: Array.from(fileMonths).sort()
+				});
+
 				allData.push(...fileData);
 			}
 
@@ -615,6 +667,44 @@
 			const totalCreated = results.reduce((sum, r) => sum + (r.created || 0), 0);
 			const totalFailed = results.reduce((sum, r) => sum + (r.failed || 0), 0);
 			const failedMonths = results.filter(r => !r.success);
+
+			// 6단계: 업로드 성공 시 파일을 서버에 저장 (히스토리용)
+			if (totalCreated > 0) {
+				for (const file of uploadFiles) {
+					try {
+						const formData = new FormData();
+						formData.append('file', file);
+
+						const saveResponse = await fetch('/api/admin/uploads', {
+							method: 'POST',
+							body: formData
+						});
+
+						if (saveResponse.ok) {
+							const saveResult = await saveResponse.json();
+
+							// 해당 파일의 정보 가져오기
+							const fileInfo = fileInfoMap.get(file.name) || { dataCount: 0, months: [] };
+
+							// 등록 결과 업데이트 (파일의 데이터 건수 사용)
+							await fetch('/api/admin/uploads', {
+								method: 'PUT',
+								headers: { 'Content-Type': 'application/json' },
+								body: JSON.stringify({
+									uploadId: saveResult.uploadId,
+									created: fileInfo.dataCount,  // 파일의 데이터 건수
+									failed: 0,
+									total: fileInfo.dataCount,
+									monthKey: fileInfo.months.length > 0 ? fileInfo.months.join(', ') : null
+								})
+							});
+							console.log(`📁 히스토리 저장 완료: ${file.name} (${fileInfo.dataCount}건, ${fileInfo.months.join(', ')})`);
+						}
+					} catch (saveError) {
+						console.warn(`파일 저장 실패: ${file.name}`, saveError);
+					}
+				}
+			}
 
 			// 결과 표시
 			notificationConfig = {
@@ -1007,6 +1097,18 @@
 		}}
 		onFileSelect={handleFileSelect}
 		onUpload={handleExcelUpload}
+		onOpenHistory={() => {
+			showUploadModal = false;
+			uploadFiles = [];
+			uploadProgress = null;
+			showHistoryModal = true;
+		}}
+	/>
+
+	<!-- 업로드 히스토리 모달 -->
+	<UploadHistoryModal
+		isOpen={showHistoryModal}
+		onClose={() => (showHistoryModal = false)}
 	/>
 
 	<!-- 컬럼 설정 모달 -->
