@@ -75,6 +75,16 @@ export async function POST({ request, locals }) {
 		if (otherFields.plannerPhone) {
 			userData['설계사 연락처'] = otherFields.plannerPhone;
 		}
+		// ⭐ v8.0: 추가 필드 한글 키 매핑
+		if (otherFields.ratio !== undefined) {
+			userData['비율'] = otherFields.ratio;
+		}
+		if (otherFields.plannerBank) {
+			userData['설계사 은행'] = otherFields.plannerBank;
+		}
+		if (otherFields.plannerAccountNumber) {
+			userData['설계사 계좌번호'] = otherFields.plannerAccountNumber;
+		}
 
 		const singleUserArray = [userData];
 

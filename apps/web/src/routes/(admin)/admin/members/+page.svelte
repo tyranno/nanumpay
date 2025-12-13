@@ -205,9 +205,10 @@
 		try {
 			const requestData = {
 				...memberData,
+				ID: memberData.loginId || memberData.name, // loginId를 ID로 매핑
 				autoPassword: autoPassword
 			};
-			delete requestData.loginId; // loginId는 서버에서 생성
+			delete requestData.loginId; // ID로 매핑했으므로 삭제
 
 			const response = await fetch('/api/admin/users/register', {
 				method: 'POST',

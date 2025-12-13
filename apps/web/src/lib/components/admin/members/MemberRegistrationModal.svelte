@@ -12,6 +12,7 @@
 		loginId: '',
 		phone: '',
 		idNumber: '',
+		ratio: 1,
 		bank: '',
 		accountNumber: '',
 		branch: '',
@@ -21,6 +22,8 @@
 		salespersonPhone: '',
 		planner: '',
 		plannerPhone: '',
+		plannerBank: '',
+		plannerAccountNumber: '',
 		insuranceProduct: '',
 		insuranceCompany: '',
 		registrationDate: new Date().toISOString().split('T')[0]
@@ -32,6 +35,7 @@
 			loginId: '',
 			phone: '',
 			idNumber: '',
+			ratio: 1,
 			bank: '',
 			accountNumber: '',
 			branch: '',
@@ -41,6 +45,8 @@
 			salespersonPhone: '',
 			planner: '',
 			plannerPhone: '',
+			plannerBank: '',
+			plannerAccountNumber: '',
 			insuranceProduct: '',
 			insuranceCompany: '',
 			registrationDate: new Date().toISOString().split('T')[0]
@@ -49,23 +55,30 @@
 
 	// 판매인 선택 핸들러
 	function handleSalespersonSelect(user) {
-		newMember.salesperson = user.name;
-		newMember.salespersonPhone = user.phone || '';
-		newMember.parentId = user._id;
+		newMember = {
+			...newMember,
+			salesperson: user.name,
+			salespersonPhone: user.phone || '',
+			parentId: user._id
+		};
 	}
 
 	// 설계사 선택 핸들러
 	function handlePlannerSelect(planner) {
-		newMember.planner = planner.name;
-		newMember.plannerPhone = planner.phone || '';
+		newMember = {
+			...newMember,
+			planner: planner.name,
+			plannerPhone: planner.phone || '',
+			plannerBank: planner.bank || '',
+			plannerAccountNumber: planner.accountNumber || ''
+		};
 	}
 
 	// 판매인 이름 변경 시 자동으로 연락처 추출
 	async function handleSalespersonNameChange(event) {
 		const name = event.target.value.trim();
 		if (!name) {
-			newMember.salespersonPhone = '';
-			newMember.parentId = '';
+			newMember = { ...newMember, salespersonPhone: '', parentId: '' };
 			return;
 		}
 
@@ -76,8 +89,11 @@
 			// 정확히 일치하는 이름 찾기
 			const exactMatch = data.users?.find(u => u.name === name);
 			if (exactMatch) {
-				newMember.salespersonPhone = exactMatch.phone || '';
-				newMember.parentId = exactMatch._id;
+				newMember = {
+					...newMember,
+					salespersonPhone: exactMatch.phone || '',
+					parentId: exactMatch._id
+				};
 			}
 		} catch (error) {
 			console.error('Failed to fetch salesperson data:', error);
@@ -88,7 +104,7 @@
 	async function handlePlannerNameChange(event) {
 		const name = event.target.value.trim();
 		if (!name) {
-			newMember.plannerPhone = '';
+			newMember = { ...newMember, plannerPhone: '' };
 			return;
 		}
 
@@ -99,7 +115,7 @@
 			// 정확히 일치하는 이름 찾기
 			const exactMatch = data.planners?.find(p => p.name === name);
 			if (exactMatch) {
-				newMember.plannerPhone = exactMatch.phone || '';
+				newMember = { ...newMember, plannerPhone: exactMatch.phone || '' };
 			}
 		} catch (error) {
 			console.error('Failed to fetch planner data:', error);
@@ -108,7 +124,36 @@
 
 	// 소속/지사 선택 핸들러
 	function handleBranchSelect(branch) {
-		newMember.branch = branch.name;
+		newMember = { ...newMember, branch: branch.name };
+	}
+
+	// 전화번호 포맷팅 (010-1234-5678)
+	function formatPhone(value) {
+		const numbers = value.replace(/[^0-9]/g, '');
+		if (numbers.length <= 3) return numbers;
+		if (numbers.length <= 7) return `${numbers.slice(0, 3)}-${numbers.slice(3)}`;
+		return `${numbers.slice(0, 3)}-${numbers.slice(3, 7)}-${numbers.slice(7, 11)}`;
+	}
+
+	// 주민번호 포맷팅 (000000-0000000)
+	function formatIdNumber(value) {
+		const numbers = value.replace(/[^0-9]/g, '');
+		if (numbers.length <= 6) return numbers;
+		return `${numbers.slice(0, 6)}-${numbers.slice(6, 13)}`;
+	}
+
+	// 전화번호 입력 핸들러
+	function handlePhoneInput(field) {
+		return (e) => {
+			const formatted = formatPhone(e.target.value);
+			newMember = { ...newMember, [field]: formatted };
+		};
+	}
+
+	// 주민번호 입력 핸들러
+	function handleIdNumberInput(e) {
+		const formatted = formatIdNumber(e.target.value);
+		newMember = { ...newMember, idNumber: formatted };
 	}
 
 	function handleSubmit() {
@@ -147,26 +192,30 @@
 					/>
 				</div>
 			</div>
-			<div>
-				<label class="block text-xs font-medium text-gray-700">연락처 *</label>
-				<input
-					type="text"
-					bind:value={newMember.phone}
-					class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
-					placeholder="010-1234-5678"
-				/>
-				<p class="text-xs text-gray-500 mt-0.5">※ 뒤 4자리가 초기 암호</p>
-			</div>
 			<div class="grid grid-cols-2 gap-2">
+				<div>
+					<label class="block text-xs font-medium text-gray-700">연락처 *</label>
+					<input
+						type="text"
+						value={newMember.phone}
+						oninput={handlePhoneInput('phone')}
+						class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
+						placeholder="010-1234-5678"
+					/>
+					<p class="text-xs text-gray-500 mt-0.5">※ 뒤 4자리가 초기 암호</p>
+				</div>
 				<div>
 					<label class="block text-xs font-medium text-gray-700">주민번호</label>
 					<input
 						type="text"
-						bind:value={newMember.idNumber}
+						value={newMember.idNumber}
+						oninput={handleIdNumberInput}
 						class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
 						placeholder="000000-0000000"
 					/>
 				</div>
+			</div>
+			<div class="grid grid-cols-2 gap-2">
 				<div>
 					<label class="block text-xs font-medium text-gray-700">등록날짜</label>
 					<input
@@ -174,6 +223,18 @@
 						bind:value={newMember.registrationDate}
 						class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
 					/>
+				</div>
+				<div>
+					<label class="block text-xs font-medium text-gray-700">비율</label>
+					<select
+						bind:value={newMember.ratio}
+						class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
+					>
+						<option value={1}>1</option>
+						<option value={0.75}>0.75</option>
+						<option value={0.5}>0.5</option>
+						<option value={0.25}>0.25</option>
+					</select>
 				</div>
 			</div>
 			<div class="grid grid-cols-2 gap-2">
@@ -217,9 +278,10 @@
 		<!-- 오른쪽: 판매인/설계사 정보 -->
 		<div class="space-y-3">
 			<h4 class="text-sm font-semibold text-gray-900 border-b pb-1">판매/설계 정보</h4>
+			<!-- Row 1: 판매인 (왼쪽 ID/성명과 정렬) -->
 			<div class="grid grid-cols-2 gap-2">
 				<div>
-					<label class="block text-xs font-medium text-gray-700 mb-1">
+					<label class="block text-xs font-medium text-gray-700">
 						판매인 <span class="text-red-500">*</span>
 					</label>
 					<Autocomplete
@@ -235,18 +297,19 @@
 					<p class="text-xs text-gray-500 mt-0.5">※ 계층도 부모</p>
 				</div>
 				<div>
-					<label class="block text-xs font-medium text-gray-700 mb-1">판매인 연락처</label>
+					<label class="block text-xs font-medium text-gray-700">판매인 연락처</label>
 					<input
 						type="text"
-						bind:value={newMember.salespersonPhone}
+						value={newMember.salespersonPhone}
+						oninput={handlePhoneInput('salespersonPhone')}
 						class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
-						readonly
 					/>
 				</div>
 			</div>
+			<!-- Row 2: 설계사 (왼쪽 연락처/주민번호와 정렬) -->
 			<div class="grid grid-cols-2 gap-2">
 				<div>
-					<label class="block text-xs font-medium text-gray-700 mb-1">
+					<label class="block text-xs font-medium text-gray-700">
 						설계사 <span class="text-red-500">*</span>
 					</label>
 					<Autocomplete
@@ -259,28 +322,53 @@
 						onInputChange={handlePlannerNameChange}
 						required
 					/>
+					<p class="text-xs text-gray-500 mt-0.5 invisible">※</p>
 				</div>
 				<div>
-					<label class="block text-xs font-medium text-gray-700 mb-1">설계사 연락처</label>
+					<label class="block text-xs font-medium text-gray-700">설계사 연락처</label>
 					<input
 						type="text"
-						bind:value={newMember.plannerPhone}
+						value={newMember.plannerPhone}
+						oninput={handlePhoneInput('plannerPhone')}
 						class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
-						readonly
 					/>
 				</div>
 			</div>
-			<div>
-				<Autocomplete
-					label="소속/지사"
-					bind:value={newMember.branch}
-					placeholder="소속/지사 검색..."
-					apiUrl="/api/branches/search"
-					displayKey="name"
-					onSelect={handleBranchSelect}
-					inputClass="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
-				/>
+			<!-- Row 3: 설계사 은행/계좌 (왼쪽 등록날짜/비율과 정렬) -->
+			<div class="grid grid-cols-2 gap-2">
+				<div>
+					<label class="block text-xs font-medium text-gray-700">설계사 은행</label>
+					<input
+						type="text"
+						bind:value={newMember.plannerBank}
+						class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
+					/>
+				</div>
+				<div>
+					<label class="block text-xs font-medium text-gray-700">설계사 계좌번호</label>
+					<input
+						type="text"
+						bind:value={newMember.plannerAccountNumber}
+						class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
+					/>
+				</div>
 			</div>
+			<!-- Row 4: 소속/지사 (왼쪽 은행/계좌번호와 정렬) -->
+			<div class="grid grid-cols-2 gap-2">
+				<div class="col-span-2">
+					<Autocomplete
+						label="소속/지사"
+						bind:value={newMember.branch}
+						placeholder="소속/지사 검색..."
+						apiUrl="/api/branches/search"
+						displayKey="name"
+						onSelect={handleBranchSelect}
+						inputClass="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
+					/>
+				</div>
+			</div>
+			<!-- Row 5: 빈 공간 (왼쪽 보험상품/보험회사와 정렬) -->
+			<div class="h-[52px]"></div>
 		</div>
 	</div>
 

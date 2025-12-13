@@ -137,7 +137,7 @@
 				<button
 					type="button"
 					class="w-full px-3 py-2 text-left hover:bg-blue-50 transition-colors {index === selectedIndex ? 'bg-blue-100' : ''}"
-					onclick={() => selectItem(item)}
+					onmousedown={(e) => { e.preventDefault(); selectItem(item); }}
 				>
 					<div class="text-sm font-medium text-gray-900">{item[displayKey]}</div>
 					{#if subtextKey && item[subtextKey]}
