@@ -50,3 +50,4 @@ backups/
 
 # Upload history files (root only)
 /uploads/
+apps/web/uploads/

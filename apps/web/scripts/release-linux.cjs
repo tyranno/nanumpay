@@ -231,13 +231,16 @@ set -e
 id -u nanumpay >/dev/null 2>&1 || adduser --system --group --no-create-home nanumpay
 chown -R nanumpay:nanumpay /opt/nanumpay
 
-# 백업 디렉토리 생성 및 권한 설정
+# 데이터 디렉토리 생성 및 권한 설정
 mkdir -p /opt/nanumpay/backups
 mkdir -p /opt/nanumpay/logs
+mkdir -p /opt/nanumpay/uploads
 chown -R nanumpay:nanumpay /opt/nanumpay/backups
 chown -R nanumpay:nanumpay /opt/nanumpay/logs
+chown -R nanumpay:nanumpay /opt/nanumpay/uploads
 chmod 755 /opt/nanumpay/backups
 chmod 755 /opt/nanumpay/logs
+chmod 755 /opt/nanumpay/uploads
 
 # systemd 등록
 systemctl daemon-reload
