@@ -74,6 +74,7 @@
 	let selectedMonth = '';
 	let isProcessingDB = false;
 	let monthlyRegistrations = data.monthlyRegistrations || []; // ⭐ reactive 변수로 관리
+	let latestMonth = data.latestMonth || null; // ⭐ 최신 등록월
 
 	onMount(async () => {
 		// localStorage에서 컬럼 설정 불러오기
@@ -254,8 +255,8 @@
 		}
 	}
 
-	// 회원 수정
-	async function handleEditMember(memberData) {
+	// 회원 수정 (requiresReprocess: 지급계획 재처리 필요 여부)
+	async function handleEditMember(memberData, requiresReprocess = false) {
 		try {
 			const response = await fetch('/api/admin/users', {
 				method: 'PUT',
@@ -264,15 +265,21 @@
 				},
 				body: JSON.stringify({
 					userId: memberData._id,
+					requiresReprocess,  // ⭐ 재처리 필요 여부 전달
 					...memberData
 				})
 			});
 
 			if (response.ok) {
+				const result = await response.json();
+				let message = '회원 정보가 수정되었습니다.';
+				if (requiresReprocess && result.reprocessed) {
+					message += '\n\n지급계획이 재계산되었습니다.';
+				}
 				notificationConfig = {
 					type: 'success',
 					title: '수정 완료',
-					message: '회원 정보가 수정되었습니다.',
+					message,
 					results: null,
 					details: []
 				};
@@ -296,6 +303,61 @@
 				type: 'error',
 				title: '오류',
 				message: '수정 중 오류가 발생했습니다.',
+				results: null,
+				details: []
+			};
+			notificationOpen = true;
+		}
+	}
+
+	// 회원 삭제
+	async function handleDeleteMember(memberId) {
+		try {
+			const response = await fetch('/api/admin/users', {
+				method: 'DELETE',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({
+					userId: memberId,
+					reprocess: true  // ⭐ 삭제 후 재처리
+				})
+			});
+
+			if (response.ok) {
+				const result = await response.json();
+				let message = '지원자가 삭제되었습니다.';
+				if (result.reprocessed) {
+					message += '\n\n지급계획이 재계산되었습니다.';
+				}
+				notificationConfig = {
+					type: 'success',
+					title: '삭제 완료',
+					message,
+					results: null,
+					details: []
+				};
+				notificationOpen = true;
+				showEditModal = false;
+				await loadMembers();
+				await loadMonthlyRegistrations();  // 월별 등록 목록 갱신
+			} else {
+				const result = await response.json();
+				notificationConfig = {
+					type: 'error',
+					title: '삭제 실패',
+					message: result.error || '알 수 없는 오류',
+					results: null,
+					details: []
+				};
+				notificationOpen = true;
+			}
+		} catch (error) {
+			console.error('Delete member error:', error);
+			notificationConfig = {
+				type: 'error',
+				title: '오류',
+				message: '삭제 중 오류가 발생했습니다.',
 				results: null,
 				details: []
 			};
@@ -911,8 +973,10 @@
 	<MemberEditModal
 		isOpen={showEditModal}
 		member={editingMember}
+		{latestMonth}
 		onClose={() => (showEditModal = false)}
 		onSubmit={handleEditMember}
+		onDelete={handleDeleteMember}
 		onChangedInsurance={(userData) => {
 			// ⭐ 보험 정보 변경 시 해당 멤버만 업데이트 (전체 갱신 X)
 			editingMember = {

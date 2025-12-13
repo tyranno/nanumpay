@@ -21,8 +21,12 @@ export async function load({ locals }) {
 		console.error('Failed to fetch monthly registrations:', error);
 	}
 
+	// 최신 등록월
+	const latestMonth = monthlyRegistrations.length > 0 ? monthlyRegistrations[0].monthKey : null;
+
 	return {
 		isDevelopment,
+		latestMonth,
 		monthlyRegistrations: monthlyRegistrations.map(m => ({
 			monthKey: m.monthKey,
 			registrationCount: m.registrationCount || 0

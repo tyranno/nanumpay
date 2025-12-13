@@ -6,16 +6,34 @@
 
 	export let isOpen = false;
 	export let member = null;
+	export let latestMonth = null;  // 최신 등록월 (YYYY-MM)
 	export let onClose = () => {};
-	export let onSubmit = (memberData) => {};
+	export let onSubmit = (memberData, requiresReprocess) => {};
+	export let onDelete = (memberId) => {};  // 삭제 이벤트
 	export let onChangedInsurance = (userData) => {};  // 보험 변경 이벤트
 
 	// 보험 모달 상태
 	let showInsuranceModal = false;
 
+	// 삭제 확인 상태
+	let showDeleteConfirm = false;
+	let isDeleting = false;
+	let deleteErrorMessage = '';  // 삭제 불가 사유
+
+	// 수정 확인 상태
+	let showEditConfirm = false;
+	let confirmMessage = '';
+	let isSubmitting = false;
+	let editErrorMessage = '';  // 수정 불가 사유
+
 	// 변경 감지용 원본 멤버 저장
 	let originalMember = null;
 	let lastOpenedMemberId = null;
+
+	// 등록일 편집용 (일자만)
+	let editableCreatedAt = '';
+	let editableDay = 1;
+	let originalCreatedAtStr = '';  // 원본 날짜 문자열 (비교용)
 
 	// 모달 열릴 때 원본 저장 (member 변경 시 덮어쓰기 방지)
 	$: if (isOpen && member && member._id !== lastOpenedMemberId) {
@@ -37,14 +55,72 @@
 			plannerBank: member.plannerBank,
 			plannerAccountNumber: member.plannerAccountNumber,
 			branch: member.branch,
-			canViewSubordinates: member.canViewSubordinates
+			canViewSubordinates: member.canViewSubordinates,
+			ratio: member.ratio ?? 1,
+			createdAt: member.createdAt
 		};
+		// 등록일 편집 필드 초기화 (로컬 타임존 사용)
+		if (member.createdAt) {
+			const date = new Date(member.createdAt);
+			// 로컬 날짜 문자열 생성 (YYYY-MM-DD)
+			const year = date.getFullYear();
+			const month = (date.getMonth() + 1).toString().padStart(2, '0');
+			const day = date.getDate().toString().padStart(2, '0');
+			editableCreatedAt = `${year}-${month}-${day}`;
+			editableDay = date.getDate();
+			originalCreatedAtStr = editableCreatedAt;  // 원본 저장
+		} else {
+			editableCreatedAt = '';
+			editableDay = 1;
+			originalCreatedAtStr = '';
+		}
+		// 삭제 확인 상태 초기화
+		showDeleteConfirm = false;
+		deleteErrorMessage = '';
 	}
 
 	// 모달 닫힐 때 초기화
 	$: if (!isOpen) {
 		lastOpenedMemberId = null;
 		originalMember = null;
+		originalCreatedAtStr = '';
+		showDeleteConfirm = false;
+		showEditConfirm = false;
+		deleteErrorMessage = '';
+		editErrorMessage = '';
+	}
+
+	// 사용자가 최신 등록월에 속하는지 확인 (로컬 타임존)
+	$: memberMonth = (() => {
+		if (!member?.createdAt) return null;
+		const date = new Date(member.createdAt);
+		const year = date.getFullYear();
+		const month = (date.getMonth() + 1).toString().padStart(2, '0');
+		return `${year}-${month}`;
+	})();
+	$: isInLatestMonth = latestMonth && memberMonth === latestMonth;
+
+	// 하위 노드가 있는지 확인 (leftChildId 또는 rightChildId가 있으면 삭제 불가)
+	$: hasChildren = member?.leftChildId || member?.rightChildId;
+
+	// 삭제 가능 여부 (최신 월 + 하위 노드 없음)
+	$: canDelete = isInLatestMonth && !hasChildren;
+
+	// 등록일 연-월 표시 및 해당 월의 최대 일수 계산
+	$: yearMonthDisplay = memberMonth || '';
+	$: maxDayInMonth = (() => {
+		if (!memberMonth) return 31;
+		const [year, month] = memberMonth.split('-').map(Number);
+		return new Date(year, month, 0).getDate();
+	})();
+
+	// ⭐ 일자 변경 시 editableCreatedAt 동기화 함수
+	function syncCreatedAt() {
+		if (memberMonth && editableDay) {
+			const clampedDay = Math.max(1, Math.min(editableDay, maxDayInMonth));
+			const dayStr = clampedDay.toString().padStart(2, '0');
+			editableCreatedAt = `${memberMonth}-${dayStr}`;
+		}
 	}
 
 	// 변경 여부 확인 (보험 필드 제외)
@@ -67,18 +143,122 @@
 			originalMember.plannerBank !== member.plannerBank ||
 			originalMember.plannerAccountNumber !== member.plannerAccountNumber ||
 			originalMember.branch !== member.branch ||
-			originalMember.canViewSubordinates !== member.canViewSubordinates
+			originalMember.canViewSubordinates !== member.canViewSubordinates ||
+			hasReprocessableChanges()
 		);
 	}
 
-	// 수정 버튼 클릭 핸들러
+	// 재처리가 필요한 변경 여부 확인 (등록일, 비율, 판매인)
+	function hasReprocessableChanges() {
+		if (!originalMember || !member) return false;
+
+		// 등록일 변경 확인 (원본 문자열과 직접 비교)
+		const dateChanged = editableCreatedAt !== originalCreatedAtStr;
+
+		// 비율 변경 확인
+		const ratioChanged = (originalMember.ratio ?? 1) !== (member.ratio ?? 1);
+
+		// 판매인 변경 확인 (parentId 기준)
+		const salespersonChanged = originalMember.parentId !== member.parentId;
+
+		return dateChanged || ratioChanged || salespersonChanged;
+	}
+
+	// 수정 버튼 클릭 핸들러 - 확인창 표시
 	function handleSubmit() {
-		if (hasChanges()) {
-			onSubmit(member);
+		// 재처리 필요 여부에 따라 다른 메시지 표시
+		if (hasReprocessableChanges()) {
+			confirmMessage = '지원자 정보 수정으로 지급계획이 변경됩니다.\n수정하시겠습니까?';
+		} else if (hasChanges()) {
+			confirmMessage = '수정하시겠습니까?';
 		} else {
-			// 변경 없으면 그냥 닫기
-			onClose();
+			confirmMessage = '변경 사항이 없습니다.\n그래도 저장하시겠습니까?';
 		}
+		showEditConfirm = true;
+	}
+
+	// 수정 확정 핸들러
+	async function handleEditConfirm() {
+		if (isSubmitting) return;
+		isSubmitting = true;
+		editErrorMessage = '';
+
+		try {
+			// 판매인 변경 여부 확인
+			const salespersonChanged = originalMember.parentId !== member.parentId;
+
+			if (salespersonChanged) {
+				// 1. 현재 사용자에 하위 노드가 있으면 변경 불가
+				if (hasChildren) {
+					editErrorMessage = '하위 조직이 있어 판매인을 변경할 수 없습니다.';
+					isSubmitting = false;
+					return;
+				}
+
+				// 2. 새 판매인의 자식이 2개 다 있으면 변경 불가
+				if (member.parentId) {
+					try {
+						const response = await fetch(`/api/admin/users/${member.parentId}`);
+						if (response.ok) {
+							const parentData = await response.json();
+							if (parentData.user && parentData.user.leftChildId && parentData.user.rightChildId) {
+								editErrorMessage = `판매인 ${member.salesperson || ''}은(는) 이미 자식이 2명 있어 변경할 수 없습니다.`;
+								isSubmitting = false;
+								return;
+							}
+						}
+					} catch (error) {
+						console.error('Failed to check parent user:', error);
+						editErrorMessage = '판매인 정보 확인 중 오류가 발생했습니다.';
+						isSubmitting = false;
+						return;
+					}
+				}
+			}
+
+			// 등록일 변경 시 member에 반영
+			if (editableCreatedAt) {
+				member.createdAt = new Date(editableCreatedAt + 'T00:00:00');
+			}
+			// 재처리 필요 여부와 함께 콜백
+			await onSubmit(member, hasReprocessableChanges());
+		} finally {
+			isSubmitting = false;
+			showEditConfirm = false;
+		}
+	}
+
+	// 수정 취소 핸들러
+	function handleEditCancel() {
+		showEditConfirm = false;
+	}
+
+	// 삭제 버튼 클릭 핸들러
+	function handleDeleteClick() {
+		// 하위 노드 체크
+		if (hasChildren) {
+			deleteErrorMessage = '하위 조직이 있어 삭제할 수 없습니다.';
+			return;
+		}
+		deleteErrorMessage = '';
+		showDeleteConfirm = true;
+	}
+
+	// 삭제 확정 핸들러
+	async function handleDeleteConfirm() {
+		if (isDeleting) return;
+		isDeleting = true;
+		try {
+			await onDelete(member._id);
+			onClose();
+		} finally {
+			isDeleting = false;
+		}
+	}
+
+	// 삭제 취소 핸들러
+	function handleDeleteCancel() {
+		showDeleteConfirm = false;
 	}
 
 	// 등급별 보험 필수 여부
@@ -266,24 +446,62 @@
 
 				<div class="grid grid-cols-2 gap-3">
 					<div>
-						<label class="block text-xs font-medium text-gray-700 mb-0.5">등록일</label>
-						<input
-							type="date"
-							value={registrationDateDisplay}
-							class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md bg-gray-50 text-gray-600"
-							readonly
-							title="등록일은 수정할 수 없습니다"
-						/>
+						<label class="block text-xs font-medium text-gray-700 mb-0.5">
+							등록일
+							{#if isInLatestMonth}
+								<span class="text-blue-500 text-xs">(일자만 수정 가능)</span>
+							{/if}
+						</label>
+						{#if isInLatestMonth}
+							<!-- 연-월 고정, 일자만 수정 가능한 커스텀 UI -->
+							<div class="flex items-center gap-1">
+								<span class="px-2 py-1.5 text-sm bg-gray-100 border border-gray-300 rounded-l-md text-gray-600">{yearMonthDisplay}-</span>
+								<input
+									type="number"
+									bind:value={editableDay}
+									oninput={syncCreatedAt}
+									min="1"
+									max={maxDayInMonth}
+									class="w-16 px-2 py-1.5 text-sm border border-blue-400 rounded-r-md focus:ring-2 focus:ring-blue-500 bg-blue-50 text-center"
+									title="1 ~ {maxDayInMonth}일"
+								/>
+							</div>
+						{:else}
+							<input
+								type="text"
+								value={registrationDateDisplay}
+								class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md bg-gray-50 text-gray-600"
+								readonly
+								title="최신 등록월의 지원자만 수정 가능"
+							/>
+						{/if}
 					</div>
 					<div>
-						<label class="block text-xs font-medium text-gray-700 mb-0.5">비율</label>
-						<input
-							type="text"
-							value={member.ratio ?? 1}
-							class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md bg-gray-50 text-gray-600"
-							readonly
-							title="비율은 수정할 수 없습니다"
-						/>
+						<label class="block text-xs font-medium text-gray-700 mb-0.5">
+							비율
+							{#if isInLatestMonth}
+								<span class="text-blue-500 text-xs">(수정 가능)</span>
+							{/if}
+						</label>
+						{#if isInLatestMonth}
+							<select
+								bind:value={member.ratio}
+								class="w-full px-2 py-1.5 text-sm border border-blue-400 rounded-md focus:ring-2 focus:ring-blue-500 bg-blue-50"
+							>
+								<option value={1}>1 (100%)</option>
+								<option value={0.75}>0.75 (75%)</option>
+								<option value={0.5}>0.5 (50%)</option>
+								<option value={0.25}>0.25 (25%)</option>
+							</select>
+						{:else}
+							<input
+								type="text"
+								value={member.ratio ?? 1}
+								class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md bg-gray-50 text-gray-600"
+								readonly
+								title="최신 등록월의 지원자만 수정 가능"
+							/>
+						{/if}
 					</div>
 				</div>
 
@@ -347,25 +565,55 @@
 
 				<div class="grid grid-cols-2 gap-3">
 					<div>
-						<Autocomplete
-							label="판매인"
-							bind:value={member.salesperson}
-							placeholder="판매인 이름 검색..."
-							apiUrl="/api/admin/users/search"
-							displayKey="name"
-							subtextKey="phone"
-							onSelect={handleSalespersonSelect}
-							onInputChange={handleSalespersonNameChange}
-						/>
+						<label class="block text-xs font-medium text-gray-700 mb-0.5">
+							판매인
+							{#if isInLatestMonth}
+								<span class="text-blue-500 text-xs">(수정 가능)</span>
+							{/if}
+						</label>
+						{#if isInLatestMonth}
+							<Autocomplete
+								bind:value={member.salesperson}
+								placeholder="판매인 이름 검색..."
+								apiUrl="/api/admin/users/search"
+								displayKey="name"
+								subtextKey="phone"
+								onSelect={handleSalespersonSelect}
+								onInputChange={handleSalespersonNameChange}
+							/>
+						{:else}
+							<input
+								type="text"
+								value={member.salesperson || ''}
+								class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md bg-gray-50 text-gray-600"
+								readonly
+								title="최신 등록월의 지원자만 수정 가능"
+							/>
+						{/if}
 					</div>
 					<div>
-						<label class="block text-xs font-medium text-gray-700 mb-0.5">판매인 연락처</label>
-						<input
-							type="text"
-							bind:value={member.salespersonPhone}
-							class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-							readonly
-						/>
+						<label class="block text-xs font-medium text-gray-700 mb-0.5">
+							판매인 연락처
+							{#if isInLatestMonth}
+								<span class="text-blue-500 text-xs">(수정 가능)</span>
+							{/if}
+						</label>
+						{#if isInLatestMonth}
+							<input
+								type="text"
+								bind:value={member.salespersonPhone}
+								class="w-full px-2 py-1.5 text-sm border border-blue-400 rounded-md focus:ring-2 focus:ring-blue-500 bg-blue-50"
+								placeholder="010-0000-0000"
+							/>
+						{:else}
+							<input
+								type="text"
+								value={member.salespersonPhone || ''}
+								class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md bg-gray-50 text-gray-600"
+								readonly
+								title="최신 등록월의 지원자만 수정 가능"
+							/>
+						{/if}
 					</div>
 				</div>
 
@@ -388,7 +636,7 @@
 							type="text"
 							bind:value={member.plannerPhone}
 							class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-							readonly
+							placeholder="010-0000-0000"
 						/>
 					</div>
 				</div>
@@ -466,18 +714,75 @@
 	{/if}
 
 	<svelte:fragment slot="footer">
-		<button
-			onclick={onClose}
-			class="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
-		>
-			취소
-		</button>
-		<button
-			onclick={handleSubmit}
-			class="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors"
-		>
-			수정
-		</button>
+		<div class="flex justify-between items-center w-full">
+			<!-- 왼쪽: 삭제 버튼 -->
+			<div>
+				{#if showDeleteConfirm}
+					<div class="flex items-center gap-2">
+						<span class="text-sm text-red-600 font-medium">정말 삭제하시겠습니까?</span>
+						<button
+							onclick={handleDeleteConfirm}
+							disabled={isDeleting}
+							class="px-3 py-1.5 text-sm font-medium text-white bg-red-600 rounded hover:bg-red-700 transition-colors disabled:opacity-50"
+						>
+							{isDeleting ? '삭제 중...' : '확인'}
+						</button>
+						<button
+							onclick={handleDeleteCancel}
+							disabled={isDeleting}
+							class="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+						>
+							취소
+						</button>
+					</div>
+				{:else if deleteErrorMessage}
+					<!-- 삭제 불가 메시지 -->
+					<div class="flex items-center gap-2">
+						<span class="text-sm text-red-600">⚠️ {deleteErrorMessage}</span>
+						<button
+							onclick={() => deleteErrorMessage = ''}
+							class="text-xs text-gray-500 hover:text-gray-700"
+						>
+							✕
+						</button>
+					</div>
+				{:else if canDelete}
+					<button
+						onclick={handleDeleteClick}
+						class="px-3 py-1.5 text-sm font-medium text-red-600 bg-white border border-red-300 rounded hover:bg-red-50 transition-colors"
+					>
+						삭제
+					</button>
+				{:else if isInLatestMonth && hasChildren}
+					<button
+						onclick={handleDeleteClick}
+						class="px-3 py-1.5 text-sm font-medium text-gray-400 bg-gray-100 border border-gray-200 rounded cursor-not-allowed"
+						title="하위 조직이 있어 삭제할 수 없습니다"
+					>
+						삭제
+					</button>
+				{:else}
+					<span class="text-xs text-gray-400">최신 월의 지원자만 삭제 가능</span>
+				{/if}
+			</div>
+			<!-- 오른쪽: 취소/수정 버튼 -->
+			<div class="flex gap-2">
+				<button
+					onclick={onClose}
+					class="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+				>
+					닫기
+				</button>
+				{#if !showDeleteConfirm}
+					<button
+						onclick={handleSubmit}
+						class="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors"
+					>
+						수정
+					</button>
+				{/if}
+			</div>
+		</div>
 	</svelte:fragment>
 </WindowsModal>
 
@@ -488,3 +793,36 @@
 	onSave={handleInsuranceSaved}
 	onClose={() => showInsuranceModal = false}
 />
+
+<!-- 수정 확인 모달 -->
+<WindowsModal
+	isOpen={showEditConfirm}
+	title="확인"
+	size="sm"
+	onClose={handleEditCancel}
+>
+	<div class="space-y-3">
+		<p class="whitespace-pre-wrap text-sm text-gray-700">{confirmMessage}</p>
+		{#if editErrorMessage}
+			<div class="p-2.5 bg-red-50 border border-red-200 rounded-md">
+				<p class="text-sm text-red-600">⚠️ {editErrorMessage}</p>
+			</div>
+		{/if}
+	</div>
+	<svelte:fragment slot="footer">
+		<button
+			onclick={handleEditCancel}
+			disabled={isSubmitting}
+			class="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+		>
+			취소
+		</button>
+		<button
+			onclick={handleEditConfirm}
+			disabled={isSubmitting}
+			class="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors disabled:opacity-50"
+		>
+			{isSubmitting ? '수정 중...' : '수정'}
+		</button>
+	</svelte:fragment>
+</WindowsModal>

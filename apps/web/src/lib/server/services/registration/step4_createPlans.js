@@ -333,7 +333,7 @@ export async function executeStep4(promoted, targets, gradePayments, monthlyReg,
  * @param {Object} gradePayments - 등급별 지급액 (현재 월 기준)
  * @returns {Promise<Object|null>}
  */
-async function createAdditionalPaymentPlan(userId, userName, grade, 추가지급단계, revenueMonth, gradePayments) {
+export async function createAdditionalPaymentPlan(userId, userName, grade, 추가지급단계, revenueMonth, gradePayments) {
   try {
     console.log(`[createAdditionalPaymentPlan] ${userName} - grade:${grade}, 단계:${추가지급단계}, 매출월:${revenueMonth}`);
 

@@ -3,7 +3,9 @@ import { db } from '$lib/server/db.js';
 import User from '$lib/server/models/User.js';
 import PlannerAccount from '$lib/server/models/PlannerAccount.js';
 import WeeklyPaymentPlans from '$lib/server/models/WeeklyPaymentPlans.js';
+import MonthlyRegistrations from '$lib/server/models/MonthlyRegistrations.js';
 import { GRADE_LIMITS } from '$lib/server/utils/constants.js';
+import { reprocessMonthPayments, getLatestRegistrationMonth } from '$lib/server/services/monthProcessWithDbService.js';
 
 export async function GET({ url, locals }) {
 	// 관리자 권한 확인
@@ -147,7 +149,7 @@ export async function PUT({ request, locals }) {
 	await db();
 
 	try {
-		const { userId, ...updateData } = await request.json();
+		const { userId, requiresReprocess, ...updateData } = await request.json();
 
 		// passwordHash는 수정 불가
 		delete updateData.passwordHash;
@@ -156,9 +158,12 @@ export async function PUT({ request, locals }) {
 		// ⭐ 이름 변경 감지를 위해 기존 이름 조회
 		const newName = updateData.name;
 		let oldName = null;
+		let existingUser = null;
 		if (newName) {
-			const existingUser = await User.findById(userId).select('name').lean();
+			existingUser = await User.findById(userId).select('name createdAt').lean();
 			oldName = existingUser?.name;
+		} else {
+			existingUser = await User.findById(userId).select('createdAt').lean();
 		}
 
 		// ⭐ v8.0: canViewSubordinates는 UserAccount에 저장
@@ -255,7 +260,25 @@ export async function PUT({ request, locals }) {
 			console.log(`✅ 지급계획 userName 동기화: ${oldName} → ${newName} (${updateResult.modifiedCount}건)`);
 		}
 
-		return json({ user });
+		// ⭐ 재처리 필요 시 월별 지급 계획 재계산
+		let reprocessed = false;
+		if (requiresReprocess) {
+			// 사용자가 속한 월 확인
+			const userMonth = existingUser?.createdAt
+				? new Date(existingUser.createdAt).toISOString().substring(0, 7)
+				: null;
+
+			// 최신 월인지 확인
+			const latestMonth = await getLatestRegistrationMonth();
+
+			if (userMonth && userMonth === latestMonth) {
+				console.log(`[사용자 수정] ${user.name} - ${latestMonth} 월별 지급 계획 재처리 시작`);
+				await reprocessMonthPayments(latestMonth);
+				reprocessed = true;
+			}
+		}
+
+		return json({ user, reprocessed });
 	} catch (error) {
 		console.error('Failed to update user:', error);
 		return json({ error: 'Failed to update user' }, { status: 500 });
@@ -271,7 +294,7 @@ export async function DELETE({ request, locals }) {
 	await db();
 
 	try {
-		const { userId } = await request.json();
+		const { userId, reprocess } = await request.json();
 
 		// 삭제할 사용자 정보 먼저 조회
 		const userToDelete = await User.findById(userId);
@@ -295,9 +318,26 @@ export async function DELETE({ request, locals }) {
 			}, { status: 400 });
 		}
 
+		// 삭제 전에 사용자가 속한 월 확인
+		const userMonth = userToDelete.createdAt
+			? new Date(userToDelete.createdAt).toISOString().substring(0, 7)
+			: null;
+
+		// 최신 월인지 확인
+		const latestMonth = await getLatestRegistrationMonth();
+
+		if (userMonth !== latestMonth) {
+			return json({
+				error: '최신 등록월의 지원자만 삭제할 수 있습니다.'
+			}, { status: 400 });
+		}
+
+		// ⭐ 해당 사용자의 지급 계획 먼저 삭제
+		const deletedPlans = await WeeklyPaymentPlans.deleteMany({ userId: userId.toString() });
+		console.log(`[사용자 삭제] ${userToDelete.name} - 지급 계획 ${deletedPlans.deletedCount}건 삭제`);
+
 		// ⭐ Cascade 삭제: User 모델의 pre('findOneAndDelete') hook이 자동 처리
 		// - 부모의 자식 참조 제거 (parentId + ObjectId 기반)
-		// - WeeklyPaymentPlans 삭제
 		// - MonthlyRegistrations 업데이트
 		// - MonthlyTreeSnapshots 업데이트
 		const user = await User.findByIdAndDelete(userId);
@@ -306,7 +346,15 @@ export async function DELETE({ request, locals }) {
 			return json({ error: 'User not found' }, { status: 404 });
 		}
 
-		return json({ success: true });
+		// ⭐ 재처리 필요 시 월별 지급 계획 재계산
+		let reprocessed = false;
+		if (reprocess && latestMonth) {
+			console.log(`[사용자 삭제] ${userToDelete.name} - ${latestMonth} 월별 지급 계획 재처리 시작`);
+			await reprocessMonthPayments(latestMonth);
+			reprocessed = true;
+		}
+
+		return json({ success: true, reprocessed });
 	} catch (error) {
 		console.error('Failed to delete user:', error);
 		return json({ error: 'Failed to delete user' }, { status: 500 });

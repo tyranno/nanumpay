@@ -189,22 +189,41 @@ export async function POST({ request, locals }) {
 		const deletedRegistrations = await MonthlyRegistrations.deleteOne({ monthKey });
 
 		// ========================================
-		// 3단계: 등급 재계산
+		// 3단계: 이전 월(새 최신 월) 재처리
+		// ⭐ reprocessMonthPayments로 등급 재계산 + 지급 계획 재생성
 		// ========================================
-		const { recalculateAllGrades } = await import('$lib/server/services/gradeCalculation.js');
-		console.log(`[DB Delete] 등급 재계산 시작...`);
-
-		try {
-			const gradeResult = await recalculateAllGrades();
-			console.log(`[DB Delete] 등급 재계산 완료: ${gradeResult.updatedCount}명 등급 변경`);
-		} catch (gradeError) {
-			console.error(`[DB Delete] 등급 재계산 실패:`, gradeError);
-		}
-
 		const totalDeletedPlans =
 			deletedUserPlans.deletedCount +
 			(deletedPromotionPlans?.deletedCount || 0) +
 			deletedRevenueMonthPlans.deletedCount;
+
+		// 삭제 후 새로운 최신 월 확인
+		const newLatestMonthDoc = await MonthlyRegistrations.findOne({})
+			.sort({ monthKey: -1 })
+			.select('monthKey')
+			.lean();
+
+		let reprocessedMonth = null;
+
+		if (newLatestMonthDoc) {
+			const newLatestMonth = newLatestMonthDoc.monthKey;
+			console.log(`[DB Delete] 새 최신 월: ${newLatestMonth} - 재처리 시작...`);
+
+			try {
+				const { reprocessMonthPayments } = await import('$lib/server/services/monthProcessWithDbService.js');
+				const reprocessResult = await reprocessMonthPayments(newLatestMonth);
+				reprocessedMonth = newLatestMonth;
+				console.log(`[DB Delete] ${newLatestMonth} 재처리 완료:
+					- 등급 변경: ${reprocessResult.gradesUpdated}명
+					- 지급 계획 생성: ${reprocessResult.plansUpdated}개
+				`);
+			} catch (reprocessError) {
+				console.error(`[DB Delete] ${newLatestMonth} 재처리 실패:`, reprocessError);
+				// 재처리 실패해도 삭제는 성공으로 처리 (이전 월 복원은 이미 됨)
+			}
+		} else {
+			console.log(`[DB Delete] 남은 월별 데이터 없음 - 재처리 스킵`);
+		}
 
 		console.log(`[DB Delete] 삭제 완료:
 			- 용역자: ${deletedUsersCount}건
@@ -212,6 +231,7 @@ export async function POST({ request, locals }) {
 			- 설계사 수당 계획: ${deletedCommissionPlans.deletedCount}건
 			- 설계사: ${deletedPlannersCount}건
 			- 월별 등록: ${deletedRegistrations.deletedCount}건
+			- 재처리 월: ${reprocessedMonth || '없음'}
 		`);
 
 		return json({
@@ -222,7 +242,7 @@ export async function POST({ request, locals }) {
 			deletedPlans: totalDeletedPlans,
 			deletedCommissionPlans: deletedCommissionPlans.deletedCount,
 			deletedSummaries: 0,
-			reprocessedMonth: null
+			reprocessedMonth
 		});
 	} catch (error) {
 		console.error('Delete monthly data error:', error);
