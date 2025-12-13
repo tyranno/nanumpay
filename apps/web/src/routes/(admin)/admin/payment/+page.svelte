@@ -20,7 +20,6 @@
 	let weeklyTotals = {}; // 주차별 총계
 	let monthlyTotals = {}; // 월별 총계
 	let isProcessingPast = false;
-	let enableGradeInfoModal = false; // ⭐ DB 설정으로 제어
 
 	// grandTotal을 reactive 변수로 계산
 	$: grandTotal = apiGrandTotal ? {
@@ -158,21 +157,7 @@
 		}
 	}
 
-	// DB에서 UI 설정 불러오기
-	async function loadUiSettings() {
-		try {
-			const res = await fetch('/api/admin/ui-settings');
-			const data = await res.json();
-			if (data.success) {
-				enableGradeInfoModal = data.uiSettings?.enableGradeInfoModal ?? false;
-			}
-		} catch (e) {
-			console.error('UI 설정 로드 실패:', e);
-		}
-	}
-
 	onMount(() => {
-		loadUiSettings();
 		loadPaymentData();
 	});
 </script>
@@ -219,7 +204,6 @@
 		{weeklyTotals}
 		{monthlyTotals}
 		showPlannerColumn={$paymentPageFilterState.showPlannerColumn}
-		{enableGradeInfoModal}
 	/>
 </div>
 
