@@ -13,6 +13,7 @@
 	export let onInputChange = null; // 입력 변경 시 호출되는 콜백 (옵션)
 	export let displayKey = 'name'; // 표시할 필드명
 	export let subtextKey = ''; // 부가 정보 필드명 (옵션)
+	export let responseKey = ''; // API 응답에서 배열을 가져올 키 (옵션)
 	export let inputClass = 'w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md';
 
 	let suggestions = [];
@@ -45,7 +46,8 @@
 				const response = await fetch(`${apiUrl}?q=${encodeURIComponent(query)}`);
 				const data = await response.json();
 
-				suggestions = data.users || data.planners || [];
+				// responseKey가 지정되면 해당 키 사용, 아니면 기본 키들 시도
+				suggestions = responseKey ? (data[responseKey] || []) : (data.users || data.planners || data.accounts || []);
 				showSuggestions = suggestions.length > 0;
 				selectedIndex = -1;
 			} catch (error) {

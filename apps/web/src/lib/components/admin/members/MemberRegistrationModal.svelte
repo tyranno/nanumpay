@@ -51,6 +51,79 @@
 			insuranceCompany: '',
 			registrationDate: new Date().toISOString().split('T')[0]
 		};
+		nameDuplicateWarning = '';
+	}
+
+	let nameDuplicateWarning = '';
+
+	// ID(계정) 선택 핸들러 - 기존 계정 선택 시 개인정보 자동 채움 (성명 제외)
+	function handleAccountSelect(account) {
+		newMember = {
+			...newMember,
+			loginId: account.loginId,
+			phone: account.phone || '',
+			idNumber: account.idNumber || '',
+			bank: account.bank || '',
+			accountNumber: account.accountNumber || ''
+		};
+	}
+
+	// ID 입력 변경 시 성명도 동일하게 설정 + 기존 계정 정보 자동 채움
+	let idCheckTimer;
+	function handleIdInputChange(event) {
+		const id = event.target.value.trim();
+		// 성명도 동일하게 설정
+		newMember = { ...newMember, name: id };
+		checkNameDuplicate(id);
+
+		clearTimeout(idCheckTimer);
+		if (!id) return;
+
+		idCheckTimer = setTimeout(async () => {
+			try {
+				const res = await fetch(`/api/admin/useraccounts/search?q=${encodeURIComponent(id)}`);
+				const data = await res.json();
+				const exact = data.accounts?.find(a => a.loginId === id);
+				if (exact) {
+					newMember = {
+						...newMember,
+						phone: exact.phone || '',
+						idNumber: exact.idNumber || '',
+						bank: exact.bank || '',
+						accountNumber: exact.accountNumber || ''
+					};
+				}
+			} catch (e) {
+				console.error('ID lookup error:', e);
+			}
+		}, 300);
+	}
+
+	// 성명 중복 검사 (User 테이블 기준)
+	let nameCheckTimer;
+	async function checkNameDuplicate(name) {
+		clearTimeout(nameCheckTimer);
+		if (!name) {
+			nameDuplicateWarning = '';
+			return;
+		}
+		nameCheckTimer = setTimeout(async () => {
+			try {
+				const res = await fetch(`/api/admin/users/search?q=${encodeURIComponent(name)}`);
+				const data = await res.json();
+				const exact = data.users?.find(u => u.name === name);
+				nameDuplicateWarning = exact ? `"${name}" 동명 존재` : '';
+			} catch (e) {
+				nameDuplicateWarning = '';
+			}
+		}, 300);
+	}
+
+	// 성명 직접 입력 시 중복 검사
+	function handleNameInput(event) {
+		const name = event.target.value;
+		newMember = { ...newMember, name };
+		checkNameDuplicate(name);
 	}
 
 	// 판매인 선택 핸들러
@@ -175,21 +248,28 @@
 			<div class="grid grid-cols-2 gap-2">
 				<div>
 					<label class="block text-xs font-medium text-gray-700">ID *</label>
-					<input
-						type="text"
+					<Autocomplete
 						bind:value={newMember.loginId}
-						class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
-						placeholder="홍길동"
+						placeholder="ID 입력..."
+						apiUrl="/api/admin/useraccounts/search"
+						responseKey="accounts"
+						displayKey="loginId"
+						onSelect={handleAccountSelect}
+						onInputChange={handleIdInputChange}
 					/>
-					<p class="text-xs text-gray-500 mt-0.5">※ 같은 성명 계약정보 구분</p>
+					<p class="text-xs text-gray-500 mt-0.5">※ 기존 계정 선택 시 자동 입력</p>
 				</div>
 				<div>
 					<label class="block text-xs font-medium text-gray-700">성명 *</label>
 					<input
 						type="text"
-						bind:value={newMember.name}
-						class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md"
+						value={newMember.name}
+						oninput={handleNameInput}
+						class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md {nameDuplicateWarning ? 'border-orange-400' : ''}"
 					/>
+					{#if nameDuplicateWarning}
+						<p class="text-xs text-orange-500 mt-0.5">※ {nameDuplicateWarning}</p>
+					{/if}
 				</div>
 			</div>
 			<div class="grid grid-cols-2 gap-2">
