@@ -141,7 +141,7 @@ export class UserRegistrationService {
 			if (!loginId) {
 				return {
 					isValid: false,
-					error: `엑셀 업로드 실패: 행 ${i + 1} (${name})에 ID가 없습니다.`,
+					error: `등록 실패: 행 ${i + 1} (${name})에 ID가 없습니다.`,
 					details: 'ID는 필수 항목입니다.'
 				};
 			}
@@ -149,7 +149,7 @@ export class UserRegistrationService {
 			if (!plannerName) {
 				return {
 					isValid: false,
-					error: `엑셀 업로드 실패: 행 ${i + 1} (${name})에 설계사가 없습니다.`,
+					error: `등록 실패: 행 ${i + 1} (${name})에 설계사가 없습니다.`,
 					details: '설계사는 필수 항목입니다.'
 				};
 			}
@@ -169,7 +169,7 @@ export class UserRegistrationService {
 					.join(', ');
 				return {
 					isValid: false,
-					error: `엑셀 업로드 실패: 행 ${i + 1} (${name}) 검증 실패 - ${errorMessages}`,
+					error: `등록 실패: 행 ${i + 1} (${name}) 검증 실패 - ${errorMessages}`,
 					details: '모든 필수 항목을 올바르게 입력해주세요.'
 				};
 			}
@@ -179,7 +179,7 @@ export class UserRegistrationService {
 			if (existingUserWithSameName) {
 				return {
 					isValid: false,
-					error: `엑셀 업로드 실패: 행 ${i + 1}에서 이미 시스템에 등록된 이름 "${name}"이(가) 발견되었습니다.`,
+					error: `등록 실패: 행 ${i + 1}에서 이미 시스템에 등록된 이름 "${name}"이(가) 발견되었습니다.`,
 					details: '같은 이름의 용역자가 이미 존재합니다. 성명을 변경해주세요 (예: 홍길동2, 홍길동3).'
 				};
 			}
@@ -201,7 +201,7 @@ export class UserRegistrationService {
 				if (rootCount > 1) {
 					return {
 						isValid: false,
-						error: `엑셀 업로드 실패: 최상위 루트(판매인 없음)는 1명만 가능합니다. 행 ${row} (${name})에서 2번째 루트 발견.`,
+						error: `등록 실패: 최상위 루트(판매인 없음)는 1명만 가능합니다. 행 ${row} (${name})에서 2번째 루트 발견.`,
 						details: '판매인이 없거나 "-"인 사용자는 계층의 최상위 루트가 되며, 1명만 허용됩니다.'
 					};
 				}
@@ -219,7 +219,7 @@ export class UserRegistrationService {
 				if (!isInExcel && !existingSeller) {
 					return {
 						isValid: false,
-						error: `엑셀 업로드 실패: 행 ${row} (${name})의 판매인 "${salesperson}"이(가) 시스템에 등록되어 있지 않으며, 엑셀 파일에도 없습니다.`,
+						error: `등록 실패: 행 ${row} (${name})의 판매인 "${salesperson}"이(가) 시스템에 등록되어 있지 않으며, 엑셀 파일에도 없습니다.`,
 						details:
 							'판매인은 이미 시스템에 등록된 용역자이거나, 같은 엑셀 파일 내에서 앞쪽에 위치한 사용자여야 합니다.'
 					};
@@ -240,7 +240,7 @@ export class UserRegistrationService {
 					if (sellerRowIndex >= currentRowIndex) {
 						return {
 							isValid: false,
-							error: `엑셀 업로드 실패: 행 ${row} (${name})의 판매인 "${salesperson}"이(가) 현재 행보다 뒤에 위치하거나 같은 행에 있습니다.`,
+							error: `등록 실패: 행 ${row} (${name})의 판매인 "${salesperson}"이(가) 현재 행보다 뒤에 위치하거나 같은 행에 있습니다.`,
 							details: '판매인은 엑셀 파일에서 현재 사용자보다 앞쪽에 위치해야 합니다.'
 						};
 					}

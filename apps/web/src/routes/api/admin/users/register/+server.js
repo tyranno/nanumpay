@@ -68,6 +68,14 @@ export async function POST({ request, locals }) {
 			userData['주민번호'] = otherFields.idNumber;
 		}
 
+		// ⭐ bank, accountNumber 한글 키로 매핑 (필수 항목)
+		if (otherFields.bank) {
+			userData['은행'] = otherFields.bank;
+		}
+		if (otherFields.accountNumber) {
+			userData['계좌번호'] = otherFields.accountNumber;
+		}
+
 		// ⭐ planner, plannerPhone도 한글 키로 매핑
 		if (otherFields.planner) {
 			userData['설계사'] = otherFields.planner;
@@ -114,20 +122,20 @@ export async function POST({ request, locals }) {
 			user: {
 				id: savedUser._id,
 				name: savedUser.name,
-				loginId: savedUser.loginId,
+				loginId: ID, // User 모델에는 loginId가 없음, 원래 입력값 사용
 				phone: savedUser.phone,
 				sequence: savedUser.sequence,
 				grade: savedUser.grade
 			},
 			batchProcessing: results.batchProcessing,
-			message: `사용자 등록 완료. ID: ${savedUser.loginId}, 초기 암호: ${password}`
+			message: `사용자 등록 완료. ID: ${ID}, 초기 암호: ${password}`
 		});
 
 	} catch (error) {
 		console.error('User registration error:', error);
 
 		// 검증 오류인 경우
-		if (error.message.includes('엑셀 업로드 실패') || error.message.includes('판매인')) {
+		if (error.message.includes('등록 실패') || error.message.includes('판매인')) {
 			return json({
 				error: error.message,
 				details: error.details || '등록 검증 실패'
