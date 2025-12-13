@@ -34,8 +34,11 @@
 			parentId: member.parentId,
 			planner: member.planner,
 			plannerPhone: member.plannerPhone,
+			plannerBank: member.plannerBank,
+			plannerAccountNumber: member.plannerAccountNumber,
 			branch: member.branch,
-			canViewSubordinates: member.canViewSubordinates
+			canViewSubordinates: member.canViewSubordinates,
+			ratio: member.ratio
 		};
 	}
 
@@ -62,8 +65,11 @@
 			originalMember.parentId !== member.parentId ||
 			originalMember.planner !== member.planner ||
 			originalMember.plannerPhone !== member.plannerPhone ||
+			originalMember.plannerBank !== member.plannerBank ||
+			originalMember.plannerAccountNumber !== member.plannerAccountNumber ||
 			originalMember.branch !== member.branch ||
-			originalMember.canViewSubordinates !== member.canViewSubordinates
+			originalMember.canViewSubordinates !== member.canViewSubordinates ||
+			originalMember.ratio !== member.ratio
 		);
 	}
 
@@ -91,6 +97,8 @@
 	function handlePlannerSelect(planner) {
 		member.planner = planner.name;
 		member.plannerPhone = planner.phone || '';
+		member.plannerBank = planner.bank || '';
+		member.plannerAccountNumber = planner.accountNumber || '';
 	}
 
 	// 판매인 이름 변경 시 자동으로 연락처 추출
@@ -144,6 +152,36 @@
 		member.branch = branch.name;
 	}
 
+	// 전화번호 포맷팅 (010-1234-5678)
+	function formatPhone(value) {
+		const numbers = value.replace(/[^0-9]/g, '');
+		if (numbers.length <= 3) return numbers;
+		if (numbers.length <= 7) return `${numbers.slice(0, 3)}-${numbers.slice(3)}`;
+		return `${numbers.slice(0, 3)}-${numbers.slice(3, 7)}-${numbers.slice(7, 11)}`;
+	}
+
+	// 주민번호 포맷팅 (000000-0000000)
+	function formatIdNumber(value) {
+		const numbers = value.replace(/[^0-9]/g, '');
+		if (numbers.length <= 6) return numbers;
+		return `${numbers.slice(0, 6)}-${numbers.slice(6, 13)}`;
+	}
+
+	// 전화번호 입력 핸들러
+	function handlePhoneInput(e) {
+		member.phone = formatPhone(e.target.value);
+	}
+
+	// 주민번호 입력 핸들러
+	function handleIdNumberInput(e) {
+		member.idNumber = formatIdNumber(e.target.value);
+	}
+
+	// 등록일 포맷팅
+	$: registrationDateDisplay = member?.joinedAt
+		? new Date(member.joinedAt).toISOString().split('T')[0]
+		: '';
+
 	// 보험 금액 표시용 (쉼표 포함)
 	$: insuranceAmountDisplay = member?.insuranceAmount ? member.insuranceAmount.toLocaleString() : '0';
 
@@ -151,6 +189,14 @@
 	$: insuranceDateDisplay = member?.insuranceDate
 		? new Date(member.insuranceDate).toLocaleDateString('ko-KR')
 		: '미설정';
+
+	// 등급별 필요 보험금액 표시용
+	$: requiredInsuranceAmount = member?.grade
+		? (GRADE_LIMITS[member.grade]?.insuranceAmount || 0)
+		: 0;
+	$: requiredInsuranceDisplay = requiredInsuranceAmount > 0
+		? `${requiredInsuranceAmount.toLocaleString()}원`
+		: '불필요';
 
 	// 보험 모달에서 저장 완료 시 → 보험은 별도 API로 이미 저장됨
 	function handleInsuranceSaved(result) {
@@ -197,22 +243,52 @@
 					</div>
 				</div>
 
-				<div>
-					<label class="block text-xs font-medium text-gray-700 mb-0.5">연락처</label>
-					<input
-						type="text"
-						bind:value={member.phone}
-						class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-					/>
+				<div class="grid grid-cols-2 gap-3">
+					<div>
+						<label class="block text-xs font-medium text-gray-700 mb-0.5">연락처</label>
+						<input
+							type="text"
+							value={member.phone}
+							oninput={handlePhoneInput}
+							class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+							placeholder="010-1234-5678"
+						/>
+					</div>
+					<div>
+						<label class="block text-xs font-medium text-gray-700 mb-0.5">주민번호</label>
+						<input
+							type="text"
+							value={member.idNumber}
+							oninput={handleIdNumberInput}
+							class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+							placeholder="000000-0000000"
+						/>
+					</div>
 				</div>
 
-				<div>
-					<label class="block text-xs font-medium text-gray-700 mb-0.5">주민번호</label>
-					<input
-						type="text"
-						bind:value={member.idNumber}
-						class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-					/>
+				<div class="grid grid-cols-2 gap-3">
+					<div>
+						<label class="block text-xs font-medium text-gray-700 mb-0.5">등록일</label>
+						<input
+							type="date"
+							value={registrationDateDisplay}
+							class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md bg-gray-50 text-gray-600"
+							readonly
+							title="등록일은 수정할 수 없습니다"
+						/>
+					</div>
+					<div>
+						<label class="block text-xs font-medium text-gray-700 mb-0.5">비율</label>
+						<select
+							bind:value={member.ratio}
+							class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+						>
+							<option value={1}>1</option>
+							<option value={0.75}>0.75</option>
+							<option value={0.5}>0.5</option>
+							<option value={0.25}>0.25</option>
+						</select>
+					</div>
 				</div>
 
 				<div class="grid grid-cols-2 gap-3">
@@ -250,6 +326,22 @@
 							class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
 						/>
 					</div>
+				</div>
+
+				<!-- 산하정보 보기 권한 (계정 설정) -->
+				<div class="mt-2 p-2.5 bg-blue-50 border border-blue-200 rounded-md">
+					<label class="block text-xs font-medium text-blue-800 mb-1">산하정보 보기 권한</label>
+					<label class="flex items-center cursor-pointer">
+						<input
+							type="checkbox"
+							bind:checked={member.canViewSubordinates}
+							class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+						/>
+						<span class="ml-2 text-sm text-gray-700">산하정보 조회 허용</span>
+					</label>
+					<p class="text-xs text-blue-600 mt-1.5">
+						※ 계정 ID ({member.loginId || '-'})의 보기 기능이 활성화됩니다
+					</p>
 				</div>
 			</div>
 
@@ -305,6 +397,25 @@
 					</div>
 				</div>
 
+				<div class="grid grid-cols-2 gap-3">
+					<div>
+						<label class="block text-xs font-medium text-gray-700 mb-0.5">설계사 은행</label>
+						<input
+							type="text"
+							bind:value={member.plannerBank}
+							class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+						/>
+					</div>
+					<div>
+						<label class="block text-xs font-medium text-gray-700 mb-0.5">설계사 계좌번호</label>
+						<input
+							type="text"
+							bind:value={member.plannerAccountNumber}
+							class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+						/>
+					</div>
+				</div>
+
 				<div>
 					<Autocomplete
 						label="소속/지사"
@@ -317,9 +428,16 @@
 				</div>
 
 				<!-- 보험 정보 -->
-				<div>
-					<label class="block text-xs font-medium text-gray-700 mb-0.5">보험 정보</label>
-					<div class="bg-gray-50 rounded-md p-2 border border-gray-200">
+				<div class="mt-2 p-2.5 bg-green-50 border border-green-200 rounded-md">
+					<label class="block text-xs font-medium text-green-800 mb-1.5">
+						보험 정보
+						{#if member?.grade}
+							<span class="ml-1 text-green-700">
+								(등급:<span class="text-sm font-bold text-green-900">{member.grade}</span>{#if isInsuranceRequired} - {requiredInsuranceDisplay} 이상 가입필요{/if})
+							</span>
+						{/if}
+					</label>
+					<div class="bg-white rounded p-2 border border-green-100">
 						<div class="flex justify-between items-center text-sm">
 							<span class="text-gray-600">금액</span>
 							<span class="font-medium">{insuranceAmountDisplay}원</span>
@@ -342,25 +460,10 @@
 					<button
 						type="button"
 						onclick={() => showInsuranceModal = true}
-						class="mt-2 w-full px-3 py-1.5 text-sm text-blue-600 border border-blue-300 rounded-md hover:bg-blue-50 transition-colors"
+						class="mt-2 w-full px-3 py-1.5 text-sm text-white bg-green-600 border border-green-600 rounded-md hover:bg-green-700 transition-colors"
 					>
-						보험 가입
+						보험 가입/수정
 					</button>
-					<p class="text-xs text-gray-500 mt-1">
-						💡 F4/F5: 7만원, F6/F7: 9만원, F8: 11만원 (F1-F3 불필요)
-					</p>
-				</div>
-
-				<div>
-					<label class="block text-xs font-medium text-gray-700 mb-0.5">산하정보 보기 권한</label>
-					<label class="flex items-center cursor-pointer mt-1.5">
-						<input
-							type="checkbox"
-							bind:checked={member.canViewSubordinates}
-							class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-						/>
-						<span class="ml-2 text-sm text-gray-700">산하정보 조회 허용</span>
-					</label>
 				</div>
 			</div>
 		</div>
