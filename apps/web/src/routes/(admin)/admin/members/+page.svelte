@@ -118,7 +118,8 @@
 			const response = await fetch('/api/admin/db/monthly-registrations');
 			const result = await response.json();
 			if (result.success) {
-				monthlyRegistrations = result.monthlyRegistrations;
+				// ⭐ 새 배열로 할당하여 Svelte 반응성 트리거
+				monthlyRegistrations = [...result.monthlyRegistrations];
 			}
 		} catch (error) {
 			console.error('Failed to load monthly registrations:', error);
@@ -556,7 +557,7 @@
 			notificationConfig = {
 				type: failedMonths.length > 0 ? 'warning' : 'success',
 				title: '엑셀 업로드 완료',
-				message: `총 ${monthKeys.length}개 월 처리\n성공: ${totalCreated}명 등록, 실패: ${totalFailed}명`,
+				message: `총 ${monthKeys.length}개 월 처리`,
 				results: {
 					months: results,
 					totalCreated,
@@ -565,9 +566,9 @@
 				details: results.map(r => ({
 					type: r.success ? 'success' : 'error',
 					title: r.monthKey,
-					content: r.success
-						? `등록: ${r.created}명, 실패: ${r.failed}명`
-						: `오류: ${r.error}`
+					created: r.created,
+					failed: r.failed,
+					content: r.success ? null : `오류: ${r.error}`
 				}))
 			};
 			notificationOpen = true;
@@ -1008,10 +1009,14 @@
 			{#if notificationConfig.results}
 				<div class="flex gap-3 text-sm">
 					{#if notificationConfig.results.created !== undefined}
-						<span class="alert-success">✓ 성공: {notificationConfig.results.created}</span>
+						<span class="alert-success">✓ 성공: <strong>{notificationConfig.results.created}명</strong></span>
+					{:else if notificationConfig.results.totalCreated !== undefined}
+						<span class="alert-success">✓ 성공: <strong>{notificationConfig.results.totalCreated}명</strong></span>
 					{/if}
 					{#if notificationConfig.results.failed !== undefined && notificationConfig.results.failed > 0}
-						<span class="alert-fail">✗ 실패: {notificationConfig.results.failed}</span>
+						<span class="alert-fail">✗ 실패: <strong>{notificationConfig.results.failed}명</strong></span>
+					{:else if notificationConfig.results.totalFailed !== undefined && notificationConfig.results.totalFailed > 0}
+						<span class="alert-fail">✗ 실패: <strong>{notificationConfig.results.totalFailed}명</strong></span>
 					{/if}
 				</div>
 
@@ -1047,7 +1052,18 @@
 									{detail.title}
 								</p>
 							{/if}
-							{#if detail.content}
+							{#if detail.created !== undefined}
+								<p class="detail-content">
+									<span class="alert-success">등록: <strong>{detail.created}명</strong></span>
+									{#if detail.failed > 0}
+										<span class="mx-2">,</span>
+										<span class="alert-fail">실패: <strong>{detail.failed}명</strong></span>
+									{:else}
+										<span class="mx-2">,</span>
+										<span class="text-gray-500">실패: 0명</span>
+									{/if}
+								</p>
+							{:else if detail.content}
 								<p class={detail.type === 'error' ? 'detail-content-error' : 'detail-content'}>
 									{detail.content}
 								</p>
@@ -1218,11 +1234,11 @@
 
 	/* 모달 메시지 박스 */
 	.alert-success {
-		@apply font-medium text-green-600;
+		@apply text-lg font-bold text-blue-600;
 	}
 
 	.alert-fail {
-		@apply font-medium text-red-600;
+		@apply text-lg font-bold text-red-600;
 	}
 
 	.alert-box-warning {

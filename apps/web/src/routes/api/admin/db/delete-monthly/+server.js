@@ -221,12 +221,12 @@ export async function POST({ request, locals }) {
 			deletedRegistrations: deletedRegistrations.deletedCount,
 			deletedPlans: totalDeletedPlans,
 			deletedCommissionPlans: deletedCommissionPlans.deletedCount,
-			deletedSummaries: deletedSummaries.deletedCount,
+			deletedSummaries: 0,
 			reprocessedMonth: null
 		});
 	} catch (error) {
 		console.error('Delete monthly data error:', error);
-		return json({ error: '월별 데이터 삭제 중 오류가 발생했습니다.' }, { status: 500 });
+		return json({ error: error?.message || '월별 데이터 삭제 중 오류가 발생했습니다.' }, { status: 500 });
 	}
 }
 
