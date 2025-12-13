@@ -153,6 +153,14 @@ export async function PUT({ request, locals }) {
 		delete updateData.passwordHash;
 		delete updateData._id;
 
+		// ⭐ 이름 변경 감지를 위해 기존 이름 조회
+		const newName = updateData.name;
+		let oldName = null;
+		if (newName) {
+			const existingUser = await User.findById(userId).select('name').lean();
+			oldName = existingUser?.name;
+		}
+
 		// ⭐ v8.0: canViewSubordinates는 UserAccount에 저장
 		const canViewSubordinates = updateData.canViewSubordinates;
 		delete updateData.canViewSubordinates;
@@ -236,6 +244,15 @@ export async function PUT({ request, locals }) {
 				{ $set: plannerAccountFields },
 				{ new: true }
 			);
+		}
+
+		// ⭐ 이름 변경 시 WeeklyPaymentPlans의 userName도 동기화
+		if (newName && oldName && newName !== oldName) {
+			const updateResult = await WeeklyPaymentPlans.updateMany(
+				{ userId: userId.toString() },
+				{ $set: { userName: newName } }
+			);
+			console.log(`✅ 지급계획 userName 동기화: ${oldName} → ${newName} (${updateResult.modifiedCount}건)`);
 		}
 
 		return json({ user });

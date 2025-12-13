@@ -37,8 +37,7 @@
 			plannerBank: member.plannerBank,
 			plannerAccountNumber: member.plannerAccountNumber,
 			branch: member.branch,
-			canViewSubordinates: member.canViewSubordinates,
-			ratio: member.ratio
+			canViewSubordinates: member.canViewSubordinates
 		};
 	}
 
@@ -68,8 +67,7 @@
 			originalMember.plannerBank !== member.plannerBank ||
 			originalMember.plannerAccountNumber !== member.plannerAccountNumber ||
 			originalMember.branch !== member.branch ||
-			originalMember.canViewSubordinates !== member.canViewSubordinates ||
-			originalMember.ratio !== member.ratio
+			originalMember.canViewSubordinates !== member.canViewSubordinates
 		);
 	}
 
@@ -177,9 +175,9 @@
 		member.idNumber = formatIdNumber(e.target.value);
 	}
 
-	// 등록일 포맷팅
-	$: registrationDateDisplay = member?.joinedAt
-		? new Date(member.joinedAt).toISOString().split('T')[0]
+	// 등록일 포맷팅 (createdAt 사용 - joinedAt은 현재 시간으로 설정됨)
+	$: registrationDateDisplay = member?.createdAt
+		? new Date(member.createdAt).toISOString().split('T')[0]
 		: '';
 
 	// 보험 금액 표시용 (쉼표 포함)
@@ -279,15 +277,13 @@
 					</div>
 					<div>
 						<label class="block text-xs font-medium text-gray-700 mb-0.5">비율</label>
-						<select
-							bind:value={member.ratio}
-							class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-						>
-							<option value={1}>1</option>
-							<option value={0.75}>0.75</option>
-							<option value={0.5}>0.5</option>
-							<option value={0.25}>0.25</option>
-						</select>
+						<input
+							type="text"
+							value={member.ratio ?? 1}
+							class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md bg-gray-50 text-gray-600"
+							readonly
+							title="비율은 수정할 수 없습니다"
+						/>
 					</div>
 				</div>
 
