@@ -142,7 +142,7 @@ export async function executeStep4(promoted, targets, gradePayments, monthlyReg,
       // 3. Initial 플랜을 Promotion 첫 지급일부터 terminate
       const newPlanFirstPayment = promotionPlan.installments[0]?.scheduledDate;
       if (newPlanFirstPayment) {
-        const terminatedCount = await terminateActivePlansFromDate(userId, newPlanFirstPayment, promotionPlan._id);
+        const terminatedCount = await terminateActivePlansFromDate(userId, newPlanFirstPayment, promotionPlan._id, registrationMonth);
         if (terminatedCount > 0) {
           console.log(`[Step4] ${userName}: ${terminatedCount}개 기존 플랜 부분종료 (기준일: ${newPlanFirstPayment.toISOString().split('T')[0]})`);
         }
@@ -269,7 +269,7 @@ export async function executeStep4(promoted, targets, gradePayments, monthlyReg,
       // ⭐ v8.0: 새 플랜의 첫 지급일 기준으로 기존 플랜 terminate
       const newPlanFirstPayment = promotionPlan.installments[0]?.scheduledDate;
       if (newPlanFirstPayment) {
-        const terminatedCount = await terminateActivePlansFromDate(prom.userId, newPlanFirstPayment, promotionPlan._id);
+        const terminatedCount = await terminateActivePlansFromDate(prom.userId, newPlanFirstPayment, promotionPlan._id, registrationMonth);
         if (terminatedCount > 0) {
           console.log(`[Step4] ${prom.userName}: ${terminatedCount}개 기존 플랜 종료 (기준일: ${newPlanFirstPayment.toISOString().split('T')[0]})`);
         }
@@ -530,9 +530,10 @@ async function terminateAdditionalPaymentPlans(userId, promotionDate) {
  * @param {string} userId - 사용자 ID
  * @param {Date} firstPaymentDate - 새 플랜의 첫 지급일
  * @param {ObjectId} excludePlanId - 제외할 플랜 ID (새로 생성된 플랜)
+ * @param {string} terminatedByRevenueMonth - 종료를 발생시킨 매출월 (재처리 시 복원 기준)
  * @returns {Promise<number>} 처리된 플랜 수
  */
-async function terminateActivePlansFromDate(userId, firstPaymentDate, excludePlanId) {
+async function terminateActivePlansFromDate(userId, firstPaymentDate, excludePlanId, terminatedByRevenueMonth = null) {
   try {
     console.log(`[승급 처리] userId=${userId}: 첫 지급일=${firstPaymentDate.toISOString().split('T')[0]} 기준으로 기존 플랜 종료`);
 
@@ -585,7 +586,8 @@ async function terminateActivePlansFromDate(userId, firstPaymentDate, excludePla
         ...(newPlanStatus === 'terminated' && {
           terminatedAt: new Date(),
           terminationReason: 'promotion',
-          terminatedBy: 'promotion_additional_stop'
+          terminatedBy: 'promotion_additional_stop',
+          ...(terminatedByRevenueMonth && { terminatedByRevenueMonth })
         })
       };
 
@@ -598,7 +600,7 @@ async function terminateActivePlansFromDate(userId, firstPaymentDate, excludePla
       if (terminatedInstallments > 0) {
         terminatedCount++;
         const statusLabel = newPlanStatus === 'terminated' ? '종료' : '부분종료';
-        console.log(`  - [${statusLabel}] ${plan.planType} ${plan.baseGrade} (${plan.revenueMonth}): ${terminatedInstallments}개 installment terminated, 남은 pending: ${hasRemainingPending}`);
+        console.log(`  - [${statusLabel}] ${plan.planType} ${plan.baseGrade} (${plan.revenueMonth}): ${terminatedInstallments}개 installment terminated, 남은 pending: ${hasRemainingPending}, terminatedByRevenueMonth: ${terminatedByRevenueMonth || 'N/A'}`);
       }
     }
 

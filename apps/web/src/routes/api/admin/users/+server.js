@@ -260,6 +260,50 @@ export async function PUT({ request, locals }) {
 			console.log(`✅ 지급계획 userName 동기화: ${oldName} → ${newName} (${updateResult.modifiedCount}건)`);
 		}
 
+		// ⭐ v8.3: 등록일(createdAt) 변경 시 gradeHistory.date와 MonthlyRegistrations.registrationDate도 동기화
+		if (updateData.createdAt && existingUser?.createdAt) {
+			const oldCreatedAt = new Date(existingUser.createdAt);
+			const newCreatedAt = new Date(updateData.createdAt);
+
+			if (oldCreatedAt.getTime() !== newCreatedAt.getTime()) {
+				console.log(`✅ 등록일 변경: ${oldCreatedAt.toISOString().split('T')[0]} → ${newCreatedAt.toISOString().split('T')[0]}`);
+
+				const oldMonthKey = oldCreatedAt.toISOString().substring(0, 7);
+				const newMonthKey = newCreatedAt.toISOString().substring(0, 7);
+
+				// 1. gradeHistory.date 업데이트 (User 다시 조회 후 수정)
+				const userForGradeHistory = await User.findById(userId);
+				const registrationHistory = userForGradeHistory?.gradeHistory?.find(h =>
+					h.type === 'registration' && h.revenueMonth === oldMonthKey
+				);
+				if (registrationHistory) {
+					registrationHistory.date = newCreatedAt;
+					// ⭐ v8.3: 월이 바뀌면 revenueMonth도 업데이트
+					if (oldMonthKey !== newMonthKey) {
+						registrationHistory.revenueMonth = newMonthKey;
+						console.log(`  → gradeHistory.revenueMonth 변경: ${oldMonthKey} → ${newMonthKey}`);
+					}
+					await userForGradeHistory.save();
+					console.log(`  → gradeHistory.date 동기화 완료`);
+				}
+
+				// 2. MonthlyRegistrations.registrations[].registrationDate 업데이트
+				const monthlyReg = await MonthlyRegistrations.findOne({
+					monthKey: oldMonthKey,
+					'registrations.userId': userId
+				});
+				if (monthlyReg) {
+					const reg = monthlyReg.registrations.find(r => r.userId === userId);
+					if (reg) {
+						reg.registrationDate = newCreatedAt;
+						await monthlyReg.save();
+						console.log(`  → MonthlyRegistrations.registrationDate 동기화 완료`);
+					}
+				}
+				// ⭐ v8.4: 부모 승급일은 reprocess에서 자동 재계산됨 (등급 초기화 후 재계산)
+			}
+		}
+
 		// ⭐ 재처리 필요 시 월별 지급 계획 재계산
 		let reprocessed = false;
 		if (requiresReprocess) {

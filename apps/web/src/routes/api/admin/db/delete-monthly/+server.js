@@ -62,57 +62,13 @@ export async function POST({ request, locals }) {
 		console.log(`[DB Delete] ${monthKey} 등록 용역자: ${userIds.length}명`);
 		console.log(`[DB Delete] ${monthKey} 승급자: ${promotedUserIds.length}명`);
 
-		// ========================================
-		// 1단계: 해당 월 승급으로 terminated된 이전 월 계획 복원
-		// ========================================
-		if (promotedUserIds.length > 0) {
-			// 해당 월 등록 시점 (이 시점 이후에 terminated된 것만 복원)
-			const monthlyRegCreatedAt = monthlyReg?.createdAt || new Date();
-			console.log(`[DB Delete] ${monthKey} 등록 시점: ${monthlyRegCreatedAt}`);
-
-			// 복원 대상: 해당 월 승급자의 이전 월 계획 중 해당 월 등록 이후 terminated된 것
-			// terminatedBy 또는 terminationReason이 promotion 관련인 경우 모두 포함
-			const terminatedPlans = await WeeklyPaymentPlans.find({
-				userId: { $in: promotedUserIds },
-				planStatus: 'terminated',
-				$or: [
-					{ terminatedBy: { $in: ['promotion_additional_stop', 'promotion'] } },
-					{ terminationReason: 'promotion' }
-				],
-				revenueMonth: { $lt: monthKey },
-				terminatedAt: { $gte: monthlyRegCreatedAt }
-			});
-
-			console.log(`[DB Delete] 복원 대상 계획 ${terminatedPlans.length}건:`);
-			for (const plan of terminatedPlans) {
-				console.log(`  - User: ${plan.userName || plan.userId}, Grade: ${plan.baseGrade}, RevenueMonth: ${plan.revenueMonth}, TerminatedBy: ${plan.terminatedBy}, TerminatedAt: ${plan.terminatedAt}`);
-
-				// ⭐ v8.0: terminated 상태를 pending으로 복원 (canceled 제거됨)
-				const updatedInstallments = plan.installments.map(inst => ({
-					...inst.toObject(),
-					status: inst.status === 'terminated' ? 'pending' : inst.status
-				}));
-
-				await WeeklyPaymentPlans.updateOne(
-					{ _id: plan._id },
-					{
-						$set: {
-							planStatus: 'active',
-							installments: updatedInstallments
-						},
-						$unset: {
-							terminatedAt: '',
-							terminatedBy: '',
-							terminationReason: ''
-						}
-					}
-				);
-			}
-			console.log(`[DB Delete] terminated → active 복원 완료: ${terminatedPlans.length}건`);
-		}
+		// ⭐ v8.2: 1단계 복원 로직 제거
+		// - monthProcessWithDbService.reprocessMonthPayments()가 해당 월 플랜을 삭제 후 새로 생성함
+		// - 따라서 별도의 복원 로직이 불필요
+		// - 이전 월 플랜(7월, 8월 등)은 그대로 유지됨 (이전 승급 효과 유지)
 
 		// ========================================
-		// 2단계: 해당 월 데이터 삭제
+		// 1단계: 해당 월 데이터 삭제
 		// ========================================
 
 		// 2-1. 해당 월 승급자의 새 등급 지급 계획 삭제

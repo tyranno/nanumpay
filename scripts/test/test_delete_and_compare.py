@@ -154,25 +154,45 @@ def delete_month(cookies, base_url, month_key):
 def capture_snapshot(db):
     """현재 DB 상태 스냅샷 캡처"""
     snapshot = {
-        'users': [],
-        'payment_plans': [],
-        'monthly_registrations': []
+        'users': {},           # ⭐ dict로 변경 (키 기반 비교)
+        'payment_plans': {},   # ⭐ dict로 변경 (키 기반 비교)
+        'monthly_registrations': {}  # ⭐ dict로 변경
     }
 
-    # Users (type='user'만)
+    # Users (type='user'만) - ⭐ name을 키로 사용
     users = list(db.users.find({'type': 'user'}).sort([('name', 1)]))
     for user in users:
-        snapshot['users'].append({
+        user_key = user.get('name')
+        # gradeHistory에서 승급 정보 추출
+        grade_history = []
+        for gh in user.get('gradeHistory', []):
+            grade_history.append({
+                'type': gh.get('type'),
+                'revenueMonth': gh.get('revenueMonth'),
+                'fromGrade': gh.get('fromGrade'),
+                'toGrade': gh.get('toGrade'),
+                'registrationDate': str(gh.get('registrationDate', ''))[:10] if gh.get('registrationDate') else None,
+                'promotionDate': str(gh.get('promotionDate', ''))[:10] if gh.get('promotionDate') else None,
+            })
+
+        snapshot['users'][user_key] = {
             'name': user.get('name'),
             'grade': user.get('grade'),
             'status': user.get('status'),
-            'leftChildId': user.get('leftChildId'),
-            'rightChildId': user.get('rightChildId'),
-        })
+            'leftChildId': str(user.get('leftChildId')) if user.get('leftChildId') else None,
+            'rightChildId': str(user.get('rightChildId')) if user.get('rightChildId') else None,
+            'gradeHistory': grade_history,  # ⭐ gradeHistory 추가
+        }
 
-    # Payment Plans
-    plans = list(db.weeklypaymentplans.find().sort([('userName', 1), ('revenueMonth', 1), ('planType', 1)]))
+    # Payment Plans - ⭐ 고유 키로 구분 (userName/revenueMonth/planType/installmentType)
+    # ⭐ 정렬키에 installmentType 추가!
+    plans = list(db.weeklypaymentplans.find().sort([
+        ('userName', 1), ('revenueMonth', 1), ('planType', 1), ('installmentType', 1)
+    ]))
     for plan in plans:
+        # ⭐ 고유 키 생성 (installmentType 포함!)
+        plan_key = f"{plan.get('userName')}/{plan.get('revenueMonth')}/{plan.get('planType')}/{plan.get('installmentType', 'basic')}"
+
         plan_data = {
             'userName': plan.get('userName'),
             'baseGrade': plan.get('baseGrade'),
@@ -180,6 +200,8 @@ def capture_snapshot(db):
             'planType': plan.get('planType'),
             'planStatus': plan.get('planStatus'),
             'installmentType': plan.get('installmentType', 'basic'),
+            'terminatedAt': str(plan.get('terminatedAt', ''))[:10] if plan.get('terminatedAt') else None,  # ⭐ 추가
+            'terminationReason': plan.get('terminationReason'),  # ⭐ 추가
             'installments': []
         }
         for inst in plan.get('installments', []):
@@ -189,56 +211,127 @@ def capture_snapshot(db):
                 'installmentAmount': inst.get('installmentAmount'),
                 'scheduledDate': str(inst.get('scheduledDate', ''))[:10]
             })
-        snapshot['payment_plans'].append(plan_data)
+        snapshot['payment_plans'][plan_key] = plan_data
 
-    # Monthly Registrations
+    # Monthly Registrations - ⭐ monthKey를 키로 사용
     regs = list(db.monthlyregistrations.find().sort('monthKey', 1))
     for reg in regs:
-        snapshot['monthly_registrations'].append({
-            'monthKey': reg.get('monthKey'),
+        month_key = reg.get('monthKey')
+        snapshot['monthly_registrations'][month_key] = {
+            'monthKey': month_key,
             'registrationCount': len(reg.get('registrations', [])),
             'totalRevenue': reg.get('totalRevenue', 0),
-        })
+        }
 
     return snapshot
 
 
 def compare_snapshots(expected, actual, label=""):
-    """두 스냅샷 비교"""
+    """두 스냅샷 비교 - ⭐ 키 기반 비교로 변경"""
     differences = []
 
-    # Users 비교
-    if len(expected['users']) != len(actual['users']):
-        differences.append(f"Users 수: {len(expected['users'])} vs {len(actual['users'])}")
-    else:
-        for i, (exp_user, act_user) in enumerate(zip(expected['users'], actual['users'])):
-            for key in ['name', 'grade', 'status']:
-                if exp_user.get(key) != act_user.get(key):
-                    differences.append(f"User {exp_user.get('name')} {key}: {exp_user.get(key)} vs {act_user.get(key)}")
+    # ========================================
+    # Users 비교 (키 기반)
+    # ========================================
+    exp_user_keys = set(expected['users'].keys())
+    act_user_keys = set(actual['users'].keys())
 
-    # Payment Plans 비교
-    if len(expected['payment_plans']) != len(actual['payment_plans']):
-        differences.append(f"Plans 수: {len(expected['payment_plans'])} vs {len(actual['payment_plans'])}")
-    else:
-        for exp_plan, act_plan in zip(expected['payment_plans'], actual['payment_plans']):
-            key = f"{exp_plan['userName']}/{exp_plan['revenueMonth']}/{exp_plan['planType']}"
+    missing_users = exp_user_keys - act_user_keys
+    extra_users = act_user_keys - exp_user_keys
 
-            for field in ['baseGrade', 'planStatus', 'installmentType']:
-                if exp_plan.get(field) != act_plan.get(field):
-                    differences.append(f"Plan {key} {field}: {exp_plan.get(field)} vs {act_plan.get(field)}")
+    if missing_users:
+        for user_key in sorted(missing_users):
+            differences.append(f"User 누락: {user_key}")
 
-            # Installments 비교
-            if len(exp_plan['installments']) != len(act_plan['installments']):
-                differences.append(f"Plan {key} installments 수: {len(exp_plan['installments'])} vs {len(act_plan['installments'])}")
-            else:
-                for i, (exp_inst, act_inst) in enumerate(zip(exp_plan['installments'], act_plan['installments'])):
-                    for field in ['status', 'installmentAmount', 'scheduledDate']:
-                        if exp_inst.get(field) != act_inst.get(field):
-                            differences.append(f"Plan {key} inst{i+1} {field}: {exp_inst.get(field)} vs {act_inst.get(field)}")
+    if extra_users:
+        for user_key in sorted(extra_users):
+            differences.append(f"User 추가됨: {user_key}")
 
-    # Monthly Registrations 비교
-    if len(expected['monthly_registrations']) != len(actual['monthly_registrations']):
-        differences.append(f"MonthlyReg 수: {len(expected['monthly_registrations'])} vs {len(actual['monthly_registrations'])}")
+    common_users = exp_user_keys & act_user_keys
+    for user_key in sorted(common_users):
+        exp_user = expected['users'][user_key]
+        act_user = actual['users'][user_key]
+
+        for field in ['name', 'grade', 'status']:
+            if exp_user.get(field) != act_user.get(field):
+                differences.append(f"User {user_key} {field}: {exp_user.get(field)} vs {act_user.get(field)}")
+
+        # ⭐ gradeHistory 비교
+        exp_gh = exp_user.get('gradeHistory', [])
+        act_gh = act_user.get('gradeHistory', [])
+        if len(exp_gh) != len(act_gh):
+            differences.append(f"User {user_key} gradeHistory 수: {len(exp_gh)} vs {len(act_gh)}")
+        else:
+            for i, (e, a) in enumerate(zip(exp_gh, act_gh)):
+                for field in ['type', 'revenueMonth', 'fromGrade', 'toGrade', 'registrationDate', 'promotionDate']:
+                    if e.get(field) != a.get(field):
+                        differences.append(f"User {user_key} gradeHistory[{i}].{field}: {e.get(field)} vs {a.get(field)}")
+
+    # ========================================
+    # Payment Plans 비교 (키 기반) ⭐ 핵심 변경
+    # ========================================
+    exp_plan_keys = set(expected['payment_plans'].keys())
+    act_plan_keys = set(actual['payment_plans'].keys())
+
+    missing_plans = exp_plan_keys - act_plan_keys
+    extra_plans = act_plan_keys - exp_plan_keys
+
+    if missing_plans:
+        for plan_key in sorted(missing_plans):
+            differences.append(f"Plan 누락: {plan_key}")
+
+    if extra_plans:
+        for plan_key in sorted(extra_plans):
+            differences.append(f"Plan 추가됨: {plan_key}")
+
+    common_plans = exp_plan_keys & act_plan_keys
+    for plan_key in sorted(common_plans):
+        exp_plan = expected['payment_plans'][plan_key]
+        act_plan = actual['payment_plans'][plan_key]
+
+        # 필드 비교 (terminatedAt, terminationReason 포함)
+        for field in ['baseGrade', 'planStatus', 'installmentType', 'terminatedAt', 'terminationReason']:
+            if exp_plan.get(field) != act_plan.get(field):
+                differences.append(f"Plan {plan_key} {field}: {exp_plan.get(field)} vs {act_plan.get(field)}")
+
+        # Installments 비교
+        exp_insts = exp_plan.get('installments', [])
+        act_insts = act_plan.get('installments', [])
+
+        if len(exp_insts) != len(act_insts):
+            differences.append(f"Plan {plan_key} installments 수: {len(exp_insts)} vs {len(act_insts)}")
+        else:
+            for i, (exp_inst, act_inst) in enumerate(zip(exp_insts, act_insts)):
+                # ⭐ week 필드도 포함
+                for field in ['week', 'status', 'installmentAmount', 'scheduledDate']:
+                    if exp_inst.get(field) != act_inst.get(field):
+                        differences.append(f"Plan {plan_key} inst{i+1} {field}: {exp_inst.get(field)} vs {act_inst.get(field)}")
+
+    # ========================================
+    # Monthly Registrations 비교 (키 기반)
+    # ========================================
+    exp_reg_keys = set(expected['monthly_registrations'].keys())
+    act_reg_keys = set(actual['monthly_registrations'].keys())
+
+    missing_regs = exp_reg_keys - act_reg_keys
+    extra_regs = act_reg_keys - exp_reg_keys
+
+    if missing_regs:
+        for reg_key in sorted(missing_regs):
+            differences.append(f"MonthlyReg 누락: {reg_key}")
+
+    if extra_regs:
+        for reg_key in sorted(extra_regs):
+            differences.append(f"MonthlyReg 추가됨: {reg_key}")
+
+    common_regs = exp_reg_keys & act_reg_keys
+    for reg_key in sorted(common_regs):
+        exp_reg = expected['monthly_registrations'][reg_key]
+        act_reg = actual['monthly_registrations'][reg_key]
+
+        for field in ['registrationCount', 'totalRevenue']:
+            if exp_reg.get(field) != act_reg.get(field):
+                differences.append(f"MonthlyReg {reg_key} {field}: {exp_reg.get(field)} vs {act_reg.get(field)}")
 
     return differences
 
@@ -339,18 +432,16 @@ def main():
                         print(f"     ... 외 {len(differences) - 10}개")
                     results[delete_month] = {'status': 'FAIL', 'differences': len(differences)}
 
-                    # 상세 분석 출력
+                    # 상세 분석 출력 (⭐ dict 기반으로 변경)
                     print(f"\n  📋 상세 분석:")
                     print(f"     Expected plans ({len(expected_snapshot['payment_plans'])}):")
-                    exp_users = set()
-                    act_users = set()
-                    for p in expected_snapshot['payment_plans']:
-                        exp_users.add(f"{p['userName']}/{p['revenueMonth']}/{p['planType']}")
-                    for p in current_snapshot['payment_plans']:
-                        act_users.add(f"{p['userName']}/{p['revenueMonth']}/{p['planType']}")
 
-                    missing = exp_users - act_users
-                    extra = act_users - exp_users
+                    exp_plan_keys = set(expected_snapshot['payment_plans'].keys())
+                    act_plan_keys = set(current_snapshot['payment_plans'].keys())
+
+                    missing = exp_plan_keys - act_plan_keys
+                    extra = act_plan_keys - exp_plan_keys
+
                     if missing:
                         print(f"     ❌ 누락된 계획 ({len(missing)}):")
                         for m in sorted(missing)[:10]:
@@ -359,6 +450,30 @@ def main():
                         print(f"     ➕ 추가된 계획 ({len(extra)}):")
                         for e in sorted(extra)[:10]:
                             print(f"        - {e}")
+
+                    # ⭐ 공통 플랜 중 차이나는 것 상세 출력
+                    common = exp_plan_keys & act_plan_keys
+                    diff_details = []
+                    for key in sorted(common):
+                        exp_p = expected_snapshot['payment_plans'][key]
+                        act_p = current_snapshot['payment_plans'][key]
+
+                        for field in ['baseGrade', 'planStatus', 'installmentType', 'terminatedAt', 'terminationReason']:
+                            if exp_p.get(field) != act_p.get(field):
+                                diff_details.append(f"{key} {field}: {exp_p.get(field)} vs {act_p.get(field)}")
+
+                        # installments 차이
+                        for i, (e, a) in enumerate(zip(exp_p.get('installments', []), act_p.get('installments', []))):
+                            for fld in ['status', 'installmentAmount', 'scheduledDate', 'week']:
+                                if e.get(fld) != a.get(fld):
+                                    diff_details.append(f"{key} inst{i+1}.{fld}: {e.get(fld)} vs {a.get(fld)}")
+
+                    if diff_details:
+                        print(f"     🔍 필드 차이 ({len(diff_details)}):")
+                        for d in diff_details[:15]:
+                            print(f"        - {d}")
+                        if len(diff_details) > 15:
+                            print(f"        ... 외 {len(diff_details) - 15}개")
             else:
                 print(f"  ⚠️ {compare_month} 스냅샷 없음")
                 results[delete_month] = {'status': 'SKIP'}
