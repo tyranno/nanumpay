@@ -14,6 +14,7 @@ import User from '../../models/User.js';
 import PlannerCommission from '../../models/PlannerCommission.js';
 import PlannerCommissionPlan from '../../models/PlannerCommissionPlan.js';
 import PlannerAccount from '../../models/PlannerAccount.js';
+import SystemConfig from '../../models/SystemConfig.js';
 
 /**
  * Step 2 실행
@@ -316,6 +317,11 @@ async function updatePlannerCommissions(users, registrationMonth) {
 
 	console.log(`  📊 설계사 수: ${plannerMap.size}명`);
 
+	// 시스템 설정 로드 (비율 적용 옵션 확인)
+	const config = await SystemConfig.getCurrent();
+	const useRatioCommission = config.plannerCommissionByRatio ?? false;
+	console.log(`  ⚙️  설계사 수당 비율 적용: ${useRatioCommission ? 'ON' : 'OFF'}`);
+
 	// 각 설계사별로 개별 지급 계획 생성
 	for (const [plannerIdStr, data] of plannerMap.entries()) {
 		const { account: plannerAccount, users: plannerUsers } = data;
@@ -346,6 +352,15 @@ async function updatePlannerCommissions(users, registrationMonth) {
 				// 지급일 계산 (등록일 + 1개월 후 금요일)
 				const paymentDate = PlannerCommissionPlan.calculatePaymentDate(registrationDate);
 
+				// 비율 계산 (기본값 1)
+				const userRatio = user.ratio ?? 1;
+
+				// 수당 계산: 옵션에 따라 고정 10만원 또는 비율 적용
+				const baseRevenue = 1000000;
+				const baseCommission = 100000;
+				const revenue = useRatioCommission ? Math.floor(baseRevenue * userRatio) : baseRevenue;
+				const commissionAmount = useRatioCommission ? Math.floor(baseCommission * userRatio) : baseCommission;
+
 				// 개별 지급 계획 생성
 				const plan = new PlannerCommissionPlan({
 					plannerAccountId: plannerIdStr,
@@ -354,17 +369,20 @@ async function updatePlannerCommissions(users, registrationMonth) {
 					userName: user.name,
 					registrationDate: registrationDate,
 					revenueMonth: registrationMonth,
-					revenue: 1000000,
-					commissionAmount: 100000,
+					revenue: revenue,
+					commissionAmount: commissionAmount,
+					ratio: userRatio,
 					paymentDate: paymentDate,
 					paymentStatus: 'pending'
 				});
 
 				await plan.save();
 
+				const commissionDisplay = commissionAmount.toLocaleString();
+				const ratioDisplay = userRatio !== 1 ? ` (비율: ${userRatio})` : '';
 				console.log(
 					`  ✅ ${plannerAccount.name} ← ${user.name} ` +
-					`(수당: 100,000원, 지급일: ${paymentDate.toISOString().split('T')[0]})`
+					`(수당: ${commissionDisplay}원${ratioDisplay}, 지급일: ${paymentDate.toISOString().split('T')[0]})`
 				);
 			}
 

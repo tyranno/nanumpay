@@ -54,6 +54,12 @@ const systemConfigSchema = new mongoose.Schema({
 		default: 10
 	},
 
+	// 설계사 수당 설정
+	plannerCommissionByRatio: {
+		type: Boolean,
+		default: false  // false: 10만원 고정, true: 비율 적용 (10만원 × ratio)
+	},
+
 	updatedAt: {
 		type: Date,
 		default: Date.now

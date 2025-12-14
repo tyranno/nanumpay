@@ -58,6 +58,10 @@ const plannerCommissionPlanSchema = new mongoose.Schema(
 			type: Number,
 			default: 100000 // 매출의 10%
 		},
+		ratio: {
+			type: Number,
+			default: 1 // 용역자 비율 (0.25, 0.5, 0.75, 1)
+		},
 
 		// 지급 정보
 		paymentDate: {
