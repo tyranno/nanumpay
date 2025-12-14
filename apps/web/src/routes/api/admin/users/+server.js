@@ -242,13 +242,25 @@ export async function PUT({ request, locals }) {
 			// ⭐ v8.0: 보험 정보는 별도 API(/api/admin/users/insurance)에서 처리
 		}
 
-		// ⭐ PlannerAccount 업데이트
+		// ⭐ PlannerAccount 업데이트 (최신월에 속한 지원자만)
 		if (Object.keys(plannerAccountFields).length > 0 && user.plannerAccountId) {
-			await PlannerAccount.findByIdAndUpdate(
-				user.plannerAccountId,
-				{ $set: plannerAccountFields },
-				{ new: true }
-			);
+			// 사용자가 속한 월 확인
+			const userMonth = existingUser?.createdAt
+				? new Date(existingUser.createdAt).toISOString().substring(0, 7)
+				: null;
+
+			// 최신 월인지 확인
+			const plannerLatestMonth = await getLatestRegistrationMonth();
+
+			if (userMonth && userMonth === plannerLatestMonth) {
+				await PlannerAccount.findByIdAndUpdate(
+					user.plannerAccountId,
+					{ $set: plannerAccountFields },
+					{ new: true }
+				);
+			} else {
+				console.log(`[사용자 수정] ${user.name} - 설계사 정보 수정 스킵 (최신월 아님: ${userMonth} vs ${plannerLatestMonth})`);
+			}
 		}
 
 		// ⭐ 이름 변경 시 WeeklyPaymentPlans의 userName도 동기화

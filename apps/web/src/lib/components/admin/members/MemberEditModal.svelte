@@ -148,7 +148,7 @@
 		);
 	}
 
-	// 재처리가 필요한 변경 여부 확인 (등록일, 비율, 판매인)
+	// 재처리가 필요한 변경 여부 확인 (등록일, 비율, 판매인, 설계사)
 	function hasReprocessableChanges() {
 		if (!originalMember || !member) return false;
 
@@ -161,7 +161,14 @@
 		// 판매인 변경 확인 (parentId 기준)
 		const salespersonChanged = originalMember.parentId !== member.parentId;
 
-		return dateChanged || ratioChanged || salespersonChanged;
+		// 설계사 변경 확인
+		const plannerChanged =
+			originalMember.planner !== member.planner ||
+			originalMember.plannerPhone !== member.plannerPhone ||
+			originalMember.plannerBank !== member.plannerBank ||
+			originalMember.plannerAccountNumber !== member.plannerAccountNumber;
+
+		return dateChanged || ratioChanged || salespersonChanged || plannerChanged;
 	}
 
 	// 수정 버튼 클릭 핸들러 - 확인창 표시
@@ -619,44 +626,104 @@
 
 				<div class="grid grid-cols-2 gap-3">
 					<div>
-						<Autocomplete
-							label="설계사"
-							bind:value={member.planner}
-							placeholder="설계사 이름 검색..."
-							apiUrl="/api/planners/search"
-							displayKey="name"
-							subtextKey="phone"
-							onSelect={handlePlannerSelect}
-							onInputChange={handlePlannerNameChange}
-						/>
+						<label class="block text-xs font-medium text-gray-700 mb-0.5">
+							설계사
+							{#if isInLatestMonth}
+								<span class="text-blue-500 text-xs">(수정 가능)</span>
+							{/if}
+						</label>
+						{#if isInLatestMonth}
+							<Autocomplete
+								bind:value={member.planner}
+								placeholder="설계사 이름 검색..."
+								apiUrl="/api/planners/search"
+								displayKey="name"
+								subtextKey="phone"
+								onSelect={handlePlannerSelect}
+								onInputChange={handlePlannerNameChange}
+							/>
+						{:else}
+							<input
+								type="text"
+								value={member.planner || ''}
+								class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md bg-gray-50 text-gray-600"
+								readonly
+								title="최신 등록월의 지원자만 수정 가능"
+							/>
+						{/if}
 					</div>
 					<div>
-						<label class="block text-xs font-medium text-gray-700 mb-0.5">설계사 연락처</label>
-						<input
-							type="text"
-							bind:value={member.plannerPhone}
-							class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-							placeholder="010-0000-0000"
-						/>
+						<label class="block text-xs font-medium text-gray-700 mb-0.5">
+							설계사 연락처
+							{#if isInLatestMonth}
+								<span class="text-blue-500 text-xs">(수정 가능)</span>
+							{/if}
+						</label>
+						{#if isInLatestMonth}
+							<input
+								type="text"
+								bind:value={member.plannerPhone}
+								class="w-full px-2 py-1.5 text-sm border border-blue-400 rounded-md focus:ring-2 focus:ring-blue-500 bg-blue-50"
+								placeholder="010-0000-0000"
+							/>
+						{:else}
+							<input
+								type="text"
+								value={member.plannerPhone || ''}
+								class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md bg-gray-50 text-gray-600"
+								readonly
+								title="최신 등록월의 지원자만 수정 가능"
+							/>
+						{/if}
 					</div>
 				</div>
 
 				<div class="grid grid-cols-2 gap-3">
 					<div>
-						<label class="block text-xs font-medium text-gray-700 mb-0.5">설계사 은행</label>
-						<input
-							type="text"
-							bind:value={member.plannerBank}
-							class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-						/>
+						<label class="block text-xs font-medium text-gray-700 mb-0.5">
+							설계사 은행
+							{#if isInLatestMonth}
+								<span class="text-blue-500 text-xs">(수정 가능)</span>
+							{/if}
+						</label>
+						{#if isInLatestMonth}
+							<input
+								type="text"
+								bind:value={member.plannerBank}
+								class="w-full px-2 py-1.5 text-sm border border-blue-400 rounded-md focus:ring-2 focus:ring-blue-500 bg-blue-50"
+							/>
+						{:else}
+							<input
+								type="text"
+								value={member.plannerBank || ''}
+								class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md bg-gray-50 text-gray-600"
+								readonly
+								title="최신 등록월의 지원자만 수정 가능"
+							/>
+						{/if}
 					</div>
 					<div>
-						<label class="block text-xs font-medium text-gray-700 mb-0.5">설계사 계좌번호</label>
-						<input
-							type="text"
-							bind:value={member.plannerAccountNumber}
-							class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-						/>
+						<label class="block text-xs font-medium text-gray-700 mb-0.5">
+							설계사 계좌번호
+							{#if isInLatestMonth}
+								<span class="text-blue-500 text-xs">(수정 가능)</span>
+							{/if}
+						</label>
+						{#if isInLatestMonth}
+							<input
+								type="text"
+								bind:value={member.plannerAccountNumber}
+								class="w-full px-2 py-1.5 text-sm border border-blue-400 rounded-md focus:ring-2 focus:ring-blue-500 bg-blue-50"
+							/>
+						{:else}
+							<input
+								type="text"
+								value={member.plannerAccountNumber || ''}
+								class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md bg-gray-50 text-gray-600"
+								readonly
+								title="최신 등록월의 지원자만 수정 가능"
+							/>
+						{/if}
 					</div>
 				</div>
 
