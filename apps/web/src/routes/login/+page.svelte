@@ -219,8 +219,9 @@
 			</div>
 		</form>
 
-		<p class="text-center text-xs text-gray-500">
-			© 2024 나눔에셋. All rights reserved.
+		<p class="text-center text-xs text-gray-500 mt-4">
+			문의: <a href="mailto:admin@mail.nanumasset.com" class="text-blue-600 hover:underline">admin@mail.nanumasset.com</a>
 		</p>
+		<p class="text-center text-xs text-gray-500">© 2024 나눔에셋. All rights reserved.</p>
 	</div>
 </div>
