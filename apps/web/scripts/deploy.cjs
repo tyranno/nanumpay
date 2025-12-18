@@ -8,7 +8,7 @@ const cp = require('child_process');
 const ROOT = process.cwd();
 const RELEASE_DIR = path.join(ROOT, 'apps', 'web', 'release');
 const SSH_KEY = path.join(process.env.HOME, '.ssh', 'ocp_tyranno');
-const PROD_SERVER = '34.170.107.151';
+const PROD_SERVER = '35.209.221.88';
 const PROD_PORT = 3100;
 const PROD_USER = 'tyranno'; // nanumpay 배포용 사용자
 
@@ -44,12 +44,13 @@ function validateConfig() {
 
 // 최신 릴리스 폴더 찾기 (타임스탬프 폴더)
 function findLatestRelease() {
-	const dirs = fs.readdirSync(RELEASE_DIR)
-		.filter(f => {
+	const dirs = fs
+		.readdirSync(RELEASE_DIR)
+		.filter((f) => {
 			const fullPath = path.join(RELEASE_DIR, f);
 			return fs.statSync(fullPath).isDirectory();
 		})
-		.map(f => ({
+		.map((f) => ({
 			name: f,
 			path: path.join(RELEASE_DIR, f),
 			mtime: fs.statSync(path.join(RELEASE_DIR, f)).mtime
@@ -86,10 +87,13 @@ function testSSHConnection() {
 	console.log(`🔗 SSH 연결 테스트: ${PROD_USER}@${PROD_SERVER}`);
 
 	try {
-		cp.execSync(`ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no -o ConnectTimeout=10 ${PROD_USER}@${PROD_SERVER} "echo 'SSH 연결 성공'"`, {
-			stdio: ['ignore', 'pipe', 'pipe'],
-			timeout: 15000
-		});
+		cp.execSync(
+			`ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no -o ConnectTimeout=10 ${PROD_USER}@${PROD_SERVER} "echo 'SSH 연결 성공'"`,
+			{
+				stdio: ['ignore', 'pipe', 'pipe'],
+				timeout: 15000
+			}
+		);
 		console.log('✅ SSH 연결 성공');
 	} catch (error) {
 		console.error('❌ SSH 연결 실패');
@@ -110,14 +114,20 @@ function uploadRelease(release) {
 
 	try {
 		// 원격 디렉토리 생성 및 기존 파일 정리
-		cp.execSync(`ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no ${PROD_USER}@${PROD_SERVER} "rm -rf ${remotePath} && mkdir -p ${remotePath}"`, {
-			stdio: 'inherit'
-		});
+		cp.execSync(
+			`ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no ${PROD_USER}@${PROD_SERVER} "rm -rf ${remotePath} && mkdir -p ${remotePath}"`,
+			{
+				stdio: 'inherit'
+			}
+		);
 
 		// 릴리스 폴더 전체 업로드
-		cp.execSync(`scp -i "${SSH_KEY}" -o StrictHostKeyChecking=no -r "${release.path}"/* ${PROD_USER}@${PROD_SERVER}:${remotePath}/`, {
-			stdio: 'inherit'
-		});
+		cp.execSync(
+			`scp -i "${SSH_KEY}" -o StrictHostKeyChecking=no -r "${release.path}"/* ${PROD_USER}@${PROD_SERVER}:${remotePath}/`,
+			{
+				stdio: 'inherit'
+			}
+		);
 		console.log('✅ 릴리스 패키지 업로드 완료');
 		console.log('   - DEB 파일');
 		console.log('   - install.sh');
@@ -159,9 +169,12 @@ function installPackage(remotePath) {
 	const script = commands.join('\n');
 
 	try {
-		cp.execSync(`ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no ${PROD_USER}@${PROD_SERVER} '${script}'`, {
-			stdio: 'inherit'
-		});
+		cp.execSync(
+			`ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no ${PROD_USER}@${PROD_SERVER} '${script}'`,
+			{
+				stdio: 'inherit'
+			}
+		);
 		console.log('✅ 패키지 설치 및 서비스 시작 완료');
 	} catch (error) {
 		console.error('❌ 패키지 설치 실패');
@@ -177,16 +190,26 @@ function verifyDeployment() {
 
 	try {
 		// 포트 80 (Nginx) 확인
-		const port80Result = cp.execSync(`ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no ${PROD_USER}@${PROD_SERVER} "curl -s -o /dev/null -w '%{http_code}' http://localhost || echo 'CURL_FAILED'"`, {
-			stdio: ['ignore', 'pipe', 'ignore'],
-			encoding: 'utf8'
-		}).trim();
+		const port80Result = cp
+			.execSync(
+				`ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no ${PROD_USER}@${PROD_SERVER} "curl -s -o /dev/null -w '%{http_code}' http://localhost || echo 'CURL_FAILED'"`,
+				{
+					stdio: ['ignore', 'pipe', 'ignore'],
+					encoding: 'utf8'
+				}
+			)
+			.trim();
 
 		// 포트 3100 (Nanumpay) 확인
-		const port3100Result = cp.execSync(`ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no ${PROD_USER}@${PROD_SERVER} "curl -s -o /dev/null -w '%{http_code}' http://localhost:${PROD_PORT} || echo 'CURL_FAILED'"`, {
-			stdio: ['ignore', 'pipe', 'ignore'],
-			encoding: 'utf8'
-		}).trim();
+		const port3100Result = cp
+			.execSync(
+				`ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no ${PROD_USER}@${PROD_SERVER} "curl -s -o /dev/null -w '%{http_code}' http://localhost:${PROD_PORT} || echo 'CURL_FAILED'"`,
+				{
+					stdio: ['ignore', 'pipe', 'ignore'],
+					encoding: 'utf8'
+				}
+			)
+			.trim();
 
 		console.log('');
 		console.log('📊 서비스 상태:');
@@ -207,11 +230,16 @@ function verifyDeployment() {
 		console.log('');
 		console.log('🌍 외부 접속 테스트 중...');
 		try {
-			const externalTest80 = cp.execSync(`curl -s -o /dev/null -w '%{http_code}' --connect-timeout 10 http://${PROD_SERVER} || echo 'EXTERNAL_FAILED'`, {
-				stdio: ['ignore', 'pipe', 'ignore'],
-				encoding: 'utf8',
-				timeout: 15000
-			}).trim();
+			const externalTest80 = cp
+				.execSync(
+					`curl -s -o /dev/null -w '%{http_code}' --connect-timeout 10 http://${PROD_SERVER} || echo 'EXTERNAL_FAILED'`,
+					{
+						stdio: ['ignore', 'pipe', 'ignore'],
+						encoding: 'utf8',
+						timeout: 15000
+					}
+				)
+				.trim();
 
 			if (externalTest80 === '200' || externalTest80 === '302') {
 				console.log('✅ 외부에서 포트 80 접속 가능');
@@ -224,7 +252,6 @@ function verifyDeployment() {
 		} catch (error) {
 			console.warn('⚠️  외부 접속 테스트 실패 - 방화벽 설정을 확인하세요');
 		}
-
 	} catch (error) {
 		console.warn('⚠️  상태 확인 중 오류 발생 (정상적일 수 있음)');
 	}
@@ -276,7 +303,6 @@ function main() {
 		console.log('   - Nginx (포트 80)');
 		console.log('   - Nanumpay (포트 3100)');
 		console.log('   - MongoDB');
-
 	} catch (error) {
 		console.error('❌ 배포 실패:', error.message);
 		process.exit(1);

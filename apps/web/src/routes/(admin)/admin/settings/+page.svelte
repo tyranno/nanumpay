@@ -3,7 +3,7 @@
 	import { BUILD_TIME } from '$lib/buildInfo.js';
 
 	// 상태
-	let activeTab = $state('admin'); // 'admin' | 'password' | 'features' | 'system'
+	let activeTab = $state('admin'); // 'admin' | 'password' | 'userManage' | 'system'
 	let isSubmitting = $state(false);
 	let errorMessage = $state('');
 	let successMessage = $state('');
@@ -260,6 +260,90 @@
 	let isBackupRunning = $state(false);
 	let backupMessage = $state('');
 
+	// 사용자 관리 상태
+	let userSearchId = $state('');
+	let foundUser = $state(null);
+	let isSearching = $state(false);
+	let isResetting = $state(false);
+	let customPassword = $state('');
+
+	async function handleSearchUser() {
+		if (!userSearchId.trim()) {
+			errorMessage = '사용자 ID를 입력해주세요.';
+			return;
+		}
+
+		errorMessage = '';
+		successMessage = '';
+		isSearching = true;
+		foundUser = null;
+
+		try {
+			const response = await fetch(`/api/admin/settings/user-search?loginId=${encodeURIComponent(userSearchId.trim())}`);
+			const data = await response.json();
+
+			if (!response.ok) {
+				throw new Error(data.message || '사용자 검색에 실패했습니다.');
+			}
+
+			if (data.user) {
+				foundUser = data.user;
+				// 기본값: 전화번호 뒤 4자리
+				const phoneDigits = (data.user.phone || '').replace(/\D/g, '');
+				customPassword = phoneDigits.slice(-4) || '';
+			} else {
+				errorMessage = '해당 ID의 사용자를 찾을 수 없습니다.';
+			}
+		} catch (err) {
+			console.error('❌ Error searching user:', err);
+			errorMessage = err.message;
+		} finally {
+			isSearching = false;
+		}
+	}
+
+	async function handleResetPassword() {
+		if (!foundUser) return;
+
+		if (!customPassword.trim()) {
+			errorMessage = '초기화할 암호를 입력해주세요.';
+			return;
+		}
+
+		errorMessage = '';
+		successMessage = '';
+		isResetting = true;
+
+		try {
+			const response = await fetch('/api/admin/settings/user-password-reset', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({
+					loginId: foundUser.loginId,
+					newPassword: customPassword.trim()
+				})
+			});
+
+			const data = await response.json();
+
+			if (!response.ok) {
+				throw new Error(data.message || '암호 초기화에 실패했습니다.');
+			}
+
+			successMessage = `암호가 초기화되었습니다. (새 암호: ${data.newPassword})`;
+			setTimeout(() => {
+				successMessage = '';
+			}, 5000);
+		} catch (err) {
+			console.error('❌ Error resetting password:', err);
+			errorMessage = err.message;
+		} finally {
+			isResetting = false;
+		}
+	}
+
 	async function handleExecuteBackup() {
 		errorMessage = '';
 		successMessage = '';
@@ -336,6 +420,15 @@
 					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
 				</svg>
 				암호 변경
+			</button>
+			<button
+				class="tab {activeTab === 'userManage' ? 'active' : ''}"
+				onclick={() => (activeTab = 'userManage')}
+			>
+				<svg class="tab-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+				</svg>
+				사용자 관리
 			</button>
 			<button
 				class="tab {activeTab === 'system' ? 'active' : ''}"
@@ -523,6 +616,81 @@
 						</button>
 					</div>
 				</form>
+			{:else if activeTab === 'userManage'}
+				<!-- 사용자 관리 탭 -->
+				<div class="space-y-6">
+					<div>
+						<h3 class="mb-3 text-lg font-medium text-gray-900">사용자 암호 초기화</h3>
+						<p class="text-sm text-gray-600 mb-4">
+							사용자 ID를 검색하여 암호를 초기화합니다. 초기화된 암호는 전화번호 뒤 4자리입니다.
+						</p>
+
+						<!-- 검색 폼 -->
+						<div class="flex gap-2 mb-4">
+							<input
+								type="text"
+								bind:value={userSearchId}
+								placeholder="사용자 ID 입력"
+								class="input flex-1"
+								onkeydown={(e) => e.key === 'Enter' && handleSearchUser()}
+							/>
+							<button
+								type="button"
+								class="btn-primary"
+								onclick={handleSearchUser}
+								disabled={isSearching}
+							>
+								{isSearching ? '검색 중...' : '검색'}
+							</button>
+						</div>
+
+						<!-- 검색 결과 -->
+						{#if foundUser}
+							<div class="rounded-lg border border-blue-200 bg-blue-50 p-4">
+								<h4 class="font-medium text-gray-900 mb-3">검색 결과</h4>
+								<div class="grid grid-cols-2 gap-3 text-sm mb-4">
+									<div>
+										<span class="text-gray-500">ID:</span>
+										<span class="ml-2 font-medium">{foundUser.loginId}</span>
+									</div>
+									<div>
+										<span class="text-gray-500">이름:</span>
+										<span class="ml-2 font-medium">{foundUser.name}</span>
+									</div>
+									<div>
+										<span class="text-gray-500">전화번호:</span>
+										<span class="ml-2 font-medium">{foundUser.phone || '없음'}</span>
+									</div>
+									<div>
+										<span class="text-gray-500">기본값:</span>
+										<span class="ml-2 font-medium text-gray-400">{foundUser.phone ? foundUser.phone.replace(/\D/g, '').slice(-4) : '없음'}</span>
+									</div>
+								</div>
+								<div class="mb-3">
+									<label class="label text-sm">초기화 암호</label>
+									<input
+										type="text"
+										bind:value={customPassword}
+										placeholder="새 암호 입력 (기본: 전화번호 뒤 4자리)"
+										class="input"
+									/>
+								</div>
+								<button
+									type="button"
+									class="w-full py-2 px-4 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded transition-colors disabled:bg-gray-400"
+									onclick={handleResetPassword}
+									disabled={isResetting || !customPassword.trim()}
+								>
+									{#if isResetting}
+										초기화 중...
+									{:else}
+										암호 초기화 (→ {customPassword || '입력 필요'})
+									{/if}
+								</button>
+							</div>
+						{/if}
+					</div>
+				</div>
 			{:else if activeTab === 'system'}
 				<!-- 시스템 설정 탭 -->
 				<div class="space-y-4">
