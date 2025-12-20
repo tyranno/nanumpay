@@ -134,7 +134,7 @@ function uploadRelease(release) {
 	}
 }
 
-// install.sh를 사용한 자동 설치
+// install.sh를 사용한 자동 설치 (nginx 설정 보존)
 function installPackage(remotePath) {
 	console.log('🔧 install.sh를 사용하여 자동 설치 중...');
 
@@ -142,9 +142,38 @@ function installPackage(remotePath) {
 		'# 릴리스 디렉토리로 이동',
 		`cd ${remotePath}`,
 		'',
+		'# 기존 nginx 설정 백업 (커스텀 SSL 설정 보존)',
+		'echo "📋 nginx 설정 백업 중..."',
+		'if [ -f /etc/nginx/sites-available/nanumpay ]; then',
+		'  sudo cp /etc/nginx/sites-available/nanumpay /tmp/nginx-nanumpay.backup',
+		'  echo "✅ nginx 설정 백업 완료"',
+		'fi',
+		'',
 		'# install.sh 실행 (자동으로 nginx, 의존성, nanumpay 설치)',
 		'echo "📦 install.sh 실행 중..."',
 		'sudo bash install.sh',
+		'',
+		'# nginx 설정 복원 (커스텀 SSL 설정)',
+		'echo "📋 nginx 설정 복원 중..."',
+		'if [ -f /tmp/nginx-nanumpay.backup ]; then',
+		'  sudo cp /tmp/nginx-nanumpay.backup /etc/nginx/sites-available/nanumpay',
+		'  sudo rm -f /tmp/nginx-nanumpay.backup',
+		'  echo "✅ nginx 설정 복원 완료"',
+		'fi',
+		'',
+		'# nginx symlink 확인 및 생성',
+		'if [ ! -L /etc/nginx/sites-enabled/nanumpay ]; then',
+		'  sudo ln -sf /etc/nginx/sites-available/nanumpay /etc/nginx/sites-enabled/nanumpay',
+		'  echo "✅ nginx symlink 생성"',
+		'fi',
+		'',
+		'# nginx 설정 테스트 및 reload',
+		'if sudo nginx -t 2>&1 | grep -q "successful"; then',
+		'  sudo systemctl reload nginx',
+		'  echo "✅ nginx reload 완료"',
+		'else',
+		'  echo "⚠️  nginx 설정 테스트 실패 - 수동 확인 필요"',
+		'fi',
 		'',
 		'# 방화벽 설정 (포트 80, 443)',
 		'echo "🔥 방화벽 설정 중..."',

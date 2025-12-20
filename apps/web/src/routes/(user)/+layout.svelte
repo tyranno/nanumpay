@@ -189,7 +189,7 @@
 					{#if data.user}
 						<div class="flex items-center gap-1.5">
 							<img src="/icons/user-blue.svg" alt="지원자" class="h-4 w-4" />
-							<span class="text-sm text-gray-700 hidden sm:inline">{data.user.name} 님</span>
+							<span class="text-sm text-gray-700 hidden sm:inline">{data.user.loginId} 님</span>
 						</div>
 					{/if}
 					<!-- 로그아웃 아이콘 버튼 -->
