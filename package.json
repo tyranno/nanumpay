@@ -9,6 +9,7 @@
     "start:web": "pnpm --filter nanumpay-web start",
     "release:linux": "pnpm --filter nanumpay-web release:linux",
     "release:win": "pnpm --filter nanumpay-web release:win",
+    "release:deploy:asset": "pnpm deploy:build && node apps/web/scripts/deploy_asset.cjs",
     "release:deploy:web": "pnpm deploy:build && node apps/web/scripts/deploy.cjs",
     "release:deploy:test": "pnpm deploy:build && node apps/web/scripts/deploy2.cjs",
     "deploy:build": "bash apps/backup/build.sh && pnpm build:web && pnpm release:linux",
