@@ -1,5 +1,5 @@
-// scripts/deploy.cjs
-// 본 서버 (www.nanumasset.com) 배포용 스크립트
+// scripts/deploy_asset_test.cjs
+// 테스트 서버 (www.nanumpay.xyz) 배포용 스크립트
 'use strict';
 
 const fs = require('fs');
@@ -8,23 +8,23 @@ const cp = require('child_process');
 
 const ROOT = process.cwd();
 const RELEASE_DIR = path.join(ROOT, 'apps', 'web', 'release');
-const SSH_KEY = path.join(process.env.HOME, '.ssh', 'nanumasset.pem');
-const PROD_SERVER = '15.164.130.106';
-const PROD_PORT = 3100;
-const PROD_USER = 'ubuntu'; // nanumpay 배포용 사용자
-const DOMAIN = 'www.nanumasset.com';
+const SSH_KEY = path.join(process.env.HOME, '.ssh', 'gcp_verify');
+const VERIFY_SERVER = 'nanumpay.xyz';
+const VERIFY_PORT = 3100;
+const VERIFY_USER = 'tyranno';
+const DOMAIN = 'www.nanumpay.xyz';
 
-// 본 서버: 기본 HTTP+HTTPS 병행, --redirect 옵션 시 HTTPS 전용
+// 테스트 서버: 기본 HTTP+HTTPS 병행, --redirect 옵션 시 HTTPS 전용
 const REDIRECT_MODE = process.argv.includes('--redirect');
 
 // 설정 검증
 function validateConfig() {
-	console.log('[deploy] 배포 설정 검증 중...');
+	console.log('[deploy_asset_test] 배포 설정 검증 중...');
 
 	// SSH 키 파일 확인
 	if (!fs.existsSync(SSH_KEY)) {
 		console.error(`❌ SSH 키 파일이 없습니다: ${SSH_KEY}`);
-		console.error('   ~/.ssh/nanumasset 파일이 있는지 확인하세요.');
+		console.error('   ~/.ssh/gcp_verify 파일이 있는지 확인하세요.');
 		process.exit(1);
 	}
 
@@ -89,11 +89,11 @@ function findLatestRelease() {
 
 // SSH 연결 테스트
 function testSSHConnection() {
-	console.log(`🔗 SSH 연결 테스트: ${PROD_USER}@${PROD_SERVER}`);
+	console.log(`🔗 SSH 연결 테스트: ${VERIFY_USER}@${VERIFY_SERVER}`);
 
 	try {
 		cp.execSync(
-			`ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no -o ConnectTimeout=10 ${PROD_USER}@${PROD_SERVER} "echo 'SSH 연결 성공'"`,
+			`ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no -o ConnectTimeout=10 ${VERIFY_USER}@${VERIFY_SERVER} "echo 'SSH 연결 성공'"`,
 			{
 				stdio: ['ignore', 'pipe', 'pipe'],
 				timeout: 15000
@@ -120,7 +120,7 @@ function uploadRelease(release) {
 	try {
 		// 원격 디렉토리 생성 및 기존 파일 정리
 		cp.execSync(
-			`ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no ${PROD_USER}@${PROD_SERVER} "rm -rf ${remotePath} && mkdir -p ${remotePath}"`,
+			`ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no ${VERIFY_USER}@${VERIFY_SERVER} "rm -rf ${remotePath} && mkdir -p ${remotePath}"`,
 			{
 				stdio: 'inherit'
 			}
@@ -128,7 +128,7 @@ function uploadRelease(release) {
 
 		// 릴리스 폴더 전체 업로드
 		cp.execSync(
-			`scp -i "${SSH_KEY}" -o StrictHostKeyChecking=no -r "${release.path}"/* ${PROD_USER}@${PROD_SERVER}:${remotePath}/`,
+			`scp -i "${SSH_KEY}" -o StrictHostKeyChecking=no -r "${release.path}"/* ${VERIFY_USER}@${VERIFY_SERVER}:${remotePath}/`,
 			{
 				stdio: 'inherit'
 			}
@@ -205,7 +205,7 @@ function installPackage(remotePath) {
 
 	try {
 		cp.execSync(
-			`ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no ${PROD_USER}@${PROD_SERVER} '${script}'`,
+			`ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no ${VERIFY_USER}@${VERIFY_SERVER} '${script}'`,
 			{
 				stdio: 'inherit'
 			}
@@ -214,7 +214,7 @@ function installPackage(remotePath) {
 	} catch (error) {
 		console.error('❌ 패키지 설치 실패');
 		console.error('서버에 SSH로 접속하여 수동으로 확인하세요:');
-		console.error(`ssh -i "${SSH_KEY}" ${PROD_USER}@${PROD_SERVER}`);
+		console.error(`ssh -i "${SSH_KEY}" ${VERIFY_USER}@${VERIFY_SERVER}`);
 		process.exit(1);
 	}
 }
@@ -242,7 +242,7 @@ function setupSSL() {
 
 	try {
 		cp.execSync(
-			`ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no ${PROD_USER}@${PROD_SERVER} '${script}'`,
+			`ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no ${VERIFY_USER}@${VERIFY_SERVER} '${script}'`,
 			{
 				stdio: 'inherit'
 			}
@@ -263,7 +263,7 @@ function verifyDeployment() {
 		// 포트 80 (Nginx) 확인
 		const port80Result = cp
 			.execSync(
-				`ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no ${PROD_USER}@${PROD_SERVER} "curl -s -o /dev/null -w '%{http_code}' http://localhost || echo 'CURL_FAILED'"`,
+				`ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no ${VERIFY_USER}@${VERIFY_SERVER} "curl -s -o /dev/null -w '%{http_code}' http://localhost || echo 'CURL_FAILED'"`,
 				{
 					stdio: ['ignore', 'pipe', 'ignore'],
 					encoding: 'utf8'
@@ -274,7 +274,7 @@ function verifyDeployment() {
 		// 포트 3100 (Nanumpay) 확인
 		const port3100Result = cp
 			.execSync(
-				`ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no ${PROD_USER}@${PROD_SERVER} "curl -s -o /dev/null -w '%{http_code}' http://localhost:${PROD_PORT} || echo 'CURL_FAILED'"`,
+				`ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no ${VERIFY_USER}@${VERIFY_SERVER} "curl -s -o /dev/null -w '%{http_code}' http://localhost:${VERIFY_PORT} || echo 'CURL_FAILED'"`,
 				{
 					stdio: ['ignore', 'pipe', 'ignore'],
 					encoding: 'utf8'
@@ -303,7 +303,7 @@ function verifyDeployment() {
 		try {
 			const externalTest80 = cp
 				.execSync(
-					`curl -s -o /dev/null -w '%{http_code}' --connect-timeout 10 http://${PROD_SERVER} || echo 'EXTERNAL_FAILED'`,
+					`curl -s -o /dev/null -w '%{http_code}' --connect-timeout 10 http://${VERIFY_SERVER} || echo 'EXTERNAL_FAILED'`,
 					{
 						stdio: ['ignore', 'pipe', 'ignore'],
 						encoding: 'utf8',
@@ -329,7 +329,7 @@ function verifyDeployment() {
 
 	console.log('');
 	console.log('📋 수동 확인 명령어:');
-	console.log(`ssh -i "${SSH_KEY}" ${PROD_USER}@${PROD_SERVER}`);
+	console.log(`ssh -i "${SSH_KEY}" ${VERIFY_USER}@${VERIFY_SERVER}`);
 	console.log('sudo systemctl status nginx');
 	console.log('sudo systemctl status nanumpay');
 	console.log('sudo systemctl status mongod');
@@ -340,14 +340,14 @@ function verifyDeployment() {
 	console.log('🔗 브라우저에서 확인:');
 	console.log(`   HTTP:  http://${DOMAIN}`);
 	console.log(`   HTTPS: https://${DOMAIN} (SSL 설정 후)`);
-	console.log(`   직접:  http://${PROD_SERVER}:${PROD_PORT}`);
+	console.log(`   직접:  http://${VERIFY_SERVER}:${VERIFY_PORT}`);
 }
 
 // 메인 함수
 function main() {
-	console.log('🚀 NanumPay 본 서버 배포 시작');
+	console.log('🚀 NanumPay 테스트 서버 배포 시작');
 	console.log('==============================');
-	console.log(`📍 대상 서버: ${PROD_SERVER}`);
+	console.log(`📍 대상 서버: ${VERIFY_SERVER}`);
 	console.log(`📍 도메인: ${DOMAIN}`);
 	console.log(`🔐 SSL: ${REDIRECT_MODE ? 'HTTPS 전용' : 'HTTP+HTTPS 병행'}`);
 	console.log('');
