@@ -255,6 +255,59 @@ function setupSSL() {
 	}
 }
 
+// 크롤링 차단 설정 (테스트 서버 전용)
+function setupCrawlingProtection() {
+	console.log('🔒 크롤링 차단 설정 중...');
+
+	const commands = [
+		'# robots.txt 생성 (검색엔진 크롤링 차단)',
+		'echo "Creating robots.txt..."',
+		'sudo tee /opt/nanumpay/robots.txt > /dev/null << "ROBOTSEOF"',
+		'User-agent: *',
+		'Disallow: /',
+		'ROBOTSEOF',
+		'',
+		'# nginx 설정에 크롤링 차단 추가',
+		'echo "Updating nginx config for crawling protection..."',
+		'NGINX_CONF="/etc/nginx/sites-available/nanumpay"',
+		'',
+		'# robots.txt location 추가 (이미 있으면 스킵)',
+		'if ! grep -q "location = /robots.txt" "$NGINX_CONF"; then',
+		'  # server 블록 내부에 robots.txt location 추가',
+		'  sudo sed -i \'/location \\/ {/i\\    # robots.txt - 검색엔진 차단\\n    location = \\/robots.txt {\\n        alias \\/opt\\/nanumpay\\/robots.txt;\\n    }\\n\' "$NGINX_CONF"',
+		'fi',
+		'',
+		'# meta noindex 주입 추가 (이미 있으면 스킵)',
+		'if ! grep -q "sub_filter" "$NGINX_CONF"; then',
+		'  # proxy_pass 다음 줄에 sub_filter 추가',
+		'  sudo sed -i \'/proxy_read_timeout/a\\        # meta noindex 태그 주입\\n        sub_filter "<\\/head>" "<meta name=\\\\\\"robots\\\\\\" content=\\\\\\"noindex, nofollow\\\\\\"><\\/head>";\\n        sub_filter_once on;\' "$NGINX_CONF"',
+		'fi',
+		'',
+		'# nginx 설정 테스트 및 reload',
+		'if sudo nginx -t 2>&1 | grep -q "successful"; then',
+		'  sudo systemctl reload nginx',
+		'  echo "✅ 크롤링 차단 설정 완료"',
+		'else',
+		'  echo "⚠️  nginx 설정 오류 - 수동 확인 필요"',
+		'fi'
+	];
+
+	const script = commands.join('\n');
+
+	try {
+		cp.execSync(
+			`ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no ${VERIFY_USER}@${VERIFY_SERVER} '${script}'`,
+			{
+				stdio: 'inherit'
+			}
+		);
+		console.log('✅ 크롤링 차단 설정 완료 (robots.txt + meta noindex)');
+	} catch (error) {
+		console.warn('⚠️  크롤링 차단 설정 중 오류 발생');
+		console.warn('   서버에 접속하여 수동으로 설정하세요');
+	}
+}
+
 // 배포 후 상태 확인
 function verifyDeployment() {
 	console.log('🔍 배포 상태 확인 중...');
@@ -371,7 +424,10 @@ function main() {
 		// 6. SSL 설정 (자동)
 		setupSSL();
 
-		// 7. 배포 상태 확인
+		// 7. 크롤링 차단 설정 (테스트 서버 전용)
+		setupCrawlingProtection();
+
+		// 8. 배포 상태 확인
 		verifyDeployment();
 
 		console.log('');
@@ -383,6 +439,7 @@ function main() {
 		console.log('   - Nanumpay (포트 3100)');
 		console.log('   - MongoDB');
 		console.log("   - SSL 인증서 (Let's Encrypt)");
+		console.log('   - 크롤링 차단 (robots.txt + meta noindex)');
 	} catch (error) {
 		console.error('❌ 배포 실패:', error.message);
 		process.exit(1);
