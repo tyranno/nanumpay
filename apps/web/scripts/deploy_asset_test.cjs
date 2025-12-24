@@ -8,10 +8,10 @@ const cp = require('child_process');
 
 const ROOT = process.cwd();
 const RELEASE_DIR = path.join(ROOT, 'apps', 'web', 'release');
-const SSH_KEY = path.join(process.env.HOME, '.ssh', 'gcp_verify');
-const VERIFY_SERVER = 'nanumpay.xyz';
+const SSH_KEY = path.join(process.env.HOME, '.ssh', 'nanumasset.pem');
+const VERIFY_SERVER = '15.164.130.106';
 const VERIFY_PORT = 3100;
-const VERIFY_USER = 'tyranno';
+const VERIFY_USER = 'ubuntu';
 const DOMAIN = 'www.nanumpay.xyz';
 
 // 테스트 서버: 기본 HTTP+HTTPS 병행, --redirect 옵션 시 HTTPS 전용
@@ -24,7 +24,7 @@ function validateConfig() {
 	// SSH 키 파일 확인
 	if (!fs.existsSync(SSH_KEY)) {
 		console.error(`❌ SSH 키 파일이 없습니다: ${SSH_KEY}`);
-		console.error('   ~/.ssh/gcp_verify 파일이 있는지 확인하세요.');
+		console.error('   ~/.ssh/nanumasset.pem 파일이 있는지 확인하세요.');
 		process.exit(1);
 	}
 
