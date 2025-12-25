@@ -28,15 +28,15 @@
 		const query = event.target.value;
 		value = query;
 
-		// 외부 콜백 호출 (있는 경우)
-		if (onInputChange) {
-			onInputChange(event);
-		}
-
-		// 선택 직후에는 드롭다운 열지 않음
+		// 선택 직후에는 드롭다운 열지 않음 (외부 콜백도 호출하지 않음)
 		if (justSelected) {
 			justSelected = false;
 			return;
+		}
+
+		// 외부 콜백 호출 (있는 경우)
+		if (onInputChange) {
+			onInputChange(event);
 		}
 
 		clearTimeout(searchTimer);

@@ -56,16 +56,18 @@
 
 	let nameDuplicateWarning = '';
 
-	// ID(계정) 선택 핸들러 - 기존 계정 선택 시 개인정보 자동 채움 (성명 제외)
+	// ID(계정) 선택 핸들러 - 기존 계정 선택 시 개인정보 자동 채움
 	function handleAccountSelect(account) {
 		newMember = {
 			...newMember,
 			loginId: account.loginId,
+			name: account.loginId, // 성명도 ID와 동일하게 설정
 			phone: account.phone || '',
 			idNumber: account.idNumber || '',
 			bank: account.bank || '',
 			accountNumber: account.accountNumber || ''
 		};
+		checkNameDuplicate(account.loginId);
 	}
 
 	// ID 입력 변경 시 성명도 동일하게 설정 + 기존 계정 정보 자동 채움

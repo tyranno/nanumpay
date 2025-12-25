@@ -1087,7 +1087,10 @@
 		bind:this={registrationModal}
 		isOpen={showAddModal}
 		{members}
-		onClose={() => (showAddModal = false)}
+		onClose={() => {
+			showAddModal = false;
+			registrationModal?.resetForm();
+		}}
 		onSubmit={handleAddMember}
 	/>
 
