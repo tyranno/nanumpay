@@ -565,6 +565,38 @@
 				allData.push(...fileData);
 			}
 
+			// ⭐ 1.5단계: 중복 검사 (이름 + ID)
+			uploadProgress = {
+				current: 0,
+				total: 1,
+				fileName: '중복 검사 중...'
+			};
+
+			const duplicateCheckRes = await fetch('/api/admin/users/check-duplicates', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ users: allData })
+			});
+			const duplicateCheckResult = await duplicateCheckRes.json();
+
+			if (duplicateCheckResult.hasDuplicates) {
+				const { duplicates } = duplicateCheckResult;
+				// 간결한 형식: "행 1: 사장님, 행 2: 김영수, ..."
+				const nameList = duplicates.map(d => `행 ${d.row}: ${d.name}`).join(', ');
+
+				notificationConfig = {
+					type: 'error',
+					title: '중복된 사용자 이름',
+					message: `이미 등록된 중복된 사용자 이름이 있습니다.\n${nameList}`,
+					results: null,
+					details: []
+				};
+				notificationOpen = true;
+				isUploading = false;
+				uploadProgress = null;
+				return;
+			}
+
 			// 2단계: 정렬 (1차: 날짜, 2차: 순번)
 		allData.sort((a, b) => {
 			// 1차: 날짜 정렬
@@ -1170,7 +1202,7 @@
 	>
 		<div class="space-y-3">
 			{#if notificationConfig.message}
-				<p class="whitespace-pre-wrap text-sm text-gray-700">{notificationConfig.message}</p>
+				<p class="whitespace-pre-wrap text-sm text-gray-700 max-h-24 overflow-y-auto">{notificationConfig.message}</p>
 			{/if}
 
 			{#if notificationConfig.results}

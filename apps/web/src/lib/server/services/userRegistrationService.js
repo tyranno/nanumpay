@@ -177,9 +177,13 @@ export class UserRegistrationService {
 			// ⭐ 이름 중복 체크 (DB 조회)
 			const existingUserWithSameName = await User.findOne({ name: name });
 			if (existingUserWithSameName) {
+				// 개별 등록(1명)일 때는 행 번호 생략
+				const errorMsg = users.length === 1
+					? `등록 실패: 이미 등록된 이름 "${name}"이(가) 있습니다.`
+					: `등록 실패: 행 ${i + 1}에서 이미 시스템에 등록된 이름 "${name}"이(가) 발견되었습니다.`;
 				return {
 					isValid: false,
-					error: `등록 실패: 행 ${i + 1}에서 이미 시스템에 등록된 이름 "${name}"이(가) 발견되었습니다.`,
+					error: errorMsg,
 					details: '같은 이름의 용역자가 이미 존재합니다. 성명을 변경해주세요 (예: 홍길동2, 홍길동3).'
 				};
 			}
