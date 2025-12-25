@@ -15,6 +15,7 @@
 import User from '../models/User.js';
 import MonthlyRegistrations from '../models/MonthlyRegistrations.js';
 import WeeklyPaymentPlans from '../models/WeeklyPaymentPlans.js';
+import PlannerCommissionPlan from '../models/PlannerCommissionPlan.js';
 import { processUserRegistration } from './registrationService.js';
 
 /**
@@ -115,6 +116,10 @@ export async function reprocessMonthPayments(monthKey) {
 
 		// 5. 해당 월 플랜 삭제
 		const deletedPlans = await WeeklyPaymentPlans.deleteMany({ revenueMonth: monthKey });
+
+		// ⭐ 해당 월 설계사 수당 플랜도 삭제 (설계사 변경 시 재생성을 위해)
+		const deletedCommissionPlans = await PlannerCommissionPlan.deleteMany({ revenueMonth: monthKey });
+		console.log(`[재처리] 설계사 수당 플랜 삭제: ${deletedCommissionPlans.deletedCount}건`);
 
 		// 6. processUserRegistration 호출
 		const result = await processUserRegistration(userIds);

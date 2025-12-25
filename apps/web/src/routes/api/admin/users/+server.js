@@ -253,11 +253,66 @@ export async function PUT({ request, locals }) {
 			const plannerLatestMonth = await getLatestRegistrationMonth();
 
 			if (userMonth && userMonth === plannerLatestMonth) {
-				await PlannerAccount.findByIdAndUpdate(
-					user.plannerAccountId,
-					{ $set: plannerAccountFields },
-					{ new: true }
-				);
+				// ⭐ 설계사 이름(name)이 변경되는 경우: 새 PlannerAccount를 찾거나 생성
+				if (plannerAccountFields.name) {
+					const newPlannerName = plannerAccountFields.name;
+					const currentPlanner = await PlannerAccount.findById(user.plannerAccountId).lean();
+
+					// 현재 설계사 이름과 다른 경우에만 처리
+					if (currentPlanner && currentPlanner.name !== newPlannerName) {
+						console.log(`[사용자 수정] ${user.name} - 설계사 변경: ${currentPlanner.name} → ${newPlannerName}`);
+
+						// 새 이름으로 기존 PlannerAccount 찾기
+						let newPlannerAccount = await PlannerAccount.findOne({ loginId: newPlannerName });
+
+						if (!newPlannerAccount) {
+							// 없으면 새 PlannerAccount 생성
+							const bcrypt = await import('bcryptjs');
+							const defaultPhone = plannerAccountFields.phone || currentPlanner.phone || '0000';
+							const last4Digits = defaultPhone.replace(/\D/g, '').slice(-4) || '0000';
+							const passwordHash = await bcrypt.default.hash(last4Digits, 10);
+
+							newPlannerAccount = await PlannerAccount.create({
+								loginId: newPlannerName,
+								name: newPlannerName,
+								passwordHash,
+								phone: plannerAccountFields.phone || currentPlanner.phone || '',
+								bank: plannerAccountFields.bank || currentPlanner.bank || '',
+								accountNumber: plannerAccountFields.accountNumber || currentPlanner.accountNumber || ''
+							});
+							console.log(`[사용자 수정] 새 설계사 계정 생성: ${newPlannerName}`);
+						} else {
+							// 기존 PlannerAccount가 있으면 다른 필드만 업데이트
+							const updateFields = {};
+							if (plannerAccountFields.phone) updateFields.phone = plannerAccountFields.phone;
+							if (plannerAccountFields.bank) updateFields.bank = plannerAccountFields.bank;
+							if (plannerAccountFields.accountNumber) updateFields.accountNumber = plannerAccountFields.accountNumber;
+
+							if (Object.keys(updateFields).length > 0) {
+								await PlannerAccount.findByIdAndUpdate(newPlannerAccount._id, { $set: updateFields });
+							}
+							console.log(`[사용자 수정] 기존 설계사 계정 사용: ${newPlannerName}`);
+						}
+
+						// User의 plannerAccountId를 새 PlannerAccount로 업데이트
+						await User.findByIdAndUpdate(userId, { plannerAccountId: newPlannerAccount._id });
+						console.log(`[사용자 수정] ${user.name}의 plannerAccountId 변경 완료`);
+					} else {
+						// 이름이 같으면 다른 필드만 업데이트
+						const updateFields = { ...plannerAccountFields };
+						delete updateFields.name; // name은 제외
+						if (Object.keys(updateFields).length > 0) {
+							await PlannerAccount.findByIdAndUpdate(user.plannerAccountId, { $set: updateFields });
+						}
+					}
+				} else {
+					// 이름 변경 없이 다른 필드만 업데이트
+					await PlannerAccount.findByIdAndUpdate(
+						user.plannerAccountId,
+						{ $set: plannerAccountFields },
+						{ new: true }
+					);
+				}
 			} else {
 				console.log(`[사용자 수정] ${user.name} - 설계사 정보 수정 스킵 (최신월 아님: ${userMonth} vs ${plannerLatestMonth})`);
 			}

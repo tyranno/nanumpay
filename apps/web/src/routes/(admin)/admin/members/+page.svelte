@@ -123,6 +123,11 @@
 			if (result.success) {
 				// ⭐ 새 배열로 할당하여 Svelte 반응성 트리거
 				monthlyRegistrations = [...result.monthlyRegistrations];
+				// ⭐ latestMonth도 함께 갱신 (가장 마지막 월)
+				if (monthlyRegistrations.length > 0) {
+					const sortedMonths = monthlyRegistrations.map(m => m.monthKey).sort();
+					latestMonth = sortedMonths[sortedMonths.length - 1];
+				}
 			}
 		} catch (error) {
 			console.error('Failed to load monthly registrations:', error);
@@ -234,6 +239,7 @@
 				showAddModal = false;
 				registrationModal?.resetForm();
 				await loadMembers();
+				await loadMonthlyRegistrations(); // ⭐ latestMonth 갱신
 			} else {
 				notificationConfig = {
 					type: 'error',
