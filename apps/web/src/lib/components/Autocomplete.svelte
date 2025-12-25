@@ -22,6 +22,7 @@
 	let searchTimer;
 	let inputElement;
 	let selectedIndex = -1;
+	let justSelected = false; // 선택 직후 플래그
 
 	async function handleInput(event) {
 		const query = event.target.value;
@@ -30,6 +31,12 @@
 		// 외부 콜백 호출 (있는 경우)
 		if (onInputChange) {
 			onInputChange(event);
+		}
+
+		// 선택 직후에는 드롭다운 열지 않음
+		if (justSelected) {
+			justSelected = false;
+			return;
 		}
 
 		clearTimeout(searchTimer);
@@ -61,9 +68,12 @@
 	}
 
 	function selectItem(item) {
+		clearTimeout(searchTimer); // 진행 중인 검색 취소
+		justSelected = true; // 선택 직후 플래그 설정
 		value = item[displayKey];
 		suggestions = [];
 		showSuggestions = false;
+		selectedIndex = -1;
 		onSelect(item);
 	}
 
