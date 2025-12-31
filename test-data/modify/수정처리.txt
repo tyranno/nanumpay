@@ -29,6 +29,22 @@ fetch('/api/admin/revenue/adjust-grade-payments', {
   })
 }).then(r => r.json()).then(console.log);
 
+// 2025-12 등급별 지급액 조정
+fetch('/api/admin/revenue/adjust-grade-payments', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    monthKey: '2025-12',
+    adjustments: {
+      F1: { totalAmount: 210000 },
+      F2: { totalAmount: 510000 },
+      F3: { totalAmount: 815000 },
+      F4: { totalAmount: 1100000 },
+      F5: { totalAmount: 1400000 },
+      F6: { totalAmount: 2500000 }
+    }
+  })
+}).then(r => r.json()).then(console.log);
 
 //보험 가입
 // F4/F5 등급 유지보험 일괄 설정 (기존 API 사용)
