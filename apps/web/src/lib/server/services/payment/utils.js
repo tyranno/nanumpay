@@ -1,49 +1,11 @@
 /**
  * 용역비 지급명부 공용 유틸리티 함수
+ *
+ * ⭐ v8.1 변경:
+ * - applyInsuranceCondition, shouldSkipByInsurance 함수 제거
+ * - 보험 조건 체크는 weeklyPaymentService.js의 checkInsuranceCondition에서만 수행
+ * - API 조회 시에는 DB 금액 그대로 표시 (status='skipped'는 aggregation에서 제외됨)
  */
-
-import { GRADE_LIMITS } from '$lib/server/utils/constants.js';
-
-/**
- * ⭐ v8.0: 보험 조건 체크 - F4+ 보험 미가입 시 금액 0으로 처리
- * @param {string} grade - 등급 (F1~F8)
- * @param {number} userInsuranceAmount - 사용자 보험 금액
- * @param {number} amount - 원래 금액
- * @returns {number} - 보험 조건 충족 시 원래 금액, 미충족 시 0
- */
-export function applyInsuranceCondition(grade, userInsuranceAmount, amount) {
-	const gradeLimit = GRADE_LIMITS[grade];
-
-	if (gradeLimit?.insuranceRequired) {
-		const requiredInsurance = gradeLimit.insuranceAmount || 0;
-		const userInsurance = userInsuranceAmount || 0;
-
-		if (userInsurance < requiredInsurance) {
-			return 0;  // 보험 미가입 시 금액 0
-		}
-	}
-
-	return amount;
-}
-
-/**
- * ⭐ v8.0: 보험 조건 체크 여부 확인
- * @param {string} grade - 등급 (F1~F8)
- * @param {number} userInsuranceAmount - 사용자 보험 금액
- * @returns {boolean} - 보험 조건 미충족으로 skip 여부
- */
-export function shouldSkipByInsurance(grade, userInsuranceAmount) {
-	const gradeLimit = GRADE_LIMITS[grade];
-
-	if (gradeLimit?.insuranceRequired) {
-		const requiredInsurance = gradeLimit.insuranceAmount || 0;
-		const userInsurance = userInsuranceAmount || 0;
-
-		return userInsurance < requiredInsurance;
-	}
-
-	return false;
-}
 
 /**
  * 검색 필터 구성

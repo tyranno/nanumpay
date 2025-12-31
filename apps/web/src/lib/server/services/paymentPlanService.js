@@ -216,28 +216,81 @@ export async function createPromotionPaymentPlan(
 			}
 		}
 
-		// 할부 생성
-		const installments = [];
-		for (let i = 1; i <= totalInstallments; i++) {
-			const scheduledDate = new Date(startDate);
-			// ⭐ UTC 메소드 사용하여 날짜 계산 (타임존 문제 방지)
-			scheduledDate.setUTCDate(scheduledDate.getUTCDate() + (i - 1) * 7);
+	// ⭐ v8.1: User의 현재 보험 금액 조회 (installments status 결정용)
+	const User = mongoose.model('User');
+	const user = await User.findById(userId);
+	const currentInsuranceAmount = user?.insuranceAmount || 0;
 
-			installments.push({
-				week: i,
-				weekNumber: WeeklyPaymentPlans.getISOWeek(scheduledDate),
-				scheduledDate,
-				revenueMonth,
-				gradeAtPayment: null,
+	// ⭐ v8.1: 보험 조건 체크 (installments status 결정)
+	let isInsuranceMet = true;
+	let insuranceCheckReason = null;
 
-				baseAmount,
-				installmentAmount,
-				withholdingTax,
-				netAmount,
-
-				status: 'pending'
-			});
+	if (insuranceRequired !== null && insuranceRequired !== undefined) {
+		if (currentInsuranceAmount < insuranceRequired) {
+			isInsuranceMet = false;
+			insuranceCheckReason = `insufficient_insurance_amount: ${currentInsuranceAmount} < ${insuranceRequired}`;
+			console.log(`[createPromotionPaymentPlan] ${userName} 보험 미충족: ${currentInsuranceAmount} < ${insuranceRequired} (유예기간 외는 skipped로 생성)`);
 		}
+	}
+
+	// ⭐ v8.1: 유예기간 금요일 정렬 (weeklyPaymentService.js와 동일)
+	let graceWeekFriday = null;
+	if (graceDeadline) {
+		const graceDL = new Date(graceDeadline);
+		const graceDayOfWeek = graceDL.getUTCDay();
+		const daysToFriday = graceDayOfWeek === 5 ? 0 : (5 - graceDayOfWeek + 7) % 7;
+		graceWeekFriday = new Date(Date.UTC(
+			graceDL.getUTCFullYear(),
+			graceDL.getUTCMonth(),
+			graceDL.getUTCDate() + daysToFriday
+		));
+		graceWeekFriday.setUTCHours(0, 0, 0, 0);
+	}
+
+	// 할부 생성 (보험 조건에 따라 status 설정)
+	const installments = [];
+	for (let i = 1; i <= totalInstallments; i++) {
+		const scheduledDate = new Date(startDate);
+		// ⭐ UTC 메소드 사용하여 날짜 계산 (타임존 문제 방지)
+		scheduledDate.setUTCDate(scheduledDate.getUTCDate() + (i - 1) * 7);
+		const normalizedScheduledDate = new Date(scheduledDate);
+		normalizedScheduledDate.setUTCHours(0, 0, 0, 0);
+
+		// ⭐ v8.1: 보험 조건 + 유예기간 체크로 status 결정
+		let installmentStatus = 'pending';
+		let skipReason = null;
+		let insuranceSkipped = false;
+
+		if (!isInsuranceMet) {
+			// 보험 미충족
+			const isAfterGracePeriod = graceWeekFriday === null || normalizedScheduledDate > graceWeekFriday;
+
+			if (isAfterGracePeriod) {
+				// 유예기간 외 → skipped
+				installmentStatus = 'skipped';
+				skipReason = insuranceCheckReason;
+				insuranceSkipped = true;
+			}
+			// 유예기간 내 → pending (정상 지급)
+		}
+
+		installments.push({
+			week: i,
+			weekNumber: WeeklyPaymentPlans.getISOWeek(scheduledDate),
+			scheduledDate,
+			revenueMonth,
+			gradeAtPayment: null,
+
+			baseAmount,
+			installmentAmount,
+			withholdingTax,
+			netAmount,
+
+			status: installmentStatus,
+			skipReason,
+			insuranceSkipped
+		});
+	}
 
 		// ⭐ v8.0: 추가지급 중단은 terminateAdditionalPlansOnPromotion에서 처리
 		// (승급 지급 시작일부터만 중단하는 로직)
@@ -747,14 +800,21 @@ export async function createAdditionalPaymentPlanV8(previousPlan) {
 			return null;
 		}
 
-		// 3. 보험 확인 (F4+ 보험 필수) - ⭐ v8.0 변경: GRADE_LIMITS 사용
-		const gradeLimit = GRADE_LIMITS[baseGrade];
-		if (gradeLimit?.insuranceRequired) {
-			const insuranceAmount = user.insuranceAmount || 0;
-			const requiredAmount = gradeLimit.insuranceAmount || 0;
-			if (insuranceAmount < requiredAmount) {
-				console.log(`[createAdditionalPaymentPlanV8] ${previousPlan.userId} 보험 미충족: ${insuranceAmount} < ${requiredAmount}`);
-				return null;
+		// ⭐ v8.1: 보험 조건 확인 (미충족이어도 계획 생성, status로 관리)
+		const insuranceAmount = user.insuranceAmount || 0;
+		let isInsuranceMet = true;
+		let insuranceCheckReason = null;
+
+		// 이전 계획의 보험 필드 승계
+		const inheritedInsuranceRequired = previousPlan.insuranceRequired;
+		const inheritedGraceDeadline = previousPlan.graceDeadline;
+		const inheritedInsuranceInherited = previousPlan.insuranceInherited;
+
+		if (inheritedInsuranceRequired !== null && inheritedInsuranceRequired !== undefined) {
+			if (insuranceAmount < inheritedInsuranceRequired) {
+				isInsuranceMet = false;
+				insuranceCheckReason = `insufficient_insurance_amount: ${insuranceAmount} < ${inheritedInsuranceRequired}`;
+				console.log(`[createAdditionalPaymentPlanV8] ${previousPlan.userId} 보험 미충족: ${insuranceAmount} < ${inheritedInsuranceRequired} (계획은 생성, status='skipped')`);
 			}
 		}
 
@@ -819,11 +879,45 @@ export async function createAdditionalPaymentPlanV8(previousPlan) {
 		const withholdingTax = Math.round(installmentAmount * 0.033);
 		const netAmount = installmentAmount - withholdingTax;
 
-		// 8. 10회 할부 생성
+		// ⭐ v8.1: 유예기간 금요일 정렬 (weeklyPaymentService.js와 동일)
+		let graceWeekFriday = null;
+		if (inheritedGraceDeadline) {
+			const graceDL = new Date(inheritedGraceDeadline);
+			const graceDayOfWeek = graceDL.getUTCDay();
+			const daysToFriday = graceDayOfWeek === 5 ? 0 : (5 - graceDayOfWeek + 7) % 7;
+			graceWeekFriday = new Date(Date.UTC(
+				graceDL.getUTCFullYear(),
+				graceDL.getUTCMonth(),
+				graceDL.getUTCDate() + daysToFriday
+			));
+			graceWeekFriday.setUTCHours(0, 0, 0, 0);
+		}
+
+		// 8. 10회 할부 생성 (보험 조건에 따라 status 설정)
 		const installments = [];
 		for (let i = 1; i <= 10; i++) {
 			const scheduledDate = new Date(startDate);
 			scheduledDate.setUTCDate(scheduledDate.getUTCDate() + (i - 1) * 7);
+			const normalizedScheduledDate = new Date(scheduledDate);
+			normalizedScheduledDate.setUTCHours(0, 0, 0, 0);
+
+			// ⭐ v8.1: 보험 조건 + 유예기간 체크로 status 결정
+			let installmentStatus = 'pending';
+			let skipReason = null;
+			let insuranceSkipped = false;
+
+			if (!isInsuranceMet) {
+				// 보험 미충족
+				const isAfterGracePeriod = graceWeekFriday === null || normalizedScheduledDate > graceWeekFriday;
+
+				if (isAfterGracePeriod) {
+					// 유예기간 외 → skipped
+					installmentStatus = 'skipped';
+					skipReason = insuranceCheckReason;
+					insuranceSkipped = true;
+				}
+				// 유예기간 내 → pending (정상 지급)
+			}
 
 			installments.push({
 				week: i,
@@ -835,12 +929,13 @@ export async function createAdditionalPaymentPlanV8(previousPlan) {
 				installmentAmount,
 				withholdingTax,
 				netAmount,
-				status: 'pending',
-				insuranceSkipped: false
+				status: installmentStatus,
+				skipReason,
+				insuranceSkipped
 			});
 		}
 
-		// 9. DB 저장
+		// 9. DB 저장 (보험 필드 승계 ⭐ v8.1)
 		const newPlan = await WeeklyPaymentPlans.create({
 			userId: previousPlan.userId,
 			userName: previousPlan.userName,
@@ -857,13 +952,23 @@ export async function createAdditionalPaymentPlanV8(previousPlan) {
 			planStatus: 'active',
 			installments,
 			parentPlanId: previousPlan._id,
-			createdBy: 'additional_payment'
+			createdBy: 'additional_payment',
+			// ⭐ v8.1: 이전 계획의 보험 필드 승계
+			graceDeadline: inheritedGraceDeadline,
+			insuranceRequired: inheritedInsuranceRequired,
+			insuranceInherited: inheritedInsuranceInherited
 		});
 
 		// 10. 주차별 총계 업데이트
 		await updateWeeklyProjections(newPlan, 'add');
 
-		console.log(`[createAdditionalPaymentPlanV8] ${previousPlan.userId} 추가지급 생성: ${baseGrade} ${next추가지급단계}단계, ${revenueMonth} 매출분, 시작일: ${startDate}`);
+		// ⭐ v8.1: 스킵된 건수 로그
+		const skippedCount = installments.filter(i => i.status === 'skipped').length;
+		if (skippedCount > 0) {
+			console.log(`[createAdditionalPaymentPlanV8] ${previousPlan.userId} 추가지급 생성: ${baseGrade} ${next추가지급단계}단계, ${revenueMonth} 매출분, 시작일: ${startDate} (보험 미충족으로 ${skippedCount}건 skipped)`);
+		} else {
+			console.log(`[createAdditionalPaymentPlanV8] ${previousPlan.userId} 추가지급 생성: ${baseGrade} ${next추가지급단계}단계, ${revenueMonth} 매출분, 시작일: ${startDate}`);
+		}
 
 		return newPlan;
 	} catch (error) {
@@ -1004,16 +1109,31 @@ export async function updateInstallmentsOnInsuranceChange(userId, newInsuranceAm
 		for (const plan of activePlans) {
 			let planModified = false;
 
+			// ⭐ v8.1: 유예기간 금요일 정렬 (weeklyPaymentService.js와 동일)
+			let graceWeekFriday = null;
+			if (plan.graceDeadline) {
+				const graceDL = new Date(plan.graceDeadline);
+				const graceDayOfWeek = graceDL.getUTCDay();
+				const daysToFriday = graceDayOfWeek === 5 ? 0 : (5 - graceDayOfWeek + 7) % 7;
+				graceWeekFriday = new Date(Date.UTC(
+					graceDL.getUTCFullYear(),
+					graceDL.getUTCMonth(),
+					graceDL.getUTCDate() + daysToFriday
+				));
+				graceWeekFriday.setUTCHours(0, 0, 0, 0);
+			}
+
 			for (const installment of plan.installments) {
 				const scheduledDate = new Date(installment.scheduledDate);
+				scheduledDate.setUTCHours(0, 0, 0, 0);
 
 				// 과거 지급은 건드리지 않음
 				if (scheduledDate < today) {
 					continue;
 				}
 
-				// 유예기간 체크
-				const isAfterGracePeriod = plan.graceDeadline === null || scheduledDate > plan.graceDeadline;
+				// ⭐ v8.1: 유예기간 체크 (금요일 기준)
+				const isAfterGracePeriod = graceWeekFriday === null || scheduledDate > graceWeekFriday;
 
 				if (newInsuranceAmount < plan.insuranceRequired) {
 					// 보험 미충족

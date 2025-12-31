@@ -3,7 +3,7 @@ import User from '$lib/server/models/User.js';
 import UserAccount from '$lib/server/models/UserAccount.js';
 import PlannerAccount from '$lib/server/models/PlannerAccount.js';
 import { getFridaysInMonth } from '$lib/utils/fridayWeekCalculator.js';
-import { buildSearchFilter, generateGradeInfo, calculatePeriodGrade, applyInsuranceCondition } from './utils.js';
+import { buildSearchFilter, generateGradeInfo, calculatePeriodGrade } from './utils.js';
 import mongoose from 'mongoose';
 
 /**
@@ -155,92 +155,18 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
 		{
 			$sort: sortByName ? { userName: 1 } : { sequence: 1 }
 		},
-		// ⭐ v8.0: 보험 조건 적용된 금액 계산 (grandTotal용)
-		{
-			$addFields: {
-				adjustedAmount: {
-					$switch: {
-						branches: [
-							// F1, F2, F3: 보험 불필요
-							{ case: { $in: ['$maxGrade', ['F1', 'F2', 'F3']] }, then: '$totalAmount' },
-							// F4, F5: 70,000원 이상
-							{ case: { $and: [
-								{ $in: ['$maxGrade', ['F4', 'F5']] },
-								{ $gte: [{ $ifNull: [{ $arrayElemAt: ['$userInfo.insuranceAmount', 0] }, 0] }, 70000] }
-							]}, then: '$totalAmount' },
-							// F6, F7: 90,000원 이상
-							{ case: { $and: [
-								{ $in: ['$maxGrade', ['F6', 'F7']] },
-								{ $gte: [{ $ifNull: [{ $arrayElemAt: ['$userInfo.insuranceAmount', 0] }, 0] }, 90000] }
-							]}, then: '$totalAmount' },
-							// F8: 110,000원 이상
-							{ case: { $and: [
-								{ $eq: ['$maxGrade', 'F8'] },
-								{ $gte: [{ $ifNull: [{ $arrayElemAt: ['$userInfo.insuranceAmount', 0] }, 0] }, 110000] }
-							]}, then: '$totalAmount' }
-						],
-						default: 0
-					}
-				},
-				adjustedTax: {
-					$switch: {
-						branches: [
-							{ case: { $in: ['$maxGrade', ['F1', 'F2', 'F3']] }, then: '$totalTax' },
-							{ case: { $and: [
-								{ $in: ['$maxGrade', ['F4', 'F5']] },
-								{ $gte: [{ $ifNull: [{ $arrayElemAt: ['$userInfo.insuranceAmount', 0] }, 0] }, 70000] }
-							]}, then: '$totalTax' },
-							{ case: { $and: [
-								{ $in: ['$maxGrade', ['F6', 'F7']] },
-								{ $gte: [{ $ifNull: [{ $arrayElemAt: ['$userInfo.insuranceAmount', 0] }, 0] }, 90000] }
-							]}, then: '$totalTax' },
-							{ case: { $and: [
-								{ $eq: ['$maxGrade', 'F8'] },
-								{ $gte: [{ $ifNull: [{ $arrayElemAt: ['$userInfo.insuranceAmount', 0] }, 0] }, 110000] }
-							]}, then: '$totalTax' }
-						],
-						default: 0
-					}
-				},
-				adjustedNet: {
-					$switch: {
-						branches: [
-							{ case: { $in: ['$maxGrade', ['F1', 'F2', 'F3']] }, then: '$totalNet' },
-							{ case: { $and: [
-								{ $in: ['$maxGrade', ['F4', 'F5']] },
-								{ $gte: [{ $ifNull: [{ $arrayElemAt: ['$userInfo.insuranceAmount', 0] }, 0] }, 70000] }
-							]}, then: '$totalNet' },
-							{ case: { $and: [
-								{ $in: ['$maxGrade', ['F6', 'F7']] },
-								{ $gte: [{ $ifNull: [{ $arrayElemAt: ['$userInfo.insuranceAmount', 0] }, 0] }, 90000] }
-							]}, then: '$totalNet' },
-							{ case: { $and: [
-								{ $eq: ['$maxGrade', 'F8'] },
-								{ $gte: [{ $ifNull: [{ $arrayElemAt: ['$userInfo.insuranceAmount', 0] }, 0] }, 110000] }
-							]}, then: '$totalNet' }
-						],
-						default: 0
-					}
-				}
-			}
-		},
-		// ⭐ 금액 0인 사용자 제외 (보험 미충족 등)
-		{
-			$match: {
-				adjustedAmount: { $gt: 0 }
-			}
-		},
-		// ⭐ $facet으로 grandTotal과 페이지네이션 데이터 동시 계산
+		// ⭐ v8.1: $facet으로 grandTotal과 페이지네이션 데이터 동시 계산
+		// DB 금액 그대로 사용 (status='skipped'는 이미 제외됨)
 		{
 			$facet: {
-				// 전체 금액 합계 (보험 조건 적용됨)
+				// 전체 금액 합계
 				grandTotal: [
 					{
 						$group: {
 							_id: null,
-							totalAmount: { $sum: '$adjustedAmount' },
-							totalTax: { $sum: '$adjustedTax' },
-							totalNet: { $sum: '$adjustedNet' },
+							totalAmount: { $sum: '$totalAmount' },
+							totalTax: { $sum: '$totalTax' },
+							totalNet: { $sum: '$totalNet' },
 							totalUsers: { $sum: 1 }
 						}
 					}
@@ -290,11 +216,10 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
 		// 선택된 기간의 최고 등급 계산
 		const periodGrade = calculatePeriodGrade(payment.payments, user.grade || 'F1');
 
-		// ⭐ v8.0: 보험 조건 체크 - F4+ 보험 미가입 시 금액 0으로 처리
-		const userInsurance = user.insuranceAmount || 0;
-		const actualAmount = applyInsuranceCondition(periodGrade, userInsurance, payment.totalAmount || 0);
-		const taxAmount = applyInsuranceCondition(periodGrade, userInsurance, payment.totalTax || 0);
-		const netAmount = applyInsuranceCondition(periodGrade, userInsurance, payment.totalNet || 0);
+		// ⭐ v8.1: DB 금액 그대로 사용 (status='skipped'는 이미 제외됨)
+		const actualAmount = payment.totalAmount || 0;
+		const taxAmount = payment.totalTax || 0;
+		const netAmount = payment.totalNet || 0;
 
 		return {
 			no: (page - 1) * limit + idx + 1,
@@ -470,87 +395,17 @@ export async function getSingleWeekPaymentsByGrade(year, month, week, page, limi
 		{
 			$sort: sortByName ? { userName: 1 } : { sequence: 1 }
 		},
-		// ⭐ v8.0: 보험 조건 적용된 금액 계산 (grandTotal용)
-		{
-			$addFields: {
-				adjustedAmount: {
-					$switch: {
-						branches: [
-							{ case: { $in: ['$maxGrade', ['F1', 'F2', 'F3']] }, then: '$totalAmount' },
-							{ case: { $and: [
-								{ $in: ['$maxGrade', ['F4', 'F5']] },
-								{ $gte: [{ $ifNull: ['$userDetails.insuranceAmount', 0] }, 70000] }
-							]}, then: '$totalAmount' },
-							{ case: { $and: [
-								{ $in: ['$maxGrade', ['F6', 'F7']] },
-								{ $gte: [{ $ifNull: ['$userDetails.insuranceAmount', 0] }, 90000] }
-							]}, then: '$totalAmount' },
-							{ case: { $and: [
-								{ $eq: ['$maxGrade', 'F8'] },
-								{ $gte: [{ $ifNull: ['$userDetails.insuranceAmount', 0] }, 110000] }
-							]}, then: '$totalAmount' }
-						],
-						default: 0
-					}
-				},
-				adjustedTax: {
-					$switch: {
-						branches: [
-							{ case: { $in: ['$maxGrade', ['F1', 'F2', 'F3']] }, then: '$totalTax' },
-							{ case: { $and: [
-								{ $in: ['$maxGrade', ['F4', 'F5']] },
-								{ $gte: [{ $ifNull: ['$userDetails.insuranceAmount', 0] }, 70000] }
-							]}, then: '$totalTax' },
-							{ case: { $and: [
-								{ $in: ['$maxGrade', ['F6', 'F7']] },
-								{ $gte: [{ $ifNull: ['$userDetails.insuranceAmount', 0] }, 90000] }
-							]}, then: '$totalTax' },
-							{ case: { $and: [
-								{ $eq: ['$maxGrade', 'F8'] },
-								{ $gte: [{ $ifNull: ['$userDetails.insuranceAmount', 0] }, 110000] }
-							]}, then: '$totalTax' }
-						],
-						default: 0
-					}
-				},
-				adjustedNet: {
-					$switch: {
-						branches: [
-							{ case: { $in: ['$maxGrade', ['F1', 'F2', 'F3']] }, then: '$totalNet' },
-							{ case: { $and: [
-								{ $in: ['$maxGrade', ['F4', 'F5']] },
-								{ $gte: [{ $ifNull: ['$userDetails.insuranceAmount', 0] }, 70000] }
-							]}, then: '$totalNet' },
-							{ case: { $and: [
-								{ $in: ['$maxGrade', ['F6', 'F7']] },
-								{ $gte: [{ $ifNull: ['$userDetails.insuranceAmount', 0] }, 90000] }
-							]}, then: '$totalNet' },
-							{ case: { $and: [
-								{ $eq: ['$maxGrade', 'F8'] },
-								{ $gte: [{ $ifNull: ['$userDetails.insuranceAmount', 0] }, 110000] }
-							]}, then: '$totalNet' }
-						],
-						default: 0
-					}
-				}
-			}
-		},
-		// ⭐ 금액 0인 사용자 제외 (보험 미충족 등)
-		{
-			$match: {
-				adjustedAmount: { $gt: 0 }
-			}
-		},
-		// ⭐ $facet으로 grandTotal과 페이지네이션 데이터 동시 계산
+		// ⭐ v8.1: $facet으로 grandTotal과 페이지네이션 데이터 동시 계산
+		// DB 금액 그대로 사용 (status='skipped'는 이미 제외됨)
 		{
 			$facet: {
 				grandTotal: [
 					{
 						$group: {
 							_id: null,
-							totalAmount: { $sum: '$adjustedAmount' },
-							totalTax: { $sum: '$adjustedTax' },
-							totalNet: { $sum: '$adjustedNet' },
+							totalAmount: { $sum: '$totalAmount' },
+							totalTax: { $sum: '$totalTax' },
+							totalNet: { $sum: '$totalNet' },
 							totalUsers: { $sum: 1 }
 						}
 					}
@@ -595,11 +450,10 @@ export async function getSingleWeekPaymentsByGrade(year, month, week, page, limi
 		// 선택된 기간의 최고 등급 계산
 		const periodGrade = calculatePeriodGrade(payment.payments, user.grade || 'F1');
 
-		// ⭐ v8.0: 보험 조건 체크 - F4+ 보험 미가입 시 금액 0으로 처리
-		const userInsurance = user.insuranceAmount || 0;
-		const actualAmount = applyInsuranceCondition(periodGrade, userInsurance, payment.totalAmount || 0);
-		const taxAmount = applyInsuranceCondition(periodGrade, userInsurance, payment.totalTax || 0);
-		const netAmount = applyInsuranceCondition(periodGrade, userInsurance, payment.totalNet || 0);
+		// ⭐ v8.1: DB 금액 그대로 사용 (status='skipped'는 이미 제외됨)
+		const actualAmount = payment.totalAmount || 0;
+		const taxAmount = payment.totalTax || 0;
+		const netAmount = payment.totalNet || 0;
 
 		return {
 			userId: payment._id,

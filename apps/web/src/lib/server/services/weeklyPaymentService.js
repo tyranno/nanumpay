@@ -59,11 +59,10 @@ export async function processWeeklyPayments(date = new Date()) {
         continue;
       }
 
-      // 보험 조건 확인 (F4-F8만 해당, F3 이하는 보험 불필요)
-      const skipPayment = await checkInsuranceCondition(user, plan.baseGrade);
+      // ⭐ v8.1: 보험 조건 확인 (유예기간 고려)
+      const skipPayment = await checkInsuranceCondition(user, plan, installment);
       if (skipPayment) {
-        // ⭐ v8.0: F4-F8 보험 미가입 시 skip + 횟수 증가 (지급한 것으로 인정)
-        // 나중에 보험 가입하면 이후 회차부터 정상 지급
+        // F4+ 보험 미가입 + 유예기간 외 → skip + 횟수 증가
         installment.status = 'skipped';
         installment.skipReason = skipPayment.reason;
         plan.completedInstallments += 1;  // 회차는 증가 (지급한 것으로 인정)
@@ -144,21 +143,26 @@ export async function processWeeklyPayments(date = new Date()) {
 
 /**
  * 보험 조건 확인
- * ⭐ v8.0 변경:
+ * ⭐ v8.1 변경: 유예기간 고려
  * - F1-F3: 보험 불필요
  * - F4-F8: 보험 필수 (등급별 금액 다름)
- *   - F4: 7만원, F5: 7만원, F6: 9만원, F7: 9만원, F8: 11만원
- * - 보험 미가입 시: skip + 횟수 증가 (지급한 것으로 인정)
- * - 나중에 보험 가입하면 이후 회차부터 정상 지급
- * 
+ *   - F4/F5: 7만원, F6/F7: 9만원, F8: 11만원
+ * - 유예기간 내: 보험 미가입이어도 정상 지급
+ * - 유예기간 외 + 보험 미가입: skip + 횟수 증가
+ *
+ * @param {Object} user - 사용자 정보
+ * @param {Object} plan - 지급 계획
+ * @param {Object} installment - 할부 정보
  * @returns {null} 보험 조건 충족 또는 보험 불필요
  * @returns {{skip: true, reason: string}} 보험 부족으로 skip 필요
  */
-async function checkInsuranceCondition(user, grade) {
+async function checkInsuranceCondition(user, plan, installment) {
+  const grade = plan.baseGrade;
+
   // GRADE_LIMITS에서 보험 조건 확인
   const gradeLimit = GRADE_LIMITS[grade];
-  
-  // 보험 필수가 아니면 패스
+
+  // 보험 필수가 아니면 패스 (F1-F3)
   if (!gradeLimit?.insuranceRequired) {
     return null;
   }
@@ -167,14 +171,42 @@ async function checkInsuranceCondition(user, grade) {
   const insuranceAmount = user.insuranceAmount || 0;
   const requiredAmount = gradeLimit.insuranceAmount || 0;
 
-  if (insuranceAmount < requiredAmount) {
-    return {
-      skip: true,
-      reason: `insufficient_insurance_amount: ${insuranceAmount} < ${requiredAmount}`
-    };
+  // 보험 조건 충족하면 정상 지급
+  if (insuranceAmount >= requiredAmount) {
+    return null;
   }
 
-  return null;  // 조건 충족
+  // ⭐ v8.1: 유예기간 체크
+  const graceDeadline = plan.graceDeadline;
+  const scheduledDate = new Date(installment.scheduledDate);
+
+  if (graceDeadline) {
+    const graceDL = new Date(graceDeadline);
+
+    // 유예기간 주의 금요일까지 포함
+    const graceDayOfWeek = graceDL.getUTCDay();
+    const daysToFriday = graceDayOfWeek === 5 ? 0 : (5 - graceDayOfWeek + 7) % 7;
+    const graceWeekFriday = new Date(Date.UTC(
+      graceDL.getUTCFullYear(),
+      graceDL.getUTCMonth(),
+      graceDL.getUTCDate() + daysToFriday
+    ));
+    graceWeekFriday.setUTCHours(0, 0, 0, 0);
+
+    scheduledDate.setUTCHours(0, 0, 0, 0);
+
+    // 유예기간 내면 정상 지급
+    if (scheduledDate <= graceWeekFriday) {
+      console.log(`✅ ${user.name}(${grade}) 유예기간 내 지급: ${scheduledDate.toISOString().split('T')[0]} <= ${graceWeekFriday.toISOString().split('T')[0]}`);
+      return null;
+    }
+  }
+
+  // 유예기간 외이고 보험 미가입 → skip
+  return {
+    skip: true,
+    reason: `insufficient_insurance_amount: ${insuranceAmount} < ${requiredAmount} (grace period expired)`
+  };
 }
 
 /**
