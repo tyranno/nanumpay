@@ -1,20 +1,18 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db.js';
 import UploadHistory from '$lib/server/models/UploadHistory.js';
-import fs from 'fs/promises';
-import path from 'path';
 import zlib from 'zlib';
 import { promisify } from 'util';
 
 const gzip = promisify(zlib.gzip);
-
-// 업로드 디렉토리
-const UPLOAD_DIR = path.resolve('uploads');
+const gunzip = promisify(zlib.gunzip);
 
 /**
- * GET: 업로드 히스토리 목록 조회
+ * GET: 업로드 히스토리 목록 조회 또는 파일 다운로드
+ * - downloadId 파라미터 있으면: 파일 다운로드
+ * - downloadId 파라미터 없으면: 히스토리 목록 조회
  */
-export async function GET({ locals }) {
+export async function GET({ url, locals }) {
 	// 관리자 권한 확인
 	if (!locals.user || !locals.user.isAdmin) {
 		return json({ error: 'Unauthorized' }, { status: 401 });
@@ -23,7 +21,37 @@ export async function GET({ locals }) {
 	await db();
 
 	try {
+		const downloadId = url.searchParams.get('downloadId');
+
+		// ⭐ v8.1: 파일 다운로드
+		if (downloadId) {
+			const record = await UploadHistory.findById(downloadId);
+			if (!record) {
+				return json({ error: '파일을 찾을 수 없습니다.' }, { status: 404 });
+			}
+
+			// fileData가 없으면 (레거시 파일 시스템 방식)
+			if (!record.fileData) {
+				return json({ error: '파일 데이터가 DB에 없습니다. (레거시 파일)' }, { status: 404 });
+			}
+
+			// gzip 압축 해제
+			const decompressed = await gunzip(record.fileData);
+
+			// 파일 다운로드 응답
+			return new Response(decompressed, {
+				status: 200,
+				headers: {
+					'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+					'Content-Disposition': `attachment; filename="${encodeURIComponent(record.originalFileName)}"`,
+					'Content-Length': decompressed.length.toString()
+				}
+			});
+		}
+
+		// 히스토리 목록 조회
 		const history = await UploadHistory.find({})
+			.select('-fileData')  // fileData 제외 (용량 절감)
 			.limit(100)
 			.lean();
 
@@ -43,7 +71,8 @@ export async function GET({ locals }) {
 }
 
 /**
- * POST: 엑셀 파일 저장 (gzip 압축)
+ * POST: 엑셀 파일 저장 (DB에 gzip 압축하여 저장)
+ * ⭐ v8.1: 파일 시스템 대신 DB Buffer로 저장
  * Body: FormData with 'file' field
  */
 export async function POST({ request, locals }) {
@@ -62,28 +91,25 @@ export async function POST({ request, locals }) {
 			return json({ error: '파일이 없습니다.' }, { status: 400 });
 		}
 
-		// 업로드 디렉토리 생성
-		await fs.mkdir(UPLOAD_DIR, { recursive: true });
-
-		// 고유 파일명 생성 (timestamp + random + .gz)
+		// 고유 파일명 생성 (timestamp + random)
 		const timestamp = Date.now();
 		const random = Math.random().toString(36).substring(2, 8);
-		const ext = path.extname(file.name) || '.xlsx';
-		const savedFileName = `${timestamp}_${random}${ext}.gz`;  // .gz 확장자 추가
-		const filePath = path.join(UPLOAD_DIR, savedFileName);
+		const ext = file.name.split('.').pop() || 'xlsx';
+		const savedFileName = `${timestamp}_${random}.${ext}`;
 
-		// 파일을 gzip으로 압축하여 저장
+		// 파일을 gzip으로 압축
 		const arrayBuffer = await file.arrayBuffer();
 		const originalBuffer = Buffer.from(arrayBuffer);
 		const compressedBuffer = await gzip(originalBuffer);
-		await fs.writeFile(filePath, compressedBuffer);
 
-		// 히스토리 기록
+		// ⭐ v8.1: DB에 직접 저장
 		const uploadRecord = new UploadHistory({
 			originalFileName: file.name,
 			savedFileName,
-			filePath,
-			fileSize: file.size,  // 원본 크기 저장
+			fileData: compressedBuffer,  // DB에 압축 데이터 저장
+			filePath: null,  // 파일 시스템 사용 안 함
+			fileSize: file.size,  // 원본 크기
+			compressedSize: compressedBuffer.length,  // 압축 크기
 			uploadedBy: {
 				userId: locals.user._id,
 				userName: locals.user.name || locals.user.loginId
@@ -94,7 +120,7 @@ export async function POST({ request, locals }) {
 		await uploadRecord.save();
 
 		const compressionRatio = ((1 - compressedBuffer.length / file.size) * 100).toFixed(1);
-		console.log(`📁 파일 저장 완료: ${file.name} → ${savedFileName} (압축률: ${compressionRatio}%)`);
+		console.log(`📁 파일 DB 저장 완료: ${file.name} (${file.size.toLocaleString()} → ${compressedBuffer.length.toLocaleString()} bytes, 압축률: ${compressionRatio}%)`);
 
 		return json({
 			success: true,

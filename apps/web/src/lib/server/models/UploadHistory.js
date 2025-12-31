@@ -2,7 +2,8 @@ import mongoose from 'mongoose';
 
 /**
  * 엑셀 업로드 히스토리 컬렉션
- * - 업로드된 엑셀 파일 정보 및 저장 경로 관리
+ * - 업로드된 엑셀 파일 정보 및 DB 저장 (gzip 압축)
+ * - v8.1: DB 저장 방식으로 변경 (파일 시스템 사용 안 함)
  */
 const uploadHistorySchema = new mongoose.Schema(
 	{
@@ -12,21 +13,33 @@ const uploadHistorySchema = new mongoose.Schema(
 			required: true
 		},
 
-		// 저장된 파일명 (중복 방지용 고유 이름)
+		// 저장된 파일명 (중복 방지용 고유 이름) - 호환성 유지
 		savedFileName: {
 			type: String,
 			required: true,
 			unique: true
 		},
 
-		// 파일 경로 (서버 내 저장 위치)
-		filePath: {
-			type: String,
-			required: true
+		// ⭐ v8.1: 파일 데이터 (gzip 압축된 Buffer)
+		fileData: {
+			type: Buffer,
+			required: false  // 기존 레코드 호환성
 		},
 
-		// 파일 크기 (bytes)
+		// 파일 경로 (레거시, v8.1부터 사용 안 함)
+		filePath: {
+			type: String,
+			required: false  // v8.1: optional로 변경
+		},
+
+		// 파일 크기 (bytes, 원본 크기)
 		fileSize: {
+			type: Number,
+			default: 0
+		},
+
+		// 압축된 크기 (bytes)
+		compressedSize: {
 			type: Number,
 			default: 0
 		},
