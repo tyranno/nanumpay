@@ -23,28 +23,42 @@ export async function GET({ url, locals }) {
 	try {
 		const downloadId = url.searchParams.get('downloadId');
 
-		// ⭐ v8.1: 파일 다운로드
+		// ⭐ v8.1: 파일 다운로드 (DB 또는 파일 시스템)
 		if (downloadId) {
 			const record = await UploadHistory.findById(downloadId);
 			if (!record) {
 				return json({ error: '파일을 찾을 수 없습니다.' }, { status: 404 });
 			}
 
-			// fileData가 없으면 (레거시 파일 시스템 방식)
-			if (!record.fileData) {
-				return json({ error: '파일 데이터가 DB에 없습니다. (레거시 파일)' }, { status: 404 });
+			let fileBuffer;
+
+			// 1. DB에 fileData가 있으면 사용
+			if (record.fileData) {
+				fileBuffer = await gunzip(record.fileData);
+			}
+			// 2. fileData가 없으면 filePath에서 읽기 (레거시)
+			else if (record.filePath) {
+				try {
+					const fs = await import('fs/promises');
+					const compressedData = await fs.readFile(record.filePath);
+					fileBuffer = await gunzip(compressedData);
+				} catch (error) {
+					console.error('파일 읽기 실패:', error);
+					return json({ error: '파일을 읽을 수 없습니다.' }, { status: 404 });
+				}
+			}
+			// 3. 둘 다 없으면 에러
+			else {
+				return json({ error: '파일 데이터가 없습니다.' }, { status: 404 });
 			}
 
-			// gzip 압축 해제
-			const decompressed = await gunzip(record.fileData);
-
 			// 파일 다운로드 응답
-			return new Response(decompressed, {
+			return new Response(fileBuffer, {
 				status: 200,
 				headers: {
 					'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 					'Content-Disposition': `attachment; filename="${encodeURIComponent(record.originalFileName)}"`,
-					'Content-Length': decompressed.length.toString()
+					'Content-Length': fileBuffer.length.toString()
 				}
 			});
 		}
