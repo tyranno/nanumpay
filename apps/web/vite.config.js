@@ -27,7 +27,7 @@ export default defineConfig(({ mode }) => {
 		},
 		build: {
 			rollupOptions: {
-				external: ['@capacitor/storage']
+				external: ['@capacitor/storage', 'archiver']
 			}
 		}
 	};

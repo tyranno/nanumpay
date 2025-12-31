@@ -2,7 +2,6 @@ import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db.js';
 import User from '$lib/server/models/User.js';
 import WeeklyPaymentPlans from '$lib/server/models/WeeklyPaymentPlans.js';
-import { shouldSkipByInsurance } from '$lib/server/services/payment/utils.js';
 
 export async function GET({ locals }) {
 	// 설계사 계정 확인
@@ -70,14 +69,9 @@ export async function GET({ locals }) {
 		let upcomingAmount = 0, upcomingTax = 0, upcomingNet = 0;
 
 		for (const plan of paymentPlans) {
-			// ⭐ 보험 조건 확인 (지급명부와 동일)
-			const userInfo = userInsuranceMap[plan.userId];
-			if (userInfo && shouldSkipByInsurance(userInfo.grade, userInfo.insuranceAmount)) {
-				continue; // 보험 미가입 시 전체 플랜 skip
-			}
 
 			for (const installment of plan.installments) {
-				// ⭐ v8.0: skipped, terminated 상태 제외 (건너뛴/중단된 할부 제외)
+				// ⭐ v8.1: skipped, terminated 상태 제외 (건너뛴/중단된 할부 제외)
 				if (['skipped', 'terminated'].includes(installment.status)) continue;
 
 				const installmentDate = installment.scheduledDate || installment.weekDate;
