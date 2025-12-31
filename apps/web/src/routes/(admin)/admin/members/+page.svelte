@@ -75,6 +75,7 @@
 	// DB 관리 상태 (개발 환경 전용)
 	let selectedMonth = '';
 	let isProcessingDB = false;
+	let deleteProgress = null;  // 삭제 진행 상태: { message: string }
 	let monthlyRegistrations = data.monthlyRegistrations || []; // ⭐ reactive 변수로 관리
 	let latestMonth = data.latestMonth || null; // ⭐ 최신 등록월
 
@@ -863,6 +864,7 @@
 
 	async function deleteMonthlyData() {
 		isProcessingDB = true;
+		deleteProgress = { message: `${selectedMonth} 데이터 삭제 중...` };
 		try {
 			const response = await fetch('/api/admin/db/delete-monthly', {
 				method: 'POST',
@@ -870,21 +872,28 @@
 				body: JSON.stringify({ monthKey: selectedMonth })
 			});
 
+			deleteProgress = { message: '데이터 정리 중...' };
 			const result = await response.json();
+
 			if (response.ok) {
-				notificationConfig = {
-					type: 'success',
-					title: '삭제 완료',
-					message: `${selectedMonth} 데이터가 삭제되었습니다.\n\n삭제된 항목:\n- 용역자: ${result.deletedUsers || 0}명\n- 지급 계획: ${result.deletedPlans || 0}건\n- 설계사 수당: ${result.deletedCommissionPlans || 0}건\n- 주간 요약: ${result.deletedSummaries || 0}건`,
-					results: null,
-					details: []
-				};
-				notificationOpen = true;
+				deleteProgress = { message: '목록 갱신 중...' };
+				const deletedMonth = selectedMonth;
 				selectedMonth = '';
 				// ⭐ 페이지 새로고침 대신 데이터만 갱신
 				await loadMembers();
 				await loadMonthlyRegistrations();
+
+				deleteProgress = null;
+				notificationConfig = {
+					type: 'success',
+					title: '삭제 완료',
+					message: `${deletedMonth} 데이터가 삭제되었습니다.\n\n삭제된 항목:\n- 용역자: ${result.deletedUsers || 0}명\n- 지급 계획: ${result.deletedPlans || 0}건\n- 설계사 수당: ${result.deletedCommissionPlans || 0}건\n- 주간 요약: ${result.deletedSummaries || 0}건`,
+					results: null,
+					details: []
+				};
+				notificationOpen = true;
 			} else {
+				deleteProgress = null;
 				notificationConfig = {
 					type: 'error',
 					title: '삭제 실패',
@@ -896,6 +905,7 @@
 			}
 		} catch (error) {
 			console.error('Delete monthly data error:', error);
+			deleteProgress = null;
 			notificationConfig = {
 				type: 'error',
 				title: '오류',
@@ -906,6 +916,7 @@
 			notificationOpen = true;
 		} finally {
 			isProcessingDB = false;
+			deleteProgress = null;
 		}
 	}
 
@@ -1176,9 +1187,14 @@
 					onclick={handleDeleteMonthlyData}
 					disabled={!selectedMonth || isProcessingDB}
 					class="db-compact-btn"
+					class:processing={isProcessingDB}
 					title="선택한 월 데이터 삭제"
 				>
-					월 삭제
+					{#if isProcessingDB}
+						⏳ 삭제중...
+					{:else}
+						월 삭제
+					{/if}
 				</button>
 				<span class="db-compact-divider">|</span>
 				<button
@@ -1189,6 +1205,45 @@
 				>
 					DB 초기화
 				</button>
+			</div>
+		</div>
+	{/if}
+
+	<!-- 삭제 진행 상태 오버레이 -->
+	{#if deleteProgress}
+		<div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+			<div class="bg-white rounded-lg shadow-xl p-6 max-w-sm w-full mx-4">
+				<div class="flex items-center gap-4">
+					<!-- 회전하는 스피너 -->
+					<div class="relative w-16 h-16 flex-shrink-0">
+						<svg class="animate-spin" viewBox="0 0 50 50">
+							<circle
+								class="stroke-gray-200"
+								cx="25"
+								cy="25"
+								r="20"
+								fill="none"
+								stroke-width="4"
+							></circle>
+							<circle
+								class="stroke-red-500"
+								cx="25"
+								cy="25"
+								r="20"
+								fill="none"
+								stroke-width="4"
+								stroke-dasharray="80 40"
+								stroke-linecap="round"
+							></circle>
+						</svg>
+					</div>
+
+					<!-- 진행 정보 -->
+					<div class="flex-1">
+						<p class="text-lg font-semibold text-gray-900 mb-1">처리 중...</p>
+						<p class="text-sm text-gray-600">{deleteProgress.message}</p>
+					</div>
+				</div>
 			</div>
 		</div>
 	{/if}
@@ -1503,6 +1558,16 @@
 	.db-compact-btn {
 		@apply whitespace-nowrap rounded bg-gray-600 px-3 py-1 text-xs text-white transition-colors hover:bg-gray-700 disabled:cursor-not-allowed disabled:bg-gray-400;
 		height: 28px;
+	}
+
+	.db-compact-btn.processing {
+		@apply bg-yellow-600 text-black;
+		animation: pulse 1s infinite;
+	}
+
+	@keyframes pulse {
+		0%, 100% { opacity: 1; }
+		50% { opacity: 0.7; }
 	}
 
 	.db-compact-btn-critical {
