@@ -384,7 +384,239 @@
 		}
 	}
 
-	// 모든 시트에서 데이터 수집 (원래 파싱 로직 그대로 유지)
+	// 엑셀 헤더 검증 함수
+	function validateExcelHeaders(headers) {
+		const expectedHeaders = [
+			'순번', '날짜', 'ID', '성명', '연락처', '주민번호',
+			'은행', '비율', '계좌번호', '판매인', '연락처',
+			'설계사', '연락처', '설계사 은행', '설계사 계좌번호',
+			'보험상품명', '보험회사', '지사'
+		];
+
+		if (headers.length < expectedHeaders.length) {
+			return {
+				valid: false,
+				error: `헤더 개수가 부족합니다. (필요: ${expectedHeaders.length}개, 현재: ${headers.length}개)`
+			};
+		}
+
+		for (let i = 0; i < expectedHeaders.length; i++) {
+			const expected = expectedHeaders[i].trim();
+			const actual = headers[i] ? String(headers[i]).trim() : '';
+			if (expected !== actual) {
+				return {
+					valid: false,
+					error: `${i + 1}번째 컬럼 오류: "${expected}" 필요, "${actual}" 발견`
+				};
+			}
+		}
+
+		return { valid: true };
+	}
+
+	// 데이터 형식 검증 함수
+	function validateRowData(row, rowIndex) {
+		const errors = [];
+
+		// 날짜 검증 (__EMPTY_1)
+		const dateValue = row.__EMPTY_1;
+		if (dateValue !== null && dateValue !== undefined && dateValue !== '') {
+			const isExcelDate = typeof dateValue === 'number' && dateValue > 1900;
+			const isStringDate = typeof dateValue === 'string' &&
+				(/^\d{4}-\d{1,2}-\d{1,2}$/.test(dateValue) || /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(dateValue));
+			if (!isExcelDate && !isStringDate) {
+				errors.push(`날짜 형식 오류 (YYYY-MM-DD 또는 YYYY-M-D 형식 필요)`);
+			}
+		}
+
+		// 성명 검증 (__EMPTY_3) - 한글/영문 필수, 순수 숫자나 전화번호 패턴 거부
+		const name = row.__EMPTY_3;
+		if (name) {
+			const nameStr = String(name).trim();
+			const hasKoreanOrEnglish = /[가-힣a-zA-Z]/.test(nameStr);
+			const isPureNumber = /^\d+$/.test(nameStr);
+			const isPhonePattern = /^0\d{1,2}[-\s]?\d{3,4}[-\s]?\d{4}$/.test(nameStr);
+
+			if (!hasKoreanOrEnglish) {
+				errors.push(`성명: 한글 또는 영문이 포함되어야 합니다`);
+			}
+			if (isPureNumber) {
+				errors.push(`성명: 순수 숫자만 입력할 수 없습니다`);
+			}
+			if (isPhonePattern) {
+				errors.push(`성명: 전화번호 형식이 입력되었습니다`);
+			}
+		}
+
+		// 연락처 검증 (__EMPTY_4) - 전화번호 패턴
+		const phone = row.__EMPTY_4;
+		if (phone) {
+			const phoneStr = String(phone).replace(/[-\s]/g, '');
+			const isValidPhone = /^(01[016789]|02|0[3-9]\d)\d{3,4}\d{4}$/.test(phoneStr);
+			const hasOnlyDigitsAndDash = /^[\d\s-]+$/.test(String(phone));
+
+			if (!hasOnlyDigitsAndDash) {
+				errors.push(`연락처: 숫자와 하이픈만 가능합니다`);
+			} else if (!isValidPhone) {
+				errors.push(`연락처: 올바른 전화번호 형식이 아닙니다`);
+			}
+		}
+
+		// 주민번호 검증 (__EMPTY_5)
+		const ssn = row.__EMPTY_5;
+		if (ssn) {
+			const ssnStr = String(ssn).replace(/[-\s]/g, '');
+			if (!/^\d{13}$/.test(ssnStr)) {
+				errors.push(`주민번호: 13자리 숫자여야 합니다`);
+			}
+		}
+
+		// 은행 검증 (__EMPTY_6) - 문자 포함 필수, 순수 숫자 거부, 빈 값 허용
+		const bank = row.__EMPTY_6;
+		if (bank && String(bank).trim() !== '') {
+			const bankStr = String(bank).trim();
+			const hasLetters = /[가-힣a-zA-Z]/.test(bankStr);
+			const isPureNumber = /^\d+$/.test(bankStr);
+
+			if (!hasLetters) {
+				errors.push(`은행: 문자가 포함되어야 합니다`);
+			}
+			if (isPureNumber) {
+				errors.push(`은행: 계좌번호가 입력된 것 같습니다`);
+			}
+		}
+
+		// 비율 검증 (__EMPTY_7)
+		const ratio = row.__EMPTY_7;
+		if (ratio !== null && ratio !== undefined && ratio !== '') {
+			const ratioNum = Number(ratio);
+			if (isNaN(ratioNum) || ratioNum < 0 || ratioNum > 1) {
+				errors.push(`비율: 0~1 사이의 숫자여야 합니다 (예: 0.5, 0.75, 1)`);
+			}
+		}
+
+		// 계좌번호 검증 (__EMPTY_8) - 숫자만, 전화번호 패턴 아님, 빈 값 허용
+		const account = row.__EMPTY_8;
+		if (account && String(account).trim() !== '') {
+			const accountStr = String(account).replace(/[-\s]/g, '');
+			const hasOnlyDigits = /^\d+$/.test(accountStr);
+			const isPhonePattern = /^(01[016789]|02|0[3-9]\d)/.test(accountStr);
+
+			if (!hasOnlyDigits) {
+				errors.push(`계좌번호: 숫자만 가능합니다`);
+			} else if (isPhonePattern) {
+				errors.push(`계좌번호: 전화번호가 입력된 것 같습니다`);
+			} else if (accountStr.length < 10 || accountStr.length > 14) {
+				errors.push(`계좌번호: 10~14자리여야 합니다`);
+			}
+		}
+
+		// 판매인 검증 (__EMPTY_9) - 성명과 동일한 규칙, "-" 허용
+		const salesperson = row.__EMPTY_9;
+		if (salesperson) {
+			const salespersonStr = String(salesperson).trim();
+
+			// "-"는 특별히 허용
+			if (salespersonStr !== '-') {
+				const hasKoreanOrEnglish = /[가-힣a-zA-Z]/.test(salespersonStr);
+				const isPureNumber = /^\d+$/.test(salespersonStr);
+				const isPhonePattern = /^0\d{1,2}[-\s]?\d{3,4}[-\s]?\d{4}$/.test(salespersonStr);
+
+				if (!hasKoreanOrEnglish) {
+					errors.push(`판매인: 한글 또는 영문이 포함되어야 합니다`);
+				}
+				if (isPureNumber) {
+					errors.push(`판매인: 순수 숫자만 입력할 수 없습니다`);
+				}
+				if (isPhonePattern) {
+					errors.push(`판매인: 전화번호 형식이 입력되었습니다`);
+				}
+			}
+		}
+
+		// 판매인 연락처 검증 (__EMPTY_10)
+		const salespersonPhone = row.__EMPTY_10;
+		if (salespersonPhone) {
+			const phoneStr = String(salespersonPhone).replace(/[-\s]/g, '');
+			const isValidPhone = /^(01[016789]|02|0[3-9]\d)\d{3,4}\d{4}$/.test(phoneStr);
+			if (!isValidPhone) {
+				errors.push(`판매인 연락처: 올바른 전화번호 형식이 아닙니다`);
+			}
+		}
+
+		// 설계사 검증 (__EMPTY_11) - 성명과 동일한 규칙
+		const planner = row.__EMPTY_11;
+		if (planner) {
+			const plannerStr = String(planner).trim();
+			const hasKoreanOrEnglish = /[가-힣a-zA-Z]/.test(plannerStr);
+			const isPureNumber = /^\d+$/.test(plannerStr);
+			const isPhonePattern = /^0\d{1,2}[-\s]?\d{3,4}[-\s]?\d{4}$/.test(plannerStr);
+
+			if (!hasKoreanOrEnglish) {
+				errors.push(`설계사: 한글 또는 영문이 포함되어야 합니다`);
+			}
+			if (isPureNumber) {
+				errors.push(`설계사: 순수 숫자만 입력할 수 없습니다`);
+			}
+			if (isPhonePattern) {
+				errors.push(`설계사: 전화번호 형식이 입력되었습니다`);
+			}
+		}
+
+		// 설계사 연락처 검증 (__EMPTY_12)
+		const plannerPhone = row.__EMPTY_12;
+		if (plannerPhone) {
+			const phoneStr = String(plannerPhone).replace(/[-\s]/g, '');
+			const isValidPhone = /^(01[016789]|02|0[3-9]\d)\d{3,4}\d{4}$/.test(phoneStr);
+			if (!isValidPhone) {
+				errors.push(`설계사 연락처: 올바른 전화번호 형식이 아닙니다`);
+			}
+		}
+
+		// 설계사 은행 검증 (__EMPTY_13) - 빈 값 허용
+		const plannerBank = row.__EMPTY_13;
+		if (plannerBank && String(plannerBank).trim() !== '') {
+			const bankStr = String(plannerBank).trim();
+			const hasLetters = /[가-힣a-zA-Z]/.test(bankStr);
+			const isPureNumber = /^\d+$/.test(bankStr);
+
+			if (!hasLetters) {
+				errors.push(`설계사 은행: 문자가 포함되어야 합니다`);
+			}
+			if (isPureNumber) {
+				errors.push(`설계사 은행: 계좌번호가 입력된 것 같습니다`);
+			}
+		}
+
+		// 설계사 계좌번호 검증 (__EMPTY_14) - 빈 값 허용
+		const plannerAccount = row.__EMPTY_14;
+		if (plannerAccount && String(plannerAccount).trim() !== '') {
+			const accountStr = String(plannerAccount).replace(/[-\s]/g, '');
+			const hasOnlyDigits = /^\d+$/.test(accountStr);
+			const isPhonePattern = /^(01[016789]|02|0[3-9]\d)/.test(accountStr);
+
+			if (!hasOnlyDigits) {
+				errors.push(`설계사 계좌번호: 숫자만 가능합니다`);
+			} else if (isPhonePattern) {
+				errors.push(`설계사 계좌번호: 전화번호가 입력된 것 같습니다`);
+			} else if (accountStr.length < 10 || accountStr.length > 14) {
+				errors.push(`설계사 계좌번호: 10~14자리여야 합니다`);
+			}
+		}
+
+		if (errors.length > 0) {
+			return {
+				valid: false,
+				rowIndex: rowIndex,
+				name: name || '(이름없음)',
+				errors: errors
+			};
+		}
+
+		return { valid: true };
+	}
+
+	// 모든 시트에서 데이터 수집 (헤더 검증 포함)
 	async function readAllSheetsFromFile(file) {
 		return new Promise((resolve, reject) => {
 			const reader = new FileReader();
@@ -393,6 +625,7 @@
 					const data = new Uint8Array(e.target.result);
 					const workbook = XLSX.read(data, { type: 'array' });
 					const allData = [];
+					let firstSheetHeaders = null;
 
 					// 모든 시트 순회
 					for (const sheetName of workbook.SheetNames) {
@@ -401,6 +634,16 @@
 						// __EMPTY_X 인덱스 키를 포함한 커스텀 파싱 (중복 헤더 대응) - 원래 로직 그대로
 						const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 						const headers = rawData[0] || [];
+
+						// 첫 번째 시트의 헤더 검증
+						if (!firstSheetHeaders) {
+							firstSheetHeaders = headers;
+							const headerValidation = validateExcelHeaders(headers);
+							if (!headerValidation.valid) {
+								reject(new Error(`${file.name} - ${headerValidation.error}`));
+								return;
+							}
+						}
 
 						for (let i = 1; i < rawData.length; i++) {
 							const row = rawData[i];
@@ -425,6 +668,13 @@
 							}
 
 							if (Object.keys(rowData).length > 0) {
+								// 데이터 형식 검증
+								const validation = validateRowData(rowData, i);
+								if (!validation.valid) {
+									const errorMsg = `${file.name} - 행 ${validation.rowIndex + 1} (${validation.name}):\n${validation.errors.join('\n')}`;
+									reject(new Error(errorMsg));
+									return;
+								}
 								allData.push(rowData);
 							}
 						}
