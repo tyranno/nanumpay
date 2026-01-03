@@ -16,6 +16,325 @@ import PlannerCommissionPlan from '../../models/PlannerCommissionPlan.js';
 import PlannerAccount from '../../models/PlannerAccount.js';
 import SystemConfig from '../../models/SystemConfig.js';
 
+// ============================================
+// 승급일 계산 함수들 (등급별 직접 계산 방식)
+// ============================================
+
+/**
+ * 사용자 맵 생성 (userId -> user 객체)
+ */
+function buildUserMap(allUsers) {
+	const userMap = new Map();
+	for (const u of allUsers) {
+		userMap.set(u._id.toString(), u);
+	}
+	return userMap;
+}
+
+/**
+ * 사용자의 등록일 가져오기
+ */
+function getRegDate(userId, userMap) {
+	const user = userMap.get(userId?.toString());
+	if (!user) return null;
+	return user.registrationDate || user.createdAt;
+}
+
+/**
+ * F2 조건 충족일: 좌우 자식이 모두 존재하게 된 시점
+ * = MAX(왼쪽 자식 등록일, 오른쪽 자식 등록일)
+ */
+function getF2Date(userId, userMap) {
+	const user = userMap.get(userId?.toString());
+	if (!user) return null;
+	if (!user.leftChildId || !user.rightChildId) return null;
+	
+	const leftDate = getRegDate(user.leftChildId, userMap);
+	const rightDate = getRegDate(user.rightChildId, userMap);
+	
+	if (!leftDate || !rightDate) return null;
+	return new Date(Math.max(leftDate.getTime(), rightDate.getTime()));
+}
+
+/**
+ * 서브트리에서 특정 등급 조건이 처음 충족된 날짜 찾기
+ */
+function findFirstGradeDateInSubtree(subtreeRootId, targetGrade, userMap) {
+	if (!subtreeRootId) return null;
+	
+	let earliest = null;
+	
+	function traverse(nodeId) {
+		if (!nodeId) return;
+		const nodeIdStr = nodeId.toString();
+		const node = userMap.get(nodeIdStr);
+		if (!node) return;
+		
+		// 이 노드의 등급 달성일 계산
+		let gradeDate = null;
+		if (targetGrade === 'F2') {
+			gradeDate = getF2Date(nodeIdStr, userMap);
+		} else if (targetGrade === 'F3') {
+			gradeDate = getF3Date(nodeIdStr, userMap);
+		} else if (targetGrade === 'F4') {
+			gradeDate = getF4Date(nodeIdStr, userMap);
+		}
+		
+		if (gradeDate && (!earliest || gradeDate < earliest)) {
+			earliest = gradeDate;
+		}
+		
+		// 자식 노드 순회
+		traverse(node.leftChildId);
+		traverse(node.rightChildId);
+	}
+	
+	traverse(subtreeRootId);
+	return earliest;
+}
+
+/**
+ * F3 조건 충족일: 좌우 서브트리에 각각 F2+가 존재하게 된 시점
+ * = MAX(왼쪽 서브트리 첫 F2 달성일, 오른쪽 서브트리 첫 F2 달성일)
+ */
+function getF3Date(userId, userMap) {
+	const user = userMap.get(userId?.toString());
+	if (!user) return null;
+	if (!user.leftChildId || !user.rightChildId) return null;
+	
+	const leftF2 = findFirstGradeDateInSubtree(user.leftChildId, 'F2', userMap);
+	const rightF2 = findFirstGradeDateInSubtree(user.rightChildId, 'F2', userMap);
+	
+	if (!leftF2 || !rightF2) return null;
+	return new Date(Math.max(leftF2.getTime(), rightF2.getTime()));
+}
+
+/**
+ * F4 조건 충족일: 좌우 서브트리에 각각 F3+가 존재하게 된 시점
+ * = MAX(왼쪽 서브트리 첫 F3 달성일, 오른쪽 서브트리 첫 F3 달성일)
+ */
+function getF4Date(userId, userMap) {
+	const user = userMap.get(userId?.toString());
+	if (!user) return null;
+	if (!user.leftChildId || !user.rightChildId) return null;
+	
+	const leftF3 = findFirstGradeDateInSubtree(user.leftChildId, 'F3', userMap);
+	const rightF3 = findFirstGradeDateInSubtree(user.rightChildId, 'F3', userMap);
+	
+	if (!leftF3 || !rightF3) return null;
+	return new Date(Math.max(leftF3.getTime(), rightF3.getTime()));
+}
+
+/**
+ * 서브트리에서 F4 달성 노드들의 달성일 수집
+ */
+function collectF4DatesInSubtree(subtreeRootId, userMap) {
+	const results = [];
+	
+	function traverse(nodeId) {
+		if (!nodeId) return;
+		const nodeIdStr = nodeId.toString();
+		const node = userMap.get(nodeIdStr);
+		if (!node) return;
+		
+		const f4Date = getF4Date(nodeIdStr, userMap);
+		if (f4Date) {
+			results.push(f4Date);
+		}
+		
+		traverse(node.leftChildId);
+		traverse(node.rightChildId);
+	}
+	
+	traverse(subtreeRootId);
+	results.sort((a, b) => a.getTime() - b.getTime());
+	return results;
+}
+
+/**
+ * F5 조건 충족일: 좌우 서브트리에 F4+가 3개 이상 (2:1 분포)
+ */
+function getF5Date(userId, userMap) {
+	const user = userMap.get(userId?.toString());
+	if (!user) return null;
+	if (!user.leftChildId || !user.rightChildId) return null;
+	
+	const leftF4s = collectF4DatesInSubtree(user.leftChildId, userMap);
+	const rightF4s = collectF4DatesInSubtree(user.rightChildId, userMap);
+	
+	// 조건: 좌우 합쳐서 3개 이상, 2:1 분포
+	// L>=2, R>=1 또는 L>=1, R>=2
+	if (leftF4s.length >= 2 && rightF4s.length >= 1) {
+		// 왼쪽 2번째, 오른쪽 1번째 중 늦은 날짜
+		return new Date(Math.max(leftF4s[1].getTime(), rightF4s[0].getTime()));
+	} else if (leftF4s.length >= 1 && rightF4s.length >= 2) {
+		// 왼쪽 1번째, 오른쪽 2번째 중 늦은 날짜
+		return new Date(Math.max(leftF4s[0].getTime(), rightF4s[1].getTime()));
+	}
+	
+	return null;
+}
+
+/**
+ * 서브트리에서 F5 달성 노드들의 달성일 수집
+ */
+function collectF5DatesInSubtree(subtreeRootId, userMap) {
+	const results = [];
+	
+	function traverse(nodeId) {
+		if (!nodeId) return;
+		const nodeIdStr = nodeId.toString();
+		const node = userMap.get(nodeIdStr);
+		if (!node) return;
+		
+		const f5Date = getF5Date(nodeIdStr, userMap);
+		if (f5Date) {
+			results.push(f5Date);
+		}
+		
+		traverse(node.leftChildId);
+		traverse(node.rightChildId);
+	}
+	
+	traverse(subtreeRootId);
+	results.sort((a, b) => a.getTime() - b.getTime());
+	return results;
+}
+
+/**
+ * F6 조건 충족일: 좌우 서브트리에 F5+가 3개 이상 (2:1 분포)
+ */
+function getF6Date(userId, userMap) {
+	const user = userMap.get(userId?.toString());
+	if (!user) return null;
+	if (!user.leftChildId || !user.rightChildId) return null;
+	
+	const leftF5s = collectF5DatesInSubtree(user.leftChildId, userMap);
+	const rightF5s = collectF5DatesInSubtree(user.rightChildId, userMap);
+	
+	if (leftF5s.length >= 2 && rightF5s.length >= 1) {
+		return new Date(Math.max(leftF5s[1].getTime(), rightF5s[0].getTime()));
+	} else if (leftF5s.length >= 1 && rightF5s.length >= 2) {
+		return new Date(Math.max(leftF5s[0].getTime(), rightF5s[1].getTime()));
+	}
+	
+	return null;
+}
+
+/**
+ * 서브트리에서 F6 달성 노드들의 달성일 수집
+ */
+function collectF6DatesInSubtree(subtreeRootId, userMap) {
+	const results = [];
+	
+	function traverse(nodeId) {
+		if (!nodeId) return;
+		const nodeIdStr = nodeId.toString();
+		const node = userMap.get(nodeIdStr);
+		if (!node) return;
+		
+		const f6Date = getF6Date(nodeIdStr, userMap);
+		if (f6Date) {
+			results.push(f6Date);
+		}
+		
+		traverse(node.leftChildId);
+		traverse(node.rightChildId);
+	}
+	
+	traverse(subtreeRootId);
+	results.sort((a, b) => a.getTime() - b.getTime());
+	return results;
+}
+
+/**
+ * F7 조건 충족일: 좌우 서브트리에 F6+가 3개 이상 (2:1 분포)
+ */
+function getF7Date(userId, userMap) {
+	const user = userMap.get(userId?.toString());
+	if (!user) return null;
+	if (!user.leftChildId || !user.rightChildId) return null;
+	
+	const leftF6s = collectF6DatesInSubtree(user.leftChildId, userMap);
+	const rightF6s = collectF6DatesInSubtree(user.rightChildId, userMap);
+	
+	if (leftF6s.length >= 2 && rightF6s.length >= 1) {
+		return new Date(Math.max(leftF6s[1].getTime(), rightF6s[0].getTime()));
+	} else if (leftF6s.length >= 1 && rightF6s.length >= 2) {
+		return new Date(Math.max(leftF6s[0].getTime(), rightF6s[1].getTime()));
+	}
+	
+	return null;
+}
+
+/**
+ * 서브트리에서 F7 달성 노드들의 달성일 수집
+ */
+function collectF7DatesInSubtree(subtreeRootId, userMap) {
+	const results = [];
+	
+	function traverse(nodeId) {
+		if (!nodeId) return;
+		const nodeIdStr = nodeId.toString();
+		const node = userMap.get(nodeIdStr);
+		if (!node) return;
+		
+		const f7Date = getF7Date(nodeIdStr, userMap);
+		if (f7Date) {
+			results.push(f7Date);
+		}
+		
+		traverse(node.leftChildId);
+		traverse(node.rightChildId);
+	}
+	
+	traverse(subtreeRootId);
+	results.sort((a, b) => a.getTime() - b.getTime());
+	return results;
+}
+
+/**
+ * F8 조건 충족일: 좌우 서브트리에 F7+가 3개 이상 (2:1 분포)
+ */
+function getF8Date(userId, userMap) {
+	const user = userMap.get(userId?.toString());
+	if (!user) return null;
+	if (!user.leftChildId || !user.rightChildId) return null;
+	
+	const leftF7s = collectF7DatesInSubtree(user.leftChildId, userMap);
+	const rightF7s = collectF7DatesInSubtree(user.rightChildId, userMap);
+	
+	if (leftF7s.length >= 2 && rightF7s.length >= 1) {
+		return new Date(Math.max(leftF7s[1].getTime(), rightF7s[0].getTime()));
+	} else if (leftF7s.length >= 1 && rightF7s.length >= 2) {
+		return new Date(Math.max(leftF7s[0].getTime(), rightF7s[1].getTime()));
+	}
+	
+	return null;
+}
+
+/**
+ * 승급일 계산 메인 함수
+ * @param {String} userId - 사용자 ID
+ * @param {String} newGrade - 새 등급 (F2~F8)
+ * @param {Map} userMap - 사용자 맵
+ * @returns {Date|null} 승급일
+ */
+function calculatePromotionDate(userId, newGrade, userMap) {
+	switch (newGrade) {
+		case 'F2': return getF2Date(userId, userMap);
+		case 'F3': return getF3Date(userId, userMap);
+		case 'F4': return getF4Date(userId, userMap);
+		case 'F5': return getF5Date(userId, userMap);
+		case 'F6': return getF6Date(userId, userMap);
+		case 'F7': return getF7Date(userId, userMap);
+		case 'F8': return getF8Date(userId, userMap);
+		default: return null;
+	}
+}
+
+// ============================================
+
 /**
  * Step 2 실행
  *
@@ -47,68 +366,35 @@ export async function executeStep2(users) {
 		});
 	}
 
-	// ⭐ v8.0 수정: 월별 배치 처리, 승급일 = 해당 사용자 하위 노드의 최신 등록일
-	// 배치 내 등록자들의 userId 집합 (빠른 조회용)
-	const batchUserIds = new Set(users.map(u => u._id.toString()));
+		// ⭐ v9.0 수정: 등급별 직접 계산 방식으로 승급일 계산
+	// 모든 사용자 데이터 로드하여 userMap 생성
+	const allUsers = await User.find({}).lean();
+	const userMap = buildUserMap(allUsers);
 	
-	// 배치 사용자들의 등록일 맵 (userId -> registrationDate)
-	const batchUserDates = new Map();
-	for (const u of users) {
-		batchUserDates.set(u._id.toString(), u.registrationDate || u.createdAt);
-	}
-
-	// ⭐ 중복 제거 및 정확한 승급일 계산
 	const promotedMap = new Map();
+	// ⭐ v9.1: 모든 중간 단계 승급 기록 (gradeHistory용)
+	const allPromotionSteps = [];
+
 	for (const p of promotedRaw) {
-		// 승급일 계산: 이 사용자의 하위 노드 중 배치에 포함된 노드의 최신 등록일
-		let promotionDate = null;
-		
-		// 해당 사용자의 모든 하위 노드 조회
-		const promotedUser = await User.findById(p.userId).lean();
-		if (promotedUser) {
-			// 하위 노드들 중 이번 배치에 등록된 노드 찾기
-			const descendants = await User.find({ 
-				parentId: { $ne: null } 
-			}).lean();
-			
-			// BFS로 해당 사용자의 직계 하위 노드 찾기
-			const descendantIds = [];
-			const queue = [promotedUser._id.toString()];
-			const visited = new Set([promotedUser._id.toString()]);
-			
-			while (queue.length > 0) {
-				const currentId = queue.shift();
-				// 자식 노드 찾기
-				const children = descendants.filter(d => 
-					d.parentId && d.parentId.toString() === currentId
-				);
-				for (const child of children) {
-					const childId = child._id.toString();
-					if (!visited.has(childId)) {
-						visited.add(childId);
-						descendantIds.push(childId);
-						queue.push(childId);
-					}
-				}
-			}
-			
-			// 배치에 포함된 하위 노드의 등록일 중 최대값
-			for (const descId of descendantIds) {
-				if (batchUserIds.has(descId)) {
-					const descDate = batchUserDates.get(descId);
-					if (descDate && (!promotionDate || descDate > promotionDate)) {
-						promotionDate = descDate;
-					}
-				}
-			}
-		}
-		
-		// 하위 노드가 없으면 배치 내 첫 등록일 사용 (fallback)
+		// ⭐ 등급별 조건이 처음 충족된 날짜 계산
+		let promotionDate = calculatePromotionDate(p.userId, p.newGrade, userMap);
+
+		// fallback: 계산 실패 시 배치 내 첫 등록일 사용
 		if (!promotionDate) {
 			const registrationDates = users.map(u => u.registrationDate || u.createdAt).filter(d => d);
 			promotionDate = registrationDates.length > 0 ? registrationDates[0] : new Date();
+			console.log(`    ⚠️ ${p.userName}: 승급일 계산 실패, fallback 사용`);
 		}
-		
+
+		// ⭐ 모든 중간 단계 기록 (gradeHistory용)
+		allPromotionSteps.push({
+			userId: p.userId,
+			userName: p.userName,
+			oldGrade: p.oldGrade,
+			newGrade: p.newGrade,
+			promotionDate: promotionDate
+		});
+
 		if (!promotedMap.has(p.userId)) {
 			// 첫 승급 기록
 			promotedMap.set(p.userId, {
@@ -231,23 +517,45 @@ export async function executeStep2(users) {
 	monthlyReg.nonPromotedCount = monthlyReg.registrationCount - monthlyReg.promotedCount;
 
 	// ⭐ 2-7-2. 승급자 lastGradeChangeDate 및 gradeHistory 업데이트
-	if (promoted.length > 0) {
+	// ⭐ v9.2: 같은 날짜의 승급은 한 줄로 정리 (F1→F2→F3→F4 → F1→F4)
+	if (allPromotionSteps.length > 0) {
+		// 같은 userId + 같은 날짜끼리 그룹화
+		const groupedSteps = new Map();
+		for (const step of allPromotionSteps) {
+			const dateKey = step.promotionDate.toISOString().split('T')[0];
+			const key = `${step.userId}_${dateKey}`;
+			
+			if (!groupedSteps.has(key)) {
+				groupedSteps.set(key, {
+					userId: step.userId,
+					userName: step.userName,
+					promotionDate: step.promotionDate,
+					oldGrade: step.oldGrade,  // 첫 번째 oldGrade
+					newGrade: step.newGrade   // 마지막 newGrade로 업데이트됨
+				});
+			} else {
+				// 같은 날짜면 newGrade만 업데이트 (마지막 등급)
+				groupedSteps.get(key).newGrade = step.newGrade;
+			}
+		}
+		
+		const consolidatedSteps = Array.from(groupedSteps.values());
 		console.log(`
-📅 [Step2-7-2] 승급자 등급 변동 기록 업데이트: ${promoted.length}명`);
-		for (const prom of promoted) {
-			// ⭐ v8.0: gradeHistory에 승급 기록 추가 (lastGradeChangeDate는 virtual로 제공)
-			await User.findByIdAndUpdate(prom.userId, {
+📅 [Step2-7-2] 승급자 등급 변동 기록 업데이트: ${consolidatedSteps.length}건`);
+		
+		for (const step of consolidatedSteps) {
+			await User.findByIdAndUpdate(step.userId, {
 				$push: {
 					gradeHistory: {
-						date: prom.promotionDate,
-						fromGrade: prom.oldGrade,
-						toGrade: prom.newGrade,
+						date: step.promotionDate,
+						fromGrade: step.oldGrade,
+						toGrade: step.newGrade,
 						type: 'promotion',
 						revenueMonth: registrationMonth
 					}
 				}
 			});
-			console.log(`    → ${prom.userName}: ${prom.oldGrade} → ${prom.newGrade} (승급일: ${prom.promotionDate.toISOString().split('T')[0]})`);
+			console.log(`    → ${step.userName}: ${step.oldGrade} → ${step.newGrade} (승급일: ${step.promotionDate.toISOString().split('T')[0]})`);
 		}
 	}
 

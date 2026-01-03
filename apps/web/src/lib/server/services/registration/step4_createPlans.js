@@ -55,10 +55,12 @@ export async function executeStep4(promoted, targets, gradePayments, monthlyReg,
       h.type === 'registration' && h.revenueMonth === registrationMonth
     );
 
-    // ⭐ 이번 달 승급 기록 확인 (gradeHistory 기반)
-    const promotionHistory = user?.gradeHistory?.find(h =>
+    // ⭐ 이번 달 승급 기록 확인 (gradeHistory 기반) - 마지막 승급 기록 사용!
+    // ⭐ v9.1 FIX: 중간 단계 기록으로 인해 여러 개가 있을 수 있으므로 마지막 것 사용
+    const promotionHistories = user?.gradeHistory?.filter(h =>
       h.type === 'promotion' && h.revenueMonth === registrationMonth
-    );
+    ) || [];
+    const promotionHistory = promotionHistories[promotionHistories.length - 1];
 
     // ⭐ v8.0 FIX: 이번 달에 등록 기록이 없으면 스킵 (이전 달 등록자)
     if (!registrationHistory) {
@@ -223,10 +225,12 @@ export async function executeStep4(promoted, targets, gradePayments, monthlyReg,
         continue;
       }
 
-      // ⭐ v8.0 FIX: 이번 달 승급 기록 조회 (gradeHistory 기반)
-      const promotionHistory = user.gradeHistory?.find(h =>
+      // ⭐ v8.0 FIX: 이번 달 승급 기록 조회 (gradeHistory 기반) - 마지막 승급 기록 사용!
+      // ⭐ v9.1 FIX: 중간 단계 기록으로 인해 여러 개가 있을 수 있으므로 마지막 것 사용
+      const promotionHistories = user.gradeHistory?.filter(h =>
         h.type === 'promotion' && h.revenueMonth === registrationMonth
-      );
+      ) || [];
+      const promotionHistory = promotionHistories[promotionHistories.length - 1];
 
       if (!promotionHistory) {
         console.log(`[기존 승급자] ${user.name}: ${registrationMonth} 승급 기록 없음 → 스킵`);

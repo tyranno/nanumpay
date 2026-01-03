@@ -184,14 +184,32 @@ export async function recalculateAllGrades() {
         user.grade = newGrade; // 맵에서도 업데이트
         updatedCount++;
 
-        // 승급자 정보 저장
-        changedUsers.push({
-          userId: user._id.toString(), // ⭐ v8.0: _id 사용
-          userName: user.name,
-          changeType: 'grade_change',
-          oldGrade: oldGrade,
-          newGrade: newGrade
-        });
+        // ⭐ v9.1: 중간 단계별 승급 정보 저장 (F1→F2→F3→F4 각각 기록)
+        const gradeOrder = ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'];
+        const oldIndex = gradeOrder.indexOf(oldGrade);
+        const newIndex = gradeOrder.indexOf(newGrade);
+        
+        if (oldIndex >= 0 && newIndex > oldIndex) {
+          // 각 중간 단계별로 기록
+          for (let i = oldIndex; i < newIndex; i++) {
+            changedUsers.push({
+              userId: user._id.toString(),
+              userName: user.name,
+              changeType: 'grade_change',
+              oldGrade: gradeOrder[i],
+              newGrade: gradeOrder[i + 1]
+            });
+          }
+        } else {
+          // fallback: 등급 순서 외 케이스 (강등 등)
+          changedUsers.push({
+            userId: user._id.toString(),
+            userName: user.name,
+            changeType: 'grade_change',
+            oldGrade: oldGrade,
+            newGrade: newGrade
+          });
+        }
       }
     }
   }
