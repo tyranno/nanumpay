@@ -159,11 +159,13 @@ export async function createPromotionPaymentPlan(
 			const inheritanceCheck = await checkInsuranceInheritance(userId, newGrade);
 
 			if (inheritanceCheck.canInherit) {
-				// 승계 인정: 이전 등급 보험 기준 적용, 유예기간 없음
+				// ⭐ v9.4 FIX: 승계 인정 시에도 유예기간은 새로 적용
+				// - 보험 기준: 이전 등급 기준 적용
+				// - 유예기간: 승급일 기준 2달 새로 적용
 				insuranceRequired = inheritanceCheck.previousInsuranceRequired;
-				graceDeadline = null;
+				graceDeadline = calculateGraceDeadline(promotionDate);  // 유예기간 새로 적용
 				insuranceInherited = true;
-				console.log(`[createPromotionPaymentPlan] ${userName} 승계 인정: ${inheritanceCheck.previousGrade}→${newGrade}, 보험기준: ${insuranceRequired}원`);
+				console.log(`[createPromotionPaymentPlan] ${userName} 승계 인정: ${inheritanceCheck.previousGrade}→${newGrade}, 보험기준: ${insuranceRequired}원, 유예마감: ${graceDeadline}`);
 			} else {
 				// 승계 불가: 새 등급 보험 기준 적용, 유예기간 2달
 				insuranceRequired = currentInsuranceRequired;
