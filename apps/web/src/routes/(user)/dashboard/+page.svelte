@@ -151,23 +151,29 @@
 	let isLoading = $state(true);
 	let error = $state(null);
 
-	// 현재 월 계산 (YYYY-MM 형식)
-	const currentMonth = (() => {
-		const now = new Date();
-		return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+	// ⭐ 날짜 포맷 함수 (YYYY-MM-DD)
+	function formatDateYMD(date) {
+		return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+	}
+
+	// ⭐ 기본 기간: 이번주 금요일 ~ 3주 후 금요일 (이번주 포함 4주)
+	const defaultStartDate = (() => {
+		return formatDateYMD(getCurrentFriday());
 	})();
 
-	// ⭐ 최대 선택 가능 월 (현재월 + 1개월)
-	const maxMonth = (() => {
-		const now = new Date();
-		const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-		return `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}`;
+	const defaultEndDate = (() => {
+		return formatDateYMD(getMaxFriday());
 	})();
 
-	// 필터 상태
+	// ⭐ 최대 선택 가능 날짜 (이번주 포함 4주)
+	const maxDate = (() => {
+		return formatDateYMD(getMaxFriday());
+	})();
+
+	// 필터 상태 (날짜 기반)
 	let filters = $state({
-		startMonth: currentMonth,
-		endMonth: currentMonth,
+		startDate: defaultStartDate,
+		endDate: defaultEndDate,
 		grade: ''
 	});
 
@@ -231,25 +237,47 @@
 		}
 	});
 
-	// ⭐ 기간 제한 검증 (현재월 + 1개월 초과 시 경고)
-	$effect(() => {
+	// ⭐ 현재 주의 금요일 계산
+	function getCurrentFriday() {
 		const now = new Date();
-		const maxYear = now.getMonth() === 11 ? now.getFullYear() + 1 : now.getFullYear();
-		const maxMonthNum = now.getMonth() === 11 ? 1 : now.getMonth() + 2;
-		const maxMonthStr = `${maxYear}-${String(maxMonthNum).padStart(2, '0')}`;
+		const dayOfWeek = now.getDay(); // 0=일, 1=월, ..., 5=금, 6=토
+		const daysToFriday = dayOfWeek <= 5 ? (5 - dayOfWeek) : (5 - dayOfWeek + 7);
+		const friday = new Date(now);
+		friday.setDate(now.getDate() + daysToFriday);
+		friday.setHours(0, 0, 0, 0);
+		return friday;
+	}
+
+	// ⭐ 최대 선택 가능 금요일 (이번주 포함 4주 = 3주 후)
+	function getMaxFriday() {
+		const currentFriday = getCurrentFriday();
+		const maxFriday = new Date(currentFriday);
+		maxFriday.setDate(currentFriday.getDate() + 21); // 이번주 포함 4주
+		return maxFriday;
+	}
+
+	// ⭐ 기간 제한 검증 (현재주 포함 4주 초과 시 경고)
+	$effect(() => {
+		const maxFriday = getMaxFriday();
+		const maxDateStr = `${maxFriday.getFullYear()}-${String(maxFriday.getMonth() + 1).padStart(2, '0')}-${String(maxFriday.getDate()).padStart(2, '0')}`;
 
 		let wasAdjusted = false;
 
 		// 시작 기간 제한
-		if (filters.startMonth > maxMonthStr) {
-			filters.startMonth = maxMonthStr;
+		if (filters.startDate > maxDateStr) {
+			filters.startDate = maxDateStr;
 			wasAdjusted = true;
 		}
 
 		// 종료 기간 제한
-		if (filters.endMonth > maxMonthStr) {
-			filters.endMonth = maxMonthStr;
+		if (filters.endDate > maxDateStr) {
+			filters.endDate = maxDateStr;
 			wasAdjusted = true;
+		}
+
+		// 시작일이 종료일보다 늦으면 조정
+		if (filters.startDate > filters.endDate) {
+			filters.startDate = filters.endDate;
 		}
 
 		// ⭐ 제한 초과 시 알림 모달 표시
@@ -260,23 +288,35 @@
 
 	// 필터가 변경될 때마다 자동으로 적용
 	$effect(() => {
-		// 필터만 추적
-		const startMonth = filters.startMonth;
-		const endMonth = filters.endMonth;
+		// 필터만 추적 (날짜 기반)
+		const startDate = filters.startDate;
+		const endDate = filters.endDate;
 		const grade = filters.grade;
 
-		// ⭐ v8.0: 개별 행 필터링
+		// ⭐ 미래 데이터 제한 (현재주 포함 4주까지만)
+		const maxFriday = getMaxFriday();
+
+		// ⭐ 날짜 파싱
+		const startDateObj = new Date(startDate);
+		const endDateObj = new Date(endDate);
+		endDateObj.setHours(23, 59, 59, 999); // 종료일 끝까지 포함
+
+		// ⭐ v8.0: 개별 행 필터링 (날짜 기반)
 		const filtered = allPayments.filter((payment) => {
 			const paymentDate = new Date(payment.weekDate);
-			const paymentMonth = `${paymentDate.getFullYear()}-${String(paymentDate.getMonth() + 1).padStart(2, '0')}`;
 
-			// 시작 월 필터 (YYYY-MM 형식) - 이상(>=)
-			if (startMonth && paymentMonth < startMonth) {
+			// ⭐ 미래 주차 제한 (현재주 포함 4주까지만 표시)
+			if (paymentDate > maxFriday) {
 				return false;
 			}
 
-			// 종료 월 필터 (YYYY-MM 형식) - 이하(<=)
-			if (endMonth && paymentMonth > endMonth) {
+			// 시작 날짜 필터 - 이상(>=)
+			if (paymentDate < startDateObj) {
+				return false;
+			}
+
+			// 종료 날짜 필터 - 이하(<=)
+			if (paymentDate > endDateObj) {
 				return false;
 			}
 
@@ -402,8 +442,8 @@
 
 	// 필터 초기화
 	function resetFilters() {
-		filters.startMonth = currentMonth;
-		filters.endMonth = currentMonth;
+		filters.startDate = currentDate;
+		filters.endDate = currentDate;
 		filters.grade = '';
 	}
 
@@ -657,28 +697,22 @@
 
 			<!-- 검색 필터 -->
 			<div class="border-b border-gray-200 bg-white px-4 py-3">
-				<div class="flex items-end gap-3">
-					<!-- 시작 월 -->
-					<div class="w-40">
-						<label class="mb-1 block text-xs font-medium text-gray-700">시작</label>
-						<input
-							type="month"
-							bind:value={filters.startMonth}
-							max={maxMonth}
-							class="w-full rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
-						/>
-					</div>
-
-					<!-- 종료 월 -->
-					<div class="w-40">
-						<label class="mb-1 block text-xs font-medium text-gray-700">종료</label>
-						<input
-							type="month"
-							bind:value={filters.endMonth}
-							max={maxMonth}
-							class="w-full rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
-						/>
-					</div>
+				<div class="flex items-center gap-2">
+					<span class="text-xs font-medium text-gray-700">시작</span>
+					<input
+						type="date"
+						bind:value={filters.startDate}
+						max={maxDate}
+						class="min-w-[140px] rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+					/>
+					<span class="text-gray-500">~</span>
+					<span class="text-xs font-medium text-gray-700">종료</span>
+					<input
+						type="date"
+						bind:value={filters.endDate}
+						max={maxDate}
+						class="min-w-[140px] rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+					/>
 				</div>
 
 				<!-- ⭐ 기간 총액 정보 -->
@@ -893,7 +927,7 @@
 	showFooter={true}
 >
 	<div class="text-center py-2">
-		<p class="text-sm text-gray-700">다음 달까지만 조회할 수 있어요.</p>
+		<p class="text-sm text-gray-700">현재주 포함 4주까지만 조회할 수 있어요.</p>
 	</div>
 	<svelte:fragment slot="footer">
 		<button

@@ -4,20 +4,34 @@
 	let commissionSummary = [];
 	let commissionGrandTotal = { totalCommission: 0, totalUsers: 0, totalRevenue: 0 };
 
-	const currentDate = new Date();
-	const currentYear = currentDate.getFullYear();
-	const currentMonth = String(currentDate.getMonth() + 1).padStart(2, '0');
-	let commissionStartMonth = `${currentYear}-${currentMonth}`;
-	let commissionEndMonth = `${currentYear}-${currentMonth}`;
+	// ⭐ 현재 주의 금요일 계산
+	function getCurrentFriday() {
+		const now = new Date();
+		const dayOfWeek = now.getDay();
+		const daysToFriday = dayOfWeek <= 5 ? (5 - dayOfWeek) : (5 - dayOfWeek + 7);
+		const friday = new Date(now);
+		friday.setDate(now.getDate() + daysToFriday);
+		friday.setHours(0, 0, 0, 0);
+		return friday;
+	}
 
-	// 최대 선택 가능 월 (현재월 + 1개월)
-	const maxMonth = (() => {
-		const nextMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
-		return `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}`;
-	})();
+	// ⭐ 날짜 포맷 (YYYY-MM-DD)
+	function formatDateYMD(date) {
+		return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+	}
 
-	// 표시 방법: 'month' (월별) or 'week' (주별)
-	let displayMode = 'week';
+	// ⭐ 최대 선택 가능 금요일 (이번주 포함 4주 = 3주 후)
+	function getMaxFriday() {
+		const currentFriday = getCurrentFriday();
+		const maxFriday = new Date(currentFriday);
+		maxFriday.setDate(currentFriday.getDate() + 21);
+		return maxFriday;
+	}
+
+	// ⭐ 기본 기간: 이번주 금요일 ~ 3주 후 금요일
+	let commissionStartDate = formatDateYMD(getCurrentFriday());
+	let commissionEndDate = formatDateYMD(getMaxFriday());
+	const maxDate = formatDateYMD(getMaxFriday());
 
 	function formatAmount(value) {
 		if (value === null || value === undefined) return '0원';
@@ -26,23 +40,43 @@
 
 	async function loadCommissionData() {
 		try {
-			const [startYear, startMonth] = commissionStartMonth.split('-');
-			const [endYear, endMonth] = commissionEndMonth.split('-');
+			// ⭐ 날짜에서 year/month 추출
+			const startDate = new Date(commissionStartDate);
+			const endDate = new Date(commissionEndDate);
 
 			const params = new URLSearchParams({
-				startYear,
-				startMonth,
-				endYear,
-				endMonth,
-				groupBy: displayMode
+				startYear: startDate.getFullYear(),
+				startMonth: startDate.getMonth() + 1,
+				endYear: endDate.getFullYear(),
+				endMonth: endDate.getMonth() + 1,
+				groupBy: 'week'  // ⭐ 항상 주별
 			});
 
 			const response = await fetch(`/api/planner/commission-summary?${params}`);
 			const result = await response.json();
 
 			if (result.success) {
-				commissionSummary = result.data || [];
-				commissionGrandTotal = result.grandTotal || { totalCommission: 0, totalUsers: 0, totalRevenue: 0 };
+				// ⭐ 선택한 날짜 범위 내의 주차만 필터링
+				const startDateObj = new Date(commissionStartDate);
+				const endDateObj = new Date(commissionEndDate);
+				endDateObj.setHours(23, 59, 59, 999);
+
+				const filteredData = (result.data || []).filter(item => {
+					// item.period가 "2026-01-03 (1월 1주)" 같은 형식
+					const dateMatch = item.period?.match(/^(\d{4}-\d{2}-\d{2})/);
+					if (!dateMatch) return true;
+					const itemDate = new Date(dateMatch[1]);
+					return itemDate >= startDateObj && itemDate <= endDateObj;
+				});
+
+				commissionSummary = filteredData;
+
+				// ⭐ 필터링된 데이터로 총액 재계산
+				commissionGrandTotal = filteredData.reduce((acc, item) => ({
+					totalCommission: acc.totalCommission + (item.totalCommission || 0),
+					totalUsers: acc.totalUsers + (item.totalUsers || 0),
+					totalRevenue: acc.totalRevenue + (item.totalRevenue || 0)
+				}), { totalCommission: 0, totalUsers: 0, totalRevenue: 0 });
 			}
 		} catch (error) {
 			console.error('수당 내역 로드 오류:', error);
@@ -50,10 +84,10 @@
 	}
 
 	function handlePeriodChange() {
-		loadCommissionData();
-	}
-
-	function handleDisplayModeChange() {
+		// ⭐ 시작일이 종료일보다 늦으면 조정
+		if (commissionStartDate > commissionEndDate) {
+			commissionStartDate = commissionEndDate;
+		}
 		loadCommissionData();
 	}
 
@@ -74,41 +108,24 @@
 
 	<!-- 검색 필터 -->
 	<div class="border-b border-gray-200 bg-white px-4 py-3">
-		<div class="flex items-end gap-3">
-			<!-- 시작 월 -->
-			<div class="w-40">
-				<label class="mb-1 block text-xs font-medium text-gray-700">시작</label>
-				<input
-					type="month"
-					bind:value={commissionStartMonth}
-					max={maxMonth}
-					onchange={handlePeriodChange}
-					class="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-				/>
-			</div>
-			<!-- 종료 월 -->
-			<div class="w-40">
-				<label class="mb-1 block text-xs font-medium text-gray-700">종료</label>
-				<input
-					type="month"
-					bind:value={commissionEndMonth}
-					max={maxMonth}
-					onchange={handlePeriodChange}
-					class="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-				/>
-			</div>
-			<!-- 표시 방법 -->
-			<div class="w-20">
-				<label class="mb-1 block text-xs font-medium text-gray-700">표시</label>
-				<select
-					bind:value={displayMode}
-					onchange={handleDisplayModeChange}
-					class="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 pr-7 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-				>
-					<option value="month">월별</option>
-					<option value="week">주별</option>
-				</select>
-			</div>
+		<div class="flex items-center gap-2">
+			<span class="text-xs font-medium text-gray-700">시작</span>
+			<input
+				type="date"
+				bind:value={commissionStartDate}
+				max={maxDate}
+				onchange={handlePeriodChange}
+				class="min-w-[140px] rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+			/>
+			<span class="text-gray-500">~</span>
+			<span class="text-xs font-medium text-gray-700">종료</span>
+			<input
+				type="date"
+				bind:value={commissionEndDate}
+				max={maxDate}
+				onchange={handlePeriodChange}
+				class="min-w-[140px] rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+			/>
 		</div>
 
 		<!-- 기간 총액 정보 -->
@@ -146,7 +163,7 @@
 			<thead class="bg-gray-50">
 				<tr>
 					<th class="table-header">순번</th>
-					<th class="table-header">{displayMode === 'month' ? '지급월' : '지급일'}</th>
+					<th class="table-header">지급일</th>
 					<th class="table-header">수당액</th>
 					<th class="table-header">등록인원</th>
 					<th class="table-header">매출액</th>

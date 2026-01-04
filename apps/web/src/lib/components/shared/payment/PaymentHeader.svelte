@@ -84,6 +84,9 @@
 	let searchQuery = $paymentPageFilterState.searchQuery;
 	let searchCategory = $paymentPageFilterState.searchCategory;
 	let sortByName = $paymentPageFilterState.sortByName ?? true;
+	// ⭐ 주별 기간 선택용
+	let startWeekDate = $paymentPageFilterState.startWeekDate;
+	let endWeekDate = $paymentPageFilterState.endWeekDate;
 
 	// ⭐ filterStore가 주입된 경우, 해당 store에서 값 동기화
 	let storeInitialized = false;
@@ -109,6 +112,9 @@
 			searchQuery = storeValue.searchQuery ?? searchQuery;
 			searchCategory = storeValue.searchCategory ?? searchCategory;
 			sortByName = storeValue.sortByName ?? true;
+			// ⭐ 주별 기간 선택용
+			startWeekDate = storeValue.startWeekDate ?? startWeekDate;
+			endWeekDate = storeValue.endWeekDate ?? endWeekDate;
 			storeInitialized = true;
 		}
 	}
@@ -130,6 +136,9 @@
 				startMonth,
 				endYear,
 				endMonth,
+				// ⭐ 주별 기간 선택용
+				startWeekDate,
+				endWeekDate,
 				itemsPerPage,
 				showGradeInfoColumn,
 				showTaxColumn,
@@ -171,25 +180,27 @@
 
 	function handlePeriodChange() {
 		// ⭐ 기간 제한 (설계사/사용자만, 관리자는 제한 없음)
+		// 현재주 포함 4주까지만 선택 가능
 		if (enablePeriodLimit) {
-			const now = new Date();
-			const maxYear = now.getMonth() === 11 ? now.getFullYear() + 1 : now.getFullYear();
-			const maxMonthNum = now.getMonth() === 11 ? 1 : now.getMonth() + 2;
+			const maxFriday = getMaxFriday();
+			const maxDateStr = getMaxDate();
 
 			let wasAdjusted = false;
 
-			// 시작 기간 제한
-			if (startYear > maxYear || (startYear === maxYear && startMonth > maxMonthNum)) {
-				startYear = maxYear;
-				startMonth = maxMonthNum;
+			// ⭐ 주별 기간 선택: 날짜 기반 제한
+			if (startWeekDate > maxDateStr) {
+				startWeekDate = maxDateStr;
 				wasAdjusted = true;
 			}
 
-			// 종료 기간 제한
-			if (endYear > maxYear || (endYear === maxYear && endMonth > maxMonthNum)) {
-				endYear = maxYear;
-				endMonth = maxMonthNum;
+			if (endWeekDate > maxDateStr) {
+				endWeekDate = maxDateStr;
 				wasAdjusted = true;
+			}
+
+			// 시작일이 종료일보다 늦으면 조정
+			if (startWeekDate > endWeekDate) {
+				startWeekDate = endWeekDate;
 			}
 
 			// 제한 초과 시 알림 모달 표시
@@ -245,13 +256,38 @@
 		return amount.toLocaleString();
 	}
 
-	// ⭐ 최대 선택 가능 월 계산 (현재월 + 1개월)
-	function getMaxMonth() {
+	// ⭐ 현재 주의 금요일 계산
+	function getCurrentFriday() {
 		const now = new Date();
-		const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-		return `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}`;
+		const dayOfWeek = now.getDay(); // 0=일, 1=월, ..., 5=금, 6=토
+		const daysToFriday = dayOfWeek <= 5 ? (5 - dayOfWeek) : (5 - dayOfWeek + 7);
+		const friday = new Date(now);
+		friday.setDate(now.getDate() + daysToFriday);
+		friday.setHours(0, 0, 0, 0);
+		return friday;
 	}
 
+	// ⭐ 최대 선택 가능 날짜 계산 (현재주 포함 4주 = 총 5주 뒤 금요일)
+	function getMaxFriday() {
+		const currentFriday = getCurrentFriday();
+		const maxFriday = new Date(currentFriday);
+		maxFriday.setDate(currentFriday.getDate() + 21); // 이번주 포함 4주 = 3주 후
+		return maxFriday;
+	}
+
+	// ⭐ 최대 선택 가능 날짜 (date picker용)
+	function getMaxDate() {
+		const maxFriday = getMaxFriday();
+		return `${maxFriday.getFullYear()}-${String(maxFriday.getMonth() + 1).padStart(2, '0')}-${String(maxFriday.getDate()).padStart(2, '0')}`;
+	}
+
+	// ⭐ 최대 선택 가능 월 계산 (현재주 + 4주가 속한 월)
+	function getMaxMonth() {
+		const maxFriday = getMaxFriday();
+		return `${maxFriday.getFullYear()}-${String(maxFriday.getMonth() + 1).padStart(2, '0')}`;
+	}
+
+	const maxDate = getMaxDate();
 	const maxMonth = getMaxMonth();
 
 	// 컬럼 설정 모달 핸들러
@@ -317,66 +353,30 @@
 				<input
 				type="date"
 				value={selectedDate}
+				max={enablePeriodLimit ? maxDate : undefined}
 				onchange={handleDateChange}
 				class="input-mobile"
 			/>
 			{/if}
 
-			<!-- 기간 선택 -->
+			<!-- 기간 선택 (주별) -->
 			{#if filterType === 'period'}
-				<div class="flex flex-col gap-2">
-					<!-- 시작 ~ 종료 -->
-					<div class="flex items-center gap-1 text-xs">
-						<input
-							type="month"
-							value="{startYear}-{String(startMonth).padStart(2, '0')}"
-							max={maxMonth}
-							onchange={(e) => {
-								const [year, month] = e.target.value.split('-');
-								startYear = parseInt(year);
-								startMonth = parseInt(month);
-								handlePeriodChange();
-							}}
-							class="input-mobile-period"
-						/>
-						<span class="text-gray-500">~</span>
-						<input
-							type="month"
-							value="{endYear}-{String(endMonth).padStart(2, '0')}"
-							max={maxMonth}
-							onchange={(e) => {
-								const [year, month] = e.target.value.split('-');
-								endYear = parseInt(year);
-								endMonth = parseInt(month);
-								handlePeriodChange();
-							}}
-							class="input-mobile-period"
-						/>
-					</div>
-					<!-- 표시 -->
-					<div class="period-type-selector">
-						<span class="font-medium text-gray-600">표시:</span>
-						<label class="radio-label-mobile">
-							<input
-								type="radio"
-								bind:group={periodType}
-								value="weekly"
-								onchange={handlePeriodChange}
-								class="cursor-pointer"
-							/>
-							<span>주별</span>
-						</label>
-						<label class="radio-label-mobile">
-							<input
-								type="radio"
-								bind:group={periodType}
-								value="monthly"
-								onchange={handlePeriodChange}
-								class="cursor-pointer"
-							/>
-							<span>월별</span>
-						</label>
-					</div>
+				<div class="flex items-center gap-1 text-xs">
+					<input
+						type="date"
+						bind:value={startWeekDate}
+						max={enablePeriodLimit ? maxDate : undefined}
+						onchange={handlePeriodChange}
+						class="input-mobile-period"
+					/>
+					<span class="text-gray-500">~</span>
+					<input
+						type="date"
+						bind:value={endWeekDate}
+						max={enablePeriodLimit ? maxDate : undefined}
+						onchange={handlePeriodChange}
+						class="input-mobile-period"
+					/>
 				</div>
 			{/if}
 		</div>
@@ -544,6 +544,7 @@
 					<input
 						type="date"
 						value={selectedDate}
+						max={enablePeriodLimit ? maxDate : undefined}
 						onchange={handleDateChange}
 						class="input-desktop"
 					/>
@@ -566,43 +567,20 @@
 
 				{#if filterType === 'period'}
 					<input
-						type="number"
-						bind:value={startYear}
+						type="date"
+						bind:value={startWeekDate}
+						max={enablePeriodLimit ? maxDate : undefined}
 						onchange={handlePeriodChange}
-						class="input-year"
-						min="2020"
-						max="2030"
+						class="input-desktop"
 					/>
-					<span class="whitespace-nowrap text-[13px] leading-7">년</span>
-					<select bind:value={startMonth} onchange={handlePeriodChange} class="select-month">
-						{#each Array(12) as _, i}
-							<option value={i + 1}>{i + 1}월</option>
-						{/each}
-					</select>
 					<span class="mx-0.5 text-[13px] leading-7 text-gray-600">~</span>
 					<input
-						type="number"
-						bind:value={endYear}
+						type="date"
+						bind:value={endWeekDate}
+						max={enablePeriodLimit ? maxDate : undefined}
 						onchange={handlePeriodChange}
-						class="input-year"
-						min="2020"
-						max="2030"
+						class="input-desktop"
 					/>
-					<span class="whitespace-nowrap text-[13px] leading-7">년</span>
-					<select bind:value={endMonth} onchange={handlePeriodChange} class="select-month">
-						{#each Array(12) as _, i}
-							<option value={i + 1}>{i + 1}월</option>
-						{/each}
-					</select>
-
-					<!-- 구분선 -->
-					<div class="divider-vertical"></div>
-
-					<span class="whitespace-nowrap text-[13px] font-bold leading-7">표시:</span>
-					<select bind:value={periodType} onchange={handlePeriodChange} class="select-period-type">
-						<option value="weekly">주별</option>
-						<option value="monthly">월별</option>
-					</select>
 				{/if}
 			</div>
 		</div>
@@ -778,7 +756,7 @@
 	showFooter={true}
 >
 	<div class="text-center py-2">
-		<p class="text-sm text-gray-700">다음 달까지만 조회할 수 있어요.</p>
+		<p class="text-sm text-gray-700">현재주 포함 4주까지만 조회할 수 있어요.</p>
 	</div>
 	<svelte:fragment slot="footer">
 		<button
@@ -812,11 +790,7 @@
 	}
 
 	.input-mobile-period {
-		@apply flex-1 rounded border border-gray-300 px-2 py-1.5 text-xs;
-	}
-
-	.period-type-selector {
-		@apply mt-2 flex items-center gap-2 border-t border-gray-200 pt-2 text-xs;
+		@apply min-w-[126px] flex-1 rounded border border-gray-300 px-2 py-1.5 text-xs;
 	}
 
 	.summary-container-mobile {
@@ -877,19 +851,7 @@
 	}
 
 	.input-desktop {
-		@apply h-7 rounded border border-gray-300 px-1.5 py-1 text-[13px] leading-[1.4];
-	}
-
-	.input-year {
-		@apply h-7 w-[60px] rounded border border-gray-300 px-1.5 py-1 text-[13px] leading-[1.4];
-	}
-
-	.select-month {
-		@apply h-7 w-[60px] rounded border border-gray-300 px-1.5 py-1 pr-5 text-[13px] leading-[1.4];
-	}
-
-	.select-period-type {
-		@apply h-7 w-[70px] rounded border border-gray-300 px-1.5 py-1 pr-5 text-[13px] leading-[1.4];
+		@apply h-7 min-w-[136px] rounded border border-gray-300 px-1.5 py-1 text-[13px] leading-[1.4];
 	}
 
 	.divider-vertical {

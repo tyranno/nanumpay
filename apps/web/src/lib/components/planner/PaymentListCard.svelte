@@ -21,6 +21,25 @@
 	// ⭐ 소계 표시 모드 (설계사 전용)
 	let subtotalDisplayMode = $plannerPaymentFilterState.subtotalDisplayMode || 'withSubtotals';
 
+	// ⭐ 현재 주의 금요일 계산
+	function getCurrentFriday() {
+		const now = new Date();
+		const dayOfWeek = now.getDay();
+		const daysToFriday = dayOfWeek <= 5 ? (5 - dayOfWeek) : (5 - dayOfWeek + 7);
+		const friday = new Date(now);
+		friday.setDate(now.getDate() + daysToFriday);
+		friday.setHours(0, 0, 0, 0);
+		return friday;
+	}
+
+	// ⭐ 최대 선택 가능 금요일 (현재주 포함 4주)
+	function getMaxFriday() {
+		const currentFriday = getCurrentFriday();
+		const maxFriday = new Date(currentFriday);
+		maxFriday.setDate(currentFriday.getDate() + 21); // 이번주 포함 4주
+		return maxFriday;
+	}
+
 	// ⭐ Store 직접 사용 (reactive statement 제거하여 무한 루프 방지)
 
 	// 데이터 로드
@@ -44,11 +63,14 @@
 				startMonth: filterState.startMonth,
 				endYear: filterState.endYear,
 				endMonth: filterState.endMonth,
+				// ⭐ 주별 기간 선택용
+				startWeekDate: filterState.startWeekDate,
+				endWeekDate: filterState.endWeekDate,
 				page: 1,  // ⭐ 항상 1페이지 (프론트엔드 페이지네이션)
 				limit: 10000,  // ⭐ 전체 데이터 조회
 				searchQuery: filterState.searchQuery,
 				searchCategory: filterState.searchCategory,
-				periodType: filterState.periodType,
+				periodType: 'weekly',  // ⭐ 항상 주별로 표시
 				fetchAll: true  // ⭐ 전체 데이터 조회 (그룹핑용)
 			});
 

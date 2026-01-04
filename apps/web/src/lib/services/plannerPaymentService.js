@@ -1,4 +1,4 @@
-import { getWeekOfMonthByFriday } from '$lib/utils/fridayWeekCalculator.js';
+import { getWeekOfMonthByFriday, getFridaysInMonth } from '$lib/utils/fridayWeekCalculator.js';
 
 /**
  * 설계사용 Payment 관련 데이터 처리 서비스
@@ -18,6 +18,9 @@ export const plannerPaymentService = {
 			startMonth,
 			endYear,
 			endMonth,
+			// ⭐ 주별 기간 선택용
+			startWeekDate,
+			endWeekDate,
 			page = 1,
 			limit = 20,
 			searchQuery = '',
@@ -37,18 +40,15 @@ export const plannerPaymentService = {
 					searchCategory
 				});
 			} else {
-				return await this.loadPeriodPayments({
-					startYear,
-					startMonth,
-					endYear,
-					endMonth,
+				// ⭐ 기간 선택: 날짜 기반으로 주차 범위 조회
+				return await this.loadPeriodPaymentsByDateRange({
+					startWeekDate,
+					endWeekDate,
 					page,
 					limit,
 					searchQuery,
 					searchCategory,
-					periodType,
-					filterType: 'period', // ⭐ 기간 보기 표시 (모든 주/월)
-					fetchAll  // ⭐ 전체 데이터 조회 (그룹핑용)
+					fetchAll
 				});
 			}
 		} catch (err) {
@@ -299,5 +299,132 @@ export const plannerPaymentService = {
 			monthlyTotals: data.monthlyTotals || {},
 			allWeeklyData: weeklyColumns
 		};
+	},
+
+	/**
+	 * ⭐ 날짜 범위 기반 기간 지급 데이터 조회 (주별만 지원)
+	 */
+	async loadPeriodPaymentsByDateRange(params) {
+		const {
+			startWeekDate,
+			endWeekDate,
+			page,
+			limit,
+			searchQuery,
+			searchCategory,
+			fetchAll = false
+		} = params;
+
+		// 날짜에서 year/month 추출
+		const startDate = new Date(startWeekDate);
+		const endDate = new Date(endWeekDate);
+
+		const startYear = startDate.getFullYear();
+		const startMonth = startDate.getMonth() + 1;
+		const endYear = endDate.getFullYear();
+		const endMonth = endDate.getMonth() + 1;
+
+		const queryParams = new URLSearchParams({
+			startYear,
+			startMonth,
+			endYear,
+			endMonth,
+			page,
+			limit,
+			search: searchQuery,
+			searchCategory,
+			periodType: 'weekly',  // ⭐ 항상 주별
+			fetchAll: fetchAll ? 'true' : 'false'
+		});
+
+		const response = await fetch(`/api/planner/payment/weekly?${queryParams}`);
+		const result = await response.json();
+
+		if (!result.success || !result.data) {
+			throw new Error(result.message || '데이터 로드 실패');
+		}
+
+		const data = result.data;
+
+		// ⭐ 날짜 범위에 해당하는 주차만 필터링
+		const filteredWeeks = (data.weeks || []).filter(week => {
+			// 주의 금요일 날짜 계산
+			const weekInfo = getWeekOfMonthByFriday(new Date(week.year, week.monthNumber - 1, 1));
+			// 간단하게 주차 데이터의 year/month/week로 비교
+			const weekFriday = this.getWeekFriday(week.year, week.monthNumber, week.weekNumber);
+			return weekFriday >= startDate && weekFriday <= endDate;
+		});
+
+		// 주간 보기: 주차별 컬럼 생성
+		const weeklyColumns = filteredWeeks.map(week => ({
+			year: week.year,
+			month: week.monthNumber,
+			week: week.weekNumber,
+			label: week.week,
+			data: week
+		}));
+
+		// 사용자별 데이터 매핑
+		const paymentList = (data.payments || []).map((user, index) => {
+			const payments = {};
+
+			// 주차별로 저장
+			weeklyColumns.forEach(column => {
+				const weekKey = `${column.year}_${column.month}_${column.week}`;
+				const weekData = filteredWeeks.find(w =>
+					w.year === column.year &&
+					w.monthNumber === column.month &&
+					w.weekNumber === column.week
+				);
+
+				const userPayment = weekData?.payments?.find(p => p.userId === user.userId);
+
+				payments[weekKey] = {
+					amount: userPayment?.actualAmount || 0,
+					tax: userPayment?.taxAmount || 0,
+					net: userPayment?.netAmount || 0,
+					gradeInfo: userPayment?.gradeInfo || '-',
+					installmentDetails: userPayment?.installments || []
+				};
+			});
+
+			return {
+				no: (page - 1) * limit + index + 1,
+				userId: user.userId,
+				name: user.userName || user.name || 'Unknown',
+				userAccountId: user.userAccountId || '',
+				accountName: user.accountName || user.userName || user.name || 'Unknown',
+				planner: user.planner || '',
+				bank: user.bank || '',
+				accountNumber: user.accountNumber || '',
+				grade: user.grade || 'F1',
+				gradeHistory: user.gradeHistory || [],
+				insuranceActive: user.insuranceActive || false,
+				payments,
+				totalAmount: user.totalAmount || 0,
+				totalTax: user.totalTax || 0,
+				totalNet: user.totalNet || 0
+			};
+		});
+
+		return {
+			paymentList,
+			weeklyColumns,
+			totalPages: data.pagination?.totalPages || 1,
+			totalPaymentTargets: data.pagination?.totalItems || 0,
+			apiGrandTotal: data.grandTotal || null,
+			weeklyTotals: data.weeklyTotals || {},
+			monthlyTotals: data.monthlyTotals || {},
+			allWeeklyData: weeklyColumns
+		};
+	},
+
+	/**
+	 * ⭐ 특정 연/월/주의 금요일 날짜 계산
+	 */
+	getWeekFriday(year, month, weekNumber) {
+		const fridays = getFridaysInMonth(year, month);
+		const targetWeek = fridays.find(w => w.weekNumber === weekNumber);
+		return targetWeek ? targetWeek.friday : new Date(year, month - 1, 1);
 	}
 };
