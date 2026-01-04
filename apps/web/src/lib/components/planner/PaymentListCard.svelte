@@ -192,6 +192,7 @@
 		hideExportButton={false}
 		onProcessPast={() => {}}
 		showPlannerOption={false}
+		isPlannerMode={true}
 		showSubtotalOptions={true}
 		{subtotalDisplayMode}
 		onSubtotalModeChange={handleSubtotalModeChange}

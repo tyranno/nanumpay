@@ -12,6 +12,7 @@ export class PaymentExcelExporter {
 		this.showGradeInfoColumn = options.showGradeInfoColumn ?? true; // ⭐ 등급(회수) 컬럼
 		this.showTaxColumn = options.showTaxColumn ?? true;
 		this.showNetColumn = options.showNetColumn ?? true;
+		this.showCumulativeColumn = options.showCumulativeColumn ?? true; // ⭐ 누적총액 컬럼
 		this.filterType = options.filterType || 'date';
 		this.selectedDate = options.selectedDate;
 		this.startYear = options.startYear;
@@ -40,8 +41,10 @@ export class PaymentExcelExporter {
 		// 컬럼 수 계산
 		const colsPerWeek = (this.showGradeInfoColumn ? 1 : 0) + 1 + (this.showTaxColumn ? 1 : 0) + (this.showNetColumn ? 1 : 0);
 		const periodTotalCols = this.filterType === 'period' ? (1 + (this.showTaxColumn ? 1 : 0) + (this.showNetColumn ? 1 : 0)) : 0; // 기간 합계 컬럼 (등급(회수) 제외)
+		// ⭐ 누적총액 컬럼 (주간 선택일 때만)
+		const cumulativeCols = (this.filterType !== 'period' && this.showCumulativeColumn) ? (1 + (this.showTaxColumn ? 1 : 0) + (this.showNetColumn ? 1 : 0)) : 0;
 		const fixedCols = this.isPlanner ? 4 : 5; // 설계사 모드일 때 4개, 아닐 때 5개
-		const totalCols = fixedCols + periodTotalCols + allWeeks.length * colsPerWeek;
+		const totalCols = fixedCols + cumulativeCols + periodTotalCols + allWeeks.length * colsPerWeek;
 
 		// 헤더 정보 생성
 		const periodInfo = this.getPeriodInfo();
@@ -101,6 +104,22 @@ export class PaymentExcelExporter {
 		});
 
 		return totalSummary;
+	}
+
+	/**
+	 * ⭐ 누적총액 합계 계산
+	 */
+	calculateCumulativeTotal(allData) {
+		let cumulativeTotal = { totalAmount: 0, totalTax: 0, totalNet: 0 };
+
+		allData.forEach(user => {
+			const cumulative = user.cumulativeTotal || { totalAmount: 0, totalTax: 0, totalNet: 0 };
+			cumulativeTotal.totalAmount += cumulative.totalAmount || 0;
+			cumulativeTotal.totalTax += cumulative.totalTax || 0;
+			cumulativeTotal.totalNet += cumulative.totalNet || 0;
+		});
+
+		return cumulativeTotal;
 	}
 
 	/**
@@ -229,6 +248,15 @@ export class PaymentExcelExporter {
 			: ['순번', '성명', '설계자', '은행', '계좌번호'];
 		const colsPerWeek = (this.showGradeInfoColumn ? 1 : 0) + 1 + (this.showTaxColumn ? 1 : 0) + (this.showNetColumn ? 1 : 0);
 
+		// ⭐ 누적총액 컬럼 (주간 선택일 때만)
+		const cumulativeColCount = 1 + (this.showTaxColumn ? 1 : 0) + (this.showNetColumn ? 1 : 0);
+		if (this.filterType !== 'period' && this.showCumulativeColumn) {
+			headerRow1Data.push('누적총액');
+			for (let i = 1; i < cumulativeColCount; i++) {
+				headerRow1Data.push('');
+			}
+		}
+
 		// 기간 조회일 때만 기간 합계 컬럼 추가 (등급(회수) 제외)
 		const periodColCount = 1 + (this.showTaxColumn ? 1 : 0) + (this.showNetColumn ? 1 : 0);
 		if (this.filterType === 'period') {
@@ -260,6 +288,17 @@ export class PaymentExcelExporter {
 		const headerRow2Data = this.isPlanner
 			? ['', '', '', '']
 			: ['', '', '', '', ''];
+
+		// ⭐ 누적총액 상세 항목 추가 (주간 선택일 때만)
+		if (this.filterType !== 'period' && this.showCumulativeColumn) {
+			headerRow2Data.push('지급액');
+			if (this.showTaxColumn) {
+				headerRow2Data.push('세지원(3.3%)');
+			}
+			if (this.showNetColumn) {
+				headerRow2Data.push('실지급액');
+			}
+		}
 
 		// 기간 조회일 때만 기간 합계 상세 항목 추가
 		if (this.filterType === 'period') {
@@ -301,8 +340,17 @@ export class PaymentExcelExporter {
 			worksheet.mergeCells(headerRow1.number, i, headerRow2.number, i);
 		}
 
-		// 기간 합계 헤더 병합 (등급(회수) 제외)
+		// ⭐ 누적총액 헤더 병합 (주간 선택일 때만)
 		let colStart = fixedColCount + 1;
+		if (this.filterType !== 'period' && this.showCumulativeColumn) {
+			worksheet.mergeCells(headerRow1.number, colStart, headerRow1.number, colStart + cumulativeColCount - 1);
+			for (let c = colStart; c < colStart + cumulativeColCount; c++) {
+				headerRow1.getCell(c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD0E0F0' } }; // 파란색
+			}
+			colStart += cumulativeColCount;
+		}
+
+		// 기간 합계 헤더 병합 (등급(회수) 제외)
 		if (this.filterType === 'period') {
 			worksheet.mergeCells(headerRow1.number, colStart, headerRow1.number, colStart + periodColCount - 1);
 			for (let c = colStart; c < colStart + periodColCount; c++) {
@@ -343,6 +391,18 @@ export class PaymentExcelExporter {
 					user.bank || '',
 					user.accountNumber || ''
 				];
+
+			// ⭐ 누적총액 데이터 추가 (주간 선택일 때만)
+			if (this.filterType !== 'period' && this.showCumulativeColumn) {
+				const cumulative = user.cumulativeTotal || { totalAmount: 0, totalTax: 0, totalNet: 0 };
+				rowData.push(cumulative.totalAmount || 0);
+				if (this.showTaxColumn) {
+					rowData.push(cumulative.totalTax || 0);
+				}
+				if (this.showNetColumn) {
+					rowData.push(cumulative.totalNet || 0);
+				}
+			}
 
 			// 기간 조회일 때 개인별 총액 추가
 			if (this.filterType === 'period') {
@@ -397,7 +457,34 @@ export class PaymentExcelExporter {
 	styleDataRow(dataRow, weekCount) {
 		// 설계사 모드일 때는 5번째 컬럼부터, 아닐 때는 6번째 컬럼부터
 		let col = this.isPlanner ? 5 : 6;
-		
+
+		// ⭐ 누적총액 컬럼 스타일 (filterType !== 'period'일 때)
+		if (this.filterType !== 'period' && this.showCumulativeColumn) {
+			// 지급액
+			dataRow.getCell(col).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD0E0F0' } };
+			dataRow.getCell(col).font = { bold: true };
+			dataRow.getCell(col).numFmt = '#,##0';
+			dataRow.getCell(col).alignment = { vertical: 'middle', horizontal: 'right' };
+			col++;
+
+			// 세지원
+			if (this.showTaxColumn) {
+				dataRow.getCell(col).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEEEE' } };
+				dataRow.getCell(col).font = { color: { argb: 'FFD9534F' } };
+				dataRow.getCell(col).numFmt = '#,##0';
+				dataRow.getCell(col).alignment = { vertical: 'middle', horizontal: 'right' };
+				col++;
+			}
+
+			// 실지급액
+			if (this.showNetColumn) {
+				dataRow.getCell(col).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8F5E9' } };
+				dataRow.getCell(col).numFmt = '#,##0';
+				dataRow.getCell(col).alignment = { vertical: 'middle', horizontal: 'right' };
+				col++;
+			}
+		}
+
 		// 기간 합계 컬럼 스타일 (filterType === 'period'일 때)
 		if (this.filterType === 'period') {
 			// 지급액
@@ -470,7 +557,19 @@ export class PaymentExcelExporter {
 		const totalRowData = this.isPlanner
 			? ['', '', '', '총금액']
 			: ['', '', '', '', '총금액'];
-		
+
+		// ⭐ 누적총액 컬럼 추가 (주간 선택일 때만)
+		if (this.filterType !== 'period' && this.showCumulativeColumn) {
+			const cumulativeTotal = this.calculateCumulativeTotal(allData);
+			totalRowData.push(cumulativeTotal.totalAmount);
+			if (this.showTaxColumn) {
+				totalRowData.push(cumulativeTotal.totalTax);
+			}
+			if (this.showNetColumn) {
+				totalRowData.push(cumulativeTotal.totalNet);
+			}
+		}
+
 		// 기간 합계 컬럼 추가 (filterType === 'period'일 때)
 		if (this.filterType === 'period') {
 			totalRowData.push(totalSummary.amount);

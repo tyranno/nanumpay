@@ -19,9 +19,52 @@
 	$: showNetColumn = $plannerPaymentFilterState.showNetColumn;
 	$: showBankColumn = $plannerPaymentFilterState.showBankColumn;
 	$: showAccountColumn = $plannerPaymentFilterState.showAccountColumn;
+	$: showCumulativeColumn = $plannerPaymentFilterState.showCumulativeColumn ?? true;
+	// ⭐ 설계사 전용 고정 컬럼 설정
+	$: showInsuranceColumn = $plannerPaymentFilterState.showInsuranceColumn ?? true;
+	$: showRegistrationDateColumn = $plannerPaymentFilterState.showRegistrationDateColumn ?? true;
+	$: showDeadlineColumn = $plannerPaymentFilterState.showDeadlineColumn ?? true;
 	$: periodType = $plannerPaymentFilterState.periodType;
 	$: filterType = $plannerPaymentFilterState.filterType;
 	$: itemsPerPage = $plannerPaymentFilterState.itemsPerPage || 20;
+
+
+	// ⭐ 동적 sticky 위치 계산 (기본 컬럼: 순번, 유/비, 성명, 등록/승급일, 가입기한, 은행, 계좌번호)
+	const COL_WIDTH = {
+		no: 60,         // 순번
+		insurance: 55,  // 유/비
+		name: 120,      // 성명
+		regDate: 90,    // 등록/승급일
+		deadline: 90,   // 가입기한
+		bank: 80,       // 은행
+		account: 140    // 계좌번호
+	};
+
+	// 각 컬럼의 left 위치 계산 (선택된 컬럼에 따라 동적으로 조정)
+	$: insuranceLeft = COL_WIDTH.no;
+	$: nameLeft = insuranceLeft + (showInsuranceColumn ? COL_WIDTH.insurance : 0);
+	$: regDateLeft = nameLeft + COL_WIDTH.name;
+	$: deadlineLeft = regDateLeft + (showRegistrationDateColumn ? COL_WIDTH.regDate : 0);
+	$: bankLeft = deadlineLeft + (showDeadlineColumn ? COL_WIDTH.deadline : 0);
+	$: accountLeft = bankLeft + (showBankColumn ? COL_WIDTH.bank : 0);
+
+	// 총금액 라벨 colspan 계산 (sticky 컬럼 수)
+	$: labelColspan = 2  // 순번 + 성명 (항상 포함)
+		+ (showInsuranceColumn ? 1 : 0)
+		+ (showRegistrationDateColumn ? 1 : 0)
+		+ (showDeadlineColumn ? 1 : 0)
+		+ (showBankColumn ? 1 : 0)
+		+ (showAccountColumn ? 1 : 0);
+
+	// ⭐ 마지막 고정 컬럼 판별 (그림자 표시용) - 계좌번호는 제외하고 은행 컬럼에 그림자 표시
+	$: lastFrozenCol = showAccountColumn && showBankColumn ? 'bank'
+		: showAccountColumn && showDeadlineColumn ? 'deadline'
+		: showAccountColumn && showRegistrationDateColumn ? 'regDate'
+		: showAccountColumn ? 'name'
+		: showBankColumn ? 'bank'
+		: showDeadlineColumn ? 'deadline'
+		: showRegistrationDateColumn ? 'regDate'
+		: 'name';
 
 	// 페이지 상태
 	let currentPage = 1;
@@ -295,26 +338,42 @@
 		<!-- 테이블 래퍼 -->
 		<div class="table-wrapper">
 			<table class="payment-table">
-				<thead>
+			<!-- ⭐ 컬럼 너비 명시적 고정 (sticky left 계산과 일치) -->
+			<colgroup>
+				<col style="width: 60px;"><!-- 순번 -->
+				{#if showInsuranceColumn}<col style="width: 55px;">{/if}<!-- 유/비 -->
+				<col style="width: 120px;"><!-- 성명 -->
+				{#if showRegistrationDateColumn}<col style="width: 90px;">{/if}<!-- 등록/승급일 -->
+				{#if showDeadlineColumn}<col style="width: 90px;">{/if}<!-- 가입기한 -->
+				{#if showBankColumn}<col style="width: 80px;">{/if}<!-- 은행 -->
+				{#if showAccountColumn}<col style="width: 140px;">{/if}<!-- 계좌번호 -->
+			</colgroup>
+			<thead>
 					<!-- 첫 번째 헤더 행 -->
 					<tr>
-						<th rowspan="2" class="th-base th-sticky-0">순번</th>
-						<th rowspan="2" class="th-base th-sticky-ins">유/비</th>
-						<th rowspan="2" class="th-base th-sticky-1">성명</th>
-						<th rowspan="2" class="th-base">등록/승급일</th>
-						<th rowspan="2" class="th-base">가입기한</th>
+						<th rowspan="2" class="th-base th-sticky" style="left: 0; z-index: 42; width: 60px; min-width: 60px; max-width: 60px;">순번</th>
+						{#if showInsuranceColumn}
+							<th rowspan="2" class="th-base th-sticky" style="left: {insuranceLeft}px; z-index: 41; width: 55px; min-width: 55px; max-width: 55px;">유/비</th>
+						{/if}
+						<th rowspan="2" class="th-base th-sticky" class:th-sticky-last={lastFrozenCol === 'name'} style="left: {nameLeft}px; z-index: 40; width: 120px; min-width: 120px; max-width: 120px;">성명</th>
+						{#if showRegistrationDateColumn}
+							<th rowspan="2" class="th-base th-sticky" class:th-sticky-last={lastFrozenCol === 'regDate'} style="left: {regDateLeft}px; z-index: 39; width: 90px; min-width: 90px; max-width: 90px;">등록/승급일</th>
+						{/if}
+						{#if showDeadlineColumn}
+							<th rowspan="2" class="th-base th-sticky" class:th-sticky-last={lastFrozenCol === 'deadline'} style="left: {deadlineLeft}px; z-index: 38; width: 90px; min-width: 90px; max-width: 90px;">가입기한</th>
+						{/if}
 						{#if showBankColumn}
-							<th rowspan="2" class="th-base">은행</th>
+							<th rowspan="2" class="th-base th-sticky" class:th-sticky-last={lastFrozenCol === 'bank'} style="left: {bankLeft}px; z-index: 37; width: 80px; min-width: 80px; max-width: 80px;">은행</th>
 						{/if}
 						{#if showAccountColumn}
-							<th rowspan="2" class="th-base">계좌번호</th>
+							<th rowspan="2" class="th-base th-sticky th-sticky-account" style="left: {accountLeft}px; z-index: 36; width: 140px; min-width: 140px; max-width: 140px;">계좌번호</th>
 						{/if}
 						<!-- ⭐ 누적총액 (주간 선택일 때만 표시) -->
-					{#if filterType !== 'period'}
-						<th colspan={1 + (showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0)} class="th-cumulative">누적총액</th>
+					{#if filterType !== 'period' && showCumulativeColumn}
+						<th colspan={1 + (showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0)} class="th-cumulative" class:th-cumulative-no-left={showAccountColumn}>누적총액</th>
 					{/if}
 					{#if filterType === 'period'}
-						<th colspan={1 + (showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0)} class="th-total">기간 합계</th>
+						<th colspan={1 + (showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0)} class="th-total" class:th-total-left-border={!showAccountColumn}>기간 합계</th>
 					{/if}
 					{#each weeklyColumns as week}
 							<th colspan={(showGradeInfoColumn ? 1 : 0) + 1 + (showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0)} class="th-week period-border">{week.label}</th>
@@ -323,8 +382,8 @@
 					<!-- 두 번째 헤더 행 -->
 					<tr>
 						<!-- ⭐ 누적총액 서브 헤더 (주간 선택일 때만 표시) -->
-						{#if filterType !== 'period'}
-							<th class="th-sub cumulative-border">지급액</th>
+						{#if filterType !== 'period' && showCumulativeColumn}
+							<th class="th-sub" class:cumulative-border={!showAccountColumn}>지급액</th>
 							{#if showTaxColumn}
 								<th class="th-sub th-tax">세지원(3.3%)</th>
 							{/if}
@@ -333,7 +392,7 @@
 							{/if}
 						{/if}
 						{#if filterType === 'period'}
-							<th class="th-sub th-total-sub">지급액</th>
+							<th class="th-sub th-total-sub" class:period-total-border={!showAccountColumn}>지급액</th>
 							{#if showTaxColumn}
 								<th class="th-sub th-total-sub th-tax">세지원(3.3%)</th>
 							{/if}
@@ -361,23 +420,29 @@
 							{#if row.isSubtotalRow}
 								<!-- ⭐ 소계 행 -->
 								<tr class="subtotal-row">
-									<td class="td-sticky-0 subtotal-cell">-</td>
-									<td class="td-sticky-ins subtotal-cell">-</td>
-									<td class="td-sticky-1 subtotal-cell subtotal-label">
+									<td class="subtotal-cell td-sticky" style="left: 0; z-index: 12; width: 60px; min-width: 60px; max-width: 60px;">-</td>
+									{#if showInsuranceColumn}
+										<td class="subtotal-cell td-sticky" style="left: {insuranceLeft}px; z-index: 11; width: 55px; min-width: 55px; max-width: 55px;">-</td>
+									{/if}
+									<td class="subtotal-cell subtotal-label td-sticky" class:td-sticky-last={lastFrozenCol === 'name'} style="left: {nameLeft}px; z-index: 10; width: 120px; min-width: 120px; max-width: 120px;">
 										<span class="font-bold">{row.accountName}</span>
 										<span class="text-xs text-gray-500 ml-1">({row.itemCount}건) 소계</span>
 									</td>
-									<td class="subtotal-cell">-</td>
-									<td class="subtotal-cell">-</td>
+									{#if showRegistrationDateColumn}
+										<td class="subtotal-cell td-sticky" class:td-sticky-last={lastFrozenCol === 'regDate'} style="left: {regDateLeft}px; z-index: 9; width: 90px; min-width: 90px; max-width: 90px;">-</td>
+									{/if}
+									{#if showDeadlineColumn}
+										<td class="subtotal-cell td-sticky" class:td-sticky-last={lastFrozenCol === 'deadline'} style="left: {deadlineLeft}px; z-index: 8; width: 90px; min-width: 90px; max-width: 90px;">-</td>
+									{/if}
 									{#if showBankColumn}
-										<td class="subtotal-cell">{row.bank || ''}</td>
+										<td class="subtotal-cell td-sticky" class:td-sticky-last={lastFrozenCol === 'bank'} style="left: {bankLeft}px; z-index: 7; width: 80px; min-width: 80px; max-width: 80px;">{row.bank || ''}</td>
 									{/if}
 									{#if showAccountColumn}
-									<td class="subtotal-cell">{row.accountNumber || ''}</td>
+									<td class="subtotal-cell td-sticky td-sticky-account" style="left: {accountLeft}px; z-index: 6; width: 140px; min-width: 140px; max-width: 140px;">{row.accountNumber || ''}</td>
 								{/if}
 								<!-- ⭐ 누적총액 (주간 선택일 때만 표시) -->
-								{#if filterType !== 'period'}
-									<td class="subtotal-value cumulative-border">{formatAmount(row.cumulativeTotal?.totalAmount || 0)}</td>
+								{#if filterType !== 'period' && showCumulativeColumn}
+									<td class="subtotal-value" class:cumulative-border={!showAccountColumn}>{formatAmount(row.cumulativeTotal?.totalAmount || 0)}</td>
 									{#if showTaxColumn}
 										<td class="subtotal-value subtotal-tax">{formatAmount(row.cumulativeTotal?.totalTax || 0)}</td>
 									{/if}
@@ -387,7 +452,7 @@
 								{/if}
 								<!-- 기간 합계 -->
 								{#if filterType === 'period'}
-									<td class="subtotal-value">{formatAmount(row.totalAmount)}</td>
+									<td class="subtotal-value" class:period-total-border={!showAccountColumn}>{formatAmount(row.totalAmount)}</td>
 										{#if showTaxColumn}
 											<td class="subtotal-value subtotal-tax">{formatAmount(row.totalTax)}</td>
 										{/if}
@@ -422,20 +487,22 @@
 								{@const deadline = getInsuranceDeadline(row)}
 								{@const isOverdue = deadline && !row.insuranceActive && deadline > new Date()}
 								<tr class="data-row">
-									<td class="td-sticky-0">{row.no}</td>
-									<td class="td-sticky-ins">
-										<div class="insurance-cell">
-											{#if !insuranceInfo.isRequired}
-												<span class="insurance-badge insurance-badge-na" title="보험 불필요">-</span>
-											{:else if insuranceInfo.isActive}
-												<span class="insurance-badge insurance-badge-active" title="보험 유지됨">유</span>
-											{:else}
-												<span class="insurance-badge insurance-badge-inactive" title="보험 미유지">✕</span>
-											{/if}
-											<span class="insurance-ratio" class:insurance-ratio-warn={insuranceInfo.isRequired && !insuranceInfo.isActive}>{insuranceInfo.ratio}</span>
-										</div>
-									</td>
-									<td class="td-sticky-1">
+									<td class="td-sticky td-base" style="left: 0; z-index: 12; width: 60px; min-width: 60px; max-width: 60px;">{row.no}</td>
+									{#if showInsuranceColumn}
+										<td class="td-sticky td-base" style="left: {insuranceLeft}px; z-index: 11; width: 55px; min-width: 55px; max-width: 55px; padding: 2px;">
+											<div class="insurance-cell">
+												{#if !insuranceInfo.isRequired}
+													<span class="insurance-badge insurance-badge-na" title="보험 불필요">-</span>
+												{:else if insuranceInfo.isActive}
+													<span class="insurance-badge insurance-badge-active" title="보험 유지됨">유</span>
+												{:else}
+													<span class="insurance-badge insurance-badge-inactive" title="보험 미유지">✕</span>
+												{/if}
+												<span class="insurance-ratio" class:insurance-ratio-warn={insuranceInfo.isRequired && !insuranceInfo.isActive}>{insuranceInfo.ratio}</span>
+											</div>
+										</td>
+									{/if}
+									<td class="td-sticky td-base" class:td-sticky-last={lastFrozenCol === 'name'} style="left: {nameLeft}px; z-index: 10; width: 120px; min-width: 120px; max-width: 120px;">
 										<div class="flex items-center justify-center">
 											<div class="relative inline-flex items-baseline">
 												{row.name}
@@ -450,17 +517,21 @@
 											</div>
 										</div>
 									</td>
-									<td class="td-base">{formatDate(promoDate)}</td>
-									<td class="td-base" class:text-red-600={isOverdue}>{formatDate(deadline)}</td>
+									{#if showRegistrationDateColumn}
+										<td class="td-sticky td-base" class:td-sticky-last={lastFrozenCol === 'regDate'} style="left: {regDateLeft}px; z-index: 9; width: 90px; min-width: 90px; max-width: 90px;">{formatDate(promoDate)}</td>
+									{/if}
+									{#if showDeadlineColumn}
+										<td class="td-sticky td-base" class:text-red-600={isOverdue} class:td-sticky-last={lastFrozenCol === 'deadline'} style="left: {deadlineLeft}px; z-index: 8; width: 90px; min-width: 90px; max-width: 90px;">{formatDate(deadline)}</td>
+									{/if}
 									{#if showBankColumn}
-										<td class="td-base">{row.bank}</td>
+										<td class="td-sticky td-base" class:td-sticky-last={lastFrozenCol === 'bank'} style="left: {bankLeft}px; z-index: 7; width: 80px; min-width: 80px; max-width: 80px;">{row.bank}</td>
 									{/if}
 									{#if showAccountColumn}
-									<td class="td-base">{row.accountNumber}</td>
+									<td class="td-sticky td-base td-sticky-account" style="left: {accountLeft}px; z-index: 6; width: 140px; min-width: 140px; max-width: 140px;">{row.accountNumber}</td>
 								{/if}
 								<!-- ⭐ 누적총액 (주간 선택일 때만 표시) -->
-								{#if filterType !== 'period'}
-									<td class="td-amount cumulative-border">{formatAmount(row.cumulativeTotal?.totalAmount || 0)}</td>
+								{#if filterType !== 'period' && showCumulativeColumn}
+									<td class="td-amount" class:cumulative-border={!showAccountColumn}>{formatAmount(row.cumulativeTotal?.totalAmount || 0)}</td>
 									{#if showTaxColumn}
 										<td class="td-tax">{formatAmount(row.cumulativeTotal?.totalTax || 0)}</td>
 									{/if}
@@ -470,7 +541,7 @@
 								{/if}
 								<!-- 기간 합계 (기간 선택일 때만) -->
 								{#if filterType === 'period'}
-									<td class="td-total">{formatAmount(userTotal.totalAmount)}</td>
+									<td class="td-total" class:period-total-border={!showAccountColumn}>{formatAmount(userTotal.totalAmount)}</td>
 										{#if showTaxColumn}
 											<td class="td-total td-tax">{formatAmount(userTotal.totalTax)}</td>
 										{/if}
@@ -509,12 +580,11 @@
 						{/each}
 
 						<!-- 총금액 행 -->
-						{@const labelColspan = 5 + (showBankColumn ? 1 : 0) + (showAccountColumn ? 1 : 0)}  <!-- 순번 + 유/비 + 성명 + 승급일 + 가입기한 + 은행? + 계좌? -->
 						<tr class="grand-total-row">
-							<td colspan={labelColspan} class="grand-total-label">총금액</td>
+							<td colspan={labelColspan} class="grand-total-label" class:grand-total-label-account={showAccountColumn}>총금액</td>
 							<!-- ⭐ 누적총액 컬럼 (주간 선택일 때만 표시) -->
-							{#if filterType !== 'period'}
-								<td class="grand-total-value cumulative-border">{formatAmount(grandTotalCumulative.totalAmount)}</td>
+							{#if filterType !== 'period' && showCumulativeColumn}
+								<td class="grand-total-value" class:cumulative-border={!showAccountColumn}>{formatAmount(grandTotalCumulative.totalAmount)}</td>
 								{#if showTaxColumn}
 									<td class="grand-total-value grand-total-tax">{formatAmount(grandTotalCumulative.totalTax)}</td>
 								{/if}
@@ -524,7 +594,7 @@
 							{/if}
 							<!-- 기간 합계 컬럼 -->
 							{#if filterType === 'period'}
-								<td class="grand-total-value">{formatAmount(grandTotal.amount)}</td>
+								<td class="grand-total-value" class:period-total-border={!showAccountColumn}>{formatAmount(grandTotal.amount)}</td>
 								{#if showTaxColumn}
 									<td class="grand-total-value grand-total-tax">{formatAmount(grandTotal.tax)}</td>
 								{/if}
@@ -548,10 +618,11 @@
 							{/each}
 						</tr>
 					{:else}
-						{@const fixedCols = 2 + (showBankColumn ? 1 : 0) + (showAccountColumn ? 1 : 0)}
+						{@const fixedCols = 2 + (showInsuranceColumn ? 1 : 0) + (showRegistrationDateColumn ? 1 : 0) + (showDeadlineColumn ? 1 : 0) + (showBankColumn ? 1 : 0) + (showAccountColumn ? 1 : 0)}
 						{@const colsPerWeek = (showGradeInfoColumn ? 1 : 0) + 1 + (showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0)}
+						{@const cumulativeCols = (filterType !== 'period' && showCumulativeColumn) ? 1 + (showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0) : 0}
 						{@const periodCols = filterType === 'period' ? colsPerWeek : 0}
-						{@const totalCols = fixedCols + periodCols + weeklyColumns.length * colsPerWeek}
+						{@const totalCols = fixedCols + cumulativeCols + periodCols + weeklyColumns.length * colsPerWeek}
 						<tr>
 							<td colspan={totalCols} class="empty-state">
 								데이터가 없습니다
@@ -591,7 +662,7 @@
 		@apply border-b border-l border-r border-gray-300 bg-white py-10 text-center italic text-gray-600;
 	}
 
-	/* 테이블 래퍼 */
+	/* 테이블 래퍼 - 수평 스크롤 */
 	.table-wrapper {
 		@apply relative overflow-x-auto border border-gray-300 bg-white;
 	}
@@ -617,6 +688,52 @@
 		@apply w-full min-w-max border-separate border-spacing-0;
 	}
 
+	/* ⭐ 헤더 고정 컬럼 (수평 sticky) */
+	.th-sticky {
+		@apply sticky bg-gray-200;
+		z-index: 20 !important;
+	}
+
+	/* ⭐ 마지막 고정 컬럼 - 오른쪽 그림자 */
+	.th-sticky-last {
+		box-shadow: 4px 0 8px -2px rgba(0, 0, 0, 0.15) !important;
+	}
+
+	/* ⭐ 데이터 셀 수평 스크롤 고정 */
+	.td-sticky {
+		@apply sticky bg-white;
+		z-index: 10 !important;
+	}
+
+	/* ⭐ 마지막 고정 컬럼 - 오른쪽 그림자 */
+	.td-sticky-last {
+		box-shadow: 4px 0 8px -2px rgba(0, 0, 0, 0.15) !important;
+	}
+
+	/* ⭐ 계좌번호 컬럼 - 파란색 오른쪽 경계선 (마지막 고정 컬럼 구분) */
+	.th-sticky-account {
+		border-right: 2px solid #93c5fd !important;
+	}
+
+	.td-sticky-account {
+		border-right: 2px solid #93c5fd !important;
+	}
+
+	/* 소계 행의 sticky 셀 */
+	.subtotal-row .td-sticky {
+		background-color: #fef3c7 !important;
+	}
+
+	/* 총금액 행의 sticky 셀 */
+	.grand-total-row .td-sticky {
+		background-color: #e9d5ff !important;
+	}
+
+	/* 데이터 행 hover 시 sticky 셀 */
+	.data-row:hover .td-sticky {
+		background-color: #fafafa !important;
+	}
+
 	/* 헤더 - 기본 */
 	.th-base {
 		@apply border-b border-r border-t border-gray-300 bg-gray-200;
@@ -631,13 +748,28 @@
 	.th-cumulative {
 		@apply border-b border-r border-t border-gray-300 bg-blue-100;
 		@apply whitespace-nowrap p-1.5 text-center text-sm font-bold;
-		border-left: 2px solid #3b82f6 !important;
+		border-left: 2px solid #93c5fd !important;
+	}
+
+	/* ⭐ 계좌번호 컬럼이 있을 때 누적총액 왼쪽 경계선 제거 (중복 방지) */
+	.th-cumulative-no-left {
+		border-left: none !important;
 	}
 
 	/* 헤더 - 기간 합계 */
 	.th-total {
 		@apply border-b border-r border-t border-gray-300 bg-purple-200;
 		@apply whitespace-nowrap p-1.5 text-center text-sm font-bold;
+	}
+
+	/* ⭐ 기간 합계 - 계좌번호 컬럼이 없을 때 왼쪽 파란 경계선 */
+	.th-total-left-border {
+		border-left: 2px solid #93c5fd !important;
+	}
+
+	/* ⭐ 기간 합계 셀 - 왼쪽 파란 경계선 (계좌번호 컬럼 없을 때) */
+	.period-total-border {
+		border-left: 2px solid #93c5fd !important;
 	}
 
 	/* 헤더 - 주차 */
@@ -660,62 +792,9 @@
 		@apply bg-red-50;
 	}
 
-	/* 헤더 - 고정 컬럼 */
-	.th-sticky-0 {
-		@apply sticky left-0 z-20 min-w-[60px];
-	}
-
-	/* 유/비 컬럼 */
-	.th-sticky-ins {
-		@apply sticky left-[60px] z-[19] min-w-[55px] max-w-[55px] w-[55px];
-	}
-
-	.th-sticky-1 {
-		@apply sticky left-[115px] z-[18] min-w-[120px];
-	}
-
 	/* 데이터 행 */
 	.data-row:hover td {
 		@apply bg-black/[0.02];
-	}
-
-	/* 데이터 셀 - 고정 컬럼 */
-	.td-sticky-0 {
-		@apply sticky left-0 bg-white;
-		@apply border-b border-l border-r border-gray-300;
-		@apply whitespace-nowrap p-1.5 text-center text-sm;
-		z-index: 10 !important;
-	}
-
-	.data-row:hover .td-sticky-0 {
-		background-color: #fafafa !important;
-		z-index: 10 !important;
-	}
-
-	/* 유/비 데이터 셀 */
-	.td-sticky-ins {
-		@apply sticky left-[60px] bg-white;
-		@apply border-b border-r border-gray-300;
-		@apply whitespace-nowrap p-0.5 text-center text-sm;
-		@apply min-w-[55px] max-w-[55px] w-[55px];
-		z-index: 9 !important;
-	}
-
-	.data-row:hover .td-sticky-ins {
-		background-color: #fafafa !important;
-		z-index: 9 !important;
-	}
-
-	.td-sticky-1 {
-		@apply sticky left-[115px] bg-white;
-		@apply border-b border-r border-gray-300;
-		@apply whitespace-nowrap p-1.5 text-center text-sm;
-		z-index: 8 !important;
-	}
-
-	.data-row:hover .td-sticky-1 {
-		background-color: #fafafa !important;
-		z-index: 8 !important;
 	}
 
 	/* ⭐ 보험 유/비 관련 스타일 */
@@ -747,10 +826,6 @@
 		@apply text-red-500 font-semibold;
 	}
 
-	/* 소계 행의 보험 셀 */
-	.subtotal-row .td-sticky-ins {
-		@apply bg-amber-100;
-	}
 
 	/* 데이터 셀 - 기본 (승급일, 가입기한 등) */
 	.td-base {
@@ -810,24 +885,24 @@
 		@apply bg-red-200;
 	}
 
-	/* 누적총액 - 왼쪽 경계선 */
+	/* 누적총액 - 왼쪽 경계선 (일반 스타일) */
 	.cumulative-border {
-		border-left: 2px solid #3b82f6 !important;
+		@apply border-l border-gray-300;
 	}
 
-	/* 등급(회수) 셀 */
+	/* 등급(회수) 셀 - ⭐ 왼쪽 경계선 파란색으로 통일 */
 	.th-grade-info {
 		@apply bg-indigo-100;
 		@apply font-semibold text-indigo-800;
 		@apply min-w-[80px] max-w-[100px];
-		border-left: 2px solid #3b82f6 !important;
+		border-left: 2px solid #93c5fd !important;
 	}
 
 	.td-grade-info {
 		@apply border-b border-r border-gray-300 bg-indigo-50;
 		@apply whitespace-nowrap p-1.5 text-center text-xs;
 		@apply text-indigo-700 font-medium;
-		border-left: 2px solid #3b82f6 !important;
+		border-left: 2px solid #93c5fd !important;
 	}
 
 	.data-row:hover .td-grade-info {
@@ -836,7 +911,7 @@
 
 	/* 기간 경계선 */
 	.period-border {
-		border-left: 2px solid #3b82f6 !important;
+		border-left: 2px solid #93c5fd !important;
 	}
 
 	/* 등급 아이콘 */
@@ -875,9 +950,14 @@
 	}
 
 	.grand-total-label {
-		@apply bg-purple-200;
+		@apply sticky left-0 z-10 bg-purple-200;
 		@apply border-b border-l border-r border-gray-300;
 		@apply whitespace-nowrap p-1.5 text-center text-sm font-bold;
+	}
+
+	/* ⭐ 총금액 행 - 계좌번호 컬럼 표시 시 파란색 오른쪽 경계선 */
+	.grand-total-label-account {
+		border-right: 2px solid #93c5fd !important;
 	}
 
 	.grand-total-value {
@@ -889,16 +969,15 @@
 		@apply bg-red-200 text-red-700;
 	}
 
-	/* 모바일에서 sticky 제거 */
+	/* 모바일에서 sticky 효과 제거 */
 	@media (max-width: 768px) {
-		.th-sticky-0,
-		.th-sticky-1,
-		.th-sticky-ins,
-		.td-sticky-0,
-		.td-sticky-1,
-		.td-sticky-ins {
+		.th-sticky,
+		.td-sticky {
 			position: static !important;
-			left: auto !important;
+		}
+		.th-sticky-last,
+		.td-sticky-last {
+			box-shadow: none !important;
 		}
 	}
 </style>

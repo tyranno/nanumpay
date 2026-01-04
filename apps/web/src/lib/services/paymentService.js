@@ -57,12 +57,15 @@ export const paymentService = {
 			startMonth,
 			endYear,
 			endMonth,
+			startWeekDate,  // ⭐ 실제 시작 날짜
+			endWeekDate,    // ⭐ 실제 종료 날짜
 			page = 1,
 			limit = 20,
 			searchQuery = '',
 			searchCategory = 'name',
 			periodType = 'weekly',
-			sortByName = true  // ⭐ 정렬 옵션 추가
+			sortByName = true,  // ⭐ 정렬 옵션 추가
+			unlimitedPeriod = false  // ⭐ 기간 제한 비활성화 (관리자용)
 		} = params;
 
 		try {
@@ -81,12 +84,15 @@ export const paymentService = {
 					startMonth,
 					endYear,
 					endMonth,
+					startDate: startWeekDate,  // ⭐ 실제 시작 날짜 전달
+					endDate: endWeekDate,      // ⭐ 실제 종료 날짜 전달
 					page,
 					limit,
 					searchQuery,
 					searchCategory,
 					periodType,
-					sortByName  // ⭐ 정렬 옵션 전달
+					sortByName,  // ⭐ 정렬 옵션 전달
+					unlimitedPeriod  // ⭐ 기간 제한 비활성화 전달
 				});
 			}
 		} catch (err) {
@@ -135,6 +141,8 @@ export const paymentService = {
 				no: (page - 1) * limit + index + 1,
 				name: user.userName || user.name || 'Unknown',
 				planner: user.planner || '',
+				// ⭐ 누적총액 (API에서 받은 데이터)
+				cumulativeTotal: user.cumulativeTotal || { totalAmount: 0, totalTax: 0, totalNet: 0 },
 				payments: {
 					[weekKey]: {
 						amount: user.actualAmount || 0,
@@ -155,6 +163,7 @@ export const paymentService = {
 			totalPages: data.pagination?.totalPages || 1,
 			totalPaymentTargets: data.pagination?.totalItems || 0,
 			apiGrandTotal: data.grandTotal || null,
+			apiGrandTotalCumulative: data.grandTotalCumulative || null,  // ⭐ 전체 누적총액 합계
 			weeklyTotals: data.weeklyTotals || {} // 주차별 총계
 		};
 	},
@@ -168,17 +177,20 @@ export const paymentService = {
 			startMonth,
 			endYear,
 			endMonth,
+			startDate,  // ⭐ 실제 시작 날짜 (YYYY-MM-DD)
+			endDate,    // ⭐ 실제 종료 날짜 (YYYY-MM-DD)
 			page,
 			limit,
 			searchQuery,
 			searchCategory,
 			periodType,
-			sortByName = true  // ⭐ 정렬 옵션 추가
+			sortByName = true,  // ⭐ 정렬 옵션 추가
+			unlimitedPeriod = false  // ⭐ 기간 제한 비활성화 (관리자용)
 		} = params;
 
 		// 기간 유효성 검사
 		const monthDiff = (endYear - startYear) * 12 + (endMonth - startMonth) + 1;
-		if (monthDiff > 12) {
+		if (!unlimitedPeriod && monthDiff > 12) {
 			throw new Error('최대 12개월까지만 조회 가능합니다.');
 		}
 		if (monthDiff <= 0) {
@@ -197,6 +209,14 @@ export const paymentService = {
 			periodType,  // ⭐ periodType 전달
 			sortByName: sortByName.toString()  // ⭐ 정렬 옵션 전달
 		});
+
+		// ⭐ 날짜 범위 파라미터 추가 (API에서 필터링)
+		if (startDate) {
+			queryParams.set('startDate', startDate);
+		}
+		if (endDate) {
+			queryParams.set('endDate', endDate);
+		}
 
 		const response = await fetch(`/api/admin/payment/weekly?${queryParams}`);
 		const result = await response.json();
@@ -332,10 +352,13 @@ export const paymentService = {
 			startMonth,
 			endYear,
 			endMonth,
+			startWeekDate,  // ⭐ 실제 시작 날짜
+			endWeekDate,    // ⭐ 실제 종료 날짜
 			searchQuery = '',
 			searchCategory = 'name',
 			periodType = 'weekly',
-			sortByName = true  // ⭐ 정렬 옵션 추가
+			sortByName = true,  // ⭐ 정렬 옵션 추가
+			unlimitedPeriod = false  // ⭐ 기간 제한 비활성화 (관리자용)
 		} = params;
 
 		// limit을 충분히 크게 설정하여 전체 데이터 가져오기

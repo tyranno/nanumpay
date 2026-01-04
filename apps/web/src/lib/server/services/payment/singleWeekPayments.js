@@ -208,6 +208,10 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
 						}
 					}
 				],
+				// ⭐ 전체 사용자 ID (누적총액 합계 계산용)
+				allUserIds: [
+					{ $project: { _id: 1 } }
+				],
 				// 페이지네이션된 데이터
 				paginatedData: [
 					{ $skip: (page - 1) * limit },
@@ -233,6 +237,7 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
 	const totalCount = grandTotal.totalUsers;
 	const totalPages = Math.ceil(totalCount / limit);
 	const userPayments = result[0]?.paginatedData || [];
+	const allUserIds = (result[0]?.allUserIds || []).map(u => u._id);  // ⭐ 전체 사용자 ID
 
 	// 5. 사용자 상세 정보 추가
 	const userIds = userPayments.map(p => p._id);
@@ -242,8 +247,21 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
 		.lean();
 	const userMap = new Map(users.map(u => [u._id.toString(), u]));
 
-	// ⭐ 5.1 누적총액 조회 (전체 과거 지급 총액)
+	// ⭐ 5.1 누적총액 조회 (페이지네이션된 사용자용)
 	const cumulativeTotals = await getCumulativeTotals(userIds);
+
+	// ⭐ 5.2 전체 누적총액 합계 조회 (전체 사용자)
+	const allCumulativeTotals = await getCumulativeTotals(allUserIds);
+	const grandTotalCumulative = {
+		totalAmount: 0,
+		totalTax: 0,
+		totalNet: 0
+	};
+	allCumulativeTotals.forEach(cumulative => {
+		grandTotalCumulative.totalAmount += cumulative.totalAmount || 0;
+		grandTotalCumulative.totalTax += cumulative.totalTax || 0;
+		grandTotalCumulative.totalNet += cumulative.totalNet || 0;
+	});
 
 	const enrichedPayments = userPayments.map((payment, idx) => {
 		const user = userMap.get(payment._id) || {};
@@ -307,6 +325,7 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
 		success: true,
 		data: {
 			grandTotal,
+			grandTotalCumulative,  // ⭐ 전체 누적총액 합계
 			weeklyTotals,
 			pagination: {
 				page,
@@ -454,6 +473,10 @@ export async function getSingleWeekPaymentsByGrade(year, month, week, page, limi
 						}
 					}
 				],
+				// ⭐ 전체 사용자 ID (누적총액 합계 계산용)
+				allUserIds: [
+					{ $project: { _id: 1 } }
+				],
 				paginatedData: [
 					{ $skip: (page - 1) * limit },
 					{ $limit: limit }
@@ -474,6 +497,7 @@ export async function getSingleWeekPaymentsByGrade(year, month, week, page, limi
 	const totalCount = grandTotal.totalUsers;
 	const totalPages = Math.ceil(totalCount / limit);
 	const userPayments = result[0]?.paginatedData || [];
+	const allUserIds = (result[0]?.allUserIds || []).map(u => u._id);  // ⭐ 전체 사용자 ID
 
 	// 3. 사용자 상세 정보 추가
 	const userIds = userPayments.map(p => p._id);
@@ -482,6 +506,22 @@ export async function getSingleWeekPaymentsByGrade(year, month, week, page, limi
 		.populate('userAccountId')
 		.lean();
 	const userMap = new Map(users.map(u => [u._id.toString(), u]));
+
+	// ⭐ 누적총액 조회 (페이지네이션된 사용자용)
+	const cumulativeTotals = await getCumulativeTotals(userIds);
+
+	// ⭐ 전체 누적총액 합계 조회 (전체 사용자)
+	const allCumulativeTotals = await getCumulativeTotals(allUserIds);
+	const grandTotalCumulative = {
+		totalAmount: 0,
+		totalTax: 0,
+		totalNet: 0
+	};
+	allCumulativeTotals.forEach(cumulative => {
+		grandTotalCumulative.totalAmount += cumulative.totalAmount || 0;
+		grandTotalCumulative.totalTax += cumulative.totalTax || 0;
+		grandTotalCumulative.totalNet += cumulative.totalNet || 0;
+	});
 
 	const enrichedPayments = userPayments.map((payment, idx) => {
 		const user = userMap.get(payment._id) || {};
@@ -515,7 +555,9 @@ export async function getSingleWeekPaymentsByGrade(year, month, week, page, limi
 			taxAmount,
 			netAmount,
 			installments: payment.payments || [],
-			gradeInfo
+			gradeInfo,
+			// ⭐ 누적총액 (전체 과거 지급 총액)
+			cumulativeTotal: cumulativeTotals.get(payment._id) || { totalAmount: 0, totalTax: 0, totalNet: 0 }
 		};
 	});
 
@@ -539,6 +581,7 @@ export async function getSingleWeekPaymentsByGrade(year, month, week, page, limi
 		success: true,
 		data: {
 			grandTotal,
+			grandTotalCumulative,  // ⭐ 전체 누적총액 합계
 			weeklyTotals,
 			pagination: {
 				page,

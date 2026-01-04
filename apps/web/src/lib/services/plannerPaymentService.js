@@ -317,9 +317,11 @@ export const plannerPaymentService = {
 			fetchAll = false
 		} = params;
 
-		// 날짜에서 year/month 추출
-		const startDate = new Date(startWeekDate);
-		const endDate = new Date(endWeekDate);
+		// 날짜에서 year/month 추출 (로컬 시간 기준으로 파싱)
+		const [startY, startM, startD] = startWeekDate.split('-').map(Number);
+		const [endY, endM, endD] = endWeekDate.split('-').map(Number);
+		const startDate = new Date(startY, startM - 1, startD);
+		const endDate = new Date(endY, endM - 1, endD);
 
 		// ⭐ 종료일을 해당 주 금요일까지 확장 (검색용)
 		const endDateForSearch = this.getNextFriday(endDate);
@@ -329,6 +331,10 @@ export const plannerPaymentService = {
 		// ⭐ API 조회는 금요일이 포함된 월까지 확장
 		const endYear = endDateForSearch.getFullYear();
 		const endMonth = endDateForSearch.getMonth() + 1;
+
+		// ⭐ 날짜 비교용 숫자값 (타임존 문제 방지)
+		const startNum = startY * 10000 + startM * 100 + startD;
+		const endSearchNum = endDateForSearch.getFullYear() * 10000 + (endDateForSearch.getMonth() + 1) * 100 + endDateForSearch.getDate();
 
 		const queryParams = new URLSearchParams({
 			startYear,
@@ -355,8 +361,9 @@ export const plannerPaymentService = {
 		// ⭐ 날짜 범위에 해당하는 주차만 필터링 (종료일은 해당 주 금요일까지 확장)
 		const filteredWeeks = (data.weeks || []).filter(week => {
 			const weekFriday = this.getWeekFriday(week.year, week.monthNumber, week.weekNumber);
-			// 시작일 <= 금요일 <= 확장된 종료일(금요일)
-			return weekFriday >= startDate && weekFriday <= endDateForSearch;
+			// 시작일 <= 금요일 <= 확장된 종료일(금요일) (숫자로 비교하여 타임존 문제 방지)
+			const fridayNum = weekFriday.getFullYear() * 10000 + (weekFriday.getMonth() + 1) * 100 + weekFriday.getDate();
+			return fridayNum >= startNum && fridayNum <= endSearchNum;
 		});
 
 		// 주간 보기: 주차별 컬럼 생성

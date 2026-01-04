@@ -45,10 +45,12 @@ async function getCumulativeTotals(userIds, upToDate = new Date()) {
 
 /**
  * 기간 조회
+ * @param {string} startDate - 시작 날짜 (YYYY-MM-DD) ⭐ 선택적
+ * @param {string} endDate - 종료 날짜 (YYYY-MM-DD) ⭐ 선택적
  */
-export async function getRangePayments(startYear, startMonth, endYear, endMonth, page, limit, search, searchCategory, plannerAccountId = null, sortByName = true) {
+export async function getRangePayments(startYear, startMonth, endYear, endMonth, page, limit, search, searchCategory, plannerAccountId = null, sortByName = true, startDate = null, endDate = null) {
 	// 1. 기간 내 모든 금요일 날짜 수집
-	const allFridays = [];
+	let allFridays = [];
 	let currentYear = startYear;
 	let currentMonth = startMonth;
 
@@ -61,6 +63,21 @@ export async function getRangePayments(startYear, startMonth, endYear, endMonth,
 			currentMonth = 1;
 			currentYear++;
 		}
+	}
+
+	// ⭐ 날짜 범위로 금요일 필터링 (startDate, endDate가 제공된 경우)
+	// 타임존 문제 방지를 위해 날짜 부분만 비교 (YYYYMMDD 숫자로 변환)
+	if (startDate && endDate) {
+		const [startY, startM, startD] = startDate.split('-').map(Number);
+		const [endY, endM, endD] = endDate.split('-').map(Number);
+		const startNum = startY * 10000 + startM * 100 + startD;
+		const endNum = endY * 10000 + endM * 100 + endD;
+
+		allFridays = allFridays.filter(fridayInfo => {
+			const friday = fridayInfo.friday;
+			const fridayNum = friday.getFullYear() * 10000 + (friday.getMonth() + 1) * 100 + friday.getDate();
+			return fridayNum >= startNum && fridayNum <= endNum;
+		});
 	}
 
 	// 2. 검색 조건 구성
@@ -359,10 +376,12 @@ export async function getRangePayments(startYear, startMonth, endYear, endMonth,
  * - 전체 기간의 모든 사용자를 먼저 조회
  * - 등급으로 필터링
  * - 페이지네이션 적용
+ * @param {string} startDate - 시작 날짜 (YYYY-MM-DD) ⭐ 선택적
+ * @param {string} endDate - 종료 날짜 (YYYY-MM-DD) ⭐ 선택적
  */
-export async function getRangePaymentsByGrade(startYear, startMonth, endYear, endMonth, page, limit, gradeFilter, plannerAccountId = null, sortByName = true) {
+export async function getRangePaymentsByGrade(startYear, startMonth, endYear, endMonth, page, limit, gradeFilter, plannerAccountId = null, sortByName = true, startDate = null, endDate = null) {
 	// 1. 기간 내 모든 금요일 날짜 수집
-	const allFridays = [];
+	let allFridays = [];
 	let currentYear = startYear;
 	let currentMonth = startMonth;
 
@@ -375,6 +394,21 @@ export async function getRangePaymentsByGrade(startYear, startMonth, endYear, en
 			currentMonth = 1;
 			currentYear++;
 		}
+	}
+
+	// ⭐ 날짜 범위로 금요일 필터링 (startDate, endDate가 제공된 경우)
+	// 타임존 문제 방지를 위해 날짜 부분만 비교 (YYYYMMDD 숫자로 변환)
+	if (startDate && endDate) {
+		const [startY, startM, startD] = startDate.split('-').map(Number);
+		const [endY, endM, endD] = endDate.split('-').map(Number);
+		const startNum = startY * 10000 + startM * 100 + startD;
+		const endNum = endY * 10000 + endM * 100 + endD;
+
+		allFridays = allFridays.filter(fridayInfo => {
+			const friday = fridayInfo.friday;
+			const fridayNum = friday.getFullYear() * 10000 + (friday.getMonth() + 1) * 100 + friday.getDate();
+			return fridayNum >= startNum && fridayNum <= endNum;
+		});
 	}
 
 	// 2. 기간 내 모든 고유 userId를 baseGrade와 함께 수집

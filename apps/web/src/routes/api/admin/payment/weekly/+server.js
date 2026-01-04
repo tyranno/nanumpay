@@ -20,6 +20,9 @@ export async function GET({ url, locals }) {
 		const startMonth = parseInt(url.searchParams.get('startMonth'));
 		const endYear = parseInt(url.searchParams.get('endYear'));
 		const endMonth = parseInt(url.searchParams.get('endMonth'));
+		// ⭐ 날짜 범위 파라미터 (선택적 - 정확한 날짜 필터링용)
+		const startDate = url.searchParams.get('startDate');
+		const endDate = url.searchParams.get('endDate');
 
 		// 페이지네이션
 		const page = parseInt(url.searchParams.get('page')) || 1;
@@ -52,11 +55,11 @@ export async function GET({ url, locals }) {
 		if (startYear && startMonth && endYear && endMonth) {
 			// ⭐ 등급 검색일 경우 전용 함수 사용
 			if (searchCategory === 'grade' && search) {
-				const result = await getRangePaymentsByGrade(startYear, startMonth, endYear, endMonth, page, limit, search, plannerAccountId, sortByName);
+				const result = await getRangePaymentsByGrade(startYear, startMonth, endYear, endMonth, page, limit, search, plannerAccountId, sortByName, startDate, endDate);
 				return json(result);
 			}
 
-			const result = await getRangePayments(startYear, startMonth, endYear, endMonth, page, limit, search, searchCategory, plannerAccountId, sortByName);
+			const result = await getRangePayments(startYear, startMonth, endYear, endMonth, page, limit, search, searchCategory, plannerAccountId, sortByName, startDate, endDate);
 			return json(result);
 		}
 

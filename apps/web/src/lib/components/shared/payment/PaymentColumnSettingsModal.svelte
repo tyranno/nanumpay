@@ -7,6 +7,7 @@
 	export let onShowAll = () => {};
 	export let onApply = () => {};
 	export let showPlannerOption = true; // ⭐ 설계자 옵션 표시 여부 (기본값 true)
+	export let isPlannerMode = false; // ⭐ 설계사 전용 모드 (고정 컬럼 옵션 표시)
 
 	// ⭐ 토글 상태 계산 (모든 설정이 true인지 확인)
 	$: allShown = Object.values(tempSettings).every(value => value === true);
@@ -42,6 +43,33 @@
 				class="mr-3 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
 			/>
 			<span class="text-sm font-medium text-gray-700">설계자</span>
+		</label>
+		{/if}
+		<!-- ⭐ 설계사 전용: 유/비, 등록/승급일, 가입기한 -->
+		{#if isPlannerMode}
+		<label class="flex items-center p-1.5 bg-gray-50 hover:bg-blue-50 rounded cursor-pointer transition-colors">
+			<input
+				type="checkbox"
+				bind:checked={tempSettings.showInsuranceColumn}
+				class="mr-3 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
+			/>
+			<span class="text-sm font-medium text-gray-700">유/비</span>
+		</label>
+		<label class="flex items-center p-1.5 bg-gray-50 hover:bg-blue-50 rounded cursor-pointer transition-colors">
+			<input
+				type="checkbox"
+				bind:checked={tempSettings.showRegistrationDateColumn}
+				class="mr-3 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
+			/>
+			<span class="text-sm font-medium text-gray-700">등록/승급일</span>
+		</label>
+		<label class="flex items-center p-1.5 bg-gray-50 hover:bg-blue-50 rounded cursor-pointer transition-colors">
+			<input
+				type="checkbox"
+				bind:checked={tempSettings.showDeadlineColumn}
+				class="mr-3 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
+			/>
+			<span class="text-sm font-medium text-gray-700">가입기한</span>
 		</label>
 		{/if}
 		<label class="flex items-center p-1.5 bg-gray-50 hover:bg-blue-50 rounded cursor-pointer transition-colors">
@@ -88,6 +116,20 @@
 				class="mr-3 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
 			/>
 			<span class="text-sm font-medium text-gray-700">실지급액</span>
+		</label>
+
+		<!-- 누적총액 섹션 (주간 선택일 때만 표시됨) -->
+		<div class="col-span-2 mt-1.5">
+			<h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">누적총액 (주간 선택)</h4>
+		</div>
+		<label class="flex items-center p-1.5 bg-gray-50 hover:bg-blue-50 rounded cursor-pointer transition-colors col-span-2">
+			<input
+				type="checkbox"
+				bind:checked={tempSettings.showCumulativeColumn}
+				class="mr-3 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
+			/>
+			<span class="text-sm font-medium text-gray-700">누적총액 표시</span>
+			<span class="ml-2 text-xs text-gray-500">(주간 조회 시에만 표시됨)</span>
 		</label>
 	</div>
 

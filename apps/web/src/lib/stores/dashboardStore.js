@@ -60,6 +60,7 @@ export const paymentPageFilterState = writable({
 	showPlannerColumn: true, // 설계자 컬럼 표시 (관리자 전용)
 	showBankColumn: true, // 은행 컬럼 표시
 	showAccountColumn: true, // 계좌번호 컬럼 표시
+	showCumulativeColumn: true, // 누적총액 컬럼 표시 (주간 선택일 때만)
 	// 검색 관련
 	searchQuery: '', // 검색어
 	searchCategory: 'name', // 'name' | 'planner'
@@ -88,6 +89,11 @@ export const plannerPaymentFilterState = writable({
 	showNetColumn: true, // 실지급액 컬럼 표시
 	showBankColumn: true, // 은행 컬럼 표시
 	showAccountColumn: true, // 계좌번호 컬럼 표시
+	showCumulativeColumn: true, // 누적총액 컬럼 표시 (주간 선택일 때만)
+	// ⭐ 설계사 전용 고정 컬럼 설정
+	showInsuranceColumn: true, // 유/비 컬럼 표시 (고정)
+	showRegistrationDateColumn: true, // 등록/승급일 컬럼 표시 (고정)
+	showDeadlineColumn: true, // 가입기한 컬럼 표시 (고정)
 	// 검색 관련
 	searchQuery: '', // 검색어
 	searchCategory: 'name', // 'name' | 'grade'

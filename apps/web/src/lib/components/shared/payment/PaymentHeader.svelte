@@ -19,6 +19,7 @@
 	export let showSubtotalOptions = false; // ⭐ 소계 표시 옵션 (설계사 전용)
 	export let subtotalDisplayMode = 'noSubtotals'; // 'noSubtotals' | 'withSubtotals' | 'subtotalsOnly'
 	export let filterStore = null; // ⭐ 외부 store 주입 (없으면 기본 paymentPageFilterState 사용)
+	export let isPlannerMode = false; // ⭐ 설계사 전용 모드 (고정 컬럼 옵션 표시)
 
 	// ⭐ 실제 사용할 store (외부 주입 또는 기본값)
 	$: activeStore = filterStore || paymentPageFilterState;
@@ -81,6 +82,11 @@
 	let showPlannerColumn = $paymentPageFilterState.showPlannerColumn;
 	let showBankColumn = $paymentPageFilterState.showBankColumn;
 	let showAccountColumn = $paymentPageFilterState.showAccountColumn;
+	let showCumulativeColumn = $paymentPageFilterState.showCumulativeColumn; // ⭐ 누적총액 컬럼
+	// ⭐ 설계사 전용 고정 컬럼 (plannerPaymentFilterState에서만 사용)
+	let showInsuranceColumn = true;
+	let showRegistrationDateColumn = true;
+	let showDeadlineColumn = true;
 	let searchQuery = $paymentPageFilterState.searchQuery;
 	let searchCategory = $paymentPageFilterState.searchCategory;
 	let sortByName = $paymentPageFilterState.sortByName ?? true;
@@ -109,6 +115,11 @@
 			showPlannerColumn = storeValue.showPlannerColumn ?? showPlannerColumn;
 			showBankColumn = storeValue.showBankColumn ?? showBankColumn;
 			showAccountColumn = storeValue.showAccountColumn ?? showAccountColumn;
+			showCumulativeColumn = storeValue.showCumulativeColumn ?? showCumulativeColumn; // ⭐ 누적총액 컬럼
+			// ⭐ 설계사 전용 고정 컬럼
+			showInsuranceColumn = storeValue.showInsuranceColumn ?? showInsuranceColumn;
+			showRegistrationDateColumn = storeValue.showRegistrationDateColumn ?? showRegistrationDateColumn;
+			showDeadlineColumn = storeValue.showDeadlineColumn ?? showDeadlineColumn;
 			searchQuery = storeValue.searchQuery ?? searchQuery;
 			searchCategory = storeValue.searchCategory ?? searchCategory;
 			sortByName = storeValue.sortByName ?? true;
@@ -146,6 +157,11 @@
 				showPlannerColumn,
 				showBankColumn,
 				showAccountColumn,
+				showCumulativeColumn, // ⭐ 누적총액 컬럼
+				// ⭐ 설계사 전용 고정 컬럼
+				showInsuranceColumn,
+				showRegistrationDateColumn,
+				showDeadlineColumn,
 				searchQuery,
 				searchCategory,
 				sortByName
@@ -207,6 +223,18 @@
 			if (wasAdjusted) {
 				showPeriodLimitAlert = true;
 			}
+		}
+
+		// ⭐ 날짜에서 년/월 추출하여 업데이트 (paymentService 호출용)
+		if (startWeekDate) {
+			const startDate = new Date(startWeekDate);
+			startYear = startDate.getFullYear();
+			startMonth = startDate.getMonth() + 1;
+		}
+		if (endWeekDate) {
+			const endDate = new Date(endWeekDate);
+			endYear = endDate.getFullYear();
+			endMonth = endDate.getMonth() + 1;
 		}
 
 		updateStore();
@@ -298,7 +326,14 @@
 			showBankColumn: true,
 			showAccountColumn: true,
 			showTaxColumn: true,
-			showNetColumn: true
+			showNetColumn: true,
+			showCumulativeColumn: true, // ⭐ 누적총액 컬럼
+			// ⭐ 설계사 전용 고정 컬럼
+			...(isPlannerMode && {
+				showInsuranceColumn: true,
+				showRegistrationDateColumn: true,
+				showDeadlineColumn: true
+			})
 		};
 	}
 
@@ -309,6 +344,13 @@
 		showAccountColumn = tempSettings.showAccountColumn;
 		showTaxColumn = tempSettings.showTaxColumn;
 		showNetColumn = tempSettings.showNetColumn;
+		showCumulativeColumn = tempSettings.showCumulativeColumn; // ⭐ 누적총액 컬럼
+		// ⭐ 설계사 전용 고정 컬럼
+		if (isPlannerMode) {
+			showInsuranceColumn = tempSettings.showInsuranceColumn;
+			showRegistrationDateColumn = tempSettings.showRegistrationDateColumn;
+			showDeadlineColumn = tempSettings.showDeadlineColumn;
+		}
 		updateStore();
 		showColumnSettings = false;
 	}
@@ -504,7 +546,14 @@
 							showBankColumn,
 							showAccountColumn,
 							showTaxColumn,
-							showNetColumn
+							showNetColumn,
+							showCumulativeColumn, // ⭐ 누적총액 컬럼
+							// ⭐ 설계사 전용 고정 컬럼
+							...(isPlannerMode && {
+								showInsuranceColumn,
+								showRegistrationDateColumn,
+								showDeadlineColumn
+							})
 						};
 						showColumnSettings = !showColumnSettings;
 					}}
@@ -717,7 +766,14 @@
 					showBankColumn,
 					showAccountColumn,
 					showTaxColumn,
-					showNetColumn
+					showNetColumn,
+					showCumulativeColumn, // ⭐ 누적총액 컬럼
+					// ⭐ 설계사 전용 고정 컬럼
+					...(isPlannerMode && {
+						showInsuranceColumn,
+						showRegistrationDateColumn,
+						showDeadlineColumn
+					})
 				};
 				showColumnSettings = !showColumnSettings;
 			}}
@@ -745,6 +801,7 @@
 	onShowAll={handleShowAllColumns}
 	onApply={handleApplyColumnSettings}
 	{showPlannerOption}
+	{isPlannerMode}
 />
 
 <!-- 기간 제한 알림 모달 -->

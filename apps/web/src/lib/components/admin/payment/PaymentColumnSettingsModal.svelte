@@ -86,6 +86,20 @@
 			/>
 			<span class="text-sm font-medium text-gray-700">실지급액</span>
 		</label>
+
+		<!-- 누적총액 섹션 (주간 선택일 때만 표시됨) -->
+		<div class="col-span-2 mt-1.5">
+			<h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">누적총액 (주간 선택)</h4>
+		</div>
+		<label class="flex items-center p-1.5 bg-gray-50 hover:bg-blue-50 rounded cursor-pointer transition-colors col-span-2">
+			<input
+				type="checkbox"
+				bind:checked={tempSettings.showCumulativeColumn}
+				class="mr-3 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
+			/>
+			<span class="text-sm font-medium text-gray-700">누적총액 표시</span>
+			<span class="ml-2 text-xs text-gray-500">(주간 조회 시에만 표시됨)</span>
+		</label>
 	</div>
 
 	<svelte:fragment slot="footer">

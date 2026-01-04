@@ -17,6 +17,7 @@
 	let totalPages = 1;
 	let totalPaymentTargets = 0;
 	let apiGrandTotal = null;
+	let apiGrandTotalCumulative = null; // ⭐ 전체 누적총액 합계 (페이지 아닌 전체)
 	let weeklyTotals = {}; // 주차별 총계
 	let monthlyTotals = {}; // 월별 총계
 	let isProcessingPast = false;
@@ -43,12 +44,15 @@
 				startMonth: filterState.startMonth,
 				endYear: filterState.endYear,
 				endMonth: filterState.endMonth,
+				startWeekDate: filterState.startWeekDate,  // ⭐ 실제 시작 날짜
+				endWeekDate: filterState.endWeekDate,      // ⭐ 실제 종료 날짜
 				page,
 				limit: filterState.itemsPerPage,
 				searchQuery: filterState.searchQuery,
 				searchCategory: filterState.searchCategory,
 				periodType: filterState.periodType,
-				sortByName: filterState.sortByName  // ⭐ 정렬 옵션 전달
+				sortByName: filterState.sortByName,  // ⭐ 정렬 옵션 전달
+				unlimitedPeriod: true  // ⭐ 관리자는 기간 제한 없음
 			});
 
 			paymentList = result.paymentList;
@@ -57,6 +61,7 @@
 			totalPages = result.totalPages;
 			totalPaymentTargets = result.totalPaymentTargets;
 			apiGrandTotal = result.apiGrandTotal;
+			apiGrandTotalCumulative = result.apiGrandTotalCumulative || null; // ⭐ 전체 누적총액 합계
 			weeklyTotals = result.weeklyTotals || {}; // 주차별 총계
 			monthlyTotals = result.monthlyTotals || {}; // 월별 총계
 		} catch (err) {
@@ -113,10 +118,13 @@
 			startMonth: filterState.startMonth,
 			endYear: filterState.endYear,
 			endMonth: filterState.endMonth,
+			startWeekDate: filterState.startWeekDate,  // ⭐ 실제 시작 날짜
+			endWeekDate: filterState.endWeekDate,      // ⭐ 실제 종료 날짜
 			searchQuery: filterState.searchQuery,
 			searchCategory: filterState.searchCategory,
 			periodType: filterState.periodType,
-			sortByName: filterState.sortByName  // ⭐ 정렬 옵션 전달
+			sortByName: filterState.sortByName,  // ⭐ 정렬 옵션 전달
+			unlimitedPeriod: true  // ⭐ 관리자는 기간 제한 없음
 		});
 
 		// Excel 내보내기
@@ -124,6 +132,7 @@
 			showGradeInfoColumn: filterState.showGradeInfoColumn, // ⭐ 등급(회수) 컬럼
 			showTaxColumn: filterState.showTaxColumn,
 			showNetColumn: filterState.showNetColumn,
+			showCumulativeColumn: filterState.showCumulativeColumn, // ⭐ 누적총액 컬럼
 			filterType: filterState.filterType,
 			selectedDate: filterState.selectedDate,
 			startYear: filterState.startYear,
@@ -201,6 +210,7 @@
 		itemsPerPage={$paymentPageFilterState.itemsPerPage}
 		onPageChange={goToPage}
 		{grandTotal}
+		{apiGrandTotalCumulative}
 		{weeklyTotals}
 		{monthlyTotals}
 		showPlannerColumn={$paymentPageFilterState.showPlannerColumn}

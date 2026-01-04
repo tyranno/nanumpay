@@ -38,9 +38,11 @@
 
 	async function loadCommissionData() {
 		try {
-			// ⭐ 날짜에서 year/month 추출
-			const startDate = new Date(commissionStartDate);
-			const endDate = new Date(commissionEndDate);
+			// ⭐ 날짜 파싱 (로컬 시간 기준으로 파싱 - 타임존 문제 방지)
+			const [startY, startM, startD] = commissionStartDate.split('-').map(Number);
+			const [endY, endM, endD] = commissionEndDate.split('-').map(Number);
+			const startDate = new Date(startY, startM - 1, startD);
+			const endDate = new Date(endY, endM - 1, endD);
 
 			// ⭐ 종료일을 해당 주 금요일까지 확장 (검색용)
 			const endDateForSearch = getNextFriday(endDate);
@@ -58,17 +60,17 @@
 			const result = await response.json();
 
 			if (result.success) {
-				// ⭐ 선택한 날짜 범위 내의 주차만 필터링 (종료일은 금요일까지 확장)
-				const startDateObj = new Date(commissionStartDate);
-				endDateForSearch.setHours(23, 59, 59, 999);
+				// ⭐ 날짜 비교용 숫자값 (타임존 문제 방지)
+				const startNum = startY * 10000 + startM * 100 + startD;
+				const endSearchNum = endDateForSearch.getFullYear() * 10000 + (endDateForSearch.getMonth() + 1) * 100 + endDateForSearch.getDate();
 
 				const filteredData = (result.data || []).filter(item => {
 					// item.period가 "2026-01-03 (1월 1주)" 같은 형식
-					const dateMatch = item.period?.match(/^(\d{4}-\d{2}-\d{2})/);
+					const dateMatch = item.period?.match(/^(\d{4})-(\d{2})-(\d{2})/);
 					if (!dateMatch) return true;
-					const itemDate = new Date(dateMatch[1]);
-					// 시작일 <= 금요일 <= 확장된 종료일(금요일)
-					return itemDate >= startDateObj && itemDate <= endDateForSearch;
+					// ⭐ 숫자로 비교하여 타임존 문제 방지
+					const itemNum = parseInt(dateMatch[1]) * 10000 + parseInt(dateMatch[2]) * 100 + parseInt(dateMatch[3]);
+					return itemNum >= startNum && itemNum <= endSearchNum;
 				});
 
 				commissionSummary = filteredData;
