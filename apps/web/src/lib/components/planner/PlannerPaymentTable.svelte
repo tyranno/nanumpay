@@ -801,9 +801,6 @@
 		@apply bg-purple-200;
 		@apply border-b border-l border-r border-gray-300;
 		@apply whitespace-nowrap p-1.5 text-center text-sm font-bold;
-		position: sticky;
-		left: 0;
-		z-index: 10;
 	}
 
 	.grand-total-value {
