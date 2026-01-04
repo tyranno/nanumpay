@@ -5,28 +5,18 @@ import { writable } from 'svelte/store';
  * 모바일 ↔ 웹 전환 시에도 선택사항 유지
  */
 
-// ⭐ 현재주 금요일 계산
-function getCurrentFriday() {
-	const now = new Date();
-	const dayOfWeek = now.getDay();
-	const daysToFriday = dayOfWeek <= 5 ? (5 - dayOfWeek) : (5 - dayOfWeek + 7);
-	const friday = new Date(now);
-	friday.setDate(now.getDate() + daysToFriday);
-	friday.setHours(0, 0, 0, 0);
-	return friday;
-}
-
 // ⭐ 날짜를 YYYY-MM-DD 형식으로 변환
 function formatDate(date) {
 	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
-// ⭐ 기본 기간: 현재주 금요일 ~ 3주 후 금요일 (이번주 포함 4주)
-const currentFriday = getCurrentFriday();
-const threeWeeksLater = new Date(currentFriday);
-threeWeeksLater.setDate(currentFriday.getDate() + 21);
+// ⭐ 기본 기간: 오늘 ~ 3주 후 (UI 표시용, 검색은 해당 주 금요일까지 확장됨)
+const todayDate = new Date();
+todayDate.setHours(0, 0, 0, 0);
+const threeWeeksLater = new Date(todayDate);
+threeWeeksLater.setDate(todayDate.getDate() + 21);
 
-const defaultStartWeekDate = formatDate(currentFriday);
+const defaultStartWeekDate = formatDate(todayDate);
 const defaultEndWeekDate = formatDate(threeWeeksLater);
 
 // 매출 통계 카드 상태 (MonthlyRevenueCard + MonthlyRevenueCardMobile 공유)

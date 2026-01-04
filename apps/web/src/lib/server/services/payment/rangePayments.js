@@ -7,6 +7,43 @@ import { buildSearchFilter, generateGradeInfo, calculatePeriodGrade } from './ut
 import mongoose from 'mongoose';
 
 /**
+ * 사용자별 누적총액 조회 (전체 과거 지급 총액)
+ * ⭐ paid 상태 사용 안함 - 날짜 기준으로만 조회
+ */
+async function getCumulativeTotals(userIds, upToDate = new Date()) {
+	if (!userIds || userIds.length === 0) {
+		return new Map();
+	}
+
+	const pipeline = [
+		{ $match: { userId: { $in: userIds.map(id => id.toString()) } } },
+		{ $unwind: '$installments' },
+		// ⭐ status='paid' 체크 제거, 날짜만 확인 (skipped/terminated 제외)
+		{ $match: {
+			'installments.scheduledDate': { $lte: upToDate },
+			'installments.status': { $nin: ['skipped', 'terminated'] }
+		} },
+		{ $group: {
+			_id: '$userId',
+			totalAmount: { $sum: '$installments.installmentAmount' },
+			totalTax: { $sum: '$installments.withholdingTax' },
+			totalNet: { $sum: '$installments.netAmount' }
+		}}
+	];
+
+	const results = await WeeklyPaymentPlans.aggregate(pipeline);
+	const cumulativeMap = new Map();
+	results.forEach(r => {
+		cumulativeMap.set(r._id, {
+			totalAmount: r.totalAmount || 0,
+			totalTax: r.totalTax || 0,
+			totalNet: r.totalNet || 0
+		});
+	});
+	return cumulativeMap;
+}
+
+/**
  * 기간 조회
  */
 export async function getRangePayments(startYear, startMonth, endYear, endMonth, page, limit, search, searchCategory, plannerAccountId = null, sortByName = true) {
@@ -57,6 +94,10 @@ export async function getRangePayments(startYear, startMonth, endYear, endMonth,
 			return searchRegex.test(plannerName);
 		});
 	}
+
+	// ⭐ 2.5 누적총액 조회 (전체 과거 지급 총액)
+	const userIds = allUsers.map(u => u._id);
+	const cumulativeTotals = await getCumulativeTotals(userIds);
 
 	// 3. 주차별 데이터 생성
 	const weeks = [];
@@ -304,7 +345,9 @@ export async function getRangePayments(startYear, startMonth, endYear, endMonth,
 					paymentCount: weeks.reduce((count, week) => {
 						const payment = week.payments.find(p => p.userId === userId);
 						return count + (payment?.actualAmount > 0 ? 1 : 0);
-					}, 0)
+					}, 0),
+				// ⭐ 누적총액 (전체 과거 지급 총액)
+				cumulativeTotal: cumulativeTotals.get(userId) || { totalAmount: 0, totalTax: 0, totalNet: 0 }
 				};
 			})
 		}

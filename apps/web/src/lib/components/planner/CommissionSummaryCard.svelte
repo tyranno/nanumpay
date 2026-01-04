@@ -4,34 +4,32 @@
 	let commissionSummary = [];
 	let commissionGrandTotal = { totalCommission: 0, totalUsers: 0, totalRevenue: 0 };
 
-	// ⭐ 현재 주의 금요일 계산
-	function getCurrentFriday() {
-		const now = new Date();
-		const dayOfWeek = now.getDay();
-		const daysToFriday = dayOfWeek <= 5 ? (5 - dayOfWeek) : (5 - dayOfWeek + 7);
-		const friday = new Date(now);
-		friday.setDate(now.getDate() + daysToFriday);
-		friday.setHours(0, 0, 0, 0);
-		return friday;
-	}
-
 	// ⭐ 날짜 포맷 (YYYY-MM-DD)
 	function formatDateYMD(date) {
 		return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 	}
 
-	// ⭐ 최대 선택 가능 금요일 (이번주 포함 4주 = 3주 후)
-	function getMaxFriday() {
-		const currentFriday = getCurrentFriday();
-		const maxFriday = new Date(currentFriday);
-		maxFriday.setDate(currentFriday.getDate() + 21);
-		return maxFriday;
+	// ⭐ 해당 날짜를 포함하는 주의 금요일 계산 (검색용)
+	function getNextFriday(date) {
+		const result = new Date(date);
+		const dayOfWeek = result.getDay();
+		if (dayOfWeek !== 5) {
+			const daysToFriday = dayOfWeek <= 5 ? (5 - dayOfWeek) : (5 - dayOfWeek + 7);
+			result.setDate(result.getDate() + daysToFriday);
+		}
+		return result;
 	}
 
-	// ⭐ 기본 기간: 이번주 금요일 ~ 3주 후 금요일
-	let commissionStartDate = formatDateYMD(getCurrentFriday());
-	let commissionEndDate = formatDateYMD(getMaxFriday());
-	const maxDate = formatDateYMD(getMaxFriday());
+	// ⭐ 기본 기간: 오늘 ~ 3주 후
+	const today = new Date();
+	today.setHours(0, 0, 0, 0);
+	const threeWeeksLater = new Date(today);
+	threeWeeksLater.setDate(today.getDate() + 21);
+
+	let commissionStartDate = formatDateYMD(today);
+	let commissionEndDate = formatDateYMD(threeWeeksLater);
+	// ⭐ 최대 선택 가능일: 3주 후의 금요일까지
+	const maxDate = formatDateYMD(getNextFriday(threeWeeksLater));
 
 	function formatAmount(value) {
 		if (value === null || value === undefined) return '0원';
@@ -44,11 +42,15 @@
 			const startDate = new Date(commissionStartDate);
 			const endDate = new Date(commissionEndDate);
 
+			// ⭐ 종료일을 해당 주 금요일까지 확장 (검색용)
+			const endDateForSearch = getNextFriday(endDate);
+
 			const params = new URLSearchParams({
 				startYear: startDate.getFullYear(),
 				startMonth: startDate.getMonth() + 1,
-				endYear: endDate.getFullYear(),
-				endMonth: endDate.getMonth() + 1,
+				// ⭐ API 조회는 금요일이 포함된 월까지 확장
+				endYear: endDateForSearch.getFullYear(),
+				endMonth: endDateForSearch.getMonth() + 1,
 				groupBy: 'week'  // ⭐ 항상 주별
 			});
 
@@ -56,17 +58,17 @@
 			const result = await response.json();
 
 			if (result.success) {
-				// ⭐ 선택한 날짜 범위 내의 주차만 필터링
+				// ⭐ 선택한 날짜 범위 내의 주차만 필터링 (종료일은 금요일까지 확장)
 				const startDateObj = new Date(commissionStartDate);
-				const endDateObj = new Date(commissionEndDate);
-				endDateObj.setHours(23, 59, 59, 999);
+				endDateForSearch.setHours(23, 59, 59, 999);
 
 				const filteredData = (result.data || []).filter(item => {
 					// item.period가 "2026-01-03 (1월 1주)" 같은 형식
 					const dateMatch = item.period?.match(/^(\d{4}-\d{2}-\d{2})/);
 					if (!dateMatch) return true;
 					const itemDate = new Date(dateMatch[1]);
-					return itemDate >= startDateObj && itemDate <= endDateObj;
+					// 시작일 <= 금요일 <= 확장된 종료일(금요일)
+					return itemDate >= startDateObj && itemDate <= endDateForSearch;
 				});
 
 				commissionSummary = filteredData;

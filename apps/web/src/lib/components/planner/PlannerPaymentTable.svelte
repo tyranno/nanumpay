@@ -40,6 +40,18 @@
 	$: totalPages = Math.ceil(filteredData.length / itemsPerPage) || 1;
 	$: currentPageData = filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
+	// ⭐ 전체 누적총액 계산 (소계 행 제외)
+	$: grandTotalCumulative = filteredData
+		.filter(row => !row.isSubtotalRow)
+		.reduce((acc, row) => {
+			const cumulative = row.cumulativeTotal || { totalAmount: 0, totalTax: 0, totalNet: 0 };
+			return {
+				totalAmount: acc.totalAmount + (cumulative.totalAmount || 0),
+				totalTax: acc.totalTax + (cumulative.totalTax || 0),
+				totalNet: acc.totalNet + (cumulative.totalNet || 0)
+			};
+		}, { totalAmount: 0, totalTax: 0, totalNet: 0 });
+
 	/**
 	 * 데이터를 userAccountId로 그룹핑하고 소계 행 삽입
 	 */
@@ -103,6 +115,8 @@
 			totalAmount: 0,
 			totalTax: 0,
 			totalNet: 0,
+			// ⭐ 누적총액 합계
+			cumulativeTotal: { totalAmount: 0, totalTax: 0, totalNet: 0 },
 			payments: {}
 		};
 
@@ -111,6 +125,13 @@
 			subtotal.totalAmount += item.totalAmount || 0;
 			subtotal.totalTax += item.totalTax || 0;
 			subtotal.totalNet += item.totalNet || 0;
+
+			// ⭐ 누적총액 합산
+			if (item.cumulativeTotal) {
+				subtotal.cumulativeTotal.totalAmount += item.cumulativeTotal.totalAmount || 0;
+				subtotal.cumulativeTotal.totalTax += item.cumulativeTotal.totalTax || 0;
+				subtotal.cumulativeTotal.totalNet += item.cumulativeTotal.totalNet || 0;
+			}
 
 			// 주차별/월별 지급 합산
 			Object.entries(item.payments || {}).forEach(([key, payment]) => {
@@ -288,8 +309,10 @@
 						{#if showAccountColumn}
 							<th rowspan="2" class="th-base">계좌번호</th>
 						{/if}
-						<!-- ⭐ 누적총액 (항상 표시) -->
-					<th colspan={1 + (showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0)} class="th-cumulative">누적총액</th>
+						<!-- ⭐ 누적총액 (주간 선택일 때만 표시) -->
+					{#if filterType !== 'period'}
+						<th colspan={1 + (showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0)} class="th-cumulative">누적총액</th>
+					{/if}
 					{#if filterType === 'period'}
 						<th colspan={1 + (showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0)} class="th-total">기간 합계</th>
 					{/if}
@@ -299,13 +322,15 @@
 					</tr>
 					<!-- 두 번째 헤더 행 -->
 					<tr>
-						<!-- ⭐ 누적총액 서브 헤더 (항상 표시) -->
-						<th class="th-sub th-cumulative-sub">지급액</th>
-						{#if showTaxColumn}
-							<th class="th-sub th-cumulative-sub th-tax">세지원(3.3%)</th>
-						{/if}
-						{#if showNetColumn}
-							<th class="th-sub th-cumulative-sub">실지급액</th>
+						<!-- ⭐ 누적총액 서브 헤더 (주간 선택일 때만 표시) -->
+						{#if filterType !== 'period'}
+							<th class="th-sub cumulative-border">지급액</th>
+							{#if showTaxColumn}
+								<th class="th-sub th-tax">세지원(3.3%)</th>
+							{/if}
+							{#if showNetColumn}
+								<th class="th-sub">실지급액</th>
+							{/if}
 						{/if}
 						{#if filterType === 'period'}
 							<th class="th-sub th-total-sub">지급액</th>
@@ -350,13 +375,15 @@
 									{#if showAccountColumn}
 									<td class="subtotal-cell">{row.accountNumber || ''}</td>
 								{/if}
-								<!-- ⭐ 누적총액 (항상 표시) -->
-								<td class="subtotal-cumulative">{formatAmount(row.totalAmount)}</td>
-								{#if showTaxColumn}
-									<td class="subtotal-cumulative subtotal-tax">{formatAmount(row.totalTax)}</td>
-								{/if}
-								{#if showNetColumn}
-									<td class="subtotal-cumulative">{formatAmount(row.totalNet)}</td>
+								<!-- ⭐ 누적총액 (주간 선택일 때만 표시) -->
+								{#if filterType !== 'period'}
+									<td class="subtotal-value cumulative-border">{formatAmount(row.cumulativeTotal?.totalAmount || 0)}</td>
+									{#if showTaxColumn}
+										<td class="subtotal-value subtotal-tax">{formatAmount(row.cumulativeTotal?.totalTax || 0)}</td>
+									{/if}
+									{#if showNetColumn}
+										<td class="subtotal-value">{formatAmount(row.cumulativeTotal?.totalNet || 0)}</td>
+									{/if}
 								{/if}
 								<!-- 기간 합계 -->
 								{#if filterType === 'period'}
@@ -431,13 +458,15 @@
 									{#if showAccountColumn}
 									<td class="td-base">{row.accountNumber}</td>
 								{/if}
-								<!-- ⭐ 누적총액 (항상 표시) -->
-								<td class="td-cumulative">{formatAmount(userTotal.totalAmount)}</td>
-								{#if showTaxColumn}
-									<td class="td-cumulative td-tax">{formatAmount(userTotal.totalTax)}</td>
-								{/if}
-								{#if showNetColumn}
-									<td class="td-cumulative">{formatAmount(userTotal.totalNet)}</td>
+								<!-- ⭐ 누적총액 (주간 선택일 때만 표시) -->
+								{#if filterType !== 'period'}
+									<td class="td-amount cumulative-border">{formatAmount(row.cumulativeTotal?.totalAmount || 0)}</td>
+									{#if showTaxColumn}
+										<td class="td-tax">{formatAmount(row.cumulativeTotal?.totalTax || 0)}</td>
+									{/if}
+									{#if showNetColumn}
+										<td class="td-net">{formatAmount(row.cumulativeTotal?.totalNet || 0)}</td>
+									{/if}
 								{/if}
 								<!-- 기간 합계 (기간 선택일 때만) -->
 								{#if filterType === 'period'}
@@ -483,13 +512,15 @@
 						{@const labelColspan = 5 + (showBankColumn ? 1 : 0) + (showAccountColumn ? 1 : 0)}  <!-- 순번 + 유/비 + 성명 + 승급일 + 가입기한 + 은행? + 계좌? -->
 						<tr class="grand-total-row">
 							<td colspan={labelColspan} class="grand-total-label">총금액</td>
-							<!-- ⭐ 누적총액 컬럼 (항상 표시) -->
-							<td class="grand-total-cumulative">{formatAmount(grandTotal.amount)}</td>
-							{#if showTaxColumn}
-								<td class="grand-total-cumulative grand-total-tax">{formatAmount(grandTotal.tax)}</td>
-							{/if}
-							{#if showNetColumn}
-								<td class="grand-total-cumulative">{formatAmount(grandTotal.net)}</td>
+							<!-- ⭐ 누적총액 컬럼 (주간 선택일 때만 표시) -->
+							{#if filterType !== 'period'}
+								<td class="grand-total-value cumulative-border">{formatAmount(grandTotalCumulative.totalAmount)}</td>
+								{#if showTaxColumn}
+									<td class="grand-total-value grand-total-tax">{formatAmount(grandTotalCumulative.totalTax)}</td>
+								{/if}
+								{#if showNetColumn}
+									<td class="grand-total-value">{formatAmount(grandTotalCumulative.totalNet)}</td>
+								{/if}
 							{/if}
 							<!-- 기간 합계 컬럼 -->
 							{#if filterType === 'period'}
@@ -598,9 +629,9 @@
 
 	/* 헤더 - 누적총액 */
 	.th-cumulative {
-		@apply border-b border-r border-t border-gray-300 bg-teal-200;
+		@apply border-b border-r border-t border-gray-300 bg-blue-100;
 		@apply whitespace-nowrap p-1.5 text-center text-sm font-bold;
-		border-left: 2px solid #14b8a6 !important;
+		border-left: 2px solid #3b82f6 !important;
 	}
 
 	/* 헤더 - 기간 합계 */
@@ -623,14 +654,6 @@
 
 	.th-total-sub {
 		@apply bg-purple-100;
-	}
-
-	.th-cumulative-sub {
-		@apply bg-teal-100;
-	}
-
-	.th-cumulative-sub:first-of-type {
-		border-left: 2px solid #14b8a6 !important;
 	}
 
 	.th-tax {
@@ -787,26 +810,9 @@
 		@apply bg-red-200;
 	}
 
-	/* 데이터 셀 - 누적총액 */
-	.td-cumulative {
-		@apply border-b border-r border-gray-300 bg-teal-50;
-		@apply whitespace-nowrap p-1.5 pr-3 text-right text-sm font-bold;
-	}
-
-	.td-cumulative:first-of-type {
-		border-left: 2px solid #14b8a6 !important;
-	}
-
-	.data-row:hover .td-cumulative {
-		@apply bg-teal-100;
-	}
-
-	.td-cumulative.td-tax {
-		@apply bg-red-100 text-red-700;
-	}
-
-	.data-row:hover .td-cumulative.td-tax {
-		@apply bg-red-200;
+	/* 누적총액 - 왼쪽 경계선 */
+	.cumulative-border {
+		border-left: 2px solid #3b82f6 !important;
 	}
 
 	/* 등급(회수) 셀 */
@@ -859,16 +865,6 @@
 		@apply whitespace-nowrap p-1.5 pr-3 text-right text-sm;
 	}
 
-	.subtotal-cumulative {
-		@apply bg-teal-100 font-bold;
-		@apply border-b border-r border-gray-300;
-		@apply whitespace-nowrap p-1.5 pr-3 text-right text-sm;
-	}
-
-	.subtotal-cumulative:first-of-type {
-		border-left: 2px solid #14b8a6 !important;
-	}
-
 	.subtotal-tax {
 		@apply bg-red-100 text-red-700;
 	}
@@ -887,15 +883,6 @@
 	.grand-total-value {
 		@apply border-b border-r border-gray-300 bg-purple-200;
 		@apply whitespace-nowrap p-1.5 pr-3 text-right text-sm font-bold;
-	}
-
-	.grand-total-cumulative {
-		@apply border-b border-r border-gray-300 bg-teal-200;
-		@apply whitespace-nowrap p-1.5 pr-3 text-right text-sm font-bold;
-	}
-
-	.grand-total-cumulative:first-of-type {
-		border-left: 2px solid #14b8a6 !important;
 	}
 
 	.grand-total-tax {

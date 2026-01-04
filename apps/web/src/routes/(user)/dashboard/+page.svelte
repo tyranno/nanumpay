@@ -156,19 +156,27 @@
 		return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 	}
 
-	// ⭐ 기본 기간: 이번주 금요일 ~ 3주 후 금요일 (이번주 포함 4주)
-	const defaultStartDate = (() => {
-		return formatDateYMD(getCurrentFriday());
-	})();
+	// ⭐ 해당 날짜를 포함하는 주의 금요일 계산 (검색용)
+	function getNextFriday(date) {
+		const result = new Date(date);
+		const dayOfWeek = result.getDay();
+		if (dayOfWeek !== 5) {
+			const daysToFriday = dayOfWeek <= 5 ? (5 - dayOfWeek) : (5 - dayOfWeek + 7);
+			result.setDate(result.getDate() + daysToFriday);
+		}
+		return result;
+	}
 
-	const defaultEndDate = (() => {
-		return formatDateYMD(getMaxFriday());
-	})();
+	// ⭐ 기본 기간: 오늘 ~ 3주 후 (UI 표시용, 검색은 해당 주 금요일까지 확장됨)
+	const today = new Date();
+	today.setHours(0, 0, 0, 0);
+	const threeWeeksLater = new Date(today);
+	threeWeeksLater.setDate(today.getDate() + 21);
 
-	// ⭐ 최대 선택 가능 날짜 (이번주 포함 4주)
-	const maxDate = (() => {
-		return formatDateYMD(getMaxFriday());
-	})();
+	const defaultStartDate = formatDateYMD(today);
+	const defaultEndDate = formatDateYMD(threeWeeksLater);
+	// ⭐ 최대 선택 가능일: 3주 후의 금요일까지
+	const maxDate = formatDateYMD(getNextFriday(threeWeeksLater));
 
 	// 필터 상태 (날짜 기반)
 	let filters = $state({
@@ -298,8 +306,9 @@
 
 		// ⭐ 날짜 파싱
 		const startDateObj = new Date(startDate);
-		const endDateObj = new Date(endDate);
-		endDateObj.setHours(23, 59, 59, 999); // 종료일 끝까지 포함
+		// ⭐ 종료일을 해당 주 금요일까지 확장 (검색용)
+		const endDateForSearch = getNextFriday(new Date(endDate));
+		endDateForSearch.setHours(23, 59, 59, 999); // 종료일 끝까지 포함
 
 		// ⭐ v8.0: 개별 행 필터링 (날짜 기반)
 		const filtered = allPayments.filter((payment) => {
@@ -315,8 +324,8 @@
 				return false;
 			}
 
-			// 종료 날짜 필터 - 이하(<=)
-			if (paymentDate > endDateObj) {
+			// ⭐ 종료 날짜 필터 - 이하(<=) (해당 주 금요일까지 확장)
+			if (paymentDate > endDateForSearch) {
 				return false;
 			}
 
@@ -767,7 +776,7 @@
 							<th class="table-header" rowspan="2">등록/승급일</th>
 							<th class="table-header" rowspan="2">가입기한</th>
 							<th class="table-header" colspan="4">수령액</th>
-							<th class="table-header" rowspan="2">세금</th>
+							<th class="table-header bg-red-50" rowspan="2">세금</th>
 							<th class="table-header bg-emerald-100" rowspan="2">실수령액</th>
 						</tr>
 						<tr>
@@ -850,7 +859,7 @@
 										<td class="table-cell text-right">{breakdown.판촉.toLocaleString()}원</td>
 										<td class="table-cell text-right font-medium bg-yellow-100">{formatAmount(user.amount)}</td>
 										<!-- ⭐ 세금, 실수령액 -->
-										<td class="table-cell text-right">{formatAmount(user.tax)}</td>
+										<td class="table-cell text-right bg-red-50 text-red-700">{formatAmount(user.tax)}</td>
 										<td class="table-cell text-right font-medium bg-emerald-100 text-emerald-800">{formatAmount(user.netAmount)}</td>
 									</tr>
 								{/each}
@@ -862,7 +871,7 @@
 										<td class="table-cell text-right text-purple-800">{subtotalBreakdown.홍보.toLocaleString()}원</td>
 										<td class="table-cell text-right text-purple-800">{subtotalBreakdown.판촉.toLocaleString()}원</td>
 										<td class="table-cell text-right text-purple-900 bg-yellow-200">{formatAmount(weekGroup.totalAmount)}</td>
-										<td class="table-cell text-right text-purple-800">{formatAmount(weekGroup.totalTax)}</td>
+										<td class="table-cell text-right bg-red-100 text-red-700">{formatAmount(weekGroup.totalTax)}</td>
 										<td class="table-cell text-right font-bold bg-emerald-200 text-emerald-900">{formatAmount(weekGroup.totalNet)}</td>
 									</tr>
 								{/if}

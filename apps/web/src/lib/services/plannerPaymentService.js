@@ -285,7 +285,9 @@ export const plannerPaymentService = {
 				payments,
 				totalAmount: user.totalAmount || 0,
 				totalTax: user.totalTax || 0,
-				totalNet: user.totalNet || 0
+				totalNet: user.totalNet || 0,
+				// ⭐ 누적총액 (전체 과거 지급 총액)
+				cumulativeTotal: user.cumulativeTotal || { totalAmount: 0, totalTax: 0, totalNet: 0 }
 			};
 		});
 
@@ -319,10 +321,14 @@ export const plannerPaymentService = {
 		const startDate = new Date(startWeekDate);
 		const endDate = new Date(endWeekDate);
 
+		// ⭐ 종료일을 해당 주 금요일까지 확장 (검색용)
+		const endDateForSearch = this.getNextFriday(endDate);
+
 		const startYear = startDate.getFullYear();
 		const startMonth = startDate.getMonth() + 1;
-		const endYear = endDate.getFullYear();
-		const endMonth = endDate.getMonth() + 1;
+		// ⭐ API 조회는 금요일이 포함된 월까지 확장
+		const endYear = endDateForSearch.getFullYear();
+		const endMonth = endDateForSearch.getMonth() + 1;
 
 		const queryParams = new URLSearchParams({
 			startYear,
@@ -346,13 +352,11 @@ export const plannerPaymentService = {
 
 		const data = result.data;
 
-		// ⭐ 날짜 범위에 해당하는 주차만 필터링
+		// ⭐ 날짜 범위에 해당하는 주차만 필터링 (종료일은 해당 주 금요일까지 확장)
 		const filteredWeeks = (data.weeks || []).filter(week => {
-			// 주의 금요일 날짜 계산
-			const weekInfo = getWeekOfMonthByFriday(new Date(week.year, week.monthNumber - 1, 1));
-			// 간단하게 주차 데이터의 year/month/week로 비교
 			const weekFriday = this.getWeekFriday(week.year, week.monthNumber, week.weekNumber);
-			return weekFriday >= startDate && weekFriday <= endDate;
+			// 시작일 <= 금요일 <= 확장된 종료일(금요일)
+			return weekFriday >= startDate && weekFriday <= endDateForSearch;
 		});
 
 		// 주간 보기: 주차별 컬럼 생성
@@ -403,7 +407,9 @@ export const plannerPaymentService = {
 				payments,
 				totalAmount: user.totalAmount || 0,
 				totalTax: user.totalTax || 0,
-				totalNet: user.totalNet || 0
+				totalNet: user.totalNet || 0,
+				// ⭐ 누적총액 (전체 과거 지급 총액)
+				cumulativeTotal: user.cumulativeTotal || { totalAmount: 0, totalTax: 0, totalNet: 0 }
 			};
 		});
 
@@ -426,5 +432,19 @@ export const plannerPaymentService = {
 		const fridays = getFridaysInMonth(year, month);
 		const targetWeek = fridays.find(w => w.weekNumber === weekNumber);
 		return targetWeek ? targetWeek.friday : new Date(year, month - 1, 1);
+	},
+
+	/**
+	 * ⭐ 해당 날짜를 포함하는 주의 금요일 계산 (해당 주 또는 다음 금요일)
+	 */
+	getNextFriday(date) {
+		const result = new Date(date);
+		const dayOfWeek = result.getDay();
+		// 금요일(5)이 아니면 다음 금요일로 이동
+		if (dayOfWeek !== 5) {
+			const daysToFriday = dayOfWeek <= 5 ? (5 - dayOfWeek) : (5 - dayOfWeek + 7);
+			result.setDate(result.getDate() + daysToFriday);
+		}
+		return result;
 	}
 };
