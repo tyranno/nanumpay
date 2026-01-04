@@ -101,6 +101,7 @@ export const plannerPaymentService = {
 						amount: user.actualAmount || 0,
 						tax: user.taxAmount || 0,
 						net: user.netAmount || 0,
+						gradeInfo: user.gradeInfo || '-',  // ⭐ 등급(회수)
 						installmentDetails: user.installments || []
 					}
 				}
