@@ -288,15 +288,25 @@
 						{#if showAccountColumn}
 							<th rowspan="2" class="th-base">계좌번호</th>
 						{/if}
-						{#if filterType === 'period'}
-							<th colspan={1 + (showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0)} class="th-total">기간 합계</th>
-						{/if}
-						{#each weeklyColumns as week}
+						<!-- ⭐ 누적총액 (항상 표시) -->
+					<th colspan={1 + (showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0)} class="th-cumulative">누적총액</th>
+					{#if filterType === 'period'}
+						<th colspan={1 + (showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0)} class="th-total">기간 합계</th>
+					{/if}
+					{#each weeklyColumns as week}
 							<th colspan={(showGradeInfoColumn ? 1 : 0) + 1 + (showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0)} class="th-week period-border">{week.label}</th>
 						{/each}
 					</tr>
 					<!-- 두 번째 헤더 행 -->
 					<tr>
+						<!-- ⭐ 누적총액 서브 헤더 (항상 표시) -->
+						<th class="th-sub th-cumulative-sub">지급액</th>
+						{#if showTaxColumn}
+							<th class="th-sub th-cumulative-sub th-tax">세지원(3.3%)</th>
+						{/if}
+						{#if showNetColumn}
+							<th class="th-sub th-cumulative-sub">실지급액</th>
+						{/if}
 						{#if filterType === 'period'}
 							<th class="th-sub th-total-sub">지급액</th>
 							{#if showTaxColumn}
@@ -338,11 +348,19 @@
 										<td class="subtotal-cell">{row.bank || ''}</td>
 									{/if}
 									{#if showAccountColumn}
-										<td class="subtotal-cell">{row.accountNumber || ''}</td>
-									{/if}
-									<!-- 기간 합계 -->
-									{#if filterType === 'period'}
-										<td class="subtotal-value">{formatAmount(row.totalAmount)}</td>
+									<td class="subtotal-cell">{row.accountNumber || ''}</td>
+								{/if}
+								<!-- ⭐ 누적총액 (항상 표시) -->
+								<td class="subtotal-cumulative">{formatAmount(row.totalAmount)}</td>
+								{#if showTaxColumn}
+									<td class="subtotal-cumulative subtotal-tax">{formatAmount(row.totalTax)}</td>
+								{/if}
+								{#if showNetColumn}
+									<td class="subtotal-cumulative">{formatAmount(row.totalNet)}</td>
+								{/if}
+								<!-- 기간 합계 -->
+								{#if filterType === 'period'}
+									<td class="subtotal-value">{formatAmount(row.totalAmount)}</td>
 										{#if showTaxColumn}
 											<td class="subtotal-value subtotal-tax">{formatAmount(row.totalTax)}</td>
 										{/if}
@@ -411,11 +429,19 @@
 										<td class="td-base">{row.bank}</td>
 									{/if}
 									{#if showAccountColumn}
-										<td class="td-base">{row.accountNumber}</td>
-									{/if}
-									<!-- 기간 합계 (기간 선택일 때만) -->
-									{#if filterType === 'period'}
-										<td class="td-total">{formatAmount(userTotal.totalAmount)}</td>
+									<td class="td-base">{row.accountNumber}</td>
+								{/if}
+								<!-- ⭐ 누적총액 (항상 표시) -->
+								<td class="td-cumulative">{formatAmount(userTotal.totalAmount)}</td>
+								{#if showTaxColumn}
+									<td class="td-cumulative td-tax">{formatAmount(userTotal.totalTax)}</td>
+								{/if}
+								{#if showNetColumn}
+									<td class="td-cumulative">{formatAmount(userTotal.totalNet)}</td>
+								{/if}
+								<!-- 기간 합계 (기간 선택일 때만) -->
+								{#if filterType === 'period'}
+									<td class="td-total">{formatAmount(userTotal.totalAmount)}</td>
 										{#if showTaxColumn}
 											<td class="td-total td-tax">{formatAmount(userTotal.totalTax)}</td>
 										{/if}
@@ -457,6 +483,14 @@
 						{@const labelColspan = 5 + (showBankColumn ? 1 : 0) + (showAccountColumn ? 1 : 0)}  <!-- 순번 + 유/비 + 성명 + 승급일 + 가입기한 + 은행? + 계좌? -->
 						<tr class="grand-total-row">
 							<td colspan={labelColspan} class="grand-total-label">총금액</td>
+							<!-- ⭐ 누적총액 컬럼 (항상 표시) -->
+							<td class="grand-total-cumulative">{formatAmount(grandTotal.amount)}</td>
+							{#if showTaxColumn}
+								<td class="grand-total-cumulative grand-total-tax">{formatAmount(grandTotal.tax)}</td>
+							{/if}
+							{#if showNetColumn}
+								<td class="grand-total-cumulative">{formatAmount(grandTotal.net)}</td>
+							{/if}
 							<!-- 기간 합계 컬럼 -->
 							{#if filterType === 'period'}
 								<td class="grand-total-value">{formatAmount(grandTotal.amount)}</td>
@@ -562,6 +596,13 @@
 		@apply border-l;
 	}
 
+	/* 헤더 - 누적총액 */
+	.th-cumulative {
+		@apply border-b border-r border-t border-gray-300 bg-teal-200;
+		@apply whitespace-nowrap p-1.5 text-center text-sm font-bold;
+		border-left: 2px solid #14b8a6 !important;
+	}
+
 	/* 헤더 - 기간 합계 */
 	.th-total {
 		@apply border-b border-r border-t border-gray-300 bg-purple-200;
@@ -582,6 +623,14 @@
 
 	.th-total-sub {
 		@apply bg-purple-100;
+	}
+
+	.th-cumulative-sub {
+		@apply bg-teal-100;
+	}
+
+	.th-cumulative-sub:first-of-type {
+		border-left: 2px solid #14b8a6 !important;
 	}
 
 	.th-tax {
@@ -738,6 +787,28 @@
 		@apply bg-red-200;
 	}
 
+	/* 데이터 셀 - 누적총액 */
+	.td-cumulative {
+		@apply border-b border-r border-gray-300 bg-teal-50;
+		@apply whitespace-nowrap p-1.5 pr-3 text-right text-sm font-bold;
+	}
+
+	.td-cumulative:first-of-type {
+		border-left: 2px solid #14b8a6 !important;
+	}
+
+	.data-row:hover .td-cumulative {
+		@apply bg-teal-100;
+	}
+
+	.td-cumulative.td-tax {
+		@apply bg-red-100 text-red-700;
+	}
+
+	.data-row:hover .td-cumulative.td-tax {
+		@apply bg-red-200;
+	}
+
 	/* 등급(회수) 셀 */
 	.th-grade-info {
 		@apply bg-indigo-100;
@@ -788,6 +859,16 @@
 		@apply whitespace-nowrap p-1.5 pr-3 text-right text-sm;
 	}
 
+	.subtotal-cumulative {
+		@apply bg-teal-100 font-bold;
+		@apply border-b border-r border-gray-300;
+		@apply whitespace-nowrap p-1.5 pr-3 text-right text-sm;
+	}
+
+	.subtotal-cumulative:first-of-type {
+		border-left: 2px solid #14b8a6 !important;
+	}
+
 	.subtotal-tax {
 		@apply bg-red-100 text-red-700;
 	}
@@ -806,6 +887,15 @@
 	.grand-total-value {
 		@apply border-b border-r border-gray-300 bg-purple-200;
 		@apply whitespace-nowrap p-1.5 pr-3 text-right text-sm font-bold;
+	}
+
+	.grand-total-cumulative {
+		@apply border-b border-r border-gray-300 bg-teal-200;
+		@apply whitespace-nowrap p-1.5 pr-3 text-right text-sm font-bold;
+	}
+
+	.grand-total-cumulative:first-of-type {
+		border-left: 2px solid #14b8a6 !important;
 	}
 
 	.grand-total-tax {
