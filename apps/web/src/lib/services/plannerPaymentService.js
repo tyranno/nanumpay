@@ -279,6 +279,8 @@ export const plannerPaymentService = {
 				bank: user.bank || '',
 				accountNumber: user.accountNumber || '',
 				grade: user.grade || 'F1',
+				gradeHistory: user.gradeHistory || [],  // ⭐ 등록/승급일 계산용
+				insuranceActive: user.insuranceActive || false,  // ⭐ 보험 유지 여부
 				payments,
 				totalAmount: user.totalAmount || 0,
 				totalTax: user.totalTax || 0,
