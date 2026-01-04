@@ -6,6 +6,18 @@
 	export let onClose = () => {};
 	export let onShowAll = () => {};
 	export let onApply = () => {};
+
+	// ⭐ 토글 상태 계산 (모든 설정이 true인지 확인)
+	$: allShown = Object.values(tempSettings).every(value => value === true);
+
+	// ⭐ 토글 함수
+	function handleToggleAll() {
+		const newValue = !allShown;
+		Object.keys(tempSettings).forEach(key => {
+			tempSettings[key] = newValue;
+		});
+		tempSettings = { ...tempSettings }; // 반응성 트리거
+	}
 </script>
 
 <WindowsModal
@@ -78,10 +90,10 @@
 
 	<svelte:fragment slot="footer">
 		<button
-			onclick={onShowAll}
+			onclick={handleToggleAll}
 			class="text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors mr-auto"
 		>
-			모두 표시
+			{allShown ? '모두 숨김' : '모두 표시'}
 		</button>
 		<button
 			onclick={onClose}

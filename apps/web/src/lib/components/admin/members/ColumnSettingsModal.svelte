@@ -6,6 +6,22 @@
 	export let onClose = () => {};
 	export let onShowAll = () => {};
 	export let onApply = () => {};
+
+	// ⭐ 토글 상태 계산 (name 제외한 모든 컬럼이 true인지 확인)
+	$: allShown = Object.entries(tempVisibleColumns)
+		.filter(([key]) => key !== 'name') // name은 필수
+		.every(([, value]) => value === true);
+
+	// ⭐ 토글 함수
+	function handleToggleAll() {
+		const newValue = !allShown;
+		Object.keys(tempVisibleColumns).forEach(key => {
+			if (key !== 'name') { // name은 항상 true 유지
+				tempVisibleColumns[key] = newValue;
+			}
+		});
+		tempVisibleColumns = { ...tempVisibleColumns }; // 반응성 트리거
+	}
 </script>
 
 <WindowsModal
@@ -36,6 +52,22 @@
 				class="mr-3 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
 			/>
 			<span class="text-sm font-medium text-gray-700">등록일</span>
+		</label>
+		<label class="flex items-center p-1.5 bg-gray-50 hover:bg-blue-50 rounded cursor-pointer transition-colors">
+			<input
+				type="checkbox"
+				bind:checked={tempVisibleColumns.promotionDate}
+				class="mr-3 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
+			/>
+			<span class="text-sm font-medium text-gray-700">승급일</span>
+		</label>
+		<label class="flex items-center p-1.5 bg-gray-50 hover:bg-blue-50 rounded cursor-pointer transition-colors">
+			<input
+				type="checkbox"
+				bind:checked={tempVisibleColumns.insuranceDeadline}
+				class="mr-3 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
+			/>
+			<span class="text-sm font-medium text-gray-700">가입기한</span>
 		</label>
 		<label class="flex items-center p-1.5 bg-blue-50 rounded cursor-not-allowed border border-blue-200">
 			<input
@@ -148,10 +180,10 @@
 
 	<svelte:fragment slot="footer">
 		<button
-			onclick={onShowAll}
+			onclick={handleToggleAll}
 			class="text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors mr-auto"
 		>
-			모두 표시
+			{allShown ? '모두 숨김' : '모두 표시'}
 		</button>
 		<button
 			onclick={onClose}

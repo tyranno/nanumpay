@@ -1,6 +1,7 @@
 <script>
 	import { plannerPaymentFilterState } from '$lib/stores/dashboardStore';
 	import Pagination from '$lib/components/Pagination.svelte';
+	import { GRADE_LIMITS } from '$lib/utils/constants.js';
 
 	// Props
 	export let paymentList = [];  // 전체 데이터 (그룹핑 전)
@@ -125,9 +126,85 @@
 		return subtotal;
 	}
 
-	// Sticky 컬럼 위치 계산 (설계자 컬럼 없음)
-	$: bankLeft = 180; // 순번(60) + 성명(120) = 180
-	$: accountLeft = 180 + (showBankColumn ? 100 : 0);
+	// Sticky 컬럼 위치 계산 (설계자 컬럼 없음): 순번(60) + 유/비(55) + 성명(120) = 235
+	$: bankLeft = 235; // 순번(60) + 유/비(55) + 성명(120) = 235
+	$: accountLeft = 235 + (showBankColumn ? 100 : 0);
+
+	// ⭐ 유지 상태 및 비율 계산
+	function getInsuranceInfo(user) {
+		const gradeLimit = GRADE_LIMITS[user.grade];
+		const isRequired = gradeLimit?.insuranceRequired || false;
+		const isActive = user.insuranceActive || false;
+		const ratio = user.ratio ?? 1;
+		return { isRequired, isActive, ratio };
+	}
+
+	// ⭐ 최종 승급일 조회 (승급일 없으면 등록일 반환)
+	function getLastPromotionDate(user) {
+		if (!user.gradeHistory || user.gradeHistory.length === 0) {
+			return null;
+		}
+		// promotion 타입인 기록 중 가장 마지막 것
+		const promotions = user.gradeHistory.filter(h => h.type === 'promotion');
+		if (promotions.length > 0) {
+			const lastPromotion = promotions[promotions.length - 1];
+			return new Date(lastPromotion.date);
+		}
+		// 승급 기록이 없으면 등록일 반환
+		const registration = user.gradeHistory.find(h => h.type === 'registration');
+		if (registration) {
+			return new Date(registration.date);
+		}
+		return null;
+	}
+
+	// ⭐ 보험 유지 만료 날짜 계산 (승급 후 2달 첫 금요일)
+	function getInsuranceDeadline(user) {
+		const gradeLimit = GRADE_LIMITS[user.grade];
+		if (!gradeLimit?.insuranceRequired) return null;
+
+		if (!user.gradeHistory || user.gradeHistory.length === 0) {
+			return null;
+		}
+
+		// 현재 등급으로 승급한 날짜 찾기 (가장 최근)
+		const currentGrade = user.grade;
+		const promotionRecord = [...user.gradeHistory]
+			.reverse()
+			.find(h => h.toGrade === currentGrade && h.type === 'promotion');
+
+		let baseDate;
+		if (!promotionRecord) {
+			// 승급 기록이 없으면 등록일 기준
+			const registrationRecord = user.gradeHistory.find(h => h.type === 'registration');
+			if (!registrationRecord) return null;
+			baseDate = new Date(registrationRecord.date);
+		} else {
+			baseDate = new Date(promotionRecord.date);
+		}
+
+		// 2달 후 첫 금요일 계산
+		const twoMonthsLater = new Date(baseDate);
+		twoMonthsLater.setMonth(twoMonthsLater.getMonth() + 2);
+
+		const dayOfWeek = twoMonthsLater.getDay();
+		const daysUntilFriday = (5 - dayOfWeek + 7) % 7;
+
+		const firstFriday = new Date(twoMonthsLater);
+		if (daysUntilFriday === 0 && twoMonthsLater.getDay() !== 5) {
+			firstFriday.setDate(firstFriday.getDate() + 7);
+		} else {
+			firstFriday.setDate(firstFriday.getDate() + daysUntilFriday);
+		}
+
+		return firstFriday;
+	}
+
+	// 날짜 포맷 (YYYY-MM-DD)
+	function formatDate(date) {
+		if (!date) return '-';
+		return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+	}
 
 	// 금액 포맷
 	function formatAmount(amount) {
@@ -202,7 +279,10 @@
 					<!-- 첫 번째 헤더 행 -->
 					<tr>
 						<th rowspan="2" class="th-base th-sticky-0">순번</th>
+						<th rowspan="2" class="th-base th-sticky-ins">유/비</th>
 						<th rowspan="2" class="th-base th-sticky-1">성명</th>
+						<th rowspan="2" class="th-base">등록/승급일</th>
+						<th rowspan="2" class="th-base">가입기한</th>
 						{#if showBankColumn}
 							<th rowspan="2" class="th-base th-sticky-3" style="left: {bankLeft}px;">은행</th>
 						{/if}
@@ -248,10 +328,13 @@
 								<!-- ⭐ 소계 행 -->
 								<tr class="subtotal-row">
 									<td class="td-sticky-0 subtotal-cell">-</td>
+									<td class="td-sticky-ins subtotal-cell">-</td>
 									<td class="td-sticky-1 subtotal-cell subtotal-label">
 										<span class="font-bold">{row.accountName}</span>
 										<span class="text-xs text-gray-500 ml-1">({row.itemCount}건) 소계</span>
 									</td>
+									<td class="subtotal-cell">-</td>
+									<td class="subtotal-cell">-</td>
 									{#if showBankColumn}
 										<td class="td-sticky-3 subtotal-cell" style="left: {bankLeft}px;">{row.bank || ''}</td>
 									{/if}
@@ -290,8 +373,24 @@
 							{:else}
 								<!-- 일반 데이터 행 -->
 								{@const userTotal = calculateUserTotal(row)}
+								{@const insuranceInfo = getInsuranceInfo(row)}
+								{@const promoDate = getLastPromotionDate(row)}
+								{@const deadline = getInsuranceDeadline(row)}
+								{@const isOverdue = deadline && !row.insuranceActive && deadline > new Date()}
 								<tr class="data-row">
 									<td class="td-sticky-0">{row.no}</td>
+									<td class="td-sticky-ins">
+										<div class="insurance-cell">
+											{#if !insuranceInfo.isRequired}
+												<span class="insurance-badge insurance-badge-na" title="보험 불필요">-</span>
+											{:else if insuranceInfo.isActive}
+												<span class="insurance-badge insurance-badge-active" title="보험 유지됨">유</span>
+											{:else}
+												<span class="insurance-badge insurance-badge-inactive" title="보험 미유지">✕</span>
+											{/if}
+											<span class="insurance-ratio" class:insurance-ratio-warn={insuranceInfo.isRequired && !insuranceInfo.isActive}>{insuranceInfo.ratio}</span>
+										</div>
+									</td>
 									<td class="td-sticky-1">
 										<div class="flex items-center justify-center">
 											<div class="relative inline-flex items-baseline">
@@ -307,6 +406,8 @@
 											</div>
 										</div>
 									</td>
+									<td class="td-base">{formatDate(promoDate)}</td>
+									<td class="td-base" class:text-red-600={isOverdue}>{formatDate(deadline)}</td>
 									{#if showBankColumn}
 										<td class="td-sticky-3" style="left: {bankLeft}px;">{row.bank}</td>
 									{/if}
@@ -354,7 +455,7 @@
 						{/each}
 
 						<!-- 총금액 행 -->
-						{@const labelColspan = 2 + (showBankColumn ? 1 : 0) + (showAccountColumn ? 1 : 0)}
+						{@const labelColspan = 5 + (showBankColumn ? 1 : 0) + (showAccountColumn ? 1 : 0)}  <!-- 순번 + 유/비 + 성명 + 승급일 + 가입기한 + 은행? + 계좌? -->
 						<tr class="grand-total-row">
 							<td colspan={labelColspan} class="grand-total-label">총금액</td>
 							<!-- 기간 합계 컬럼 -->
@@ -493,16 +594,21 @@
 		@apply sticky left-0 z-20 min-w-[60px];
 	}
 
+	/* 유/비 컬럼 */
+	.th-sticky-ins {
+		@apply sticky left-[60px] z-[19] min-w-[55px] max-w-[55px] w-[55px];
+	}
+
 	.th-sticky-1 {
-		@apply sticky left-[60px] z-[19] min-w-[120px];
+		@apply sticky left-[115px] z-[18] min-w-[120px];
 	}
 
 	.th-sticky-3 {
-		@apply sticky left-[180px] z-[17] min-w-[100px];
+		@apply sticky left-[235px] z-[17] min-w-[100px];
 	}
 
 	.th-sticky-4 {
-		@apply sticky left-[280px] z-[16] min-w-[150px];
+		@apply sticky left-[335px] z-[16] min-w-[150px];
 	}
 
 	/* 데이터 행 */
@@ -523,20 +629,34 @@
 		z-index: 10 !important;
 	}
 
-	.td-sticky-1 {
+	/* 유/비 데이터 셀 */
+	.td-sticky-ins {
 		@apply sticky left-[60px] bg-white;
 		@apply border-b border-r border-gray-300;
-		@apply whitespace-nowrap p-1.5 text-center text-sm;
+		@apply whitespace-nowrap p-0.5 text-center text-sm;
+		@apply min-w-[55px] max-w-[55px] w-[55px];
 		z-index: 9 !important;
 	}
 
-	.data-row:hover .td-sticky-1 {
+	.data-row:hover .td-sticky-ins {
 		background-color: #fafafa !important;
 		z-index: 9 !important;
 	}
 
+	.td-sticky-1 {
+		@apply sticky left-[115px] bg-white;
+		@apply border-b border-r border-gray-300;
+		@apply whitespace-nowrap p-1.5 text-center text-sm;
+		z-index: 8 !important;
+	}
+
+	.data-row:hover .td-sticky-1 {
+		background-color: #fafafa !important;
+		z-index: 8 !important;
+	}
+
 	.td-sticky-3 {
-		@apply sticky left-[180px] bg-white;
+		@apply sticky left-[235px] bg-white;
 		@apply border-b border-r border-gray-300;
 		@apply whitespace-nowrap p-1.5 text-center text-sm;
 		z-index: 7 !important;
@@ -548,7 +668,7 @@
 	}
 
 	.td-sticky-4 {
-		@apply sticky left-[280px] bg-white;
+		@apply sticky left-[335px] bg-white;
 		@apply border-b border-r border-gray-300;
 		@apply whitespace-nowrap p-1.5 text-center text-sm;
 		z-index: 6 !important;
@@ -557,6 +677,50 @@
 	.data-row:hover .td-sticky-4 {
 		background-color: #fafafa !important;
 		z-index: 6 !important;
+	}
+
+	/* ⭐ 보험 유/비 관련 스타일 */
+	.insurance-cell {
+		@apply flex items-center justify-center gap-0.5;
+	}
+
+	.insurance-badge {
+		@apply inline-flex items-center justify-center w-4 h-4 rounded text-[10px] font-bold;
+	}
+
+	.insurance-badge-active {
+		@apply bg-green-100 text-green-700 border border-green-300;
+	}
+
+	.insurance-badge-inactive {
+		@apply bg-red-100 text-red-600 border border-red-300;
+	}
+
+	.insurance-badge-na {
+		@apply text-gray-400;
+	}
+
+	.insurance-ratio {
+		@apply text-[10px] text-gray-500;
+	}
+
+	.insurance-ratio-warn {
+		@apply text-red-500 font-semibold;
+	}
+
+	/* 소계 행의 보험 셀 */
+	.subtotal-row .td-sticky-ins {
+		@apply bg-amber-100;
+	}
+
+	/* 데이터 셀 - 기본 (승급일, 가입기한 등) */
+	.td-base {
+		@apply border-b border-r border-gray-300;
+		@apply whitespace-nowrap p-1.5 text-center text-sm;
+	}
+
+	.data-row:hover .td-base {
+		@apply bg-black/[0.02];
 	}
 
 	/* 데이터 셀 - 지급액 */

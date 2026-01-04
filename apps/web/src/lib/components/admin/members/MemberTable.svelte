@@ -27,6 +27,75 @@
 			ratio
 		};
 	}
+
+	// ⭐ 보험 유지 만료 날짜 계산 (승급 후 2달 첫 금요일)
+	function getInsuranceDeadline(member) {
+		const gradeLimit = GRADE_LIMITS[member.grade];
+		if (!gradeLimit?.insuranceRequired) return null;
+
+		if (!member.gradeHistory || member.gradeHistory.length === 0) {
+			return null;
+		}
+
+		// 현재 등급으로 승급한 날짜 찾기 (가장 최근)
+		const currentGrade = member.grade;
+		const promotionRecord = [...member.gradeHistory]
+			.reverse()
+			.find(h => h.toGrade === currentGrade && h.type === 'promotion');
+
+		let baseDate;
+		if (!promotionRecord) {
+			// 승급 기록이 없으면 등록일 기준
+			const registrationRecord = member.gradeHistory.find(h => h.type === 'registration');
+			if (!registrationRecord) return null;
+			baseDate = new Date(registrationRecord.date);
+		} else {
+			baseDate = new Date(promotionRecord.date);
+		}
+
+		// 2달 후 첫 금요일 계산
+		const twoMonthsLater = new Date(baseDate);
+		twoMonthsLater.setMonth(twoMonthsLater.getMonth() + 2);
+
+		const dayOfWeek = twoMonthsLater.getDay();
+		const daysUntilFriday = (5 - dayOfWeek + 7) % 7;
+
+		const firstFriday = new Date(twoMonthsLater);
+		if (daysUntilFriday === 0 && twoMonthsLater.getDay() !== 5) {
+			firstFriday.setDate(firstFriday.getDate() + 7);
+		} else {
+			firstFriday.setDate(firstFriday.getDate() + daysUntilFriday);
+		}
+
+		return firstFriday;
+	}
+
+	// 날짜 포맷 (YYYY-MM-DD)
+	function formatDeadlineDate(date) {
+		if (!date) return '-';
+		return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+	}
+
+	// ⭐ 최종 승급일 조회 (승급일 없으면 등록일 반환)
+	function getLastPromotionDate(member) {
+		if (!member.gradeHistory || member.gradeHistory.length === 0) {
+			return null;
+		}
+
+		// promotion 타입인 기록 중 가장 마지막 것
+		const promotions = member.gradeHistory.filter(h => h.type === 'promotion');
+		if (promotions.length > 0) {
+			const lastPromotion = promotions[promotions.length - 1];
+			return new Date(lastPromotion.date);
+		}
+
+		// 승급 기록이 없으면 등록일 반환
+		const registration = member.gradeHistory.find(h => h.type === 'registration');
+		if (registration) {
+			return new Date(registration.date);
+		}
+		return null;
+	}
 </script>
 
 {#if isLoading}
@@ -50,6 +119,12 @@
 						<th onclick={() => onSort('createdAt')} class="th-base th-sortable">
 							등록일 {#if sortBy === 'createdAt'}{sortOrder === 'asc' ? '↑' : '↓'}{/if}
 						</th>
+					{/if}
+					{#if visibleColumns.promotionDate}
+						<th class="th-base">승급일</th>
+					{/if}
+					{#if visibleColumns.insuranceDeadline}
+						<th class="th-base">가입기한</th>
 					{/if}
 					{#if visibleColumns.phone}
 						<th class="th-base">연락처</th>
@@ -137,6 +212,19 @@
 							{#if visibleColumns.date}
 								<td class="td-base">
 									{member.createdAt ? new Date(member.createdAt).toLocaleDateString('ko-KR').replace(/\.$/, '') : '-'}
+								</td>
+							{/if}
+							{#if visibleColumns.promotionDate}
+								{@const promoDate = getLastPromotionDate(member)}
+								<td class="td-base">
+									{promoDate ? promoDate.toLocaleDateString('ko-KR').replace(/\.$/, '') : '-'}
+								</td>
+							{/if}
+							{#if visibleColumns.insuranceDeadline}
+								{@const deadline = getInsuranceDeadline(member)}
+								{@const isOverdue = deadline && !member.insuranceActive && deadline > new Date()}
+								<td class="td-base {isOverdue ? 'text-red-600' : ''}">
+									{formatDeadlineDate(deadline)}
 								</td>
 							{/if}
 							{#if visibleColumns.phone}

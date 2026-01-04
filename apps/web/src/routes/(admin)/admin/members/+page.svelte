@@ -33,6 +33,8 @@
 	let visibleColumns = {
 		insurance: true,  // 유지/비율 (기본 표시)
 		date: true,
+		promotionDate: true,  // ⭐ 승급일
+		insuranceDeadline: true,  // ⭐ 가입기한
 		name: true,
 		phone: true,
 		idNumber: false,

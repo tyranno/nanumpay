@@ -31,7 +31,7 @@ export async function GET({ locals, url }) {
 
 	// ⭐ v8.0: 같은 계정의 모든 User 조회
 	const allUsers = await User.find({ userAccountId: primaryUser.userAccountId })
-		.select('_id name grade registrationNumber createdAt insuranceActive')
+		.select('_id name grade registrationNumber createdAt insuranceActive gradeHistory')
 		.sort({ registrationNumber: 1 })
 		.lean();
 
@@ -139,9 +139,10 @@ export async function GET({ locals, url }) {
 				weekUserMap.set(groupKey, {
 					weekDate: fridayDate,
 					weekNumber: weekNumber,
-					userId: plan.userId,
+					userId: plan.userId.toString(), // ⭐ 문자열로 변환
 					userName: user.name,
 					registrationNumber: user.registrationNumber,
+					insuranceActive: user.insuranceActive || false, // ⭐ 보험 유지 여부 추가
 					gradeCount: {}, // 등급별 빈도수
 					amount: 0,
 					tax: 0,
@@ -241,7 +242,8 @@ export async function GET({ locals, url }) {
 			grade: reg.grade,
 			registrationNumber: reg.registrationNumber,
 			createdAt: reg.createdAt, // ⭐ 등록일 추가
-			insuranceActive: reg.insuranceActive || false // ⭐ 보험 유지 여부
+			insuranceActive: reg.insuranceActive || false, // ⭐ 보험 유지 여부
+			gradeHistory: reg.gradeHistory || [] // ⭐ 보험 유지 만료일 계산용
 		})),
 		summary: {
 			thisWeek: {

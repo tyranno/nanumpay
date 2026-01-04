@@ -234,6 +234,8 @@ export async function getSingleWeekPayments(year, month, week, page, limit, sear
 			// ⭐ v8.0: 유/비 컬럼 표시용
 			ratio: user.ratio ?? 1,
 			insuranceActive: user.insuranceActive || false,
+			// ⭐ 승급일, 가입기한 계산용
+			gradeHistory: user.gradeHistory || [],
 			actualAmount,
 			taxAmount,
 			netAmount,
@@ -465,6 +467,8 @@ export async function getSingleWeekPaymentsByGrade(year, month, week, page, limi
 			// ⭐ v8.0: 유/비 컬럼 표시용
 			ratio: user.ratio ?? 1,
 			insuranceActive: user.insuranceActive || false,
+			// ⭐ 승급일, 가입기한 계산용
+			gradeHistory: user.gradeHistory || [],
 			actualAmount,
 			taxAmount,
 			netAmount,

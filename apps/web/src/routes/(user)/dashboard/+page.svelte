@@ -31,6 +31,116 @@
 		showInsuranceInfoModal = true;
 	}
 
+	// ⭐ 보험 유지 만료 날짜 계산 (승급 후 2달 첫 금요일)
+	function getInsuranceDeadline(account) {
+		if (!account.gradeHistory || account.gradeHistory.length === 0) {
+			return null;
+		}
+
+		// 현재 등급으로 승급한 날짜 찾기 (가장 최근)
+		const currentGrade = account.grade;
+		const promotionRecord = [...account.gradeHistory]
+			.reverse()
+			.find(h => h.toGrade === currentGrade && h.type === 'promotion');
+
+		if (!promotionRecord) {
+			// 승급 기록이 없으면 등록일 기준
+			const registrationRecord = account.gradeHistory.find(h => h.type === 'registration');
+			if (!registrationRecord) return null;
+			return calculateDeadlineFromDate(new Date(registrationRecord.date));
+		}
+
+		return calculateDeadlineFromDate(new Date(promotionRecord.date));
+	}
+
+	// 주어진 날짜로부터 2달 후 첫 금요일 계산
+	function calculateDeadlineFromDate(baseDate) {
+		// 2달 후
+		const twoMonthsLater = new Date(baseDate);
+		twoMonthsLater.setMonth(twoMonthsLater.getMonth() + 2);
+
+		// 첫 금요일 찾기
+		const dayOfWeek = twoMonthsLater.getDay();
+		const daysUntilFriday = (5 - dayOfWeek + 7) % 7;
+
+		const firstFriday = new Date(twoMonthsLater);
+		if (daysUntilFriday === 0 && twoMonthsLater.getDay() !== 5) {
+			// 금요일이 아닌데 daysUntilFriday가 0이면 다음 금요일로
+			firstFriday.setDate(firstFriday.getDate() + 7);
+		} else {
+			firstFriday.setDate(firstFriday.getDate() + daysUntilFriday);
+		}
+
+		return firstFriday;
+	}
+
+	// 날짜 포맷 (YYYY-MM-DD)
+	function formatDeadlineDate(date) {
+		if (!date) return '-';
+		return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+	}
+
+	// ⭐ 최종 승급일 조회 (승급일 없으면 등록일 반환)
+	function getLastPromotionDate(user) {
+		// user.gradeHistory가 있으면 사용, 없으면 allRegistrations에서 찾기
+		const gradeHistory = user.gradeHistory || getRegistrationInfo(user)?.gradeHistory;
+		if (!gradeHistory || gradeHistory.length === 0) {
+			return null;
+		}
+		// promotion 타입인 기록 중 가장 마지막 것
+		const promotions = gradeHistory.filter(h => h.type === 'promotion');
+		if (promotions.length > 0) {
+			const lastPromotion = promotions[promotions.length - 1];
+			return new Date(lastPromotion.date);
+		}
+		// 승급 기록이 없으면 등록일 반환
+		const registration = gradeHistory.find(h => h.type === 'registration');
+		if (registration) {
+			return new Date(registration.date);
+		}
+		return null;
+	}
+
+	// ⭐ userId로 등록 정보 찾기
+	function getRegistrationInfo(user) {
+		// userId가 ObjectId인 경우 문자열로 변환
+		const userId = user.userId?.toString ? user.userId.toString() : user.userId;
+		return allRegistrations.find(reg => reg.id === userId);
+	}
+
+	// ⭐ 사용자의 보험 가입기한 조회
+	function getUserInsuranceDeadline(user) {
+		// user.gradeHistory가 있으면 사용, 없으면 allRegistrations에서 찾기
+		const reg = getRegistrationInfo(user);
+		if (!reg) return null;
+
+		const gradeLimit = GRADE_LIMITS[reg.grade];
+		if (!gradeLimit?.insuranceRequired) return null;
+
+		return getInsuranceDeadline(reg);
+	}
+
+	// ⭐ 보험 필요 여부 체크 (gradeCount에서 가장 높은 등급 기준)
+	function getInsuranceInfo(user) {
+		const grades = Object.keys(user.gradeCount || {});
+		if (grades.length === 0) {
+			return { isRequired: false, isActive: false, ratio: 1 };
+		}
+		// 가장 높은 등급 확인 (F4 이상이면 보험 필수)
+		const hasHighGrade = grades.some(g => {
+			const gradeLimit = GRADE_LIMITS[g];
+			return gradeLimit?.insuranceRequired;
+		});
+		const isActive = user.insuranceActive || false;
+		// ratio: 보험 필수인데 미유지면 0, 그 외는 1
+		const ratio = hasHighGrade ? (isActive ? 1 : 0) : 1;
+		return {
+			isRequired: hasHighGrade,
+			isActive: isActive,
+			ratio: ratio
+		};
+	}
+
 	let userInfo = $state(null);
 	let allRegistrations = $state([]); // ⭐ v8.0: 모든 등록 정보
 	let registrationViewMode = $state('card'); // 'card' | 'list' 보기 모드
@@ -619,6 +729,9 @@
 							<th class="table-header" rowspan="2">수령일</th>
 							<th class="table-header" rowspan="2">이름</th>
 							<th class="table-header" rowspan="2">등급</th>
+							<th class="table-header" rowspan="2">유/비</th>
+							<th class="table-header" rowspan="2">등록/승급일</th>
+							<th class="table-header" rowspan="2">가입기한</th>
 							<th class="table-header" colspan="4">수령액</th>
 							<th class="table-header" rowspan="2">세금</th>
 							<th class="table-header bg-emerald-100" rowspan="2">실수령액</th>
@@ -633,7 +746,7 @@
 					<tbody class="divide-y divide-gray-200 bg-white">
 						{#if displayedPayments.length === 0}
 							<tr>
-								<td colspan="9" class="px-6 py-8 text-center text-sm text-gray-500">
+								<td colspan="12" class="px-6 py-8 text-center text-sm text-gray-500">
 									지급 내역이 없습니다
 								</td>
 							</tr>
@@ -643,6 +756,7 @@
 								{@const subtotalBreakdown = calculateBreakdown(weekGroup.totalAmount)}
 								{#each weekGroup.users as user, index}
 									{@const breakdown = calculateBreakdown(user.amount)}
+									{@const insuranceInfo = getInsuranceInfo(user)}
 
 									<tr class="{isPast ? 'bg-gray-100 hover:bg-gray-200' : 'hover:bg-gray-50'}">
 										{#if index === 0}
@@ -668,6 +782,34 @@
 												{/each}
 											</div>
 										</td>
+										<!-- ⭐ 유/비 컬럼: 등급 뒤 -->
+										<td class="table-cell">
+											{#if !insuranceInfo.isRequired}
+												<span class="text-gray-400">-</span>
+											{:else if insuranceInfo.isActive}
+												<span class="inline-flex items-center justify-center w-5 h-5 rounded text-xs font-bold bg-green-100 text-green-700 border border-green-300">유</span>
+												<span class="text-xs text-green-600 ml-0.5">{insuranceInfo.ratio}</span>
+											{:else}
+												<span class="inline-flex items-center justify-center w-5 h-5 rounded text-xs font-bold bg-red-100 text-red-600 border border-red-300">✕</span>
+												<span class="text-xs text-red-600 ml-0.5">{insuranceInfo.ratio}</span>
+											{/if}
+										</td>
+										<!-- ⭐ 승급일 -->
+										<td class="table-cell text-center text-sm">
+											{#if getLastPromotionDate(user)}
+												{getLastPromotionDate(user).toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\. /g, '-').replace('.', '')}
+											{:else}
+												<span class="text-gray-400">-</span>
+											{/if}
+										</td>
+										<!-- ⭐ 가입기한 -->
+										<td class="table-cell text-center text-sm">
+											{#if getUserInsuranceDeadline(user)}
+												{getUserInsuranceDeadline(user).toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\. /g, '-').replace('.', '')}
+											{:else}
+												<span class="text-gray-400">-</span>
+											{/if}
+										</td>
 										<!-- ⭐ 영업/홍보/판촉/총액 -->
 										<td class="table-cell text-right">{breakdown.영업.toLocaleString()}원</td>
 										<td class="table-cell text-right">{breakdown.홍보.toLocaleString()}원</td>
@@ -681,7 +823,7 @@
 								<!-- ⭐ 일자별 소계 행 (2개 이상일 때만 표시) -->
 								{#if weekGroup.users.length >= 2}
 									<tr class="bg-purple-100 font-semibold">
-										<td class="table-cell text-center text-purple-800" colspan="2">소계</td>
+										<td class="table-cell text-center text-purple-800" colspan="5">소계</td>
 										<td class="table-cell text-right text-purple-800">{subtotalBreakdown.영업.toLocaleString()}원</td>
 										<td class="table-cell text-right text-purple-800">{subtotalBreakdown.홍보.toLocaleString()}원</td>
 										<td class="table-cell text-right text-purple-800">{subtotalBreakdown.판촉.toLocaleString()}원</td>
@@ -776,17 +918,25 @@
 			<p class="font-semibold text-red-600 mb-2">아래 계좌에서 보험 유지가 필요합니다.</p>
 			<p class="text-xs text-gray-500 mb-3">보험 미유지 시 지급이 중단될 수 있습니다.</p>
 		</div>
-		<div class="space-y-2 max-h-40 overflow-y-auto">
+		<div class="space-y-2 max-h-60 overflow-y-auto">
 			{#each accountsNeedingInsurance as account}
 				{@const gradeLimit = GRADE_LIMITS[account.grade]}
-				<div class="flex items-center justify-between p-2 bg-red-50 border border-red-200 rounded">
-					<div class="flex items-center gap-2">
-						<img src="/icons/{account.grade}.svg" alt={account.grade} class="h-5 w-5" />
-						<span class="text-sm font-medium text-gray-900">{account.name}</span>
+				{@const deadline = getInsuranceDeadline(account)}
+				<div class="p-2 bg-red-50 border border-red-200 rounded">
+					<div class="flex items-center justify-between mb-1">
+						<div class="flex items-center gap-2">
+							<img src="/icons/{account.grade}.svg" alt={account.grade} class="h-5 w-5" />
+							<span class="text-sm font-medium text-gray-900">{account.name}</span>
+						</div>
+						<div class="text-xs text-red-600">
+							보험 {gradeLimit?.insuranceAmount?.toLocaleString() || 0}원 이상 필요
+						</div>
 					</div>
-					<div class="text-xs text-red-600">
-						보험 {gradeLimit?.insuranceAmount?.toLocaleString() || 0}원 이상 필요
-					</div>
+					{#if deadline}
+						<div class="text-xs text-red-600 text-right">
+							가입기한: <span class="font-semibold">{formatDeadlineDate(deadline)}</span> 까지
+						</div>
+					{/if}
 				</div>
 			{/each}
 		</div>

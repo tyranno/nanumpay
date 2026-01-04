@@ -286,6 +286,8 @@ export async function getRangePayments(startYear, startMonth, endYear, endMonth,
 					// ⭐ v8.0: 유/비 컬럼 표시용
 					ratio: user.ratio ?? 1,
 					insuranceActive: user.insuranceActive || false,
+					// ⭐ 승급일, 가입기한 계산용
+					gradeHistory: user.gradeHistory || [],
 					gradeInfo,
 				totalAmount: weeks.reduce((sum, week) => {
 						const payment = week.payments.find(p => p.userId === userId);
@@ -540,6 +542,8 @@ export async function getRangePaymentsByGrade(startYear, startMonth, endYear, en
 			no: (page - 1) * limit + idx + 1,
 			userId,
 			userName: user.name,
+			userAccountId: user.userAccountId?._id?.toString() || '',
+			accountName: userAccount.name || user.name,
 			planner: plannerAccount.name || '',
 			bank: userAccount.bank || '',
 			accountNumber: userAccount.accountNumber || '',
@@ -547,6 +551,8 @@ export async function getRangePaymentsByGrade(startYear, startMonth, endYear, en
 			// ⭐ v8.0: 유/비 컬럼 표시용
 			ratio: user.ratio ?? 1,
 			insuranceActive: user.insuranceActive || false,
+			// ⭐ 승급일, 가입기한 계산용
+			gradeHistory: user.gradeHistory || [],
 			gradeInfo,
 			weeks: weeks.map(week => {
 				const payment = week.payments.find(p => p.userId === userId);

@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs';
 import FileSaver from 'file-saver';
 import { getWeekOfMonthByFriday } from './fridayWeekCalculator.js';
+import { GRADE_LIMITS } from './constants.js';
 
 const { saveAs } = FileSaver;
 
@@ -43,7 +44,7 @@ export class PlannerPaymentExcelExporter {
 		// 컬럼 수 계산 (설계자 컬럼 제외)
 		const colsPerWeek = (this.showGradeInfoColumn ? 1 : 0) + 1 + (this.showTaxColumn ? 1 : 0) + (this.showNetColumn ? 1 : 0);
 		const periodTotalCols = this.filterType === 'period' ? (1 + (this.showTaxColumn ? 1 : 0) + (this.showNetColumn ? 1 : 0)) : 0;
-		const fixedCols = 4; // 순번, 성명, 은행, 계좌번호
+		const fixedCols = 7; // 순번, 유/비, 성명, 승급일, 가입기한, 은행, 계좌번호
 		const totalCols = fixedCols + periodTotalCols + allWeeks.length * colsPerWeek;
 
 		// 헤더 정보 생성
@@ -294,7 +295,7 @@ export class PlannerPaymentExcelExporter {
 	 */
 	addTableHeaders(worksheet, allWeeks, totalCols) {
 		// 헤더 1행 (주차 정보) - 설계자 컬럼 없음
-		const headerRow1Data = ['순번', '성명', '은행', '계좌번호'];
+		const headerRow1Data = ['순번', '유/비', '성명', '등록/승급일', '가입기한', '은행', '계좌번호'];
 		const colsPerWeek = (this.showGradeInfoColumn ? 1 : 0) + 1 + (this.showTaxColumn ? 1 : 0) + (this.showNetColumn ? 1 : 0);
 
 		// 기간 조회일 때만 기간 합계 컬럼 추가
@@ -323,7 +324,7 @@ export class PlannerPaymentExcelExporter {
 		}
 
 		// 헤더 2행 (세부 항목)
-		const headerRow2Data = ['', '', '', ''];
+		const headerRow2Data = ['', '', '', '', '', '', ''];
 
 		// 기간 조회일 때만 기간 합계 상세 항목 추가
 		if (this.filterType === 'period') {
@@ -352,7 +353,7 @@ export class PlannerPaymentExcelExporter {
 		const headerRow2 = worksheet.addRow(headerRow2Data);
 
 		// 헤더 2행 스타일
-		const fixedColCount = 4;
+		const fixedColCount = 7;
 		for (let i = fixedColCount + 1; i <= totalCols; i++) {
 			headerRow2.getCell(i).font = { bold: true };
 			headerRow2.getCell(i).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8E8E8' } };
@@ -404,12 +405,96 @@ export class PlannerPaymentExcelExporter {
 	}
 
 	/**
+	 * ⭐ 보험 필요 여부 체크 (비율값 포함)
+	 */
+	getInsuranceDisplay(user) {
+		const gradeLimit = GRADE_LIMITS[user.grade];
+		const isRequired = gradeLimit?.insuranceRequired || false;
+		const ratio = user.ratio ?? (isRequired ? (user.insuranceActive ? 1 : 0) : 1);
+		if (!isRequired) return `-, ${ratio}`;
+		return user.insuranceActive ? `유, ${ratio}` : `✕, ${ratio}`;
+	}
+
+	/**
+	 * ⭐ 최종 승급일 조회 (승급일 없으면 등록일 반환)
+	 */
+	getLastPromotionDate(user) {
+		if (!user.gradeHistory || user.gradeHistory.length === 0) {
+			return null;
+		}
+		// promotion 타입인 기록 중 가장 마지막 것
+		const promotions = user.gradeHistory.filter(h => h.type === 'promotion');
+		if (promotions.length > 0) {
+			const lastPromotion = promotions[promotions.length - 1];
+			return new Date(lastPromotion.date);
+		}
+		// 승급 기록이 없으면 등록일 반환
+		const registration = user.gradeHistory.find(h => h.type === 'registration');
+		if (registration) {
+			return new Date(registration.date);
+		}
+		return null;
+	}
+
+	/**
+	 * ⭐ 보험 유지 만료 날짜 계산 (승급 후 2달 첫 금요일)
+	 */
+	getInsuranceDeadline(user) {
+		const gradeLimit = GRADE_LIMITS[user.grade];
+		if (!gradeLimit?.insuranceRequired) return null;
+
+		if (!user.gradeHistory || user.gradeHistory.length === 0) {
+			return null;
+		}
+
+		const currentGrade = user.grade;
+		const promotionRecord = [...user.gradeHistory]
+			.reverse()
+			.find(h => h.toGrade === currentGrade && h.type === 'promotion');
+
+		let baseDate;
+		if (!promotionRecord) {
+			const registrationRecord = user.gradeHistory.find(h => h.type === 'registration');
+			if (!registrationRecord) return null;
+			baseDate = new Date(registrationRecord.date);
+		} else {
+			baseDate = new Date(promotionRecord.date);
+		}
+
+		const twoMonthsLater = new Date(baseDate);
+		twoMonthsLater.setMonth(twoMonthsLater.getMonth() + 2);
+
+		const dayOfWeek = twoMonthsLater.getDay();
+		const daysUntilFriday = (5 - dayOfWeek + 7) % 7;
+
+		const firstFriday = new Date(twoMonthsLater);
+		if (daysUntilFriday === 0 && twoMonthsLater.getDay() !== 5) {
+			firstFriday.setDate(firstFriday.getDate() + 7);
+		} else {
+			firstFriday.setDate(firstFriday.getDate() + daysUntilFriday);
+		}
+
+		return firstFriday;
+	}
+
+	/**
+	 * 날짜 포맷 (YYYY-MM-DD)
+	 */
+	formatDate(date) {
+		if (!date) return '-';
+		return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+	}
+
+	/**
 	 * ⭐ 소계 행 추가
 	 */
 	addSubtotalRow(worksheet, row, allWeeks) {
 		const rowData = [
 			'',
+			'-', // 유/비 (소계는 해당없음)
 			`${row.accountName} (${row.itemCount}건) 소계`,
+			'-', // 승급일 (소계는 해당없음)
+			'-', // 가입기한 (소계는 해당없음)
 			row.bank || '',
 			row.accountNumber || ''
 		];
@@ -443,7 +528,7 @@ export class PlannerPaymentExcelExporter {
 		});
 
 		const dataRow = worksheet.addRow(rowData);
-		
+
 		// ⭐ 소계 행 스타일 (황색 배경, 굵은 글씨)
 		const totalCols = dataRow.cellCount;
 		for (let i = 1; i <= totalCols; i++) {
@@ -452,9 +537,9 @@ export class PlannerPaymentExcelExporter {
 			dataRow.getCell(i).alignment = { vertical: 'middle', horizontal: 'center' };
 		}
 		// 성명 셀은 왼쪽 정렬
-		dataRow.getCell(2).alignment = { vertical: 'middle', horizontal: 'left' };
+		dataRow.getCell(3).alignment = { vertical: 'middle', horizontal: 'left' };
 		// 금액 컬럼은 오른쪽 정렬 및 숫자 포맷
-		for (let i = 5; i <= totalCols; i++) {
+		for (let i = 8; i <= totalCols; i++) {
 			dataRow.getCell(i).numFmt = '#,##0';
 			dataRow.getCell(i).alignment = { vertical: 'middle', horizontal: 'right' };
 		}
@@ -464,9 +549,15 @@ export class PlannerPaymentExcelExporter {
 	 * 일반 데이터 행 추가
 	 */
 	addNormalDataRow(worksheet, user, allWeeks) {
+		const promoDate = this.getLastPromotionDate(user);
+		const deadline = this.getInsuranceDeadline(user);
+
 		const rowData = [
 			user.no,
+			this.getInsuranceDisplay(user), // ⭐ 유/비 추가
 			user.name,
+			this.formatDate(promoDate), // ⭐ 승급일 추가
+			this.formatDate(deadline), // ⭐ 가입기한 추가
 			user.bank || '',
 			user.accountNumber || ''
 		];
@@ -520,7 +611,7 @@ export class PlannerPaymentExcelExporter {
 	 * 데이터 행 스타일 적용
 	 */
 	styleDataRow(dataRow, weekCount) {
-		let col = 5; // 5번째 컬럼부터 (순번, 성명, 은행, 계좌번호 다음)
+		let col = 8; // 8번째 컬럼부터 (순번, 유/비, 성명, 승급일, 가입기한, 은행, 계좌번호 다음)
 		
 		// 기간 합계 컬럼 스타일
 		if (this.filterType === 'period') {
@@ -589,8 +680,8 @@ export class PlannerPaymentExcelExporter {
 	 * 합계 행 추가
 	 */
 	addTotalRows(worksheet, allData, allWeeks, totalSummary, totalCols) {
-		const totalRowData = ['', '', '', '총금액'];
-		
+		const totalRowData = ['', '', '', '', '', '', '총금액'];
+
 		// 기간 합계 컬럼 추가
 		if (this.filterType === 'period') {
 			totalRowData.push(totalSummary.amount);
@@ -601,7 +692,7 @@ export class PlannerPaymentExcelExporter {
 				totalRowData.push(totalSummary.net);
 			}
 		}
-		
+
 		// 주차별 합계 추가
 		allWeeks.forEach(week => {
 			const total = this.calculateWeekTotal(allData, week);
@@ -618,7 +709,7 @@ export class PlannerPaymentExcelExporter {
 		});
 
 		const totalRow = worksheet.addRow(totalRowData);
-		const fixedColCount = 4;
+		const fixedColCount = 7;
 
 		// 총금액 행 스타일 (보라색 배경, 굵은 글씨)
 		for (let i = 1; i <= totalCols; i++) {
@@ -655,10 +746,13 @@ export class PlannerPaymentExcelExporter {
 	 */
 	setColumnWidths(worksheet, totalCols) {
 		worksheet.getColumn(1).width = 8;  // 순번
-		worksheet.getColumn(2).width = 14; // 성명
-		worksheet.getColumn(3).width = 12; // 은행
-		worksheet.getColumn(4).width = 18; // 계좌번호
-		for (let i = 5; i <= totalCols; i++) {
+		worksheet.getColumn(2).width = 6;  // 유/비
+		worksheet.getColumn(3).width = 14; // 성명
+		worksheet.getColumn(4).width = 12; // 승급일
+		worksheet.getColumn(5).width = 12; // 가입기한
+		worksheet.getColumn(6).width = 12; // 은행
+		worksheet.getColumn(7).width = 18; // 계좌번호
+		for (let i = 8; i <= totalCols; i++) {
 			worksheet.getColumn(i).width = 14;
 		}
 	}
