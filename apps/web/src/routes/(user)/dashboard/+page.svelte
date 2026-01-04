@@ -304,10 +304,12 @@
 		// ⭐ 미래 데이터 제한 (현재주 포함 4주까지만)
 		const maxFriday = getMaxFriday();
 
-		// ⭐ 날짜 파싱
-		const startDateObj = new Date(startDate);
+		// ⭐ 날짜 파싱 (로컬 시간 기준 - 타임존 문제 방지)
+		const [startY, startM, startD] = startDate.split('-').map(Number);
+		const [endY, endM, endD] = endDate.split('-').map(Number);
+		const startDateObj = new Date(startY, startM - 1, startD);
 		// ⭐ 종료일을 해당 주 금요일까지 확장 (검색용)
-		const endDateForSearch = getNextFriday(new Date(endDate));
+		const endDateForSearch = getNextFriday(new Date(endY, endM - 1, endD));
 		endDateForSearch.setHours(23, 59, 59, 999); // 종료일 끝까지 포함
 
 		// ⭐ v8.0: 개별 행 필터링 (날짜 기반)

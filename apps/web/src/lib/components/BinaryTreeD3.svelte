@@ -673,6 +673,11 @@
 										title="{n.data.grade} 등급"
 									/>
 								{/if}
+								{#if n.data.ratio != null}
+									<span class="ratio-badge" title="비율 {n.data.ratio}">
+										{n.data.ratio}
+									</span>
+								{/if}
 							</div>
 								<!-- 등록일/승급정보 표시 (데스크톱: hover, 모바일: tap) -->
 								{#if hoverPath === n.data.__path || (isTouchDevice && tappedNodePath === n.data.__path)}
@@ -830,5 +835,19 @@
 	.node-info-tooltip .info-row.promo {
 		color: #2563eb;
 		font-weight: 500;
+	}
+	/* ⭐ 비율 배지 스타일 - 등급 아이콘 아래 */
+	.ratio-badge {
+		position: absolute;
+		right: -18px;
+		top: 12px;
+		font-size: 0.7rem;
+		font-weight: 700;
+		color: #dc2626;
+		background: #fef2f2;
+		border: 1px solid #fecaca;
+		border-radius: 4px;
+		padding: 2px 4px;
+		line-height: 1;
 	}
 </style>

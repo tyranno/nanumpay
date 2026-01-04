@@ -28,6 +28,10 @@ export async function POST({ request, cookies }) {
 		} else if (userType === 'user') {
 			account = await UserAccount.findOne({ loginId: loginId.toLowerCase() });
 			accountType = 'user';
+			// ⭐ 로그인 제한 체크 (일반 로그인 실패와 동일하게 처리)
+			if (account?.loginRestriction?.isRestricted) {
+				return json({ message: '아이디 또는 비밀번호가 일치하지 않습니다.' }, { status: 401 });
+			}
 		} else if (userType === 'planner') {
 			account = await PlannerAccount.findOne({ name: loginId });  // PlannerAccount는 name 필드 사용
 			accountType = 'planner';
@@ -55,7 +59,10 @@ export async function POST({ request, cookies }) {
 			validAccounts.push({ account: adminAccount, type: 'admin' });
 		}
 		if (userAccount && await bcrypt.compare(password, userAccount.passwordHash)) {
-			validAccounts.push({ account: userAccount, type: 'user' });
+			// ⭐ 로그인 제한 체크 (제한된 계정은 목록에서 제외 → 정상 실패 처리)
+			if (!userAccount.loginRestriction?.isRestricted) {
+				validAccounts.push({ account: userAccount, type: 'user' });
+			}
 		}
 		if (plannerAccount && await bcrypt.compare(password, plannerAccount.passwordHash)) {
 			validAccounts.push({ account: plannerAccount, type: 'planner' });

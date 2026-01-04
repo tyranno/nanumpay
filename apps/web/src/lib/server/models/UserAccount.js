@@ -46,6 +46,42 @@ const userAccountSchema = new mongoose.Schema({
 		default: false,
 		comment: '산하정보 보기 권한 (관리자만 설정 가능)'
 	},
+	// ⭐ 로그인 제한 관리
+	loginRestriction: {
+		isRestricted: {
+			type: Boolean,
+			default: false,
+			comment: '로그인 제한 여부'
+		},
+		restrictedAt: {
+			type: Date,
+			default: null,
+			comment: '제한 시작 시점'
+		},
+		restrictedBy: {
+			type: String,
+			default: null,
+			comment: '제한 설정한 관리자'
+		},
+		reason: {
+			type: String,
+			default: null,
+			comment: '제한 사유'
+		},
+		history: [{
+			action: {
+				type: String,
+				enum: ['restrict', 'unrestrict'],
+				required: true
+			},
+			date: {
+				type: Date,
+				default: Date.now
+			},
+			by: String,
+			reason: String
+		}]
+	},
 	// 상태 관리
 	status: {
 		type: String,

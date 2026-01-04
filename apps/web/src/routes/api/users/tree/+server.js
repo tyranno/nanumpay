@@ -101,6 +101,7 @@ async function buildTree(rootUserId, maxDepth) {
 			id: user._id.toString(),
 			label: user.name,              // 노드에 표시할 이름
 			grade: user.grade || 'F1',     // 등급 뱃지 표시
+			ratio: user.ratio,             // ⭐ 비율 표시
 			level: user.level,             // 트리 레벨
 			createdAt: user.createdAt,     // 등록일 (툴팁용)
 			gradeHistory: user.gradeHistory // 승급정보 (툴팁용)

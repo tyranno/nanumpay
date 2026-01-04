@@ -65,6 +65,8 @@
 
 	onMount(async () => {
 		await loadAdminInfo();
+		// ⭐ 제한 목록 미리 로드
+		await loadRestrictedUsers();
 	});
 
 	async function loadAdminInfo() {
@@ -267,6 +269,14 @@
 	let isResetting = $state(false);
 	let customPassword = $state('');
 
+	// ⭐ 로그인 제한 관리 상태
+	let restrictionSearchId = $state('');
+	let restrictedUsers = $state([]);
+	let isLoadingRestrictions = $state(false);
+	let isRestricting = $state(false);
+	let restrictionReason = $state('');
+	let hasLoadedRestrictions = $state(false); // 목록 조회 여부
+
 	async function handleSearchUser() {
 		if (!userSearchId.trim()) {
 			errorMessage = '사용자 ID를 입력해주세요.';
@@ -341,6 +351,101 @@
 			errorMessage = err.message;
 		} finally {
 			isResetting = false;
+		}
+	}
+
+	// ⭐ 로그인 제한 목록 조회
+	async function loadRestrictedUsers() {
+		isLoadingRestrictions = true;
+		errorMessage = '';
+
+		try {
+			const response = await fetch('/api/admin/login-restriction');
+			const data = await response.json();
+
+			if (!response.ok) {
+				throw new Error(data.error || '제한 목록 조회 실패');
+			}
+
+			restrictedUsers = data.users || [];
+			hasLoadedRestrictions = true;
+		} catch (err) {
+			console.error('❌ Error loading restrictions:', err);
+			errorMessage = err.message;
+		} finally {
+			isLoadingRestrictions = false;
+		}
+	}
+
+	// ⭐ 로그인 제한 검색 및 제한/해제
+	async function handleSearchRestriction() {
+		if (!restrictionSearchId.trim()) {
+			errorMessage = '사용자 ID를 입력해주세요.';
+			return;
+		}
+
+		errorMessage = '';
+		successMessage = '';
+		isLoadingRestrictions = true;
+
+		try {
+			const response = await fetch(`/api/admin/login-restriction?search=${encodeURIComponent(restrictionSearchId.trim())}&showAll=true`);
+			const data = await response.json();
+
+			if (!response.ok) {
+				throw new Error(data.error || '검색 실패');
+			}
+
+			restrictedUsers = data.users || [];
+			hasLoadedRestrictions = true;
+		} catch (err) {
+			console.error('❌ Error searching restrictions:', err);
+			errorMessage = err.message;
+		} finally {
+			isLoadingRestrictions = false;
+		}
+	}
+
+	// ⭐ 로그인 제한/해제 처리
+	async function handleToggleRestriction(userId, currentlyRestricted) {
+		errorMessage = '';
+		successMessage = '';
+		isRestricting = true;
+
+		try {
+			const action = currentlyRestricted ? 'unrestrict' : 'restrict';
+			const response = await fetch('/api/admin/login-restriction', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					userId,
+					action,
+					reason: restrictionReason
+				})
+			});
+
+			const data = await response.json();
+
+			if (!response.ok) {
+				throw new Error(data.error || '처리 실패');
+			}
+
+			successMessage = data.message;
+			restrictionReason = '';
+
+			// 목록 새로고침
+			if (restrictionSearchId.trim()) {
+				await handleSearchRestriction();
+			} else {
+				await loadRestrictedUsers();
+			}
+
+			setTimeout(() => { successMessage = ''; }, 3000);
+		} catch (err) {
+			console.error('❌ Error toggling restriction:', err);
+			errorMessage = err.message;
+		} finally {
+			isRestricting = false;
 		}
 	}
 
@@ -462,6 +567,7 @@
 		</div>
 	{:else}
 		<!-- Tab Content -->
+		{#if activeTab === 'admin' || activeTab === 'password'}
 		<div class="rounded-lg border-2 border-blue-200 bg-white p-6 shadow-lg">
 			{#if activeTab === 'admin'}
 				<!-- 관리자 정보 탭 -->
@@ -616,83 +722,177 @@
 						</button>
 					</div>
 				</form>
-			{:else if activeTab === 'userManage'}
-				<!-- 사용자 관리 탭 -->
-				<div class="space-y-6">
-					<div>
-						<h3 class="mb-3 text-lg font-medium text-gray-900">사용자 암호 초기화</h3>
-						<p class="text-sm text-gray-600 mb-4">
-							사용자 ID를 검색하여 암호를 초기화합니다. 초기화된 암호는 전화번호 뒤 4자리입니다.
-						</p>
+			{/if}
+		</div>
+		{/if}
 
-						<!-- 검색 폼 -->
-						<div class="flex gap-2 mb-4">
+		<!-- 사용자 관리 탭 (별도 영역) -->
+		{#if activeTab === 'userManage'}
+			<!-- 카드 1: 암호 초기화 -->
+			<div class="rounded-lg border-2 border-blue-200 bg-white p-6 shadow-lg">
+				<h3 class="mb-3 text-lg font-medium text-gray-900">사용자 암호 초기화</h3>
+				<p class="text-sm text-gray-600 mb-4">
+					사용자 ID를 검색하여 암호를 초기화합니다.
+				</p>
+
+				<!-- 검색 폼 -->
+				<div class="flex gap-2 mb-4">
+					<input
+						type="text"
+						bind:value={userSearchId}
+						placeholder="사용자 ID 입력"
+						class="input flex-1"
+						onkeydown={(e) => e.key === 'Enter' && handleSearchUser()}
+					/>
+					<button
+						type="button"
+						class="btn-primary"
+						onclick={handleSearchUser}
+						disabled={isSearching}
+					>
+						{isSearching ? '검색 중...' : '검색'}
+					</button>
+				</div>
+
+				<!-- 검색 결과 -->
+				{#if foundUser}
+					<div class="rounded-lg border border-blue-200 bg-blue-50 p-4">
+						<h4 class="font-medium text-gray-900 mb-3">검색 결과</h4>
+						<div class="grid grid-cols-2 gap-3 text-sm mb-4">
+							<div>
+								<span class="text-gray-500">ID:</span>
+								<span class="ml-2 font-medium">{foundUser.loginId}</span>
+							</div>
+							<div>
+								<span class="text-gray-500">이름:</span>
+								<span class="ml-2 font-medium">{foundUser.name}</span>
+							</div>
+							<div>
+								<span class="text-gray-500">전화번호:</span>
+								<span class="ml-2 font-medium">{foundUser.phone || '없음'}</span>
+							</div>
+							<div>
+								<span class="text-gray-500">기본값:</span>
+								<span class="ml-2 font-medium text-gray-400">{foundUser.phone ? foundUser.phone.replace(/\D/g, '').slice(-4) : '없음'}</span>
+							</div>
+						</div>
+						<div class="mb-3">
+							<label class="label text-sm">초기화 암호</label>
 							<input
 								type="text"
-								bind:value={userSearchId}
-								placeholder="사용자 ID 입력"
-								class="input flex-1"
-								onkeydown={(e) => e.key === 'Enter' && handleSearchUser()}
+								bind:value={customPassword}
+								placeholder="새 암호 입력 (기본: 전화번호 뒤 4자리)"
+								class="input"
 							/>
-							<button
-								type="button"
-								class="btn-primary"
-								onclick={handleSearchUser}
-								disabled={isSearching}
-							>
-								{isSearching ? '검색 중...' : '검색'}
-							</button>
 						</div>
-
-						<!-- 검색 결과 -->
-						{#if foundUser}
-							<div class="rounded-lg border border-blue-200 bg-blue-50 p-4">
-								<h4 class="font-medium text-gray-900 mb-3">검색 결과</h4>
-								<div class="grid grid-cols-2 gap-3 text-sm mb-4">
-									<div>
-										<span class="text-gray-500">ID:</span>
-										<span class="ml-2 font-medium">{foundUser.loginId}</span>
-									</div>
-									<div>
-										<span class="text-gray-500">이름:</span>
-										<span class="ml-2 font-medium">{foundUser.name}</span>
-									</div>
-									<div>
-										<span class="text-gray-500">전화번호:</span>
-										<span class="ml-2 font-medium">{foundUser.phone || '없음'}</span>
-									</div>
-									<div>
-										<span class="text-gray-500">기본값:</span>
-										<span class="ml-2 font-medium text-gray-400">{foundUser.phone ? foundUser.phone.replace(/\D/g, '').slice(-4) : '없음'}</span>
-									</div>
-								</div>
-								<div class="mb-3">
-									<label class="label text-sm">초기화 암호</label>
-									<input
-										type="text"
-										bind:value={customPassword}
-										placeholder="새 암호 입력 (기본: 전화번호 뒤 4자리)"
-										class="input"
-									/>
-								</div>
-								<button
-									type="button"
-									class="w-full py-2 px-4 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded transition-colors disabled:bg-gray-400"
-									onclick={handleResetPassword}
-									disabled={isResetting || !customPassword.trim()}
-								>
-									{#if isResetting}
-										초기화 중...
-									{:else}
-										암호 초기화 (→ {customPassword || '입력 필요'})
-									{/if}
-								</button>
-							</div>
-						{/if}
+						<button
+							type="button"
+							class="w-full py-2 px-4 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded transition-colors disabled:bg-gray-400"
+							onclick={handleResetPassword}
+							disabled={isResetting || !customPassword.trim()}
+						>
+							{#if isResetting}
+								초기화 중...
+							{:else}
+								암호 초기화 (→ {customPassword || '입력 필요'})
+							{/if}
+						</button>
 					</div>
+				{/if}
+			</div>
+			<!-- 사용자 관리 탭 - 카드 2: 로그인 제한 관리 -->
+			<div class="mt-4 rounded-lg border-2 border-blue-200 bg-white p-6 shadow-lg">
+				<h3 class="mb-3 text-lg font-medium text-gray-900">로그인 제한 관리</h3>
+				<p class="text-sm text-gray-600 mb-4">
+					사용자 ID를 검색하여 로그인을 제한하거나 해제합니다.
+				</p>
+
+				<!-- 검색 폼 -->
+				<div class="flex gap-2 mb-4">
+					<input
+						type="text"
+						bind:value={restrictionSearchId}
+						placeholder="사용자 ID 입력"
+						class="input flex-1"
+						onkeydown={(e) => e.key === 'Enter' && handleSearchRestriction()}
+					/>
+					<button
+						type="button"
+						class="btn-primary"
+						onclick={handleSearchRestriction}
+						disabled={isLoadingRestrictions}
+					>
+						{isLoadingRestrictions ? '검색 중...' : '검색'}
+					</button>
 				</div>
-			{:else if activeTab === 'system'}
-				<!-- 시스템 설정 탭 -->
+
+				<!-- 제한 사유 입력 -->
+				<div class="mb-4">
+					<label class="label text-sm">제한 사유 (선택)</label>
+					<input
+						type="text"
+						bind:value={restrictionReason}
+						placeholder="제한 사유를 입력하세요"
+						class="input"
+					/>
+				</div>
+
+				<!-- 검색 결과 테이블 -->
+				{#if restrictedUsers.length > 0}
+					<div class="overflow-x-auto">
+						<table class="w-full text-sm border-collapse">
+							<thead>
+								<tr class="bg-gray-100 border-b">
+									<th class="px-3 py-2 text-left font-medium text-gray-700">ID</th>
+									<th class="px-3 py-2 text-left font-medium text-gray-700">상태</th>
+									<th class="px-3 py-2 text-left font-medium text-gray-700">제한일시</th>
+									<th class="px-3 py-2 text-left font-medium text-gray-700">사유</th>
+									<th class="px-3 py-2 text-center font-medium text-gray-700">작업</th>
+								</tr>
+							</thead>
+							<tbody>
+								{#each restrictedUsers as user}
+									<tr class="border-b hover:bg-gray-50">
+										<td class="px-3 py-2 font-mono">{user.loginId}</td>
+										<td class="px-3 py-2">
+											{#if user.isRestricted}
+												<span class="px-1.5 py-0.5 text-xs font-medium bg-red-100 text-red-700 rounded">제한</span>
+											{:else}
+												<span class="px-1.5 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded">정상</span>
+											{/if}
+										</td>
+										<td class="px-3 py-2 text-gray-500">
+											{user.restrictedAt ? new Date(user.restrictedAt).toLocaleString('ko-KR') : '-'}
+										</td>
+										<td class="px-3 py-2 text-gray-500">{user.reason || '-'}</td>
+										<td class="px-3 py-2 text-center">
+											<button
+												type="button"
+												class="px-2 py-1 text-xs font-medium rounded transition-colors {user.isRestricted
+													? 'bg-green-500 hover:bg-green-600 text-white'
+													: 'bg-red-500 hover:bg-red-600 text-white'}"
+												onclick={() => handleToggleRestriction(user.id, user.isRestricted)}
+												disabled={isRestricting}
+											>
+												{user.isRestricted ? '해제' : '제한'}
+											</button>
+										</td>
+									</tr>
+								{/each}
+							</tbody>
+						</table>
+					</div>
+				{:else if hasLoadedRestrictions && !isLoadingRestrictions}
+					<p class="text-sm text-gray-500 py-4 text-center">
+						{restrictionSearchId.trim() ? '검색 결과가 없습니다.' : '제한된 사용자가 없습니다.'}
+					</p>
+				{/if}
+			</div>
+		{/if}
+
+		<!-- 시스템 설정 탭 -->
+		{#if activeTab === 'system'}
+			<div class="rounded-lg border-2 border-blue-200 bg-white p-6 shadow-lg">
 				<div class="space-y-4">
 					<!-- 버전 정보 -->
 					<div class="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-3">
@@ -962,8 +1162,8 @@
 						</button>
 					</div>
 				</div>
-			{/if}
-		</div>
+			</div>
+		{/if}
 	{/if}
 </div>
 
