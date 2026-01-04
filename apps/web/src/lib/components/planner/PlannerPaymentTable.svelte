@@ -126,9 +126,8 @@
 		return subtotal;
 	}
 
-	// Sticky 컬럼 위치 계산 (설계자 컬럼 없음): 순번(60) + 유/비(55) + 성명(120) = 235
-	$: bankLeft = 235; // 순번(60) + 유/비(55) + 성명(120) = 235
-	$: accountLeft = 235 + (showBankColumn ? 100 : 0);
+	// Sticky 컬럼: 순번(60) + 유/비(55) + 성명(120) = 235px까지 고정
+	// 등록/승급일, 가입기한, 은행, 계좌번호는 스크롤됨
 
 	// ⭐ 유지 상태 및 비율 계산
 	function getInsuranceInfo(user) {
@@ -284,10 +283,10 @@
 						<th rowspan="2" class="th-base">등록/승급일</th>
 						<th rowspan="2" class="th-base">가입기한</th>
 						{#if showBankColumn}
-							<th rowspan="2" class="th-base th-sticky-3" style="left: {bankLeft}px;">은행</th>
+							<th rowspan="2" class="th-base">은행</th>
 						{/if}
 						{#if showAccountColumn}
-							<th rowspan="2" class="th-base th-sticky-4" style="left: {accountLeft}px;">계좌번호</th>
+							<th rowspan="2" class="th-base">계좌번호</th>
 						{/if}
 						{#if filterType === 'period'}
 							<th colspan={1 + (showTaxColumn ? 1 : 0) + (showNetColumn ? 1 : 0)} class="th-total">기간 합계</th>
@@ -336,10 +335,10 @@
 									<td class="subtotal-cell">-</td>
 									<td class="subtotal-cell">-</td>
 									{#if showBankColumn}
-										<td class="td-sticky-3 subtotal-cell" style="left: {bankLeft}px;">{row.bank || ''}</td>
+										<td class="subtotal-cell">{row.bank || ''}</td>
 									{/if}
 									{#if showAccountColumn}
-										<td class="td-sticky-4 subtotal-cell" style="left: {accountLeft}px;">{row.accountNumber || ''}</td>
+										<td class="subtotal-cell">{row.accountNumber || ''}</td>
 									{/if}
 									<!-- 기간 합계 -->
 									{#if filterType === 'period'}
@@ -409,10 +408,10 @@
 									<td class="td-base">{formatDate(promoDate)}</td>
 									<td class="td-base" class:text-red-600={isOverdue}>{formatDate(deadline)}</td>
 									{#if showBankColumn}
-										<td class="td-sticky-3" style="left: {bankLeft}px;">{row.bank}</td>
+										<td class="td-base">{row.bank}</td>
 									{/if}
 									{#if showAccountColumn}
-										<td class="td-sticky-4" style="left: {accountLeft}px;">{row.accountNumber}</td>
+										<td class="td-base">{row.accountNumber}</td>
 									{/if}
 									<!-- 기간 합계 (기간 선택일 때만) -->
 									{#if filterType === 'period'}
@@ -603,14 +602,6 @@
 		@apply sticky left-[115px] z-[18] min-w-[120px];
 	}
 
-	.th-sticky-3 {
-		@apply sticky left-[235px] z-[17] min-w-[100px];
-	}
-
-	.th-sticky-4 {
-		@apply sticky left-[335px] z-[16] min-w-[150px];
-	}
-
 	/* 데이터 행 */
 	.data-row:hover td {
 		@apply bg-black/[0.02];
@@ -653,30 +644,6 @@
 	.data-row:hover .td-sticky-1 {
 		background-color: #fafafa !important;
 		z-index: 8 !important;
-	}
-
-	.td-sticky-3 {
-		@apply sticky left-[235px] bg-white;
-		@apply border-b border-r border-gray-300;
-		@apply whitespace-nowrap p-1.5 text-center text-sm;
-		z-index: 7 !important;
-	}
-
-	.data-row:hover .td-sticky-3 {
-		background-color: #fafafa !important;
-		z-index: 7 !important;
-	}
-
-	.td-sticky-4 {
-		@apply sticky left-[335px] bg-white;
-		@apply border-b border-r border-gray-300;
-		@apply whitespace-nowrap p-1.5 text-center text-sm;
-		z-index: 6 !important;
-	}
-
-	.data-row:hover .td-sticky-4 {
-		background-color: #fafafa !important;
-		z-index: 6 !important;
 	}
 
 	/* ⭐ 보험 유/비 관련 스타일 */
@@ -831,9 +798,12 @@
 	}
 
 	.grand-total-label {
-		@apply sticky left-0 z-10 bg-purple-200;
+		@apply bg-purple-200;
 		@apply border-b border-l border-r border-gray-300;
 		@apply whitespace-nowrap p-1.5 text-center text-sm font-bold;
+		position: sticky;
+		left: 0;
+		z-index: 10;
 	}
 
 	.grand-total-value {
@@ -849,13 +819,10 @@
 	@media (max-width: 768px) {
 		.th-sticky-0,
 		.th-sticky-1,
-		.th-sticky-3,
-		.th-sticky-4,
+		.th-sticky-ins,
 		.td-sticky-0,
 		.td-sticky-1,
-		.td-sticky-3,
-		.td-sticky-4,
-		.grand-total-label {
+		.td-sticky-ins {
 			position: static !important;
 			left: auto !important;
 		}
