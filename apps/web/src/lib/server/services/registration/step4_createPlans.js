@@ -226,65 +226,68 @@ export async function executeStep4(promoted, targets, gradePayments, monthlyReg,
         continue;
       }
 
-      // ⭐ v8.0 FIX: 이번 달 승급 기록 조회 (gradeHistory 기반) - 마지막 승급 기록 사용!
-      // ⭐ v9.1 FIX: 중간 단계 기록으로 인해 여러 개가 있을 수 있으므로 마지막 것 사용
+      // ⭐ v9.3 FIX: 이번 달 승급 기록 조회 - 모든 승급 기록 처리 (gradeHistory 활용)
       const promotionHistories = user.gradeHistory?.filter(h =>
         h.type === 'promotion' && h.revenueMonth === registrationMonth
       ) || [];
-      const promotionHistory = promotionHistories[promotionHistories.length - 1];
 
-      if (!promotionHistory) {
+      if (promotionHistories.length === 0) {
         console.log(`[기존 승급자] ${user.name}: ${registrationMonth} 승급 기록 없음 → 스킵`);
         continue;
       }
 
-      const prom = {
-        userId: user._id.toString(),
-        userName: user.name,
-        grade: promotionHistory.toGrade,
-        oldGrade: promotionHistory.fromGrade
-      };
+      console.log(`[기존 승급자] ${user.name}: 승급 ${promotionHistories.length}건 - ${promotionHistories.map(h => `${h.fromGrade}→${h.toGrade}`).join(', ')}`);
 
-      // ⭐ v8.0: 이미 해당 등급+월의 promotion 계획이 있으면 스킵 (중복 방지)
-      const existingPlan = await WeeklyPaymentPlans.findOne({
-        userId: prom.userId,
-        baseGrade: prom.grade,
-        revenueMonth: registrationMonth,
-        planType: 'promotion'
-      });
-      if (existingPlan) {
-        console.log(`[기존 승급자] ${prom.userName}: ${prom.grade} promotion 계획 이미 존재 (${registrationMonth}) → 스킵`);
-        continue;
-      }
+      // ⭐ v9.3: 모든 승급 기록에 대해 Promotion 계획 생성
+      for (const promotionHistory of promotionHistories) {
+        const prom = {
+          userId: user._id.toString(),
+          userName: user.name,
+          grade: promotionHistory.toGrade,
+          oldGrade: promotionHistory.fromGrade
+        };
 
-      // ⭐ v8.0: 승급일 = gradeHistory.date 사용 (정확한 승급일)
-      const promotionDate = promotionHistory.date || user.lastGradeChangeDate || new Date();
-
-      console.log(`[기존 승급자] ${prom.userName}: ${prom.oldGrade}→${prom.grade} (승급일: ${promotionDate.toISOString().split('T')[0]})`);
-
-      // ⭐ v8.0: 새 플랜 생성
-      const promotionPlan = await createPromotionPaymentPlan(
-        prom.userId,
-        prom.userName,
-        prom.grade,
-        promotionDate,
-        monthlyReg
-      );
-
-      // ⭐ v8.0: 새 플랜의 첫 지급일 기준으로 기존 플랜 terminate
-      const newPlanFirstPayment = promotionPlan.installments[0]?.scheduledDate;
-      if (newPlanFirstPayment) {
-        const terminatedCount = await terminateActivePlansFromDate(prom.userId, newPlanFirstPayment, promotionPlan._id, registrationMonth);
-        if (terminatedCount > 0) {
-          console.log(`[Step4] ${prom.userName}: ${terminatedCount}개 기존 플랜 종료 (기준일: ${newPlanFirstPayment.toISOString().split('T')[0]})`);
+        // ⭐ v8.0: 이미 해당 등급+월의 promotion 계획이 있으면 스킵 (중복 방지)
+        const existingPlan = await WeeklyPaymentPlans.findOne({
+          userId: prom.userId,
+          baseGrade: prom.grade,
+          revenueMonth: registrationMonth,
+          planType: 'promotion'
+        });
+        if (existingPlan) {
+          console.log(`[기존 승급자] ${prom.userName}: ${prom.grade} promotion 계획 이미 존재 (${registrationMonth}) → 스킵`);
+          continue;
         }
+
+        // ⭐ v8.0: 승급일 = gradeHistory.date 사용 (정확한 승급일)
+        const promotionDate = promotionHistory.date || user.lastGradeChangeDate || new Date();
+
+        console.log(`[기존 승급자] ${prom.userName}: ${prom.oldGrade}→${prom.grade} (승급일: ${promotionDate.toISOString().split('T')[0]})`);
+
+        // ⭐ v8.0: 새 플랜 생성
+        const promotionPlan = await createPromotionPaymentPlan(
+          prom.userId,
+          prom.userName,
+          prom.grade,
+          promotionDate,
+          monthlyReg
+        );
+
+        // ⭐ v8.0: 새 플랜의 첫 지급일 기준으로 기존 플랜 terminate
+        const newPlanFirstPayment = promotionPlan.installments[0]?.scheduledDate;
+        if (newPlanFirstPayment) {
+          const terminatedCount = await terminateActivePlansFromDate(prom.userId, newPlanFirstPayment, promotionPlan._id, registrationMonth);
+          if (terminatedCount > 0) {
+            console.log(`[Step4] ${prom.userName}: ${terminatedCount}개 기존 플랜 종료 (기준일: ${newPlanFirstPayment.toISOString().split('T')[0]})`);
+          }
+        }
+        promotionPlans.push({
+          userId: prom.userId,
+          type: 'promotion',
+          grade: prom.grade,
+          plan: promotionPlan._id
+        });
       }
-      promotionPlans.push({
-        userId: prom.userId,
-        type: 'promotion',
-        grade: prom.grade,
-        plan: promotionPlan._id
-      })
     }
   } else {
     console.log(`[Step4] 4-2 기존 승급자 없음`);
